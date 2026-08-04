@@ -6,4 +6,5 @@ pub(crate) mod enforce_struct_impl_colocation;
 pub(crate) mod enforce_struct_impl_definition_order;
 pub(crate) mod enforce_inherent_impl_item_order;
 pub(crate) mod enforce_module_declaration_order;
+pub(crate) mod enforce_no_redundant_function_wrappers;
 pub(crate) mod enforce_type_dependency_order;
