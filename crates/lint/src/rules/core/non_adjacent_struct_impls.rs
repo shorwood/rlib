@@ -11,12 +11,13 @@ use rustc_span::{Span, Symbol};
 
 use crate::utils::direct_impl_struct::direct_impl_struct;
 
-// Collected model
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// ImplGroup: Collected implementation groups
+// -----------------------------------------------------------------------------
 
 /// An item paired with its position after uneditable external macro output has been removed.
 #[derive(Clone, Copy)]
-struct IndexedItem<'hir> {
+struct ImplGroupIndexedItem<'hir> {
     index: usize,
     item: &'hir Item<'hir>,
 }
@@ -26,7 +27,7 @@ struct ImplGroup<'hir> {
     struct_index: usize,
     struct_item: &'hir Item<'hir>,
     struct_name: Symbol,
-    impls: Vec<IndexedItem<'hir>>,
+    impls: Vec<ImplGroupIndexedItem<'hir>>,
 }
 
 impl ImplGroup<'_> {
@@ -42,7 +43,7 @@ impl ImplGroup<'_> {
     }
 
     /// Returns the first impl that is not in its required position.
-    fn first_misplaced(&self) -> IndexedItem<'_> {
+    fn first_misplaced(&self) -> ImplGroupIndexedItem<'_> {
         self.impls
             .iter()
             .enumerate()
@@ -53,8 +54,9 @@ impl ImplGroup<'_> {
     }
 }
 
-// Conservative automatic migration
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Migration: Conservative automatic migration
+// -----------------------------------------------------------------------------
 
 /// Builds a source move for an entire impl group when comments, macros, and file boundaries are
 /// known not to change its meaning.
@@ -168,8 +170,9 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
     }
 }
 
-// Lint pass
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// NonAdjacentStructImpls: Lint pass
+// -----------------------------------------------------------------------------
 
 struct NonAdjacentStructImpls;
 
@@ -241,13 +244,13 @@ impl NonAdjacentStructImpls {
         cx: &LateContext<'tcx>,
         items: &[&'tcx Item<'tcx>],
     ) -> Vec<ImplGroup<'tcx>> {
-        let mut impls_by_struct = HashMap::<LocalDefId, Vec<IndexedItem<'tcx>>>::new();
+        let mut impls_by_struct = HashMap::<LocalDefId, Vec<ImplGroupIndexedItem<'tcx>>>::new();
         for (index, item) in items.iter().enumerate() {
             if let Some(struct_def_id) = direct_impl_struct(cx, item) {
                 impls_by_struct
                     .entry(struct_def_id)
                     .or_default()
-                    .push(IndexedItem { index, item });
+                    .push(ImplGroupIndexedItem { index, item });
             }
         }
 

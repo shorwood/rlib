@@ -16,8 +16,9 @@ use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol, sym};
 
-// Collected model
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// RedundantWrapper: Forwarding wrapper model
+// -----------------------------------------------------------------------------
 
 /// A function whose body only forwards its parameters to another local function.
 struct RedundantWrapper {
@@ -314,8 +315,9 @@ impl RedundantWrapper {
     }
 }
 
-// Lint pass
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// NeedlessFunctionWrappers: Lint pass
+// -----------------------------------------------------------------------------
 
 struct NeedlessFunctionWrappers;
 

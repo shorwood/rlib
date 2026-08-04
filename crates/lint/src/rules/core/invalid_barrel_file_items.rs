@@ -7,8 +7,9 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::symbol::kw;
 
-// Item classification
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// Violation: Invalid barrel item classification
+// -----------------------------------------------------------------------------
 
 /// The four useful explanations for code that does not belong in a barrel file.
 #[derive(Clone, Copy)]
@@ -81,8 +82,9 @@ impl Violation {
     }
 }
 
-// Lint state
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// InvalidBarrelFileItems: Lint state
+// -----------------------------------------------------------------------------
 
 /// Enforces the barrel-file boundary while remembering when traversal is inside an inline module.
 ///

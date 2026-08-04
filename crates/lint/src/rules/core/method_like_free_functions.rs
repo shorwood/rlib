@@ -18,14 +18,18 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
 use rustc_span::{Pos, Span, Symbol};
 
+// -----------------------------------------------------------------------------
+// Candidate: Candidate discovery and collected state
+// -----------------------------------------------------------------------------
+
 /// The form of `self` that preserves how the first parameter is passed.
 #[derive(Clone, Copy)]
-enum ReceiverKind {
+enum CandidateReceiverKind {
     Value,
     Ref(Mutability),
 }
 
-impl ReceiverKind {
+impl CandidateReceiverKind {
     /// Describes the receiver form in the help shown to the user.
     ///
     /// For example, `item: Item`, `item: &Item`, and `item: &mut Item` become `self`, `&self`, and
@@ -39,9 +43,6 @@ impl ReceiverKind {
     }
 }
 
-// Collected model
-// -----------------------------------------------------------------------------
-
 /// A free function that belongs on a struct according to the rule.
 struct Candidate {
     def_id: LocalDefId,
@@ -54,15 +55,11 @@ struct Candidate {
     impl_generics_span: Option<Span>,
     binding_id: Option<HirId>,
     binding_name: Option<Symbol>,
-    receiver_kind: ReceiverKind,
+    receiver_kind: CandidateReceiverKind,
     struct_def_id: LocalDefId,
     struct_name: Symbol,
     is_suggestible: bool,
 }
-
-// -----------------------------------------------------------------------------
-// Candidate discovery
-// -----------------------------------------------------------------------------
 
 impl Candidate {
     /// Turns a free function into a candidate when its first parameter is a same-module struct.
@@ -159,13 +156,13 @@ impl Candidate {
     fn semantic_receiver(
         cx: &LateContext<'_>,
         function_def_id: LocalDefId,
-    ) -> Option<(ReceiverKind, LocalDefId)> {
+    ) -> Option<(CandidateReceiverKind, LocalDefId)> {
         // Semantic types make transparent aliases behave like the struct they name.
         let signature = cx.tcx.fn_sig(function_def_id).instantiate_identity();
         let first_type = *signature.inputs().skip_binder().first()?;
         let (kind, receiver_type) = match first_type.kind() {
-            ty::Adt(..) => (ReceiverKind::Value, first_type),
-            ty::Ref(_, inner, mutability) => (ReceiverKind::Ref(*mutability), *inner),
+            ty::Adt(..) => (CandidateReceiverKind::Value, first_type),
+            ty::Ref(_, inner, mutability) => (CandidateReceiverKind::Ref(*mutability), *inner),
             _ => return None,
         };
 
@@ -236,15 +233,15 @@ impl Candidate {
     fn direct_receiver_type(
         cx: &LateContext<'_>,
         declared_type: &HirTy<'_>,
-        receiver_kind: ReceiverKind,
+        receiver_kind: CandidateReceiverKind,
         struct_def_id: LocalDefId,
     ) -> (Span, bool) {
         let receiver_type = match (receiver_kind, declared_type.kind) {
-            (ReceiverKind::Value, _) => declared_type,
-            (ReceiverKind::Ref(_), TyKind::Ref(_, mut_ty)) => mut_ty.ty,
+            (CandidateReceiverKind::Value, _) => declared_type,
+            (CandidateReceiverKind::Ref(_), TyKind::Ref(_, mut_ty)) => mut_ty.ty,
             // An alias can hide a reference and its lifetime contract. It remains lintable, but
             // spelling a receiver from that alias would require the fixer to invent syntax.
-            (ReceiverKind::Ref(_), _) => return (declared_type.span, false),
+            (CandidateReceiverKind::Ref(_), _) => return (declared_type.span, false),
         };
         let is_direct_struct = matches!(
             receiver_type.kind,
@@ -362,18 +359,20 @@ impl Candidate {
 
 /// One place where the first parameter's name is used inside the function body.
 #[derive(Clone, Copy)]
-struct BindingUse {
+struct CandidateBindingUse {
     span: Span,
     shorthand_field: Option<Symbol>,
 }
 
 // -----------------------------------------------------------------------------
+// MethodLikeFreeFunctions: Lint pass and diagnostics
+// -----------------------------------------------------------------------------
 
 /// A group of replacements made inside one larger source range.
 #[derive(Default)]
-struct SourceEdits(Vec<(Span, String)>);
+struct MethodLikeFreeFunctionsSourceEdits(Vec<(Span, String)>);
 
-impl SourceEdits {
+impl MethodLikeFreeFunctionsSourceEdits {
     /// Adds one source replacement to the group.
     fn push(&mut self, span: Span, replacement: String) {
         self.0.push((span, replacement));
@@ -400,7 +399,7 @@ impl SourceEdits {
 #[derive(Default)]
 struct MethodLikeFreeFunctions {
     candidates: Vec<Candidate>,
-    binding_uses: HashMap<HirId, Vec<BindingUse>>,
+    binding_uses: HashMap<HirId, Vec<CandidateBindingUse>>,
     function_uses: HashMap<LocalDefId, Vec<Span>>,
     imported_functions: HashSet<LocalDefId>,
 }
@@ -438,9 +437,6 @@ dylint_linting::impl_late_lint! {
     "enforces inherent methods for functions that operate on a same-module struct",
     MethodLikeFreeFunctions::default()
 }
-
-// Compiler traversal
-// -------------------------------------------------------------------------------------------------
 
 impl LateLintPass<'_> for MethodLikeFreeFunctions {
     /// Looks at each top-level item and remembers functions that may belong on a struct.
@@ -486,7 +482,7 @@ impl LateLintPass<'_> for MethodLikeFreeFunctions {
                 self.binding_uses
                     .entry(binding_id)
                     .or_default()
-                    .push(BindingUse {
+                    .push(CandidateBindingUse {
                         span: expr.span,
                         shorthand_field,
                     });
@@ -529,10 +525,6 @@ impl MethodLikeFreeFunctions {
     }
 }
 
-// -----------------------------------------------------------------------------
-// Diagnostics
-// -----------------------------------------------------------------------------
-
 impl MethodLikeFreeFunctions {
     /// Emits the warning and includes a complete migration only when every edit is known to be safe.
     ///
@@ -541,7 +533,7 @@ impl MethodLikeFreeFunctions {
     fn emit_candidate(&self, cx: &LateContext<'_>, candidate: &Candidate) {
         let has_collision = candidate.has_method_collision(cx);
         let migration = (!has_collision)
-            .then(|| MigrationBuilder::new(self, cx, candidate).build())
+            .then(|| MethodLikeFreeFunctionsMigrationBuilder::new(self, cx, candidate).build())
             .flatten();
 
         cx.tcx.emit_node_span_lint(
@@ -577,21 +569,16 @@ impl MethodLikeFreeFunctions {
     }
 }
 
-// -----------------------------------------------------------------------------
-
-// Automatic migration
-// -----------------------------------------------------------------------------
-
 /// Builds all edits needed to move one free function without leaving broken references behind.
-struct MigrationBuilder<'rule, 'cx, 'tcx> {
+struct MethodLikeFreeFunctionsMigrationBuilder<'rule, 'cx, 'tcx> {
     rule: &'rule MethodLikeFreeFunctions,
     cx: &'cx LateContext<'tcx>,
     candidate: &'rule Candidate,
-    internal_edits: SourceEdits,
+    internal_edits: MethodLikeFreeFunctionsSourceEdits,
     external_edits: Vec<(Span, String)>,
 }
 
-impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
+impl<'rule, 'cx, 'tcx> MethodLikeFreeFunctionsMigrationBuilder<'rule, 'cx, 'tcx> {
     /// Starts an empty migration for one candidate.
     fn new(
         rule: &'rule MethodLikeFreeFunctions,
@@ -602,7 +589,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
             rule,
             cx,
             candidate,
-            internal_edits: SourceEdits::default(),
+            internal_edits: MethodLikeFreeFunctionsSourceEdits::default(),
             external_edits: Vec::new(),
         }
     }
@@ -662,16 +649,16 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
 
         // `mut binding: &T` permits reassigning the reference itself. `&mut self` only permits
         // mutating the referent, so that spelling cannot be migrated without semantic analysis.
-        if matches!(self.candidate.receiver_kind, ReceiverKind::Ref(_))
+        if matches!(self.candidate.receiver_kind, CandidateReceiverKind::Ref(_))
             && pattern.starts_with("mut ")
         {
             return None;
         }
 
         let receiver = match self.candidate.receiver_kind {
-            ReceiverKind::Value if pattern.starts_with("mut ") => "mut self".to_owned(),
-            ReceiverKind::Value => "self".to_owned(),
-            ReceiverKind::Ref(_) => {
+            CandidateReceiverKind::Value if pattern.starts_with("mut ") => "mut self".to_owned(),
+            CandidateReceiverKind::Value => "self".to_owned(),
+            CandidateReceiverKind::Ref(_) => {
                 let inner = self.snippet(self.candidate.receiver_type_span)?;
                 let offset = parameter.rfind(&inner)?;
                 format!(

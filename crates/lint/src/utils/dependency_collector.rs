@@ -7,6 +7,10 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{BodyId, intravisit};
 use rustc_middle::ty::TyCtxt;
 
+// -----------------------------------------------------------------------------
+// DependencyCollector
+// -----------------------------------------------------------------------------
+
 pub(super) struct DependencyCollector<'tcx> {
     tcx: TyCtxt<'tcx>,
     definitions: HashSet<LocalDefId>,

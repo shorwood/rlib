@@ -1,0 +1,47 @@
+warning: section divider prefix is not PascalCase
+  --> $DIR/semantic.rs:4:1
+   |
+LL | / // -----------------------------------------------------------------------------
+LL | | // request
+LL | | // -----------------------------------------------------------------------------
+   | |________________________________________________________________________________^
+   |
+   = help: use `PascalCasePrefix` or `PascalCasePrefix: Sentence case description`
+note: the lint level is defined here
+  --> $DIR/semantic.rs:2:9
+   |
+LL | #![warn(malformed_section_dividers)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: section divider description is empty
+  --> $DIR/semantic.rs:10:1
+   |
+LL | / // -----------------------------------------------------------------------------
+LL | | // Empty:
+LL | | // -----------------------------------------------------------------------------
+   | |________________________________________________________________________________^
+   |
+   = help: use `PascalCasePrefix` or `PascalCasePrefix: Sentence case description`
+
+warning: section divider exceeds the configured 80-character line limit
+  --> $DIR/semantic.rs:16:1
+   |
+LL | / // -----------------------------------------------------------------------------
+LL | | // LongDescription: This description is deliberately much too long for the configured maximum line length
+LL | | // -----------------------------------------------------------------------------
+   | |________________________________________________________________________________^
+   |
+   = help: shorten the optional description or choose a more compact template
+
+warning: section divider does not contain any type-family declarations
+  --> $DIR/semantic.rs:22:1
+   |
+LL | / // -----------------------------------------------------------------------------
+LL | | // Vacant
+LL | | // -----------------------------------------------------------------------------
+   | |________________________________________________________________________________^
+   |
+   = help: remove this divider or place it before the declarations it describes
+
+warning: 4 warnings emitted
+

@@ -1,0 +1,27 @@
+warning: section prefix `Req` does not match its declaration family
+  --> $DIR/semantic.rs:4:1
+   |
+LL | / // -----------------------------------------------------------------------------
+LL | | // Req
+LL | | // -----------------------------------------------------------------------------
+   | |________________________________________________________________________________^
+   |
+   = help: rename the declarations into one coherent family first; their longest shared PascalCase prefix is `Request`, and a new section is appropriate only for an independent concept
+note: the lint level is defined here
+  --> $DIR/semantic.rs:2:9
+   |
+LL | #![warn(mismatched_section_divider_prefixes)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: section `Payload` contains declarations without a shared PascalCase prefix
+  --> $DIR/semantic.rs:11:1
+   |
+LL | / // -----------------------------------------------------------------------------
+LL | | // Payload
+LL | | // -----------------------------------------------------------------------------
+   | |________________________________________________________________________________^
+   |
+   = help: reconsider the names `Payload`, `Response` so closely related declarations share a visible prefix; split the section only when they represent independent concepts
+
+warning: 2 warnings emitted
+

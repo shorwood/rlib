@@ -8,8 +8,9 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 
 use crate::utils::direct_impl_struct::direct_impl_struct;
 
-// Collected model
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// ImplPlacement: Cross-file placement model
+// -----------------------------------------------------------------------------
 
 /// One direct struct impl whose physical source can be compared with its struct definition.
 struct ImplPlacement<'hir> {
@@ -77,8 +78,9 @@ impl<'hir> ImplPlacement<'hir> {
     }
 }
 
-// Lint pass
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// CrossFileStructImpls: Lint pass
+// -----------------------------------------------------------------------------
 
 struct CrossFileStructImpls;
 

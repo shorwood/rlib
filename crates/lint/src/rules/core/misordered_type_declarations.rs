@@ -9,6 +9,10 @@ use crate::utils::declaration_node::{DeclarationNode, DeclarationNodeList};
 use crate::utils::item_dependencies::item_dependencies;
 use crate::utils::reorder_declarations::reorder_declarations;
 
+// -----------------------------------------------------------------------------
+// MisorderedTypeDeclarations
+// -----------------------------------------------------------------------------
+
 struct MisorderedTypeDeclarations;
 
 dylint_linting::impl_late_lint! {

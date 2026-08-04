@@ -1,10 +1,14 @@
 pub(crate) mod bool_fields_without_predicate_prefix;
 pub(crate) mod collection_method_like_free_functions;
 pub(crate) mod cross_file_struct_impls;
+pub(crate) mod duplicate_section_divider_prefixes;
 pub(crate) mod invalid_barrel_file_items;
+pub(crate) mod malformed_section_dividers;
 pub(crate) mod method_like_free_functions;
 pub(crate) mod misordered_inherent_impl_items;
 pub(crate) mod misordered_module_declarations;
 pub(crate) mod misordered_type_declarations;
+pub(crate) mod mismatched_section_divider_prefixes;
+pub(crate) mod missing_section_dividers;
 pub(crate) mod needless_function_wrappers;
 pub(crate) mod non_adjacent_struct_impls;

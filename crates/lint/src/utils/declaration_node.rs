@@ -9,6 +9,10 @@ use std::{
 use rustc_hir::def_id::LocalDefId;
 use rustc_span::Span;
 
+// -----------------------------------------------------------------------------
+// DeclarationNode: Dependency graph declarations
+// -----------------------------------------------------------------------------
+
 /// A movable declaration or an inseparable declaration group.
 pub(crate) struct DeclarationNode {
     pub(crate) defs: Vec<LocalDefId>,
@@ -19,12 +23,8 @@ pub(crate) struct DeclarationNode {
     pub(crate) dependencies: HashSet<LocalDefId>,
 }
 
-// -----------------------------------------------------------------------------
-// Tarjan
-// -----------------------------------------------------------------------------
-
 /// Finds strongly connected components in a declaration dependency graph.
-struct Tarjan<'graph> {
+struct DeclarationNodeTarjan<'graph> {
     edges: &'graph [HashSet<usize>],
     next_index: usize,
     indices: Vec<Option<usize>>,
@@ -34,7 +34,7 @@ struct Tarjan<'graph> {
     components: Vec<Vec<usize>>,
 }
 
-impl<'graph> Tarjan<'graph> {
+impl<'graph> DeclarationNodeTarjan<'graph> {
     fn new(edges: &'graph [HashSet<usize>]) -> Self {
         Self {
             edges,
@@ -71,7 +71,7 @@ impl<'graph> Tarjan<'graph> {
                 let member = self
                     .stack
                     .pop()
-                    .expect("root is present on its Tarjan stack");
+                    .expect("root is present on its DeclarationNodeTarjan stack");
                 self.on_stack[member] = false;
                 component.push(member);
                 if member == vertex {
@@ -129,7 +129,7 @@ impl DeclarationNodeList {
             })
             .collect::<Vec<_>>();
 
-        let components = Tarjan::new(&edges).run();
+        let components = DeclarationNodeTarjan::new(&edges).run();
         let mut component_of = vec![0; self.len()];
         for (component, members) in components.iter().enumerate() {
             for member in members {

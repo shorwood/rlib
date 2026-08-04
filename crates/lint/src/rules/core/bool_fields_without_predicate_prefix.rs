@@ -5,6 +5,10 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{FieldDef, def::DefKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 
+// -----------------------------------------------------------------------------
+// BoolFieldsWithoutPredicatePrefix
+// -----------------------------------------------------------------------------
+
 struct BoolFieldsWithoutPredicatePrefix;
 
 dylint_linting::impl_late_lint! {

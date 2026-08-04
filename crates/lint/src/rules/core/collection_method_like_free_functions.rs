@@ -11,8 +11,9 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol, sym};
 
-// Collected model
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// CollectionReceiver: Collection receiver forms
+// -----------------------------------------------------------------------------
 
 /// The method receiver that preserves how the original collection was passed.
 #[derive(Clone, Copy)]
@@ -76,8 +77,12 @@ impl CollectionReceiver {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Candidate: Candidate discovery and wrapper state
+// -----------------------------------------------------------------------------
+
 /// Whether the canonical wrapper can receive the misplaced function.
-enum WrapperState {
+enum CandidateWrapperState {
     Missing,
     Compatible,
     Conflicting,
@@ -210,16 +215,16 @@ impl Candidate {
         &self,
         cx: &LateContext<'tcx>,
         module_items: &[&'tcx Item<'tcx>],
-    ) -> WrapperState {
+    ) -> CandidateWrapperState {
         let Some(item) = module_items
             .iter()
             .find(|item| self.occupies_wrapper_name(item))
         else {
-            return WrapperState::Missing;
+            return CandidateWrapperState::Missing;
         };
 
         let ItemKind::Struct(_, _, fields) = item.kind else {
-            return WrapperState::Conflicting;
+            return CandidateWrapperState::Conflicting;
         };
         let items = Symbol::intern("items");
         let has_expected_field = fields.fields().iter().any(|field| {
@@ -228,9 +233,9 @@ impl Candidate {
                     .is_some_and(|element| element == self.element_def_id)
         });
         if has_expected_field {
-            WrapperState::Compatible
+            CandidateWrapperState::Compatible
         } else {
-            WrapperState::Conflicting
+            CandidateWrapperState::Conflicting
         }
     }
 
@@ -271,7 +276,7 @@ impl Candidate {
                 );
 
                 match wrapper {
-                    WrapperState::Missing if self.has_element_parameters => diag.help(format!(
+                    CandidateWrapperState::Missing if self.has_element_parameters => diag.help(format!(
                         "beside `{}` in `{element_file}`, define a generic `{}` wrapper that preserves its parameters and stores `Vec<{}>` in `items`, then implement `{}` there with {}",
                         self.element_name,
                         self.wrapper_name,
@@ -279,7 +284,7 @@ impl Candidate {
                         self.function_name,
                         self.receiver.description()
                     )),
-                    WrapperState::Missing => diag.help(format!(
+                    CandidateWrapperState::Missing => diag.help(format!(
                         "beside `{}` in `{element_file}`, define `struct {} {{ items: Vec<{}> }}` and implement `{}` there with {}",
                         self.element_name,
                         self.wrapper_name,
@@ -287,14 +292,14 @@ impl Candidate {
                         self.function_name,
                         self.receiver.description()
                     )),
-                    WrapperState::Compatible => diag.help(format!(
+                    CandidateWrapperState::Compatible => diag.help(format!(
                         "move `{}` into the existing `impl {}` block beside `{}` in `{element_file}` and use {}",
                         self.function_name,
                         self.wrapper_name,
                         self.element_name,
                         self.receiver.description()
                     )),
-                    WrapperState::Conflicting => diag.help(format!(
+                    CandidateWrapperState::Conflicting => diag.help(format!(
                         "`{}` already names another type beside `{}` in `{element_file}`; choose a dedicated wrapper there with an `items: Vec<{}>` field and implement `{}` with {}",
                         self.wrapper_name,
                         self.element_name,
@@ -308,8 +313,9 @@ impl Candidate {
     }
 }
 
-// Lint pass
-// -------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// CollectionMethodLikeFreeFunctions: Lint pass
+// -----------------------------------------------------------------------------
 
 struct CollectionMethodLikeFreeFunctions;
 
