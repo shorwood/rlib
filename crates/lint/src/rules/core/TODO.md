@@ -106,23 +106,3 @@ trait MyThingTrait {
 
 const MY_THING_CONSTANT: &str = "my_thing";
 ```
-
----
-
-Rule: Ensure `mod.rs` is only a barrel file and does not contain any other code.
-
-```rs
-// BAD
-mod my_module1;
-mod my_module2;
-
-fn my_function() {
-    ...
-}
-```
-
-```rs
-// Good
-mod my_module1;
-mod my_module2;
-```

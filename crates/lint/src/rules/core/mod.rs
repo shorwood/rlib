@@ -1,3 +1,4 @@
+pub(crate) mod enforce_barrel_files;
 pub(crate) mod enforce_implementable_methods;
 pub(crate) mod enforce_implementable_methods_on_vectors;
 pub(crate) mod enforce_struct_bool_prefix;
