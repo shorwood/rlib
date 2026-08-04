@@ -53,23 +53,6 @@ When defining a struct, the impl block for that struct should be defined immedia
 
 ---
 
-Rule #4: Boolean in struct must be named with a prefix of `is_` or `has_`
-When defining a struct, any boolean field must be named with a prefix of `is_` or `has_`. This ensures that the field name clearly indicates that it is a boolean value.
-
-```rs
-// BAD
-struct MyStruct {
-    active: bool,
-}
-
-// Good
-struct MyStruct {
-    is_active: bool,
-}
-```
-
----
-
 Rule #5: Ensure blocks of continuous code with more than N lines are separated with a comment line
 When defining a function, any block of continuous code that exceeds N lines should be separated with a newline and comment line. This helps to improve code readability and maintainability.
 
@@ -172,4 +155,24 @@ trait MyThingTrait {
 }
 
 const MY_THING_CONSTANT: &str = "my_thing";
+```
+
+---
+
+Rule: Ensure `mod.rs` is only a barrel file and does not contain any other code.
+
+```rs
+// BAD
+mod my_module1;
+mod my_module2;
+
+fn my_function() {
+    ...
+}
+```
+
+```rs
+// Good
+mod my_module1;
+mod my_module2;
 ```

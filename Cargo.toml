@@ -1,5 +1,15 @@
 [workspace]
 resolver = "3"
+members = [
+    "crates/lint",
+]
 
 [workspace.package]
 edition = "2024"
+
+[workspace.lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = ["cfg(dylint_lib, values(any()))"]
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
