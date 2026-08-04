@@ -1,14 +1,10 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    fenix = {
-      url = "github:nix-community/fenix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    dylint-src = {
-      url = "github:trailofbits/dylint/v6.0.1";
-      flake = false;
-    };
+    fenix.url = "github:nix-community/fenix";
+    fenix.inputs.nixpkgs.follows = "nixpkgs";
+    dylint-src.url = "github:trailofbits/dylint/v6.0.1";
+    dylint-src.flake = false;
   };
 
   outputs = { nixpkgs, fenix, dylint-src, ... }:
@@ -22,6 +18,9 @@
       devEnvironmentFor = system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+
+          # A Dylint library is coupled to Rust compiler internals, so Rust and
+          # every Dylint executable must be built from one pinned toolchain.
           rust = pkgs.callPackage ./nix/rust-toolchain.nix {
             inherit fenix system;
           };
@@ -29,6 +28,10 @@
             cargo = rust.toolchain;
             rustc = rust.toolchain;
           };
+
+          # Dylint comes in two parts: user-facing commands and a compiler that
+          # can load our lint library. Keeping them separate makes that split
+          # visible instead of hiding it in a shell hook.
           dylintTools = pkgs.callPackage ./nix/dylint-tools.nix {
             inherit rustPlatform;
             dylintSrc = dylint-src;
@@ -48,8 +51,16 @@
               pkgs.pkg-config
               pkgs.stdenv.cc
             ];
+
+            # Pin compiler discovery as well as PATH lookup. This prevents
+            # Cargo, Clippy, rust-analyzer, or rustdoc from silently falling
+            # back to a compiler installed on the host.
             RUSTC = "${rust.toolchain}/bin/rustc";
             RUSTDOC = "${rust.toolchain}/bin/rustdoc";
+
+            # Dylint uses a rustup-style name as a compatibility key when it
+            # chooses a compiler driver. The value does not invoke rustup; the
+            # driver itself comes from the Nix path below.
             RUSTUP_TOOLCHAIN = rust.toolchainLabel;
             DYLINT_DRIVER_PATH = "${dylintDriver}";
           };
