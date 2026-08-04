@@ -1,0 +1,22 @@
+warning: type names in the `SectionDivider` section repeat organizational context
+  --> $DIR/section_dividers.rs:4:1
+   |
+LL | / // -----------------------------------------------------------------------------
+LL | | // SectionDivider
+LL | | // -----------------------------------------------------------------------------
+   | |________________________________________________________________________________^
+...
+LL | / struct SectionDividerLibraryConfig {
+LL | |     section_dividers: SectionDividerConfig,
+LL | | }
+   | |_- `SectionDividerLibraryConfig` obscures the inferred `LibraryConfig` role
+   |
+   = help: prefer the concept-first names `SectionDividerLibraryConfig` → `LibraryConfig`; rename before creating additional sections (the divider prefix repeats the enclosing module; compiler-resolved dependencies connect the helpers; the redundant prefix can be removed without losing vocabulary; the broader owner is qualified as though it were the nested type)
+note: the lint level is defined here
+  --> $DIR/section_dividers.rs:2:9
+   |
+LL | #![warn(incoherent_type_family_names)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: 1 warning emitted
+

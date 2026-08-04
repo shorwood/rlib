@@ -12,7 +12,7 @@ extern crate rustc_span;
 
 use std::collections::HashMap;
 
-use rustc_hir::{Item, ItemKind, Mod};
+use rustc_hir::{HirId, Item, ItemKind, Mod, Node};
 use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty;
 use rustc_span::{BytePos, Span};
@@ -22,7 +22,7 @@ const CONFIG_KEY: &str = env!("CARGO_PKG_NAME");
 const CONTENT_PLACEHOLDER: &str = "{content}";
 
 // -----------------------------------------------------------------------------
-// SectionDivider: Shared configuration
+// SectionDividerConfig: Shared configuration
 // -----------------------------------------------------------------------------
 
 /// Shared configuration for the section-divider lint family.
@@ -47,10 +47,14 @@ impl Default for SectionDividerConfig {
     }
 }
 
+// -----------------------------------------------------------------------------
+// LibraryConfig: Top-level lint configuration
+// -----------------------------------------------------------------------------
+
 /// Top-level library configuration read from the `rlib-lint` table.
 #[derive(Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-struct SectionDividerLibraryConfig {
+struct LibraryConfig {
     section_dividers: SectionDividerConfig,
 }
 
@@ -73,6 +77,25 @@ pub(crate) struct Analysis {
     pub(crate) malformed: Vec<AnalysisFinding>,
     pub(crate) duplicates: Vec<AnalysisFinding>,
     pub(crate) mismatches: Vec<AnalysisFinding>,
+    pub(crate) sections: Vec<DividerSection>,
+}
+
+// -----------------------------------------------------------------------------
+// Divider: Authored section data
+// -----------------------------------------------------------------------------
+
+/// One valid authored section available to semantic companion lints.
+pub(crate) struct DividerSection {
+    pub(crate) prefix: String,
+    pub(crate) span: Span,
+    pub(crate) participants: Vec<DividerParticipant>,
+}
+
+/// One distinct nominal declaration covered by a valid section.
+pub(crate) struct DividerParticipant {
+    pub(crate) def_id: rustc_hir::def_id::LocalDefId,
+    pub(crate) name: String,
+    pub(crate) span: Span,
 }
 
 // -----------------------------------------------------------------------------
@@ -88,8 +111,8 @@ pub(crate) struct DividerAnalyzer {
 impl DividerAnalyzer {
     /// Loads and validates the shared library configuration.
     pub(crate) fn from_config() -> Self {
-        let config = dylint_linting::config_or_default::<SectionDividerLibraryConfig>(CONFIG_KEY)
-            .section_dividers;
+        let config =
+            dylint_linting::config_or_default::<LibraryConfig>(CONFIG_KEY).section_dividers;
         let template = Template::parse(&config.template, config.max_line_length)
             .unwrap_or_else(|message| panic!("invalid section divider template: {message}"));
         Self {
@@ -99,9 +122,14 @@ impl DividerAnalyzer {
     }
 
     /// Analyzes one source module without inspecting comments inside item bodies.
-    pub(crate) fn analyze(&self, cx: &LateContext<'_>, module: &Mod<'_>) -> Analysis {
+    pub(crate) fn analyze(
+        &self,
+        cx: &LateContext<'_>,
+        module: &Mod<'_>,
+        hir_id: HirId,
+    ) -> Analysis {
         let source_map = cx.sess().source_map();
-        let module_span = module.spans.inner_span;
+        let module_span = module_source_span(cx, module, hir_id);
         let mut items = module
             .item_ids
             .iter()
@@ -125,11 +153,8 @@ impl DividerAnalyzer {
                         .map(SectionEvent::SectionDividerOccurrence),
                 );
             }
-            if let Some(name) = participant_name(cx, item) {
-                events.push(SectionEvent::SectionParticipant(SectionParticipant {
-                    name,
-                    span: item.span,
-                }));
+            if let Some(participant) = participant(cx, item) {
+                events.push(SectionEvent::SectionParticipant(participant));
             }
             previous = previous.max(item.span.hi());
         }
@@ -227,14 +252,14 @@ impl DividerAnalyzer {
             });
         }
 
-        if let Some(message) = parsed.error {
+        if let Some(message) = &parsed.error {
             let replacement = parsed
                 .normalized
                 .as_ref()
                 .and_then(|content| self.render_replacement(content, &section.divider.indentation));
             analysis.malformed.push(AnalysisFinding {
                 span: section.divider.span,
-                message,
+                message: message.clone(),
                 help: "use `PascalCasePrefix` or `PascalCasePrefix: Sentence case description`"
                     .to_owned(),
                 replacement,
@@ -253,6 +278,16 @@ impl DividerAnalyzer {
         }
 
         if let Some(prefix) = prefix {
+            if parsed.error.is_none()
+                && self.rendered_lines_fit(&section.divider.raw_content)
+                && !section.participants.is_empty()
+            {
+                analysis.sections.push(DividerSection {
+                    prefix: prefix.clone(),
+                    span: section.divider.span,
+                    participants: section.participants.distinct_nominal_declarations(),
+                });
+            }
             if seen_prefixes
                 .insert(prefix.clone(), section.divider.span)
                 .is_some()
@@ -317,6 +352,39 @@ impl DividerAnalyzer {
     }
 }
 
+fn module_source_span(cx: &LateContext<'_>, module: &Mod<'_>, hir_id: HirId) -> Span {
+    let inner = module.spans.inner_span;
+    let item = [cx.tcx.hir_node(hir_id), cx.tcx.parent_hir_node(hir_id)]
+        .into_iter()
+        .find_map(|node| match node {
+            Node::Item(item) if matches!(item.kind, ItemKind::Mod(..)) => Some(item),
+            _ => None,
+        });
+    let Some(item) = item else {
+        return inner;
+    };
+    if cx.sess().source_map().span_to_filename(item.span)
+        != cx.sess().source_map().span_to_filename(inner)
+    {
+        return inner;
+    }
+
+    let source_map = cx.sess().source_map();
+    let lo = source_map
+        .span_to_snippet(item.span.with_hi(inner.lo()))
+        .ok()
+        .and_then(|source| source.rfind('{'))
+        .and_then(|offset| u32::try_from(offset + 1).ok())
+        .map_or(inner.lo(), |offset| item.span.lo() + BytePos(offset));
+    let hi = source_map
+        .span_to_snippet(item.span.with_lo(inner.hi()))
+        .ok()
+        .and_then(|source| source.find('}'))
+        .and_then(|offset| u32::try_from(offset).ok())
+        .map_or(inner.hi(), |offset| inner.hi() + BytePos(offset));
+    inner.with_lo(lo).with_hi(hi)
+}
+
 // -----------------------------------------------------------------------------
 // Section: Section events and participants
 // -----------------------------------------------------------------------------
@@ -342,8 +410,10 @@ struct SectionDividerOccurrence {
 }
 
 struct SectionParticipant {
+    def_id: rustc_hir::def_id::LocalDefId,
     name: String,
     span: Span,
+    is_nominal_declaration: bool,
 }
 
 #[derive(Default)]
@@ -380,6 +450,20 @@ impl SectionParticipantList {
             .join(", ")
     }
 
+    fn distinct_nominal_declarations(&self) -> Vec<DividerParticipant> {
+        let mut seen = std::collections::HashSet::new();
+        self.0
+            .iter()
+            .filter(|participant| participant.is_nominal_declaration)
+            .filter(|participant| seen.insert(participant.def_id))
+            .map(|participant| DividerParticipant {
+                def_id: participant.def_id,
+                name: participant.name.clone(),
+                span: participant.span,
+            })
+            .collect()
+    }
+
     fn missing_finding(&self) -> AnalysisFinding {
         let names = self.names();
         let guidance = longest_word_prefix(&names).map_or_else(
@@ -405,7 +489,7 @@ struct Section {
     participants: SectionParticipantList,
 }
 
-fn participant_name(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
+fn participant(cx: &LateContext<'_>, item: &Item<'_>) -> Option<SectionParticipant> {
     if item.span.from_expansion() {
         return None;
     }
@@ -415,7 +499,12 @@ fn participant_name(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
         | ItemKind::Union(..)
         | ItemKind::TyAlias(..)
         | ItemKind::Trait(..)
-        | ItemKind::TraitAlias(..) => Some(cx.tcx.item_name(item.owner_id.to_def_id()).to_string()),
+        | ItemKind::TraitAlias(..) => Some(SectionParticipant {
+            def_id: item.owner_id.def_id,
+            name: cx.tcx.item_name(item.owner_id.to_def_id()).to_string(),
+            span: item.span,
+            is_nominal_declaration: true,
+        }),
         ItemKind::Impl(_) => {
             let self_type = cx.tcx.type_of(item.owner_id).instantiate_identity();
             let ty::Adt(definition, _) = self_type.kind() else {
@@ -424,23 +513,28 @@ fn participant_name(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
             definition
                 .did()
                 .as_local()
-                .map(|definition| cx.tcx.item_name(definition.to_def_id()).to_string())
+                .map(|definition| SectionParticipant {
+                    def_id: definition,
+                    name: cx.tcx.item_name(definition.to_def_id()).to_string(),
+                    span: item.span,
+                    is_nominal_declaration: false,
+                })
         }
         _ => None,
     }
 }
 
 // -----------------------------------------------------------------------------
-// ContentParseResult: Parsed divider content
+// ParsedContent: Parsed divider content
 // -----------------------------------------------------------------------------
 
-struct ContentParseResult {
+struct ParsedContent {
     prefix: Option<String>,
     normalized: Option<String>,
     error: Option<String>,
 }
 
-fn parse_content(content: &str) -> ContentParseResult {
+fn parse_content(content: &str) -> ParsedContent {
     let trimmed = content.trim();
     let (raw_prefix, raw_description) = trimmed
         .split_once(':')
@@ -482,7 +576,7 @@ fn parse_content(content: &str) -> ContentParseResult {
         None
     };
 
-    ContentParseResult {
+    ParsedContent {
         prefix,
         normalized,
         error,
@@ -680,6 +774,22 @@ mod tests {
         );
         assert_eq!(template.find_matches(&rendered).len(), 1);
         assert!(rendered.lines().all(|line| line.chars().count() <= 48));
+    }
+
+    #[test]
+    fn finds_indented_templates_in_inline_modules() {
+        let template = Template::parse(
+            "// -----------------------------------------------------------------------------\n// {content}\n// -----------------------------------------------------------------------------",
+            80,
+        )
+        .expect("default template should be valid");
+        let source = concat!(
+            "\n    // -----------------------------------------------------------------------------\n",
+            "    // Request\n",
+            "    // -----------------------------------------------------------------------------\n\n    "
+        );
+
+        assert_eq!(template.find_matches(source).len(), 1);
     }
 
     #[test]

@@ -1,0 +1,24 @@
+warning: type names in the `MethodLikeFreeFunctions` section repeat organizational context
+  --> $DIR/method_like_free_functions.rs:4:1
+   |
+LL | / // -----------------------------------------------------------------------------
+LL | | // MethodLikeFreeFunctions
+LL | | // -----------------------------------------------------------------------------
+   | |________________________________________________________________________________^
+...
+LL |   struct MethodLikeFreeFunctionsSourceEdits;
+   |   ------------------------------------------ `MethodLikeFreeFunctionsSourceEdits` obscures the inferred `MigrationEdits` role
+LL | / struct MethodLikeFreeFunctionsMigrationBuilder {
+LL | |     edits: MethodLikeFreeFunctionsSourceEdits,
+LL | | }
+   | |_- `MethodLikeFreeFunctionsMigrationBuilder` obscures the inferred `MigrationBuilder` role
+   |
+   = help: prefer the concept-first names `MethodLikeFreeFunctionsSourceEdits` → `MigrationEdits`, `MethodLikeFreeFunctionsMigrationBuilder` → `MigrationBuilder`; rename before creating additional sections (the divider prefix repeats the enclosing module; compiler-resolved dependencies connect the helpers; an exact root declaration already carries the context name)
+note: the lint level is defined here
+  --> $DIR/method_like_free_functions.rs:2:9
+   |
+LL | #![warn(incoherent_type_family_names)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: 1 warning emitted
+

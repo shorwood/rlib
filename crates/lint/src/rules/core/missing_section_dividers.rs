@@ -59,8 +59,8 @@ dylint_linting::impl_late_lint! {
 }
 
 impl<'tcx> LateLintPass<'tcx> for MissingSectionDividers {
-    fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, _: HirId) {
-        for finding in self.analyzer.analyze(cx, module).missing {
+    fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, hir_id: HirId) {
+        for finding in self.analyzer.analyze(cx, module, hir_id).missing {
             cx.emit_span_lint(
                 MISSING_SECTION_DIVIDERS,
                 finding.span,

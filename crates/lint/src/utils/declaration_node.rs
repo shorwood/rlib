@@ -10,21 +10,11 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_span::Span;
 
 // -----------------------------------------------------------------------------
-// DeclarationNode: Dependency graph declarations
+// Tarjan: Strongly connected component traversal
 // -----------------------------------------------------------------------------
 
-/// A movable declaration or an inseparable declaration group.
-pub(crate) struct DeclarationNode {
-    pub(crate) defs: Vec<LocalDefId>,
-    pub(crate) name: String,
-    pub(crate) span: Span,
-    pub(crate) category: u8,
-    pub(crate) is_outward_visible: bool,
-    pub(crate) dependencies: HashSet<LocalDefId>,
-}
-
 /// Finds strongly connected components in a declaration dependency graph.
-struct DeclarationNodeTarjan<'graph> {
+struct Tarjan<'graph> {
     edges: &'graph [HashSet<usize>],
     next_index: usize,
     indices: Vec<Option<usize>>,
@@ -34,7 +24,7 @@ struct DeclarationNodeTarjan<'graph> {
     components: Vec<Vec<usize>>,
 }
 
-impl<'graph> DeclarationNodeTarjan<'graph> {
+impl<'graph> Tarjan<'graph> {
     fn new(edges: &'graph [HashSet<usize>]) -> Self {
         Self {
             edges,
@@ -71,7 +61,7 @@ impl<'graph> DeclarationNodeTarjan<'graph> {
                 let member = self
                     .stack
                     .pop()
-                    .expect("root is present on its DeclarationNodeTarjan stack");
+                    .expect("root is present on its Tarjan stack");
                 self.on_stack[member] = false;
                 component.push(member);
                 if member == vertex {
@@ -94,6 +84,20 @@ impl<'graph> DeclarationNodeTarjan<'graph> {
         self.components.sort_by_key(|component| component[0]);
         self.components
     }
+}
+
+// -----------------------------------------------------------------------------
+// DeclarationNode: Dependency graph declarations
+// -----------------------------------------------------------------------------
+
+/// A movable declaration or an inseparable declaration group.
+pub(crate) struct DeclarationNode {
+    pub(crate) defs: Vec<LocalDefId>,
+    pub(crate) name: String,
+    pub(crate) span: Span,
+    pub(crate) category: u8,
+    pub(crate) is_outward_visible: bool,
+    pub(crate) dependencies: HashSet<LocalDefId>,
 }
 
 /// A collection of declarations that can compute its stable dependency-first order.
@@ -129,7 +133,7 @@ impl DeclarationNodeList {
             })
             .collect::<Vec<_>>();
 
-        let components = DeclarationNodeTarjan::new(&edges).run();
+        let components = Tarjan::new(&edges).run();
         let mut component_of = vec![0; self.len()];
         for (component, members) in components.iter().enumerate() {
             for member in members {

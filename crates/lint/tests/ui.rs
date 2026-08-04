@@ -1,6 +1,8 @@
-const SECTION_DIVIDER_ALLOWS: [&str; 8] = [
+const SECTION_DIVIDER_ALLOWS: [&str; 10] = [
     "-A",
     "duplicate_section_divider_prefixes",
+    "-A",
+    "incoherent_type_family_names",
     "-A",
     "malformed_section_dividers",
     "-A",

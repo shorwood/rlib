@@ -60,8 +60,8 @@ dylint_linting::impl_late_lint! {
 }
 
 impl<'tcx> LateLintPass<'tcx> for MismatchedSectionDividerPrefixes {
-    fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, _: HirId) {
-        for finding in self.analyzer.analyze(cx, module).mismatches {
+    fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, hir_id: HirId) {
+        for finding in self.analyzer.analyze(cx, module, hir_id).mismatches {
             cx.emit_span_lint(
                 MISMATCHED_SECTION_DIVIDER_PREFIXES,
                 finding.span,

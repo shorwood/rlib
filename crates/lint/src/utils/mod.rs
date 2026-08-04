@@ -5,3 +5,4 @@ pub(crate) mod impl_item_dependencies;
 pub(crate) mod item_dependencies;
 pub(crate) mod reorder_declarations;
 pub(crate) mod section_dividers;
+pub(crate) mod type_family_names;

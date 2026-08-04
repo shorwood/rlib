@@ -17,7 +17,7 @@ use crate::utils::direct_impl_struct::direct_impl_struct;
 
 /// An item paired with its position after uneditable external macro output has been removed.
 #[derive(Clone, Copy)]
-struct ImplGroupIndexedItem<'hir> {
+struct ImplGroupItem<'hir> {
     index: usize,
     item: &'hir Item<'hir>,
 }
@@ -27,7 +27,7 @@ struct ImplGroup<'hir> {
     struct_index: usize,
     struct_item: &'hir Item<'hir>,
     struct_name: Symbol,
-    impls: Vec<ImplGroupIndexedItem<'hir>>,
+    impls: Vec<ImplGroupItem<'hir>>,
 }
 
 impl ImplGroup<'_> {
@@ -43,7 +43,7 @@ impl ImplGroup<'_> {
     }
 
     /// Returns the first impl that is not in its required position.
-    fn first_misplaced(&self) -> ImplGroupIndexedItem<'_> {
+    fn first_misplaced(&self) -> ImplGroupItem<'_> {
         self.impls
             .iter()
             .enumerate()
@@ -244,13 +244,13 @@ impl NonAdjacentStructImpls {
         cx: &LateContext<'tcx>,
         items: &[&'tcx Item<'tcx>],
     ) -> Vec<ImplGroup<'tcx>> {
-        let mut impls_by_struct = HashMap::<LocalDefId, Vec<ImplGroupIndexedItem<'tcx>>>::new();
+        let mut impls_by_struct = HashMap::<LocalDefId, Vec<ImplGroupItem<'tcx>>>::new();
         for (index, item) in items.iter().enumerate() {
             if let Some(struct_def_id) = direct_impl_struct(cx, item) {
                 impls_by_struct
                     .entry(struct_def_id)
                     .or_default()
-                    .push(ImplGroupIndexedItem { index, item });
+                    .push(ImplGroupItem { index, item });
             }
         }
 

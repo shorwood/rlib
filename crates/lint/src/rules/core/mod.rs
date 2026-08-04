@@ -2,6 +2,7 @@ pub(crate) mod bool_fields_without_predicate_prefix;
 pub(crate) mod collection_method_like_free_functions;
 pub(crate) mod cross_file_struct_impls;
 pub(crate) mod duplicate_section_divider_prefixes;
+pub(crate) mod incoherent_type_family_names;
 pub(crate) mod invalid_barrel_file_items;
 pub(crate) mod malformed_section_dividers;
 pub(crate) mod method_like_free_functions;
