@@ -1,5 +1,22 @@
 {
   "nodes": {
+    "dylint-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1779817571,
+        "narHash": "sha256-SteI8+BZ5ej38goCOD+PRJozt7qVSTp/IFJXyeBblAw=",
+        "owner": "trailofbits",
+        "repo": "dylint",
+        "rev": "cd83640eb1882c309fc58edd9806882262fd1c6b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "trailofbits",
+        "ref": "v6.0.1",
+        "repo": "dylint",
+        "type": "github"
+      }
+    },
     "fenix": {
       "inputs": {
         "nixpkgs": [
@@ -39,6 +56,7 @@
     },
     "root": {
       "inputs": {
+        "dylint-src": "dylint-src",
         "fenix": "fenix",
         "nixpkgs": "nixpkgs"
       }
