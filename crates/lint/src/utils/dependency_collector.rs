@@ -4,23 +4,26 @@ extern crate rustc_middle;
 use std::collections::HashSet;
 
 use rustc_hir::def_id::LocalDefId;
-use rustc_hir::intravisit::Visitor;
-use rustc_hir::{BodyId, ImplItem, Item, ItemKind, intravisit};
+use rustc_hir::{BodyId, intravisit};
 use rustc_middle::ty::TyCtxt;
 
-struct DependencyCollector<'tcx> {
+pub(super) struct DependencyCollector<'tcx> {
     tcx: TyCtxt<'tcx>,
     definitions: HashSet<LocalDefId>,
     body_owner: Option<LocalDefId>,
 }
 
 impl<'tcx> DependencyCollector<'tcx> {
-    fn new(tcx: TyCtxt<'tcx>) -> Self {
+    pub(super) fn new(tcx: TyCtxt<'tcx>) -> Self {
         Self {
             tcx,
             definitions: HashSet::new(),
             body_owner: None,
         }
+    }
+
+    pub(super) fn finish(self) -> HashSet<LocalDefId> {
+        self.definitions
     }
 }
 
@@ -55,45 +58,4 @@ impl<'tcx> intravisit::Visitor<'tcx> for DependencyCollector<'tcx> {
         }
         intravisit::walk_expr(self, expression);
     }
-}
-
-pub(super) fn collect_item_dependencies<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    item: &'tcx Item<'tcx>,
-) -> HashSet<LocalDefId> {
-    let mut collector = DependencyCollector::new(tcx);
-    collector.visit_item(item);
-    match item.kind {
-        ItemKind::Trait(.., items) => {
-            for id in items {
-                collector.visit_trait_item(collector.tcx.hir_trait_item(*id));
-            }
-        }
-        ItemKind::Impl(implementation) => {
-            for id in implementation.items {
-                collector.visit_impl_item(collector.tcx.hir_impl_item(*id));
-            }
-        }
-        ItemKind::Mod(_, module) => {
-            for id in module.item_ids {
-                collector.visit_item(collector.tcx.hir_item(*id));
-            }
-        }
-        ItemKind::ForeignMod { items, .. } => {
-            for id in items {
-                collector.visit_foreign_item(collector.tcx.hir_foreign_item(*id));
-            }
-        }
-        _ => {}
-    }
-    collector.definitions
-}
-
-pub(super) fn collect_impl_item_dependencies<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    item: &'tcx ImplItem<'tcx>,
-) -> HashSet<LocalDefId> {
-    let mut collector = DependencyCollector::new(tcx);
-    collector.visit_impl_item(item);
-    collector.definitions
 }
