@@ -1,24 +1,3 @@
-Rule #1: Enforce Implementable Methods
-When defining a struct, every method that can be implemented for that struct should be implemented in the impl block for that struct.
-
-Given this example:
-
-```rs
-fn do_something(mystruct: MyStruct, ...) {...}
-```
-
-The rule should forbid it and ensures that the method is implemented in the impl block for `MyStruct` instead:
-
-```rs
-impl MyStruct {
-    fn do_something(&self) {...}
-}
-```
-
-This rule should only apply if the problemetic function is defined in the same module as the struct definition. If the function is defined in a different module, then this rule should not apply.
-
----
-
 Rule #2: Enforce Implementable Methods on vectors
 When defining a struct, every method that can be implemented for that struct should be implemented in the impl block for that struct. This rule also applies to methods that can be implemented on vectors of that struct.
 

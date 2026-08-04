@@ -1,0 +1,54 @@
+// run-rustfix
+// rustfix-only-machine-applicable
+// edition:2024
+
+#![feature(register_tool)]
+#![allow(dead_code)]
+#![register_tool(rlib_lint)]
+
+struct Counter {
+    value: u8,
+}
+
+struct Snapshot {
+    counter: Counter,
+}
+
+struct Generic<T>(T);
+
+// Moving a value receiver must also rename its uses, including shorthand fields.
+impl Counter {
+fn bump(mut self, amount: u8) -> Counter {
+    self.value += amount;
+    let snapshot = Snapshot { counter: self };
+    snapshot.counter
+}
+}
+
+// Borrowing, explicit lifetimes, and mutable borrowing retain their receiver shape.
+impl Counter {
+fn inspect<'a>(&'a self) -> u8 {
+    self.value
+}
+}
+
+impl Counter {
+fn reset(&mut self) {
+    self.value = 0;
+}
+}
+
+// A simple type parameter moves to the impl when the receiver uses it.
+impl<T> Generic<T> {
+fn unwrap(self) -> T {
+    self.0
+}
+}
+
+// Calls and function values use method UFCS after the free function moves.
+fn use_inspect(counter: &Counter) -> u8 {
+    let callback: fn(&Counter) -> u8 = crate::Counter::inspect;
+    crate::Counter::inspect(counter) + callback(counter)
+}
+
+fn main() {}

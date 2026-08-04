@@ -13,6 +13,7 @@ pub extern "Rust" fn register_lints(
     sess: &rustc_session::Session,
     lint_store: &mut rustc_lint::LintStore,
 ) {
+    rules::core::enforce_implementable_methods::register_lints(sess, lint_store);
     rules::core::enforce_struct_bool_prefix::register_lints(sess, lint_store);
 }
 

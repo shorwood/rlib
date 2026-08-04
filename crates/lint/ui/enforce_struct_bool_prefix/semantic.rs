@@ -1,12 +1,12 @@
-// aux-build: enforce_struct_bool_prefix_external_macro.rs
+// aux-build: external_macro.rs
 
 #![feature(register_tool)]
 #![allow(dead_code)]
 #![register_tool(rlib_lint)]
 
-extern crate enforce_struct_bool_prefix_external_macro;
+extern crate external_macro;
 
-use enforce_struct_bool_prefix_external_macro::external_struct;
+use external_macro::external_struct;
 
 // A semantic boolean alias should be treated exactly like `bool`.
 type Flag = bool;
