@@ -2,7 +2,7 @@
 // edition:2024
 
 #![feature(register_tool)]
-#![allow(dead_code, improper_ctypes_definitions, unused_variables)]
+#![allow(dead_code, improper_ctypes_definitions, unused_variables, enforce_inherent_impl_item_order, enforce_module_declaration_order, enforce_type_dependency_order)]
 #![register_tool(rlib_lint)]
 
 extern crate external_macro;
@@ -10,6 +10,9 @@ extern crate external_macro;
 use std::collections::VecDeque;
 
 use external_macro::{external_struct, external_vector_function};
+
+#[path = "support/remote.inc"]
+mod remote;
 
 // Every direct ownership form needs the receiver that preserves its original contract.
 struct Item;
@@ -93,12 +96,30 @@ fn enum_elements(items: Vec<NotAStruct>) {}
 fn union_elements(items: Vec<NotAStructEither>) {}
 extern "C" fn foreign_abi(items: Vec<Item>) {}
 
-// A struct imported from another module does not create a wrapper beside this function.
+// Cross-module functions still belong on a wrapper beside the element struct.
 mod elsewhere {
     pub(super) struct Other;
+
+    pub(super) struct Reusable;
+    pub(super) struct ReusableList {
+        items: Vec<Reusable>,
+    }
+
+    impl ReusableList {}
+
+    pub(super) struct Occupied;
+    pub(super) enum OccupiedList {
+        Value,
+    }
 }
 
+// A same-named wrapper in the function's module does not own `elsewhere::Other`.
+struct OtherList;
+
 fn different_module(items: Vec<elsewhere::Other>) {}
+fn reuse_different_module(items: &[elsewhere::Reusable]) {}
+fn conflict_different_module(items: Vec<elsewhere::Occupied>) {}
+fn different_file(items: &[remote::Remote]) {}
 
 mod child {
     fn different_module(items: Vec<super::Item>) {}

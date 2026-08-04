@@ -11,275 +11,8 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol, sym};
 
-// Lint declaration
-// -------------------------------------------------------------------------------------------------
-
-dylint_linting::declare_late_lint! {
-    /// ### What it does
-    ///
-    /// Checks for free functions whose first parameter is a vector or slice of a struct defined in
-    /// the same module.
-    ///
-    /// ### Why is this bad?
-    ///
-    /// A collection of domain values usually has behavior of its own. Giving that collection a
-    /// name keeps its behavior discoverable and prevents unrelated free functions from becoming
-    /// the collection's informal interface.
-    ///
-    /// For example, this function leaves the collection without a home for its behavior:
-    ///
-    /// ```rust
-    /// struct Item;
-    ///
-    /// fn inspect(items: &[Item]) {}
-    /// ```
-    ///
-    /// A small wrapper makes the intended interface explicit:
-    ///
-    /// ```rust
-    /// struct ItemList {
-    ///     items: Vec<Item>,
-    /// }
-    ///
-    /// impl ItemList {
-    ///     fn inspect(&self) {}
-    /// }
-    /// ```
-    pub ENFORCE_IMPLEMENTABLE_METHODS_ON_VECTORS,
-    Warn,
-    "enforces wrapper methods for vectors and slices of same-module structs"
-}
-
-// Compiler traversal
-// -------------------------------------------------------------------------------------------------
-
-impl<'tcx> LateLintPass<'tcx> for EnforceImplementableMethodsOnVectors {
-    /// Checks complete modules so wrapper discovery and function discovery see the same namespace.
-    fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, _: HirId) {
-        let source_map = cx.sess().source_map();
-        let items = module
-            .item_ids
-            .iter()
-            .map(|item_id| cx.tcx.hir_item(*item_id))
-            .filter(|item| !item.span.in_external_macro(source_map))
-            .collect::<Vec<_>>();
-
-        for item in &items {
-            if let Some(candidate) = Candidate::discover(cx, item) {
-                candidate.emit(cx, &items);
-            }
-        }
-    }
-}
-
 // Collected model
 // -------------------------------------------------------------------------------------------------
-
-/// One free function whose first parameter represents a collection that needs a domain wrapper.
-struct Candidate {
-    hir_id: HirId,
-    function_name: Symbol,
-    function_name_span: Span,
-    parameter_span: Span,
-    element_def_id: LocalDefId,
-    has_element_parameters: bool,
-    element_type: String,
-    element_name: Symbol,
-    wrapper_name: Symbol,
-    receiver: CollectionReceiver,
-}
-
-impl Candidate {
-    /// Recognizes a free function whose first parameter is a supported collection of a local struct.
-    ///
-    /// The compiler's understanding of the type is used here, so aliases such as `type Items =
-    /// Vec<Item>` are treated the same as spelling `Vec<Item>` directly.
-    fn discover(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
-        let ItemKind::Fn {
-            sig,
-            ident,
-            body,
-            has_body: true,
-            ..
-        } = item.kind
-        else {
-            return None;
-        };
-
-        if sig.header.abi != ExternAbi::Rust {
-            return None;
-        }
-
-        let function_def_id = item.owner_id.def_id;
-        let signature = cx.tcx.fn_sig(function_def_id).instantiate_identity();
-        let first_type = *signature.inputs().skip_binder().first()?;
-        let body = cx.tcx.hir_body(body);
-        let parameter = body.params.first()?;
-        let mutable_binding = matches!(
-            parameter.pat.kind,
-            PatKind::Binding(BindingMode(_, Mutability::Mut), ..)
-        );
-        let (receiver, element_type) =
-            CollectionReceiver::discover(cx, first_type, mutable_binding)?;
-
-        let ty::Adt(element, _) = element_type.kind() else {
-            return None;
-        };
-        let element_def_id = element
-            .is_struct()
-            .then(|| element.did().as_local())
-            .flatten()?;
-        if cx.tcx.parent_module_from_def_id(function_def_id)
-            != cx.tcx.parent_module_from_def_id(element_def_id)
-            || cx
-                .tcx
-                .def_span(element_def_id)
-                .in_external_macro(cx.sess().source_map())
-        {
-            return None;
-        }
-
-        let element_name = cx.tcx.item_name(element_def_id.to_def_id());
-        let wrapper_name = Symbol::intern(&format!("{element_name}List"));
-        Some(Self {
-            hir_id: item.hir_id(),
-            function_name: ident.name,
-            function_name_span: ident.span,
-            parameter_span: parameter.span,
-            element_def_id,
-            has_element_parameters: !cx.tcx.generics_of(element_def_id).own_params.is_empty(),
-            element_type: element_type.to_string(),
-            element_name,
-            wrapper_name,
-            receiver,
-        })
-    }
-
-    /// Reports the violation and gives a concrete wrapper recipe without pretending it is a safe
-    /// automatic rewrite.
-    fn emit<'tcx>(&self, cx: &LateContext<'tcx>, module_items: &[&'tcx Item<'tcx>]) {
-        let wrapper = self.wrapper_state(cx, module_items);
-        cx.tcx.emit_node_span_lint(
-            ENFORCE_IMPLEMENTABLE_METHODS_ON_VECTORS,
-            self.hir_id,
-            self.function_name_span,
-            DiagDecorator(|diag| {
-                diag.primary_message(format!(
-                    "free function `{}` should be a method on `{}`",
-                    self.function_name, self.wrapper_name
-                ));
-                diag.span_label(
-                    self.parameter_span,
-                    format!("this collection of `{}` needs a named wrapper", self.element_name),
-                );
-
-                match wrapper {
-                    WrapperState::Missing if self.has_element_parameters => diag.help(format!(
-                        "define a generic `{}` wrapper that preserves `{}`'s parameters and stores `Vec<{}>` in `items`, then implement `{}` there with {}",
-                        self.wrapper_name,
-                        self.element_name,
-                        self.element_type,
-                        self.function_name,
-                        self.receiver.description()
-                    )),
-                    WrapperState::Missing => diag.help(format!(
-                        "define `struct {} {{ items: Vec<{}> }}` and implement `{}` there with {}",
-                        self.wrapper_name,
-                        self.element_type,
-                        self.function_name,
-                        self.receiver.description()
-                    )),
-                    WrapperState::Compatible => diag.help(format!(
-                        "move `{}` into the existing `impl {}` block and use {}",
-                        self.function_name,
-                        self.wrapper_name,
-                        self.receiver.description()
-                    )),
-                    WrapperState::Conflicting => diag.help(format!(
-                        "`{}` already names another type; choose a dedicated wrapper with an `items: Vec<{}>` field and implement `{}` there with {}",
-                        self.wrapper_name,
-                        self.element_name,
-                        self.function_name,
-                        self.receiver.description()
-                    )),
-                };
-            }),
-        );
-    }
-
-    /// Determines whether the canonical wrapper is absent, usable, or occupied by another type.
-    fn wrapper_state<'tcx>(
-        &self,
-        cx: &LateContext<'tcx>,
-        module_items: &[&'tcx Item<'tcx>],
-    ) -> WrapperState {
-        let Some(item) = module_items
-            .iter()
-            .find(|item| self.occupies_wrapper_name(item))
-        else {
-            return WrapperState::Missing;
-        };
-
-        let ItemKind::Struct(_, _, fields) = item.kind else {
-            return WrapperState::Conflicting;
-        };
-        let items = Symbol::intern("items");
-        let has_expected_field = fields.fields().iter().any(|field| {
-            field.ident.name == items
-                && Self::vector_element(cx, cx.tcx.type_of(field.def_id).instantiate_identity())
-                    .is_some_and(|element| element == self.element_def_id)
-        });
-        if has_expected_field {
-            WrapperState::Compatible
-        } else {
-            WrapperState::Conflicting
-        }
-    }
-
-    /// Returns whether an item occupies the canonical name in Rust's type namespace.
-    ///
-    /// Functions and values may legally share this spelling with a struct, so they must not be
-    /// mistaken for wrapper conflicts.
-    fn occupies_wrapper_name(&self, item: &Item<'_>) -> bool {
-        if item
-            .kind
-            .ident()
-            .is_none_or(|ident| ident.name != self.wrapper_name)
-        {
-            return false;
-        }
-
-        match item.kind {
-            ItemKind::ExternCrate(..)
-            | ItemKind::Mod(..)
-            | ItemKind::TyAlias(..)
-            | ItemKind::Enum(..)
-            | ItemKind::Struct(..)
-            | ItemKind::Union(..)
-            | ItemKind::Trait(..)
-            | ItemKind::TraitAlias(..) => true,
-            ItemKind::Use(path, _) => path.res.type_ns.is_some(),
-            _ => false,
-        }
-    }
-
-    /// Returns the local struct stored directly in a `Vec`, ignoring its generic arguments.
-    fn vector_element(cx: &LateContext<'_>, vector: Ty<'_>) -> Option<LocalDefId> {
-        let ty::Adt(vector_def, arguments) = vector.kind() else {
-            return None;
-        };
-        if !cx.tcx.is_diagnostic_item(sym::Vec, vector_def.did()) {
-            return None;
-        }
-        let ty::Adt(element, _) = arguments.type_at(0).kind() else {
-            return None;
-        };
-        element
-            .is_struct()
-            .then(|| element.did().as_local())
-            .flatten()
-    }
-}
 
 /// The method receiver that preserves how the original collection was passed.
 #[derive(Clone, Copy)]
@@ -348,4 +81,290 @@ enum WrapperState {
     Missing,
     Compatible,
     Conflicting,
+}
+
+/// One free function whose first parameter represents a collection that needs a domain wrapper.
+struct Candidate {
+    hir_id: HirId,
+    function_name: Symbol,
+    function_name_span: Span,
+    parameter_span: Span,
+    element_def_id: LocalDefId,
+    has_element_parameters: bool,
+    element_type: String,
+    element_name: Symbol,
+    wrapper_name: Symbol,
+    receiver: CollectionReceiver,
+}
+
+impl Candidate {
+    /// Recognizes a free function whose first parameter is a supported collection of a local struct.
+    ///
+    /// The compiler's understanding of the type is used here, so aliases such as `type Items =
+    /// Vec<Item>` are treated the same as spelling `Vec<Item>` directly.
+    fn discover(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+        let ItemKind::Fn {
+            sig,
+            ident,
+            body,
+            has_body: true,
+            ..
+        } = item.kind
+        else {
+            return None;
+        };
+
+        if sig.header.abi != ExternAbi::Rust {
+            return None;
+        }
+
+        let function_def_id = item.owner_id.def_id;
+        let signature = cx.tcx.fn_sig(function_def_id).instantiate_identity();
+        let first_type = *signature.inputs().skip_binder().first()?;
+        let body = cx.tcx.hir_body(body);
+        let parameter = body.params.first()?;
+        let mutable_binding = matches!(
+            parameter.pat.kind,
+            PatKind::Binding(BindingMode(_, Mutability::Mut), ..)
+        );
+        let (receiver, element_type) =
+            CollectionReceiver::discover(cx, first_type, mutable_binding)?;
+
+        let ty::Adt(element, _) = element_type.kind() else {
+            return None;
+        };
+        let element_def_id = element
+            .is_struct()
+            .then(|| element.did().as_local())
+            .flatten()?;
+        if cx
+            .tcx
+            .def_span(element_def_id)
+            .in_external_macro(cx.sess().source_map())
+        {
+            return None;
+        }
+
+        let element_name = cx.tcx.item_name(element_def_id.to_def_id());
+        let wrapper_name = Symbol::intern(&format!("{element_name}List"));
+        Some(Self {
+            hir_id: item.hir_id(),
+            function_name: ident.name,
+            function_name_span: ident.span,
+            parameter_span: parameter.span,
+            element_def_id,
+            has_element_parameters: !cx.tcx.generics_of(element_def_id).own_params.is_empty(),
+            element_type: element_type.to_string(),
+            element_name,
+            wrapper_name,
+            receiver,
+        })
+    }
+
+    /// Returns the local struct stored directly in a `Vec`, ignoring its generic arguments.
+    fn vector_element(cx: &LateContext<'_>, vector: Ty<'_>) -> Option<LocalDefId> {
+        let ty::Adt(vector_def, arguments) = vector.kind() else {
+            return None;
+        };
+        if !cx.tcx.is_diagnostic_item(sym::Vec, vector_def.did()) {
+            return None;
+        }
+        let ty::Adt(element, _) = arguments.type_at(0).kind() else {
+            return None;
+        };
+        element
+            .is_struct()
+            .then(|| element.did().as_local())
+            .flatten()
+    }
+
+    /// Returns whether an item occupies the canonical name in Rust's type namespace.
+    ///
+    /// Functions and values may legally share this spelling with a struct, so they must not be
+    /// mistaken for wrapper conflicts.
+    fn occupies_wrapper_name(&self, item: &Item<'_>) -> bool {
+        if item
+            .kind
+            .ident()
+            .is_none_or(|ident| ident.name != self.wrapper_name)
+        {
+            return false;
+        }
+
+        match item.kind {
+            ItemKind::ExternCrate(..)
+            | ItemKind::Mod(..)
+            | ItemKind::TyAlias(..)
+            | ItemKind::Enum(..)
+            | ItemKind::Struct(..)
+            | ItemKind::Union(..)
+            | ItemKind::Trait(..)
+            | ItemKind::TraitAlias(..) => true,
+            ItemKind::Use(path, _) => path.res.type_ns.is_some(),
+            _ => false,
+        }
+    }
+
+    /// Determines whether the canonical wrapper is absent, usable, or occupied by another type.
+    fn wrapper_state<'tcx>(
+        &self,
+        cx: &LateContext<'tcx>,
+        module_items: &[&'tcx Item<'tcx>],
+    ) -> WrapperState {
+        let Some(item) = module_items
+            .iter()
+            .find(|item| self.occupies_wrapper_name(item))
+        else {
+            return WrapperState::Missing;
+        };
+
+        let ItemKind::Struct(_, _, fields) = item.kind else {
+            return WrapperState::Conflicting;
+        };
+        let items = Symbol::intern("items");
+        let has_expected_field = fields.fields().iter().any(|field| {
+            field.ident.name == items
+                && Self::vector_element(cx, cx.tcx.type_of(field.def_id).instantiate_identity())
+                    .is_some_and(|element| element == self.element_def_id)
+        });
+        if has_expected_field {
+            WrapperState::Compatible
+        } else {
+            WrapperState::Conflicting
+        }
+    }
+
+    /// Returns editable items from the element struct's module, where its wrapper must live.
+    fn element_module_items<'tcx>(&self, cx: &LateContext<'tcx>) -> Vec<&'tcx Item<'tcx>> {
+        let source_map = cx.sess().source_map();
+        let module = cx.tcx.parent_module_from_def_id(self.element_def_id);
+        cx.tcx
+            .hir_module_items(module)
+            .free_items()
+            .map(|item_id| cx.tcx.hir_item(item_id))
+            .filter(|item| !item.span.in_external_macro(source_map))
+            .collect()
+    }
+
+    /// Reports the violation and gives a concrete wrapper recipe without pretending it is a safe
+    /// automatic rewrite.
+    fn emit(&self, cx: &LateContext<'_>) {
+        let module_items = self.element_module_items(cx);
+        let wrapper = self.wrapper_state(cx, &module_items);
+        let element_file = cx
+            .sess()
+            .source_map()
+            .span_to_filename(cx.tcx.def_span(self.element_def_id));
+        let element_file = element_file.short();
+        cx.tcx.emit_node_span_lint(
+            ENFORCE_IMPLEMENTABLE_METHODS_ON_VECTORS,
+            self.hir_id,
+            self.function_name_span,
+            DiagDecorator(|diag| {
+                diag.primary_message(format!(
+                    "free function `{}` should be a method on `{}`",
+                    self.function_name, self.wrapper_name
+                ));
+                diag.span_label(
+                    self.parameter_span,
+                    format!("this collection of `{}` needs a named wrapper", self.element_name),
+                );
+
+                match wrapper {
+                    WrapperState::Missing if self.has_element_parameters => diag.help(format!(
+                        "beside `{}` in `{element_file}`, define a generic `{}` wrapper that preserves its parameters and stores `Vec<{}>` in `items`, then implement `{}` there with {}",
+                        self.element_name,
+                        self.wrapper_name,
+                        self.element_type,
+                        self.function_name,
+                        self.receiver.description()
+                    )),
+                    WrapperState::Missing => diag.help(format!(
+                        "beside `{}` in `{element_file}`, define `struct {} {{ items: Vec<{}> }}` and implement `{}` there with {}",
+                        self.element_name,
+                        self.wrapper_name,
+                        self.element_type,
+                        self.function_name,
+                        self.receiver.description()
+                    )),
+                    WrapperState::Compatible => diag.help(format!(
+                        "move `{}` into the existing `impl {}` block beside `{}` in `{element_file}` and use {}",
+                        self.function_name,
+                        self.wrapper_name,
+                        self.element_name,
+                        self.receiver.description()
+                    )),
+                    WrapperState::Conflicting => diag.help(format!(
+                        "`{}` already names another type beside `{}` in `{element_file}`; choose a dedicated wrapper there with an `items: Vec<{}>` field and implement `{}` with {}",
+                        self.wrapper_name,
+                        self.element_name,
+                        self.element_name,
+                        self.function_name,
+                        self.receiver.description()
+                    )),
+                };
+            }),
+        );
+    }
+}
+
+// Lint pass
+// -------------------------------------------------------------------------------------------------
+
+struct EnforceImplementableMethodsOnVectors;
+
+dylint_linting::impl_late_lint! {
+    /// ### What it does
+    ///
+    /// Checks for free functions whose first parameter is a vector or slice of a struct defined in
+    /// the same crate.
+    ///
+    /// ### Why is this bad?
+    ///
+    /// A collection of domain values usually has behavior of its own. Giving that collection a
+    /// name keeps its behavior discoverable and prevents unrelated free functions from becoming
+    /// the collection's informal interface.
+    ///
+    /// For example, this function leaves the collection without a home for its behavior:
+    ///
+    /// ```rust
+    /// struct Item;
+    ///
+    /// fn inspect(items: &[Item]) {}
+    /// ```
+    ///
+    /// A small wrapper makes the intended interface explicit:
+    ///
+    /// ```rust
+    /// struct ItemList {
+    ///     items: Vec<Item>,
+    /// }
+    ///
+    /// impl ItemList {
+    ///     fn inspect(&self) {}
+    /// }
+    /// ```
+    pub ENFORCE_IMPLEMENTABLE_METHODS_ON_VECTORS,
+    Warn,
+    "enforces wrapper methods for vectors and slices of local structs",
+    EnforceImplementableMethodsOnVectors
+}
+
+impl<'tcx> LateLintPass<'tcx> for EnforceImplementableMethodsOnVectors {
+    /// Checks complete modules so wrapper discovery and function discovery see the same namespace.
+    fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, _: HirId) {
+        let source_map = cx.sess().source_map();
+        let items = module
+            .item_ids
+            .iter()
+            .map(|item_id| cx.tcx.hir_item(*item_id))
+            .filter(|item| !item.span.in_external_macro(source_map))
+            .collect::<Vec<_>>();
+
+        for item in &items {
+            if let Some(candidate) = Candidate::discover(cx, item) {
+                candidate.emit(cx);
+            }
+        }
+    }
 }

@@ -1,7 +1,7 @@
 // edition:2024
 
 #![feature(register_tool)]
-#![allow(dead_code)]
+#![allow(dead_code, enforce_inherent_impl_item_order, enforce_module_declaration_order, enforce_struct_impl_colocation, enforce_type_dependency_order)]
 #![register_tool(rlib_lint)]
 
 // Attributes may change compilation or formatting and must travel deliberately.
