@@ -1,0 +1,22 @@
+warning: local types should be declared before their use
+  --> $DIR/fix.rs:9:1
+   |
+LL | / struct Consumer(Dependency);
+LL | | impl Consumer {}
+   | |________________^ this declaration is the first out of order
+   |
+   = note: expected declaration order: `Dependency`, `Consumer`
+note: the lint level is defined here
+  --> $DIR/fix.rs:7:9
+   |
+LL | #![warn(enforce_type_dependency_order)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: reorder these declarations
+   |
+LL + struct Dependency;
+LL + struct Consumer(Dependency);
+LL + impl Consumer {}
+   |
+
+warning: 1 warning emitted
+

@@ -1,7 +1,8 @@
 #![feature(rustc_private)]
 #![warn(unused_extern_crates)]
 
-mod registration;
+mod utils;
 mod rules;
+mod registration;
 
 pub use registration::register_lints;

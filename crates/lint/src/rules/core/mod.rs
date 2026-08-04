@@ -3,3 +3,6 @@ pub(crate) mod enforce_implementable_methods;
 pub(crate) mod enforce_implementable_methods_on_vectors;
 pub(crate) mod enforce_struct_bool_prefix;
 pub(crate) mod enforce_struct_impl_definition_order;
+pub(crate) mod enforce_inherent_impl_item_order;
+pub(crate) mod enforce_module_declaration_order;
+pub(crate) mod enforce_type_dependency_order;

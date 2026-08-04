@@ -1,7 +1,7 @@
 // edition:2024
 
 #![feature(register_tool)]
-#![allow(dead_code, private_interfaces, unused_imports, unused_variables)]
+#![allow(dead_code, private_interfaces, unused_imports, unused_variables, enforce_inherent_impl_item_order, enforce_module_declaration_order, enforce_type_dependency_order)]
 #![register_tool(rlib_lint)]
 
 struct Item<T>(T);

@@ -2,7 +2,7 @@
 // edition:2024
 
 #![feature(register_tool)]
-#![allow(dead_code, improper_ctypes_definitions, unused_variables)]
+#![allow(dead_code, improper_ctypes_definitions, unused_variables, enforce_inherent_impl_item_order, enforce_module_declaration_order, enforce_type_dependency_order)]
 #![register_tool(rlib_lint)]
 
 extern crate external_macro;

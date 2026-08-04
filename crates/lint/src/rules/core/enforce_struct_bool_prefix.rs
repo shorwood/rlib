@@ -5,7 +5,9 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{FieldDef, def::DefKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 
-dylint_linting::declare_late_lint! {
+struct EnforceStructBoolPrefix;
+
+dylint_linting::impl_late_lint! {
     /// ### What it does
     ///
     /// Checks that named boolean fields in structs start with `is_` or `has_`.
@@ -15,7 +17,8 @@ dylint_linting::declare_late_lint! {
     /// A predicate prefix makes the meaning of a boolean field clear at call sites.
     pub ENFORCE_STRUCT_BOOL_PREFIX,
     Warn,
-    "enforces is_ or has_ prefixes for boolean struct fields"
+    "enforces is_ or has_ prefixes for boolean struct fields",
+    EnforceStructBoolPrefix
 }
 
 impl LateLintPass<'_> for EnforceStructBoolPrefix {

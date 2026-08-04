@@ -27,45 +27,6 @@ fn example_function() {
 
 ---
 
-Rule #6: Type dependency ordering.
-When defining a struct or a type, any types that are used as fields in the struct or type should be defined before the struct or type definition. This ensures that the code is organized and easy to read.
-
-```rs
-// BAD
-
-#[derive(Clone, Debug)]
-pub(crate) struct SlotArgument {
-    pub name: String,
-    pub default: bool,
-    pub content: SlotContent,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) enum SlotContent {
-    Elements(Vec<Element>),
-    Forwarded(String),
-}
-```
-
-```rs
-// Good
-
-#[derive(Clone, Debug)]
-pub(crate) enum SlotContent {
-    Elements(Vec<Element>),
-    Forwarded(String),
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct SlotArgument {
-    pub name: String,
-    pub default: bool,
-    pub content: SlotContent,
-}
-```
-
----
-
 Rule #7: Match file name with fn, struct, const or trait names.
 
 Given a file name `my_thing.rs`, every function, struct, const or trait defined in that file should have a name that matches the file name. This ensures that the code is organized and easy to read.

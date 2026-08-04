@@ -18,174 +18,27 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
 use rustc_span::{Pos, Span, Symbol};
 
-// -----------------------------------------------------------------------------
-// Lint declaration
-// -----------------------------------------------------------------------------
-
-dylint_linting::impl_late_lint! {
-    /// ### What it does
-    ///
-    /// Checks for free functions whose first parameter can be the receiver of an inherent method
-    /// on a struct defined in the same module.
-    ///
-    /// ### Why is this bad?
-    ///
-    /// Keeping behavior on the type it belongs to makes that behavior easier to discover and keeps
-    /// the module's free-function namespace focused on operations that do not belong to one type.
-    pub ENFORCE_IMPLEMENTABLE_METHODS,
-    Warn,
-    "enforces inherent methods for functions that operate on a same-module struct",
-    EnforceImplementableMethods::default()
+/// The form of `self` that preserves how the first parameter is passed.
+#[derive(Clone, Copy)]
+enum ReceiverKind {
+    Value,
+    Ref(Mutability),
 }
 
-/// Collects the information needed to find misplaced functions and safely move them.
-#[derive(Default)]
-pub(crate) struct EnforceImplementableMethods {
-    candidates: Vec<Candidate>,
-    binding_uses: HashMap<HirId, Vec<BindingUse>>,
-    function_uses: HashMap<LocalDefId, Vec<Span>>,
-    imported_functions: HashSet<LocalDefId>,
-}
-
-// Compiler traversal
-// -------------------------------------------------------------------------------------------------
-
-impl LateLintPass<'_> for EnforceImplementableMethods {
-    /// Looks at each top-level item and remembers functions that may belong on a struct.
+impl ReceiverKind {
+    /// Describes the receiver form in the help shown to the user.
     ///
-    /// Imports are recorded separately because moving an imported function could silently change
-    /// what its alias means.
-    fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        if self.record_function_import(item) {
-            return;
-        }
-
-        if let Some(candidate) = Candidate::discover(cx, item) {
-            self.candidates.push(candidate);
-        }
-    }
-
-    /// Remembers uses of local names and free functions that a later fix may need to rewrite.
-    ///
-    /// This pass only gathers facts. It does not offer a fix until the whole crate has been seen.
-    fn check_expr(&mut self, cx: &LateContext<'_>, expr: &Expr<'_>) {
-        let ExprKind::Path(qpath) = expr.kind else {
-            return;
-        };
-
-        match cx.qpath_res(&qpath, expr.hir_id) {
-            Res::Def(DefKind::Fn, def_id) => {
-                if let Some(def_id) = def_id.as_local() {
-                    self.function_uses
-                        .entry(def_id)
-                        .or_default()
-                        .push(expr.span);
-                }
-            }
-            Res::Local(binding_id) => {
-                let shorthand_field =
-                    cx.tcx
-                        .hir_parent_iter(expr.hir_id)
-                        .next()
-                        .and_then(|(_, node)| match node {
-                            Node::ExprField(field) if field.is_shorthand => Some(field.ident.name),
-                            _ => None,
-                        });
-                self.binding_uses
-                    .entry(binding_id)
-                    .or_default()
-                    .push(BindingUse {
-                        span: expr.span,
-                        shorthand_field,
-                    });
-            }
-            _ => {}
-        }
-    }
-
-    /// Reports every candidate after all possible references have been collected.
-    ///
-    /// Waiting until the end prevents a fix from overlooking a call that appears later in the
-    /// source.
-    fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        // References are only complete after the entire crate has been visited. Waiting until now
-        // lets a migration update every call site or decline the fix as one atomic decision.
-        for candidate in &self.candidates {
-            self.emit_candidate(cx, candidate);
+    /// For example, `item: Item`, `item: &Item`, and `item: &mut Item` become `self`, `&self`, and
+    /// `&mut self`, respectively.
+    fn description(self) -> &'static str {
+        match self {
+            Self::Value => "`self`",
+            Self::Ref(Mutability::Not) => "`&self`",
+            Self::Ref(Mutability::Mut) => "`&mut self`",
         }
     }
 }
 
-impl EnforceImplementableMethods {
-    /// Records a function import and returns whether the item was an import.
-    ///
-    /// An imported alias is part of the function's public shape inside the module, so the fixer
-    /// leaves that move to the author.
-    fn record_function_import(&mut self, item: &Item<'_>) -> bool {
-        let ItemKind::Use(path, _) = item.kind else {
-            return false;
-        };
-
-        // Moving an imported function would also change the meaning of its alias. The lint still
-        // applies, but remembering the import prevents an incomplete automatic migration.
-        if let Some(Res::Def(DefKind::Fn, def_id)) = path.res.value_ns
-            && let Some(def_id) = def_id.as_local()
-        {
-            self.imported_functions.insert(def_id);
-        }
-        true
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Diagnostics
-// -----------------------------------------------------------------------------
-
-impl EnforceImplementableMethods {
-    /// Emits the warning and includes a complete migration only when every edit is known to be safe.
-    ///
-    /// When no automatic migration is available, the help still explains the intended method form
-    /// or the naming collision that requires a manual choice.
-    fn emit_candidate(&self, cx: &LateContext<'_>, candidate: &Candidate) {
-        let has_collision = candidate.has_method_collision(cx);
-        let migration = (!has_collision)
-            .then(|| MigrationBuilder::new(self, cx, candidate).build())
-            .flatten();
-
-        cx.tcx.emit_node_span_lint(
-            ENFORCE_IMPLEMENTABLE_METHODS,
-            candidate.hir_id,
-            candidate.name_span,
-            DiagDecorator(|diag| {
-                diag.primary_message(format!(
-                    "free function `{}` should be an inherent method on `{}`",
-                    candidate.name, candidate.struct_name
-                ));
-                if let Some(edits) = migration {
-                    diag.multipart_suggestion(
-                        "move the function into an inherent impl and update its uses",
-                        edits,
-                        Applicability::MachineApplicable,
-                    );
-                } else if has_collision {
-                    diag.help(format!(
-                        "remove this wrapper or choose a name other than the existing `{}` method",
-                        candidate.name
-                    ));
-                } else {
-                    diag.help(format!(
-                        "move `{}` into an `impl {}` block and replace its first parameter with {}",
-                        candidate.name,
-                        candidate.struct_name,
-                        candidate.receiver_kind.description()
-                    ));
-                }
-            }),
-        );
-    }
-}
-
-// -----------------------------------------------------------------------------
 // Collected model
 // -----------------------------------------------------------------------------
 
@@ -507,27 +360,6 @@ impl Candidate {
     }
 }
 
-/// The form of `self` that preserves how the first parameter is passed.
-#[derive(Clone, Copy)]
-enum ReceiverKind {
-    Value,
-    Ref(Mutability),
-}
-
-impl ReceiverKind {
-    /// Describes the receiver form in the help shown to the user.
-    ///
-    /// For example, `item: Item`, `item: &Item`, and `item: &mut Item` become `self`, `&self`, and
-    /// `&mut self`, respectively.
-    fn description(self) -> &'static str {
-        match self {
-            Self::Value => "`self`",
-            Self::Ref(Mutability::Not) => "`&self`",
-            Self::Ref(Mutability::Mut) => "`&mut self`",
-        }
-    }
-}
-
 /// One place where the first parameter's name is used inside the function body.
 #[derive(Clone, Copy)]
 struct BindingUse {
@@ -536,6 +368,199 @@ struct BindingUse {
 }
 
 // -----------------------------------------------------------------------------
+
+/// A group of replacements made inside one larger source range.
+#[derive(Default)]
+struct SourceEdits(Vec<(Span, String)>);
+
+impl SourceEdits {
+    /// Adds one source replacement to the group.
+    fn push(&mut self, span: Span, replacement: String) {
+        self.0.push((span, replacement));
+    }
+
+    /// Applies every replacement to a source string while preserving the original offsets.
+    ///
+    /// Editing from right to left ensures that an earlier replacement cannot move the text used by
+    /// a later one.
+    fn apply_to(&mut self, source: &mut String, outer: Span) -> Option<()> {
+        // Applying from right to left keeps every compiler byte offset valid as text changes.
+        self.0
+            .sort_unstable_by_key(|(span, _)| std::cmp::Reverse(span.lo()));
+        for (span, replacement) in &self.0 {
+            let start = usize::try_from((span.lo() - outer.lo()).to_u32()).ok()?;
+            let end = usize::try_from((span.hi() - outer.lo()).to_u32()).ok()?;
+            source.replace_range(start..end, replacement);
+        }
+        Some(())
+    }
+}
+
+/// Collects the information needed to find misplaced functions and safely move them.
+#[derive(Default)]
+struct EnforceImplementableMethods {
+    candidates: Vec<Candidate>,
+    binding_uses: HashMap<HirId, Vec<BindingUse>>,
+    function_uses: HashMap<LocalDefId, Vec<Span>>,
+    imported_functions: HashSet<LocalDefId>,
+}
+
+dylint_linting::impl_late_lint! {
+    /// ### What it does
+    ///
+    /// Checks for free functions whose first parameter can be the receiver of an inherent method
+    /// on a struct defined in the same module.
+    ///
+    /// ### Why is this bad?
+    ///
+    /// Keeping behavior on the type it belongs to makes that behavior easier to discover and keeps
+    /// the module's free-function namespace focused on operations that do not belong to one type.
+    pub ENFORCE_IMPLEMENTABLE_METHODS,
+    Warn,
+    "enforces inherent methods for functions that operate on a same-module struct",
+    EnforceImplementableMethods::default()
+}
+
+// Compiler traversal
+// -------------------------------------------------------------------------------------------------
+
+impl LateLintPass<'_> for EnforceImplementableMethods {
+    /// Looks at each top-level item and remembers functions that may belong on a struct.
+    ///
+    /// Imports are recorded separately because moving an imported function could silently change
+    /// what its alias means.
+    fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        if self.record_function_import(item) {
+            return;
+        }
+
+        if let Some(candidate) = Candidate::discover(cx, item) {
+            self.candidates.push(candidate);
+        }
+    }
+
+    /// Remembers uses of local names and free functions that a later fix may need to rewrite.
+    ///
+    /// This pass only gathers facts. It does not offer a fix until the whole crate has been seen.
+    fn check_expr(&mut self, cx: &LateContext<'_>, expr: &Expr<'_>) {
+        let ExprKind::Path(qpath) = expr.kind else {
+            return;
+        };
+
+        match cx.qpath_res(&qpath, expr.hir_id) {
+            Res::Def(DefKind::Fn, def_id) => {
+                if let Some(def_id) = def_id.as_local() {
+                    self.function_uses
+                        .entry(def_id)
+                        .or_default()
+                        .push(expr.span);
+                }
+            }
+            Res::Local(binding_id) => {
+                let shorthand_field =
+                    cx.tcx
+                        .hir_parent_iter(expr.hir_id)
+                        .next()
+                        .and_then(|(_, node)| match node {
+                            Node::ExprField(field) if field.is_shorthand => Some(field.ident.name),
+                            _ => None,
+                        });
+                self.binding_uses
+                    .entry(binding_id)
+                    .or_default()
+                    .push(BindingUse {
+                        span: expr.span,
+                        shorthand_field,
+                    });
+            }
+            _ => {}
+        }
+    }
+
+    /// Reports every candidate after all possible references have been collected.
+    ///
+    /// Waiting until the end prevents a fix from overlooking a call that appears later in the
+    /// source.
+    fn check_crate_post(&mut self, cx: &LateContext<'_>) {
+        // References are only complete after the entire crate has been visited. Waiting until now
+        // lets a migration update every call site or decline the fix as one atomic decision.
+        for candidate in &self.candidates {
+            self.emit_candidate(cx, candidate);
+        }
+    }
+}
+
+impl EnforceImplementableMethods {
+    /// Records a function import and returns whether the item was an import.
+    ///
+    /// An imported alias is part of the function's public shape inside the module, so the fixer
+    /// leaves that move to the author.
+    fn record_function_import(&mut self, item: &Item<'_>) -> bool {
+        let ItemKind::Use(path, _) = item.kind else {
+            return false;
+        };
+
+        // Moving an imported function would also change the meaning of its alias. The lint still
+        // applies, but remembering the import prevents an incomplete automatic migration.
+        if let Some(Res::Def(DefKind::Fn, def_id)) = path.res.value_ns
+            && let Some(def_id) = def_id.as_local()
+        {
+            self.imported_functions.insert(def_id);
+        }
+        true
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Diagnostics
+// -----------------------------------------------------------------------------
+
+impl EnforceImplementableMethods {
+    /// Emits the warning and includes a complete migration only when every edit is known to be safe.
+    ///
+    /// When no automatic migration is available, the help still explains the intended method form
+    /// or the naming collision that requires a manual choice.
+    fn emit_candidate(&self, cx: &LateContext<'_>, candidate: &Candidate) {
+        let has_collision = candidate.has_method_collision(cx);
+        let migration = (!has_collision)
+            .then(|| MigrationBuilder::new(self, cx, candidate).build())
+            .flatten();
+
+        cx.tcx.emit_node_span_lint(
+            ENFORCE_IMPLEMENTABLE_METHODS,
+            candidate.hir_id,
+            candidate.name_span,
+            DiagDecorator(|diag| {
+                diag.primary_message(format!(
+                    "free function `{}` should be an inherent method on `{}`",
+                    candidate.name, candidate.struct_name
+                ));
+                if let Some(edits) = migration {
+                    diag.multipart_suggestion(
+                        "move the function into an inherent impl and update its uses",
+                        edits,
+                        Applicability::MachineApplicable,
+                    );
+                } else if has_collision {
+                    diag.help(format!(
+                        "remove this wrapper or choose a name other than the existing `{}` method",
+                        candidate.name
+                    ));
+                } else {
+                    diag.help(format!(
+                        "move `{}` into an `impl {}` block and replace its first parameter with {}",
+                        candidate.name,
+                        candidate.struct_name,
+                        candidate.receiver_kind.description()
+                    ));
+                }
+            }),
+        );
+    }
+}
+
+// -----------------------------------------------------------------------------
+
 // Automatic migration
 // -----------------------------------------------------------------------------
 
@@ -562,17 +587,6 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
             internal_edits: SourceEdits::default(),
             external_edits: Vec::new(),
         }
-    }
-
-    /// Builds the complete edit set, or declines when any part of the move is uncertain.
-    ///
-    /// Each stage must succeed before the suggestion is marked as safe for automatic application.
-    fn build(mut self) -> Option<Vec<(Span, String)>> {
-        self.check_whole_migration_is_safe()?;
-        let impl_generics = self.rewrite_receiver()?;
-        self.rewrite_binding_uses()?;
-        self.rewrite_function_uses()?;
-        self.finish(&impl_generics)
     }
 
     /// Rejects moves that cannot be applied as one complete, non-overlapping change.
@@ -609,6 +623,11 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
                     .is_some_and(|uses| uses.iter().any(|span| self.candidate.contains(*span)))
         });
         (!overlaps_another_migration).then_some(())
+    }
+
+    /// Reads the original source text covered by a compiler source range.
+    fn snippet(&self, span: Span) -> Option<String> {
+        self.cx.sess().source_map().span_to_snippet(span).ok()
     }
 
     /// Replaces the first parameter with the appropriate `self` spelling.
@@ -659,6 +678,30 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
                 Some(generics)
             },
         )
+    }
+
+    /// Applies the edits inside the function, wraps it in an `impl`, and adds call-site edits.
+    fn finish(mut self, impl_generics: &str) -> Option<Vec<(Span, String)>> {
+        let mut function = self.snippet(self.candidate.item_span)?;
+        self.internal_edits
+            .apply_to(&mut function, self.candidate.item_span)?;
+        let self_type = self.snippet(self.candidate.receiver_type_span)?;
+        let moved = format!("impl{impl_generics} {self_type} {{\n{function}\n}}");
+
+        let mut edits = vec![(self.candidate.item_span, moved)];
+        edits.append(&mut self.external_edits);
+        Some(edits)
+    }
+
+    /// Returns whether a source range is ordinary editable text in the candidate's file.
+    ///
+    /// Macro expansions and other files are rejected because the displayed edit would not own the
+    /// text it claims to change.
+    fn is_editable_in_candidate_file(&self, span: Span) -> bool {
+        let source_map = self.cx.sess().source_map();
+        !span.from_expansion()
+            && source_map.span_to_filename(span)
+                == source_map.span_to_filename(self.candidate.item_span)
     }
 
     /// Replaces uses of the old parameter name with `self` inside the function body.
@@ -725,59 +768,14 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
         Some(())
     }
 
-    /// Applies the edits inside the function, wraps it in an `impl`, and adds call-site edits.
-    fn finish(mut self, impl_generics: &str) -> Option<Vec<(Span, String)>> {
-        let mut function = self.snippet(self.candidate.item_span)?;
-        self.internal_edits
-            .apply_to(&mut function, self.candidate.item_span)?;
-        let self_type = self.snippet(self.candidate.receiver_type_span)?;
-        let moved = format!("impl{impl_generics} {self_type} {{\n{function}\n}}");
-
-        let mut edits = vec![(self.candidate.item_span, moved)];
-        edits.append(&mut self.external_edits);
-        Some(edits)
-    }
-
-    /// Reads the original source text covered by a compiler source range.
-    fn snippet(&self, span: Span) -> Option<String> {
-        self.cx.sess().source_map().span_to_snippet(span).ok()
-    }
-
-    /// Returns whether a source range is ordinary editable text in the candidate's file.
+    /// Builds the complete edit set, or declines when any part of the move is uncertain.
     ///
-    /// Macro expansions and other files are rejected because the displayed edit would not own the
-    /// text it claims to change.
-    fn is_editable_in_candidate_file(&self, span: Span) -> bool {
-        let source_map = self.cx.sess().source_map();
-        !span.from_expansion()
-            && source_map.span_to_filename(span)
-                == source_map.span_to_filename(self.candidate.item_span)
-    }
-}
-
-/// A group of replacements made inside one larger source range.
-#[derive(Default)]
-struct SourceEdits(Vec<(Span, String)>);
-
-impl SourceEdits {
-    /// Adds one source replacement to the group.
-    fn push(&mut self, span: Span, replacement: String) {
-        self.0.push((span, replacement));
-    }
-
-    /// Applies every replacement to a source string while preserving the original offsets.
-    ///
-    /// Editing from right to left ensures that an earlier replacement cannot move the text used by
-    /// a later one.
-    fn apply_to(&mut self, source: &mut String, outer: Span) -> Option<()> {
-        // Applying from right to left keeps every compiler byte offset valid as text changes.
-        self.0
-            .sort_unstable_by_key(|(span, _)| std::cmp::Reverse(span.lo()));
-        for (span, replacement) in &self.0 {
-            let start = usize::try_from((span.lo() - outer.lo()).to_u32()).ok()?;
-            let end = usize::try_from((span.hi() - outer.lo()).to_u32()).ok()?;
-            source.replace_range(start..end, replacement);
-        }
-        Some(())
+    /// Each stage must succeed before the suggestion is marked as safe for automatic application.
+    fn build(mut self) -> Option<Vec<(Span, String)>> {
+        self.check_whole_migration_is_safe()?;
+        let impl_generics = self.rewrite_receiver()?;
+        self.rewrite_binding_uses()?;
+        self.rewrite_function_uses()?;
+        self.finish(&impl_generics)
     }
 }

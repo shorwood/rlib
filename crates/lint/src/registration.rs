@@ -17,6 +17,9 @@ pub extern "Rust" fn register_lints(
     rules::core::enforce_barrel_files::register_lints(sess, lint_store);
     rules::core::enforce_implementable_methods::register_lints(sess, lint_store);
     rules::core::enforce_implementable_methods_on_vectors::register_lints(sess, lint_store);
+    rules::core::enforce_inherent_impl_item_order::register_lints(sess, lint_store);
+    rules::core::enforce_module_declaration_order::register_lints(sess, lint_store);
     rules::core::enforce_struct_bool_prefix::register_lints(sess, lint_store);
     rules::core::enforce_struct_impl_definition_order::register_lints(sess, lint_store);
+    rules::core::enforce_type_dependency_order::register_lints(sess, lint_store);
 }

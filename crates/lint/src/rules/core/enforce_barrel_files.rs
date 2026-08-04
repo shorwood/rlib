@@ -7,127 +7,6 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::symbol::kw;
 
-// Lint declaration
-// -------------------------------------------------------------------------------------------------
-
-dylint_linting::impl_pre_expansion_lint! {
-    /// ### What it does
-    ///
-    /// Keeps every physical `mod.rs` and `lib.rs` file focused on describing the module tree. Such
-    /// a file may declare child modules and expose their names, but it may not contain
-    /// implementation code.
-    ///
-    /// ### Why is this bad?
-    ///
-    /// Predictable barrel files let a reader understand a crate's shape without separating useful
-    /// declarations from unrelated behavior. They also give an agent one unambiguous place to look
-    /// for each concern: barrels describe where code lives, and named files contain that code.
-    ///
-    /// ### Example
-    ///
-    /// ```rust
-    /// // mod.rs or lib.rs
-    /// mod parser;
-    /// pub use parser::Parser;
-    ///
-    /// // Put this in parser.rs instead.
-    /// fn parse() {}
-    /// ```
-    pub ENFORCE_BARREL_FILES,
-    Warn,
-    "keeps mod.rs and lib.rs limited to module declarations and reexports",
-    EnforceBarrelFiles::default()
-}
-
-// Lint state
-// -------------------------------------------------------------------------------------------------
-
-/// Enforces the barrel-file boundary while remembering when traversal is inside an inline module.
-///
-/// The depth prevents one inline module from producing another warning for every item in its body.
-/// The inline module itself is the single actionable mistake: moving its body fixes all children.
-#[derive(Default)]
-pub(crate) struct EnforceBarrelFiles {
-    ignored_inline_depth: usize,
-}
-
-impl EarlyLintPass for EnforceBarrelFiles {
-    /// Checks one explicitly written top-level item before macros can replace it with generated code.
-    ///
-    /// Running before expansion matters for code such as `include!("items.rs")`: the macro call is
-    /// itself forbidden even when the included file happens to contain only module declarations.
-    fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
-        // Ignore all items inside an inline module because the module itself is the actionable problem.
-        if self.ignored_inline_depth > 0 {
-            self.enter_inline_module(item);
-            return;
-        }
-
-        // Ignore items that are not physically written in a barrel file because they cannot be moved.
-        if !Self::is_written_in_barrel_file(cx, item) {
-            return;
-        }
-
-        // Classifies the item and returns a violation if it is not a valid barrel entry.
-        let Some(violation) = Violation::from_item(item) else {
-            return;
-        };
-
-        // Emit a single warning for the item and enter any inline module to avoid duplicate warnings.
-        Self::emit(cx, item, violation);
-        self.enter_inline_module(item);
-    }
-
-    /// Leaves an ignored inline-module body after all of its children have been visited.
-    fn check_item_post(&mut self, _: &EarlyContext<'_>, item: &Item) {
-        if self.ignored_inline_depth > 0 && Self::is_inline_module(item) {
-            self.ignored_inline_depth -= 1;
-        }
-    }
-}
-
-impl EnforceBarrelFiles {
-    /// Records entry into an inline module so its contents do not receive duplicate warnings.
-    fn enter_inline_module(&mut self, item: &Item) {
-        if Self::is_inline_module(item) {
-            self.ignored_inline_depth += 1;
-        }
-    }
-
-    /// Returns whether an item is an inline `mod child { ... }` definition.
-    fn is_inline_module(item: &Item) -> bool {
-        matches!(
-            item.kind,
-            ItemKind::Mod(_, _, ModKind::Loaded(_, Inline::Yes, _))
-        )
-    }
-
-    /// Returns whether the item came from a real file named `mod.rs` or `lib.rs`.
-    ///
-    /// Compiler-created and virtual filenames are ignored because they do not represent a barrel
-    /// file that a developer can open and reorganize.
-    fn is_written_in_barrel_file(cx: &EarlyContext<'_>, item: &Item) -> bool {
-        cx.sess()
-            .source_map()
-            .span_to_filename(item.span)
-            .into_local_path()
-            .and_then(|path| path.file_name().map(ToOwned::to_owned))
-            .is_some_and(|name| name == "mod.rs" || name == "lib.rs")
-    }
-
-    /// Emits one focused explanation for the forbidden item without proposing a risky rewrite.
-    fn emit(cx: &EarlyContext<'_>, item: &Item, violation: Violation) {
-        cx.emit_span_lint(
-            ENFORCE_BARREL_FILES,
-            item.span,
-            DiagDecorator(|diag| {
-                diag.primary_message(violation.message());
-                diag.help(violation.help());
-            }),
-        );
-    }
-}
-
 // Item classification
 // -------------------------------------------------------------------------------------------------
 
@@ -198,6 +77,124 @@ impl Violation {
             Self::Implementation => {
                 "move this code into a dedicated module and leave its declaration or reexport here"
             }
+        }
+    }
+}
+
+// Lint state
+// -------------------------------------------------------------------------------------------------
+
+/// Enforces the barrel-file boundary while remembering when traversal is inside an inline module.
+///
+/// The depth prevents one inline module from producing another warning for every item in its body.
+/// The inline module itself is the single actionable mistake: moving its body fixes all children.
+#[derive(Default)]
+struct EnforceBarrelFiles {
+    ignored_inline_depth: usize,
+}
+
+dylint_linting::impl_pre_expansion_lint! {
+    /// ### What it does
+    ///
+    /// Keeps every physical `mod.rs` and `lib.rs` file focused on describing the module tree. Such
+    /// a file may declare child modules and expose their names, but it may not contain
+    /// implementation code.
+    ///
+    /// ### Why is this bad?
+    ///
+    /// Predictable barrel files let a reader understand a crate's shape without separating useful
+    /// declarations from unrelated behavior. They also give an agent one unambiguous place to look
+    /// for each concern: barrels describe where code lives, and named files contain that code.
+    ///
+    /// ### Example
+    ///
+    /// ```rust
+    /// // mod.rs or lib.rs
+    /// mod parser;
+    /// pub use parser::Parser;
+    ///
+    /// // Put this in parser.rs instead.
+    /// fn parse() {}
+    /// ```
+    pub ENFORCE_BARREL_FILES,
+    Warn,
+    "keeps mod.rs and lib.rs limited to module declarations and reexports",
+    EnforceBarrelFiles::default()
+}
+
+impl EarlyLintPass for EnforceBarrelFiles {
+    /// Checks one explicitly written top-level item before macros can replace it with generated code.
+    ///
+    /// Running before expansion matters for code such as `include!("items.rs")`: the macro call is
+    /// itself forbidden even when the included file happens to contain only module declarations.
+    fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
+        // Ignore all items inside an inline module because the module itself is the actionable problem.
+        if self.ignored_inline_depth > 0 {
+            self.enter_inline_module(item);
+            return;
+        }
+
+        // Ignore items that are not physically written in a barrel file because they cannot be moved.
+        if !Self::is_written_in_barrel_file(cx, item) {
+            return;
+        }
+
+        // Classifies the item and returns a violation if it is not a valid barrel entry.
+        let Some(violation) = Violation::from_item(item) else {
+            return;
+        };
+
+        // Emit a single warning for the item and enter any inline module to avoid duplicate warnings.
+        Self::emit(cx, item, violation);
+        self.enter_inline_module(item);
+    }
+
+    /// Leaves an ignored inline-module body after all of its children have been visited.
+    fn check_item_post(&mut self, _: &EarlyContext<'_>, item: &Item) {
+        if self.ignored_inline_depth > 0 && Self::is_inline_module(item) {
+            self.ignored_inline_depth -= 1;
+        }
+    }
+}
+
+impl EnforceBarrelFiles {
+    /// Returns whether an item is an inline `mod child { ... }` definition.
+    fn is_inline_module(item: &Item) -> bool {
+        matches!(
+            item.kind,
+            ItemKind::Mod(_, _, ModKind::Loaded(_, Inline::Yes, _))
+        )
+    }
+
+    /// Returns whether the item came from a real file named `mod.rs` or `lib.rs`.
+    ///
+    /// Compiler-created and virtual filenames are ignored because they do not represent a barrel
+    /// file that a developer can open and reorganize.
+    fn is_written_in_barrel_file(cx: &EarlyContext<'_>, item: &Item) -> bool {
+        cx.sess()
+            .source_map()
+            .span_to_filename(item.span)
+            .into_local_path()
+            .and_then(|path| path.file_name().map(ToOwned::to_owned))
+            .is_some_and(|name| name == "mod.rs" || name == "lib.rs")
+    }
+
+    /// Emits one focused explanation for the forbidden item without proposing a risky rewrite.
+    fn emit(cx: &EarlyContext<'_>, item: &Item, violation: Violation) {
+        cx.emit_span_lint(
+            ENFORCE_BARREL_FILES,
+            item.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(violation.message());
+                diag.help(violation.help());
+            }),
+        );
+    }
+
+    /// Records entry into an inline module so its contents do not receive duplicate warnings.
+    fn enter_inline_module(&mut self, item: &Item) {
+        if Self::is_inline_module(item) {
+            self.ignored_inline_depth += 1;
         }
     }
 }
