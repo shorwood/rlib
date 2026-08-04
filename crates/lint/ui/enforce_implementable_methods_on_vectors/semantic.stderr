@@ -1,0 +1,103 @@
+warning: free function `owned` should be a method on `ItemList`
+  --> $DIR/semantic.rs:20:4
+   |
+LL | fn owned(items: Vec<Item>) {}
+   |    ^^^^^ ---------------- this collection of `Item` needs a named wrapper
+   |
+   = help: define `struct ItemList { items: Vec<Item> }` and implement `owned` there with `self`
+   = note: `#[warn(enforce_implementable_methods_on_vectors)]` on by default
+
+warning: free function `mutable_owned` should be a method on `ItemList`
+  --> $DIR/semantic.rs:21:4
+   |
+LL | fn mutable_owned(mut items: Vec<Item>) {}
+   |    ^^^^^^^^^^^^^ -------------------- this collection of `Item` needs a named wrapper
+   |
+   = help: define `struct ItemList { items: Vec<Item> }` and implement `mutable_owned` there with `mut self`
+
+warning: free function `shared_vector` should be a method on `ItemList`
+  --> $DIR/semantic.rs:22:4
+   |
+LL | fn shared_vector(items: &Vec<Item>) {}
+   |    ^^^^^^^^^^^^^ ----------------- this collection of `Item` needs a named wrapper
+   |
+   = help: define `struct ItemList { items: Vec<Item> }` and implement `shared_vector` there with `&self`
+
+warning: free function `mutable_vector` should be a method on `ItemList`
+  --> $DIR/semantic.rs:23:4
+   |
+LL | fn mutable_vector(items: &mut Vec<Item>) {}
+   |    ^^^^^^^^^^^^^^ --------------------- this collection of `Item` needs a named wrapper
+   |
+   = help: define `struct ItemList { items: Vec<Item> }` and implement `mutable_vector` there with `&mut self`
+
+warning: free function `shared_slice` should be a method on `ItemList`
+  --> $DIR/semantic.rs:24:4
+   |
+LL | fn shared_slice(items: &[Item]) {}
+   |    ^^^^^^^^^^^^ -------------- this collection of `Item` needs a named wrapper
+   |
+   = help: define `struct ItemList { items: Vec<Item> }` and implement `shared_slice` there with `&self`
+
+warning: free function `mutable_slice` should be a method on `ItemList`
+  --> $DIR/semantic.rs:25:4
+   |
+LL | fn mutable_slice(items: &mut [Item]) {}
+   |    ^^^^^^^^^^^^^ ------------------ this collection of `Item` needs a named wrapper
+   |
+   = help: define `struct ItemList { items: Vec<Item> }` and implement `mutable_slice` there with `&mut self`
+
+warning: free function `aliased_vector` should be a method on `ItemList`
+  --> $DIR/semantic.rs:32:4
+   |
+LL | fn aliased_vector(items: Items) {}
+   |    ^^^^^^^^^^^^^^ ------------ this collection of `Item` needs a named wrapper
+   |
+   = help: define `struct ItemList { items: Vec<Item> }` and implement `aliased_vector` there with `self`
+
+warning: free function `aliased_slice` should be a method on `ItemList`
+  --> $DIR/semantic.rs:33:4
+   |
+LL | fn aliased_slice(items: ItemSlice<'_>) {}
+   |    ^^^^^^^^^^^^^ -------------------- this collection of `Item` needs a named wrapper
+   |
+   = help: define `struct ItemList { items: Vec<Item> }` and implement `aliased_slice` there with `&self`
+
+warning: free function `generic` should be a method on `GenericList`
+  --> $DIR/semantic.rs:38:4
+   |
+LL | fn generic<T>(items: Vec<Generic<T>>) {}
+   |    ^^^^^^^    ---------------------- this collection of `Generic` needs a named wrapper
+   |
+   = help: define a generic `GenericList` wrapper that preserves `Generic`'s parameters and stores `Vec<Generic<T>>` in `items`, then implement `generic` there with `self`
+
+warning: free function `use_existing` should be a method on `ExistingList`
+  --> $DIR/semantic.rs:49:4
+   |
+LL | fn use_existing(items: &[Existing]) {}
+   |    ^^^^^^^^^^^^ ------------------ this collection of `Existing` needs a named wrapper
+   |
+   = help: move `use_existing` into the existing `impl ExistingList` block and use `&self`
+
+warning: free function `conflicting_wrapper` should be a method on `ConflictList`
+  --> $DIR/semantic.rs:57:4
+   |
+LL | fn conflicting_wrapper(items: Vec<Conflict>) {}
+   |    ^^^^^^^^^^^^^^^^^^^ -------------------- this collection of `Conflict` needs a named wrapper
+   |
+   = help: `ConflictList` already names another type; choose a dedicated wrapper with an `items: Vec<Conflict>` field and implement `conflicting_wrapper` there with `self`
+
+warning: free function `from_local_macro` should be a method on `ItemList`
+  --> $DIR/semantic.rs:62:12
+   |
+LL |         fn from_local_macro(items: Vec<Item>) {
+   |            ^^^^^^^^^^^^^^^^ ---------------- this collection of `Item` needs a named wrapper
+...
+LL | local_vector_function!();
+   | ------------------------ in this macro invocation
+   |
+   = help: define `struct ItemList { items: Vec<Item> }` and implement `from_local_macro` there with `self`
+   = note: this warning originates in the macro `local_vector_function` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: 12 warnings emitted
+

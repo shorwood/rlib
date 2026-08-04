@@ -1,27 +1,3 @@
-Rule #2: Enforce Implementable Methods on vectors
-When defining a struct, every method that can be implemented for that struct should be implemented in the impl block for that struct. This rule also applies to methods that can be implemented on vectors of that struct.
-
-Given this example:
-
-```rs
-fn do_something(mystructs: Vec<MyStruct>, ...) {...}
-fn do_something(mystructs: &[MyStruct], ...) {...}
-```
-
-The rule should forbid it and ensures that the developer creates a new struct that wraps the vector and implements the method in the impl block for that struct instead:
-
-```rs
-struct MyStructs {
-    mystructs: Vec<MyStruct>,
-}
-
-impl MyStructs {
-    fn do_something(&self) {...}
-}
-```
-
----
-
 Rule #2: Struct Impl Colocation
 When defining a struct, every impl block for that struct should be colocated with the struct definition.
 

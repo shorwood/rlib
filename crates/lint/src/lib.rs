@@ -14,6 +14,7 @@ pub extern "Rust" fn register_lints(
     lint_store: &mut rustc_lint::LintStore,
 ) {
     rules::core::enforce_implementable_methods::register_lints(sess, lint_store);
+    rules::core::enforce_implementable_methods_on_vectors::register_lints(sess, lint_store);
     rules::core::enforce_struct_bool_prefix::register_lints(sess, lint_store);
     rules::core::enforce_struct_impl_definition_order::register_lints(sess, lint_store);
 }

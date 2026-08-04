@@ -78,8 +78,6 @@ fn for_external_struct(value: &ExternalStruct) {}
 
 // These forms cannot map directly to a receiver and remain valid free functions.
 fn second_parameter(count: usize, item: &Item<u8>) {}
-fn vector(items: Vec<Item<u8>>) {}
-fn slice(items: &[Item<u8>]) {}
 fn boxed(item: Box<Item<u8>>) {}
 fn raw(item: *const Item<u8>) {}
 fn double_reference(item: &&Item<u8>) {}
