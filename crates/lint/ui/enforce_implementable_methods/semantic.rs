@@ -30,7 +30,20 @@ extern "Rust" fn inspect_rust_abi(item: &Item<u8>) {}
 
 // All struct shapes are eligible.
 struct Tuple(u8);
+
+trait Behavior {
+    fn trait_method(&self);
+}
+
 struct Unit;
+
+impl Unit {
+    fn already_in_impl(value: &Self) {}
+}
+
+impl Behavior for Unit {
+    fn trait_method(&self) {}
+}
 
 fn inspect_tuple(value: &Tuple) {}
 fn inspect_unit(value: &Unit) {}
@@ -102,18 +115,6 @@ mod child {
 // Constructors, inherent items, trait items, and explicit suppression are not findings.
 fn make_item() -> Item<u8> {
     Item { value: 0 }
-}
-
-impl Unit {
-    fn already_in_impl(value: &Self) {}
-}
-
-trait Behavior {
-    fn trait_method(&self);
-}
-
-impl Behavior for Unit {
-    fn trait_method(&self) {}
 }
 
 #[allow(enforce_implementable_methods)]

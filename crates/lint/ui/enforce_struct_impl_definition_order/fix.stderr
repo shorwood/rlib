@@ -1,0 +1,64 @@
+warning: impl blocks for `Movable` should immediately follow its definition
+  --> $DIR/fix.rs:11:1
+   |
+LL |   struct Movable;
+   |   ^^^^^^^^^^^^^^^
+LL |   fn movable_separator() {}
+LL | / impl Movable {
+LL | |     fn value(&self) -> u8 {
+LL | |         1
+LL | |     }
+LL | | }
+   | |_- this impl is outside `Movable`'s impl group
+   |
+   = note: `#[warn(enforce_struct_impl_definition_order)]` on by default
+help: move this impl block immediately after `Movable`
+   |
+LL ~ struct Movable;
+LL + 
+LL + impl Movable {
+LL +     fn value(&self) -> u8 {
+LL +         1
+LL +     }
+LL + }
+   |
+
+warning: impl blocks for `Multiple` should immediately follow its definition
+  --> $DIR/fix.rs:19:1
+   |
+LL | struct Multiple;
+   | ^^^^^^^^^^^^^^^^
+LL | fn multiple_separator() {}
+LL | impl Multiple {}
+   | ---------------- this impl is outside `Multiple`'s impl group
+   |
+help: move all 2 impl blocks immediately after `Multiple`
+   |
+LL ~ struct Multiple;
+LL + 
+LL + impl Multiple {}
+LL + 
+LL + impl Behavior for Multiple {}
+   |
+
+warning: impl blocks for `Split` should immediately follow its definition
+  --> $DIR/fix.rs:24:1
+   |
+LL | struct Split;
+   | ^^^^^^^^^^^^^
+...
+LL | impl Behavior for Split {}
+   | -------------------------- this impl is outside `Split`'s impl group
+   |
+help: move all 2 impl blocks immediately after `Split`
+   |
+LL ~ struct Split;
+LL + 
+LL + impl Split {}
+LL + 
+LL + impl Behavior for Split {}
+LL + 
+   |
+
+warning: 3 warnings emitted
+

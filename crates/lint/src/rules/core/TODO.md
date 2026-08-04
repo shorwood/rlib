@@ -27,11 +27,6 @@ When defining a struct, every impl block for that struct should be colocated wit
 
 ---
 
-Rule #3: Struct Impl Definition Order
-When defining a struct, the impl block for that struct should be defined immediately after the struct definition.
-
----
-
 Rule #5: Ensure blocks of continuous code with more than N lines are separated with a comment line
 When defining a function, any block of continuous code that exceeds N lines should be separated with a newline and comment line. This helps to improve code readability and maintainability.
 

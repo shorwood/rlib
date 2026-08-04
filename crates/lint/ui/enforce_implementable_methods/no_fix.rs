@@ -7,6 +7,10 @@
 struct Item<T>(T);
 struct Unit;
 
+impl Unit {
+    fn duplicate(&self) {}
+}
+
 // Public API and attributes may carry contracts that an automatic move cannot preserve.
 pub fn public(item: Unit) {}
 
@@ -26,10 +30,6 @@ fn alias_reference(item: UnitRef<'_>) {}
 // Moving an imported function or creating a duplicate method needs an API decision.
 use imported as imported_alias;
 fn imported(item: Unit) {}
-
-impl Unit {
-    fn duplicate(&self) {}
-}
 
 fn duplicate(item: &Unit) {
     item.duplicate();

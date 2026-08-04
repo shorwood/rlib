@@ -22,15 +22,6 @@ use rustc_span::{Pos, Span, Symbol};
 // Lint declaration
 // -----------------------------------------------------------------------------
 
-/// Collects the information needed to find misplaced functions and safely move them.
-#[derive(Default)]
-pub(crate) struct EnforceImplementableMethods {
-    candidates: Vec<Candidate>,
-    binding_uses: HashMap<HirId, Vec<BindingUse>>,
-    function_uses: HashMap<LocalDefId, Vec<Span>>,
-    imported_functions: HashSet<LocalDefId>,
-}
-
 dylint_linting::impl_late_lint! {
     /// ### What it does
     ///
@@ -47,54 +38,13 @@ dylint_linting::impl_late_lint! {
     EnforceImplementableMethods::default()
 }
 
-// -----------------------------------------------------------------------------
-// Collected model
-// -----------------------------------------------------------------------------
-
-/// A free function that belongs on a struct according to the rule.
-struct Candidate {
-    def_id: LocalDefId,
-    hir_id: HirId,
-    name: Symbol,
-    name_span: Span,
-    item_span: Span,
-    parameter_span: Span,
-    receiver_type_span: Span,
-    impl_generics_span: Option<Span>,
-    binding_id: Option<HirId>,
-    binding_name: Option<Symbol>,
-    receiver_kind: ReceiverKind,
-    struct_def_id: LocalDefId,
-    struct_name: Symbol,
-    is_suggestible: bool,
-}
-
-/// The form of `self` that preserves how the first parameter is passed.
-#[derive(Clone, Copy)]
-enum ReceiverKind {
-    Value,
-    Ref(Mutability),
-}
-
-impl ReceiverKind {
-    /// Describes the receiver form in the help shown to the user.
-    ///
-    /// For example, `item: Item`, `item: &Item`, and `item: &mut Item` become `self`, `&self`, and
-    /// `&mut self`, respectively.
-    fn description(self) -> &'static str {
-        match self {
-            Self::Value => "`self`",
-            Self::Ref(Mutability::Not) => "`&self`",
-            Self::Ref(Mutability::Mut) => "`&mut self`",
-        }
-    }
-}
-
-/// One place where the first parameter's name is used inside the function body.
-#[derive(Clone, Copy)]
-struct BindingUse {
-    span: Span,
-    shorthand_field: Option<Symbol>,
+/// Collects the information needed to find misplaced functions and safely move them.
+#[derive(Default)]
+pub(crate) struct EnforceImplementableMethods {
+    candidates: Vec<Candidate>,
+    binding_uses: HashMap<HirId, Vec<BindingUse>>,
+    function_uses: HashMap<LocalDefId, Vec<Span>>,
+    imported_functions: HashSet<LocalDefId>,
 }
 
 // Compiler traversal
@@ -185,6 +135,76 @@ impl EnforceImplementableMethods {
         }
         true
     }
+}
+
+// -----------------------------------------------------------------------------
+// Diagnostics
+// -----------------------------------------------------------------------------
+
+impl EnforceImplementableMethods {
+    /// Emits the warning and includes a complete migration only when every edit is known to be safe.
+    ///
+    /// When no automatic migration is available, the help still explains the intended method form
+    /// or the naming collision that requires a manual choice.
+    fn emit_candidate(&self, cx: &LateContext<'_>, candidate: &Candidate) {
+        let has_collision = candidate.has_method_collision(cx);
+        let migration = (!has_collision)
+            .then(|| MigrationBuilder::new(self, cx, candidate).build())
+            .flatten();
+
+        cx.tcx.emit_node_span_lint(
+            ENFORCE_IMPLEMENTABLE_METHODS,
+            candidate.hir_id,
+            candidate.name_span,
+            DiagDecorator(|diag| {
+                diag.primary_message(format!(
+                    "free function `{}` should be an inherent method on `{}`",
+                    candidate.name, candidate.struct_name
+                ));
+                if let Some(edits) = migration {
+                    diag.multipart_suggestion(
+                        "move the function into an inherent impl and update its uses",
+                        edits,
+                        Applicability::MachineApplicable,
+                    );
+                } else if has_collision {
+                    diag.help(format!(
+                        "remove this wrapper or choose a name other than the existing `{}` method",
+                        candidate.name
+                    ));
+                } else {
+                    diag.help(format!(
+                        "move `{}` into an `impl {}` block and replace its first parameter with {}",
+                        candidate.name,
+                        candidate.struct_name,
+                        candidate.receiver_kind.description()
+                    ));
+                }
+            }),
+        );
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Collected model
+// -----------------------------------------------------------------------------
+
+/// A free function that belongs on a struct according to the rule.
+struct Candidate {
+    def_id: LocalDefId,
+    hir_id: HirId,
+    name: Symbol,
+    name_span: Span,
+    item_span: Span,
+    parameter_span: Span,
+    receiver_type_span: Span,
+    impl_generics_span: Option<Span>,
+    binding_id: Option<HirId>,
+    binding_name: Option<Symbol>,
+    receiver_kind: ReceiverKind,
+    struct_def_id: LocalDefId,
+    struct_name: Symbol,
+    is_suggestible: bool,
 }
 
 // -----------------------------------------------------------------------------
@@ -487,52 +507,32 @@ impl Candidate {
     }
 }
 
-// -----------------------------------------------------------------------------
-// Diagnostics
-// -----------------------------------------------------------------------------
+/// The form of `self` that preserves how the first parameter is passed.
+#[derive(Clone, Copy)]
+enum ReceiverKind {
+    Value,
+    Ref(Mutability),
+}
 
-impl EnforceImplementableMethods {
-    /// Emits the warning and includes a complete migration only when every edit is known to be safe.
+impl ReceiverKind {
+    /// Describes the receiver form in the help shown to the user.
     ///
-    /// When no automatic migration is available, the help still explains the intended method form
-    /// or the naming collision that requires a manual choice.
-    fn emit_candidate(&self, cx: &LateContext<'_>, candidate: &Candidate) {
-        let has_collision = candidate.has_method_collision(cx);
-        let migration = (!has_collision)
-            .then(|| MigrationBuilder::new(self, cx, candidate).build())
-            .flatten();
-
-        cx.tcx.emit_node_span_lint(
-            ENFORCE_IMPLEMENTABLE_METHODS,
-            candidate.hir_id,
-            candidate.name_span,
-            DiagDecorator(|diag| {
-                diag.primary_message(format!(
-                    "free function `{}` should be an inherent method on `{}`",
-                    candidate.name, candidate.struct_name
-                ));
-                if let Some(edits) = migration {
-                    diag.multipart_suggestion(
-                        "move the function into an inherent impl and update its uses",
-                        edits,
-                        Applicability::MachineApplicable,
-                    );
-                } else if has_collision {
-                    diag.help(format!(
-                        "remove this wrapper or choose a name other than the existing `{}` method",
-                        candidate.name
-                    ));
-                } else {
-                    diag.help(format!(
-                        "move `{}` into an `impl {}` block and replace its first parameter with {}",
-                        candidate.name,
-                        candidate.struct_name,
-                        candidate.receiver_kind.description()
-                    ));
-                }
-            }),
-        );
+    /// For example, `item: Item`, `item: &Item`, and `item: &mut Item` become `self`, `&self`, and
+    /// `&mut self`, respectively.
+    fn description(self) -> &'static str {
+        match self {
+            Self::Value => "`self`",
+            Self::Ref(Mutability::Not) => "`&self`",
+            Self::Ref(Mutability::Mut) => "`&mut self`",
+        }
     }
+}
+
+/// One place where the first parameter's name is used inside the function body.
+#[derive(Clone, Copy)]
+struct BindingUse {
+    span: Span,
+    shorthand_field: Option<Symbol>,
 }
 
 // -----------------------------------------------------------------------------

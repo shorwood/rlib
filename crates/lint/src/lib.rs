@@ -15,6 +15,7 @@ pub extern "Rust" fn register_lints(
 ) {
     rules::core::enforce_implementable_methods::register_lints(sess, lint_store);
     rules::core::enforce_struct_bool_prefix::register_lints(sess, lint_store);
+    rules::core::enforce_struct_impl_definition_order::register_lints(sess, lint_store);
 }
 
 #[cfg(test)]

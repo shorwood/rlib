@@ -89,7 +89,7 @@ LL + }
    |
 
 warning: free function `inspect_tuple` should be an inherent method on `Tuple`
-  --> $DIR/semantic.rs:35:4
+  --> $DIR/semantic.rs:48:4
    |
 LL | fn inspect_tuple(value: &Tuple) {}
    |    ^^^^^^^^^^^^^
@@ -102,7 +102,7 @@ LL + }
    |
 
 warning: free function `inspect_unit` should be an inherent method on `Unit`
-  --> $DIR/semantic.rs:36:4
+  --> $DIR/semantic.rs:49:4
    |
 LL | fn inspect_unit(value: &Unit) {}
    |    ^^^^^^^^^^^^
@@ -115,7 +115,7 @@ LL + }
    |
 
 warning: free function `execute` should be an inherent method on `Wrapper`
-  --> $DIR/semantic.rs:45:4
+  --> $DIR/semantic.rs:58:4
    |
 LL | fn execute(value: &Wrapper) {
    |    ^^^^^^^
@@ -123,7 +123,7 @@ LL | fn execute(value: &Wrapper) {
    = help: remove this wrapper or choose a name other than the existing `execute` method
 
 warning: free function `from_local_macro` should be an inherent method on `Unit`
-  --> $DIR/semantic.rs:52:12
+  --> $DIR/semantic.rs:65:12
    |
 LL |         fn from_local_macro(value: &Unit) {
    |            ^^^^^^^^^^^^^^^^

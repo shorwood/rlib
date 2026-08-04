@@ -1,5 +1,5 @@
 warning: free function `public` should be an inherent method on `Unit`
-  --> $DIR/no_fix.rs:11:8
+  --> $DIR/no_fix.rs:15:8
    |
 LL | pub fn public(item: Unit) {}
    |        ^^^^^^
@@ -8,7 +8,7 @@ LL | pub fn public(item: Unit) {}
    = note: `#[warn(enforce_implementable_methods)]` on by default
 
 warning: free function `attributed` should be an inherent method on `Unit`
-  --> $DIR/no_fix.rs:14:4
+  --> $DIR/no_fix.rs:18:4
    |
 LL | fn attributed(item: Unit) {}
    |    ^^^^^^^^^^
@@ -16,7 +16,7 @@ LL | fn attributed(item: Unit) {}
    = help: move `attributed` into an `impl Unit` block and replace its first parameter with `self`
 
 warning: free function `destructured` should be an inherent method on `Item`
-  --> $DIR/no_fix.rs:17:4
+  --> $DIR/no_fix.rs:21:4
    |
 LL | fn destructured(Item(value): Item<u8>) {}
    |    ^^^^^^^^^^^^
@@ -24,7 +24,7 @@ LL | fn destructured(Item(value): Item<u8>) {}
    = help: move `destructured` into an `impl Item` block and replace its first parameter with `self`
 
 warning: free function `constrained` should be an inherent method on `Item`
-  --> $DIR/no_fix.rs:20:4
+  --> $DIR/no_fix.rs:24:4
    |
 LL | fn constrained<T: Clone>(item: Item<T>) {}
    |    ^^^^^^^^^^^
@@ -32,7 +32,7 @@ LL | fn constrained<T: Clone>(item: Item<T>) {}
    = help: move `constrained` into an `impl Item` block and replace its first parameter with `self`
 
 warning: free function `alias_reference` should be an inherent method on `Unit`
-  --> $DIR/no_fix.rs:24:4
+  --> $DIR/no_fix.rs:28:4
    |
 LL | fn alias_reference(item: UnitRef<'_>) {}
    |    ^^^^^^^^^^^^^^^
@@ -40,7 +40,7 @@ LL | fn alias_reference(item: UnitRef<'_>) {}
    = help: move `alias_reference` into an `impl Unit` block and replace its first parameter with `&self`
 
 warning: free function `imported` should be an inherent method on `Unit`
-  --> $DIR/no_fix.rs:28:4
+  --> $DIR/no_fix.rs:32:4
    |
 LL | fn imported(item: Unit) {}
    |    ^^^^^^^^
