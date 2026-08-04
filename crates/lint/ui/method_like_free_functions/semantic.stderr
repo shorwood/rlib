@@ -1,0 +1,138 @@
+warning: free function `consume` should be an inherent method on `Item`
+  --> $DIR/semantic.rs:20:4
+   |
+LL | fn consume(item: Item<u8>) {}
+   |    ^^^^^^^
+   |
+   = note: `#[warn(method_like_free_functions)]` on by default
+help: move the function into an inherent impl and update its uses
+   |
+LL + impl Item<u8> {
+LL + fn consume(self) {}
+LL + }
+   |
+
+warning: free function `inspect` should be an inherent method on `Item`
+  --> $DIR/semantic.rs:21:4
+   |
+LL | fn inspect(item: &Item<u8>) {}
+   |    ^^^^^^^
+   |
+help: move the function into an inherent impl and update its uses
+   |
+LL + impl Item<u8> {
+LL + fn inspect(&self) {}
+LL + }
+   |
+
+warning: free function `mutate` should be an inherent method on `Item`
+  --> $DIR/semantic.rs:22:4
+   |
+LL | fn mutate(item: &mut ItemAlias<u8>) {}
+   |    ^^^^^^
+   |
+   = help: move `mutate` into an `impl Item` block and replace its first parameter with `&mut self`
+
+warning: free function `inspect_alias` should be an inherent method on `Item`
+  --> $DIR/semantic.rs:23:4
+   |
+LL | fn inspect_alias(item: ItemRef<'_>) {}
+   |    ^^^^^^^^^^^^^
+   |
+   = help: move `inspect_alias` into an `impl Item` block and replace its first parameter with `&self`
+
+warning: free function `inspect_async` should be an inherent method on `Item`
+  --> $DIR/semantic.rs:26:10
+   |
+LL | async fn inspect_async(item: &Item<u8>) {}
+   |          ^^^^^^^^^^^^^
+   |
+   = help: move `inspect_async` into an `impl Item` block and replace its first parameter with `&self`
+
+warning: free function `inspect_const` should be an inherent method on `Item`
+  --> $DIR/semantic.rs:27:10
+   |
+LL | const fn inspect_const(item: &Item<u8>) {}
+   |          ^^^^^^^^^^^^^
+   |
+help: move the function into an inherent impl and update its uses
+   |
+LL + impl Item<u8> {
+LL + const fn inspect_const(&self) {}
+LL + }
+   |
+
+warning: free function `inspect_unsafe` should be an inherent method on `Item`
+  --> $DIR/semantic.rs:28:11
+   |
+LL | unsafe fn inspect_unsafe(item: &Item<u8>) {}
+   |           ^^^^^^^^^^^^^^
+   |
+help: move the function into an inherent impl and update its uses
+   |
+LL + impl Item<u8> {
+LL + unsafe fn inspect_unsafe(&self) {}
+LL + }
+   |
+
+warning: free function `inspect_rust_abi` should be an inherent method on `Item`
+  --> $DIR/semantic.rs:29:18
+   |
+LL | extern "Rust" fn inspect_rust_abi(item: &Item<u8>) {}
+   |                  ^^^^^^^^^^^^^^^^
+   |
+help: move the function into an inherent impl and update its uses
+   |
+LL + impl Item<u8> {
+LL + extern "Rust" fn inspect_rust_abi(&self) {}
+LL + }
+   |
+
+warning: free function `inspect_tuple` should be an inherent method on `Tuple`
+  --> $DIR/semantic.rs:48:4
+   |
+LL | fn inspect_tuple(value: &Tuple) {}
+   |    ^^^^^^^^^^^^^
+   |
+help: move the function into an inherent impl and update its uses
+   |
+LL + impl Tuple {
+LL + fn inspect_tuple(&self) {}
+LL + }
+   |
+
+warning: free function `inspect_unit` should be an inherent method on `Unit`
+  --> $DIR/semantic.rs:49:4
+   |
+LL | fn inspect_unit(value: &Unit) {}
+   |    ^^^^^^^^^^^^
+   |
+help: move the function into an inherent impl and update its uses
+   |
+LL + impl Unit {
+LL + fn inspect_unit(&self) {}
+LL + }
+   |
+
+warning: free function `execute` should be an inherent method on `Wrapper`
+  --> $DIR/semantic.rs:58:4
+   |
+LL | fn execute(value: &Wrapper) {
+   |    ^^^^^^^
+   |
+   = help: remove this wrapper or choose a name other than the existing `execute` method
+
+warning: free function `from_local_macro` should be an inherent method on `Unit`
+  --> $DIR/semantic.rs:65:12
+   |
+LL |         fn from_local_macro(value: &Unit) {
+   |            ^^^^^^^^^^^^^^^^
+...
+LL | local_function!();
+   | ----------------- in this macro invocation
+   |
+   = help: move `from_local_macro` into an `impl Unit` block and replace its first parameter with `&self`
+   = note: this warning originates in the macro `local_function` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: 12 warnings emitted
+

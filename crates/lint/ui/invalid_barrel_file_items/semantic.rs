@@ -1,0 +1,35 @@
+// edition:2024
+
+#![feature(register_tool)]
+#![allow(dead_code, unused_imports, misordered_inherent_impl_items, misordered_module_declarations, misordered_type_declarations)]
+#![register_tool(rlib_lint)]
+
+// These path attributes deliberately load physical barrel files. The rule is about the source
+// filename, so an inline module in this test driver would not exercise the policy.
+#[path = "auxiliary/bad/mod.rs"]
+mod bad;
+#[path = "auxiliary/empty/mod.rs"]
+mod empty;
+#[path = "auxiliary/good/mod.rs"]
+mod good;
+#[path = "auxiliary/lib_bad/lib.rs"]
+mod lib_bad;
+#[path = "auxiliary/lib_good/lib.rs"]
+mod lib_good;
+
+// Ordinary Rust files may contain all of the constructs forbidden in barrel files.
+use std::fmt;
+
+struct OrdinaryFile;
+
+impl OrdinaryFile {
+    fn work() {}
+}
+
+macro_rules! ordinary_macro {
+    () => {};
+}
+
+ordinary_macro!();
+
+fn main() {}

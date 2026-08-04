@@ -1,0 +1,13 @@
+// run-rustfix
+// rustfix-only-machine-applicable
+
+#![feature(register_tool)]
+#![allow(dead_code, misordered_inherent_impl_items, misordered_module_declarations)]
+#![register_tool(rlib_lint)]
+#![warn(misordered_type_declarations)]
+
+struct Dependency;
+struct Consumer(Dependency);
+impl Consumer {}
+
+fn main() {}

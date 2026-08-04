@@ -1,0 +1,53 @@
+warning: impl blocks for `Attributed` should immediately follow its definition
+  --> $DIR/no_fix.rs:8:1
+   |
+LL | struct Attributed;
+   | ^^^^^^^^^^^^^^^^^^
+...
+LL | impl Attributed {}
+   | ------------------ this impl is outside `Attributed`'s impl group
+   |
+   = help: move this impl block immediately after `Attributed`
+   = note: `#[warn(non_adjacent_struct_impls)]` on by default
+
+warning: impl blocks for `Commented` should immediately follow its definition
+  --> $DIR/no_fix.rs:14:1
+   |
+LL | struct Commented;
+   | ^^^^^^^^^^^^^^^^^
+...
+LL | impl Commented {}
+   | ----------------- this impl is outside `Commented`'s impl group
+   |
+   = help: move this impl block immediately after `Commented`
+
+warning: impl blocks for `MacroCrossing` should immediately follow its definition
+  --> $DIR/no_fix.rs:20:1
+   |
+LL |   struct MacroCrossing;
+   |   ^^^^^^^^^^^^^^^^^^^^^
+...
+LL | / impl MacroCrossing {
+LL | |     fn value(&self) -> u8 {
+LL | |         value!()
+LL | |     }
+LL | | }
+   | |_- this impl is outside `MacroCrossing`'s impl group
+   |
+   = help: move this impl block immediately after `MacroCrossing`
+
+warning: impl blocks for `Included` should immediately follow its definition
+  --> $DIR/no_fix.rs:34:1
+   |
+LL | struct Included;
+   | ^^^^^^^^^^^^^^^^
+   |
+  ::: $DIR/included_impl.inc:1:1
+   |
+LL | impl Included {}
+   | ---------------- this impl is outside `Included`'s impl group
+   |
+   = help: move this impl block immediately after `Included`
+
+warning: 4 warnings emitted
+

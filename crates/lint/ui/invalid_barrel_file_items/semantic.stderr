@@ -1,0 +1,99 @@
+warning: a private import does not expose anything from this barrel
+  --> $DIR/auxiliary/bad/mod.rs:1:1
+   |
+LL | use std::fmt;
+   | ^^^^^^^^^^^^^
+   |
+   = help: remove this import or expose it as a reexport that callers can actually use
+   = note: `#[warn(invalid_barrel_file_items)]` on by default
+
+warning: a private import does not expose anything from this barrel
+  --> $DIR/auxiliary/bad/mod.rs:2:1
+   |
+LL | pub(self) use std::io;
+   | ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: remove this import or expose it as a reexport that callers can actually use
+
+warning: a private import does not expose anything from this barrel
+  --> $DIR/auxiliary/bad/mod.rs:3:1
+   |
+LL | pub(in self) use std::mem;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: remove this import or expose it as a reexport that callers can actually use
+
+warning: an inline module hides implementation code inside a barrel file
+  --> $DIR/auxiliary/bad/mod.rs:5:1
+   |
+LL | / mod inline_child {
+LL | |     // The inline module receives one warning as a whole. Its children must not receive duplicates.
+LL | |     fn nested_implementation() {}
+LL | |     struct NestedType;
+LL | | }
+   | |_^
+   |
+   = help: move the module body to child.rs or child/mod.rs and leave only `mod child;` here
+
+warning: implementation code does not belong in a barrel file
+  --> $DIR/auxiliary/bad/mod.rs:11:1
+   |
+LL | fn implementation() {}
+   | ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: move this code into a dedicated module and leave its declaration or reexport here
+
+warning: implementation code does not belong in a barrel file
+  --> $DIR/auxiliary/bad/mod.rs:12:1
+   |
+LL | struct ImplementedHere;
+   | ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: move this code into a dedicated module and leave its declaration or reexport here
+
+warning: macro definitions and calls do not belong in a barrel file
+  --> $DIR/auxiliary/bad/mod.rs:14:1
+   |
+LL | / macro_rules! make_item {
+LL | |     () => {
+LL | |         struct GeneratedItem;
+LL | |     };
+LL | | }
+   | |_^
+   |
+   = help: move the macro elsewhere and spell this barrel's declarations and reexports explicitly
+
+warning: macro definitions and calls do not belong in a barrel file
+  --> $DIR/auxiliary/bad/mod.rs:20:1
+   |
+LL | make_item!();
+   | ^^^^^^^^^^^^^
+   |
+   = help: move the macro elsewhere and spell this barrel's declarations and reexports explicitly
+
+warning: macro definitions and calls do not belong in a barrel file
+  --> $DIR/auxiliary/bad/mod.rs:21:1
+   |
+LL | include!("included.rs");
+   | ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: move the macro elsewhere and spell this barrel's declarations and reexports explicitly
+
+warning: a private import does not expose anything from this barrel
+  --> $DIR/auxiliary/lib_bad/lib.rs:1:1
+   |
+LL | use std::path::Path;
+   | ^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: remove this import or expose it as a reexport that callers can actually use
+
+warning: implementation code does not belong in a barrel file
+  --> $DIR/auxiliary/lib_bad/lib.rs:3:1
+   |
+LL | fn crate_root_implementation() {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: move this code into a dedicated module and leave its declaration or reexport here
+
+warning: 11 warnings emitted
+

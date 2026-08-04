@@ -1,0 +1,34 @@
+// run-rustfix
+// rustfix-only-machine-applicable
+// edition:2024
+
+#![feature(register_tool)]
+#![allow(dead_code, misordered_inherent_impl_items, misordered_module_declarations, misordered_type_declarations)]
+#![register_tool(rlib_lint)]
+
+trait Behavior {}
+
+struct Movable;
+
+impl Movable {
+    fn value(&self) -> u8 {
+        1
+    }
+}
+fn movable_separator() {}
+
+struct Multiple;
+
+impl Multiple {}
+
+impl Behavior for Multiple {}
+fn multiple_separator() {}
+
+struct Split;
+
+impl Split {}
+
+impl Behavior for Split {}
+fn split_separator() {}
+
+fn main() {}
