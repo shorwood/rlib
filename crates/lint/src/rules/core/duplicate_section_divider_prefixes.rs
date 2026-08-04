@@ -5,20 +5,20 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{HirId, Mod};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 
-use crate::utils::section_dividers::DividerAnalyzer;
+use crate::utils::source_organization::SectionAnalyzer;
 
 // -----------------------------------------------------------------------------
 // DuplicateSectionDividerPrefixes
 // -----------------------------------------------------------------------------
 
 struct DuplicateSectionDividerPrefixes {
-    analyzer: DividerAnalyzer,
+    analyzer: SectionAnalyzer,
 }
 
 impl DuplicateSectionDividerPrefixes {
     fn new() -> Self {
         Self {
-            analyzer: DividerAnalyzer::from_config(),
+            analyzer: SectionAnalyzer::from_config(),
         }
     }
 }

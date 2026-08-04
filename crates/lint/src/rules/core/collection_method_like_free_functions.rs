@@ -24,20 +24,25 @@ enum CollectionReceiver {
     Mutable,
 }
 
+struct CollectionReceiverType<'tcx> {
+    receiver: CollectionReceiver,
+    element: Ty<'tcx>,
+}
+
 impl CollectionReceiver {
     /// Finds supported vector and slice shapes and returns their direct element type.
     fn discover<'tcx>(
         cx: &LateContext<'tcx>,
         input: Ty<'tcx>,
         mutable_binding: bool,
-    ) -> Option<(Self, Ty<'tcx>)> {
+    ) -> Option<CollectionReceiverType<'tcx>> {
         if let Some(element) = Self::vec_element_type(cx, input) {
             let receiver = if mutable_binding {
                 Self::MutOwned
             } else {
                 Self::Owned
             };
-            return Some((receiver, element));
+            return Some(CollectionReceiverType { receiver, element });
         }
 
         let ty::Ref(_, collection, mutability) = input.kind() else {
@@ -53,7 +58,7 @@ impl CollectionReceiver {
             Mutability::Not => Self::Shared,
             Mutability::Mut => Self::Mutable,
         };
-        Some((receiver, element))
+        Some(CollectionReceiverType { receiver, element })
     }
 
     /// Returns the element type when a type is the standard library's `Vec`.
@@ -132,10 +137,9 @@ impl Candidate {
             parameter.pat.kind,
             PatKind::Binding(BindingMode(_, Mutability::Mut), ..)
         );
-        let (receiver, element_type) =
-            CollectionReceiver::discover(cx, first_type, mutable_binding)?;
+        let receiver_type = CollectionReceiver::discover(cx, first_type, mutable_binding)?;
 
-        let ty::Adt(element, _) = element_type.kind() else {
+        let ty::Adt(element, _) = receiver_type.element.kind() else {
             return None;
         };
         let element_def_id = element
@@ -159,10 +163,10 @@ impl Candidate {
             parameter_span: parameter.span,
             element_def_id,
             has_element_parameters: !cx.tcx.generics_of(element_def_id).own_params.is_empty(),
-            element_type: element_type.to_string(),
+            element_type: receiver_type.element.to_string(),
             element_name,
             wrapper_name,
-            receiver,
+            receiver: receiver_type.receiver,
         })
     }
 

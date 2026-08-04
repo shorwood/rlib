@@ -5,7 +5,7 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{HirId, Mod};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 
-use crate::utils::type_family_names::FamilyNameAnalyzer;
+use crate::utils::source_organization::FamilyNameAnalyzer;
 
 // -----------------------------------------------------------------------------
 // IncoherentTypeFamilyNames
@@ -26,9 +26,10 @@ impl IncoherentTypeFamilyNames {
 dylint_linting::impl_late_lint! {
     /// ### What it does
     ///
-    /// Finds type names inside a valid section divider that repeat the module or lint-pass name
-    /// instead of expressing the smaller concept that connects those declarations. It combines
-    /// PascalCase word structure with compiler-resolved dependencies and source proximity.
+    /// Finds type names that repeat the module or lint-pass name instead of expressing the smaller
+    /// concept that connects those declarations. It analyzes valid sections and unsectioned module
+    /// declarations, combining normalized Rust identifier words with compiler-resolved
+    /// dependencies and source proximity.
     ///
     /// ### Why is this bad?
     ///
@@ -76,8 +77,8 @@ impl<'tcx> LateLintPass<'tcx> for IncoherentTypeFamilyNames {
                 finding.span,
                 DiagDecorator(|diag| {
                     diag.primary_message(finding.message);
-                    for (span, label) in finding.labels {
-                        diag.span_label(span, label);
+                    for label in finding.labels {
+                        diag.span_label(label.span, label.message);
                     }
                     diag.help(finding.help);
                 }),

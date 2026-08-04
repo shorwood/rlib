@@ -21,6 +21,19 @@ use rustc_span::{Span, Symbol, sym};
 // -----------------------------------------------------------------------------
 
 /// A function whose body only forwards its parameters to another local function.
+struct RedundantWrapperForwarding<'hir> {
+    expression: &'hir Expr<'hir>,
+    bindings: Vec<HirId>,
+    typeck_owner: LocalDefId,
+}
+
+struct RedundantWrapperCall<'hir> {
+    target: LocalDefId,
+    arguments: Vec<&'hir Expr<'hir>>,
+    is_method: bool,
+}
+
+/// A function whose body only forwards its parameters to another local function.
 struct RedundantWrapper {
     hir_id: HirId,
     name: Symbol,
@@ -54,36 +67,36 @@ impl RedundantWrapper {
                 _ => None,
             })
             .collect::<Option<Vec<_>>>()?;
-        let (expression, expected_bindings, typeck_owner) = if header.is_async() {
+        let forwarding = if header.is_async() {
             Self::async_forwarding_expression(cx, body, &parameter_bindings)?
         } else {
-            (
-                Self::single_body_expression(body.value)?,
-                parameter_bindings,
-                def_id,
-            )
+            RedundantWrapperForwarding {
+                expression: Self::single_body_expression(body.value)?,
+                bindings: parameter_bindings,
+                typeck_owner: def_id,
+            }
         };
-        let (target, arguments, is_method_call) = Self::direct_call(cx, typeck_owner, expression)?;
-        if target == def_id
-            || arguments.len() != expected_bindings.len()
-            || (header.is_async() && !Self::is_async_function(cx, target))
-            || (is_method_call && !Self::shares_inherent_type(cx, def_id, target))
+        let call = Self::direct_call(cx, forwarding.typeck_owner, forwarding.expression)?;
+        if call.target == def_id
+            || call.arguments.len() != forwarding.bindings.len()
+            || (header.is_async() && !Self::is_async_function(cx, call.target))
+            || (call.is_method && !Self::shares_inherent_type(cx, def_id, call.target))
         {
             return None;
         }
 
-        let typeck = cx.tcx.typeck(typeck_owner);
+        let typeck = cx.tcx.typeck(forwarding.typeck_owner);
         let signature = cx.tcx.fn_sig(def_id).instantiate_identity().skip_binder();
-        if signature.inputs().len() != arguments.len()
-            || (!header.is_async() && signature.output() != typeck.expr_ty(expression))
+        if signature.inputs().len() != call.arguments.len()
+            || (!header.is_async() && signature.output() != typeck.expr_ty(forwarding.expression))
         {
             return None;
         }
-        if is_method_call {
+        if call.is_method {
             let target_signature = cx
                 .tcx
-                .fn_sig(target)
-                .instantiate(cx.tcx, typeck.node_args(expression.hir_id))
+                .fn_sig(call.target)
+                .instantiate(cx.tcx, typeck.node_args(forwarding.expression.hir_id))
                 .skip_binder();
             if target_signature.inputs().len() != signature.inputs().len()
                 || !Self::same_receiver_type(target_signature.inputs()[0], signature.inputs()[0])
@@ -92,9 +105,10 @@ impl RedundantWrapper {
             }
         }
 
-        for (index, ((binding, argument), input)) in expected_bindings
+        for (index, ((binding, argument), input)) in forwarding
+            .bindings
             .iter()
-            .zip(arguments)
+            .zip(call.arguments)
             .zip(signature.inputs())
             .enumerate()
         {
@@ -102,7 +116,7 @@ impl RedundantWrapper {
                 return None;
             };
             let has_incompatible_type =
-                !(is_method_call && index == 0) && typeck.expr_ty_adjusted(argument) != *input;
+                !(call.is_method && index == 0) && typeck.expr_ty_adjusted(argument) != *input;
             if !matches!(cx.qpath_res(&path, argument.hir_id), Res::Local(id) if id == *binding)
                 || has_incompatible_type
             {
@@ -114,7 +128,7 @@ impl RedundantWrapper {
             hir_id,
             name,
             name_span,
-            target,
+            target: call.target,
         })
     }
 
@@ -127,7 +141,7 @@ impl RedundantWrapper {
         cx: &LateContext<'hir>,
         body: &'hir Body<'hir>,
         outer_bindings: &[HirId],
-    ) -> Option<(&'hir Expr<'hir>, Vec<HirId>, LocalDefId)> {
+    ) -> Option<RedundantWrapperForwarding<'hir>> {
         let ExprKind::Closure(closure) = body.value.kind else {
             return None;
         };
@@ -172,7 +186,11 @@ impl RedundantWrapper {
         if typeck.expr_ty(awaited) != typeck.expr_ty_adjusted(awaited) {
             return None;
         }
-        Some((forwarded, inner_bindings, owner))
+        Some(RedundantWrapperForwarding {
+            expression: forwarded,
+            bindings: inner_bindings,
+            typeck_owner: owner,
+        })
     }
 
     fn is_async_function(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
@@ -260,7 +278,7 @@ impl RedundantWrapper {
         cx: &LateContext<'_>,
         owner: LocalDefId,
         expression: &'hir Expr<'hir>,
-    ) -> Option<(LocalDefId, Vec<&'hir Expr<'hir>>, bool)> {
+    ) -> Option<RedundantWrapperCall<'hir>> {
         let (target, arguments, is_method_call) = match expression.kind {
             ExprKind::Call(callee, arguments) => {
                 let ExprKind::Path(path) = callee.kind else {
@@ -285,11 +303,13 @@ impl RedundantWrapper {
             }
             _ => return None,
         };
-        matches!(cx.tcx.def_kind(target), DefKind::Fn | DefKind::AssocFn).then_some((
-            target,
-            arguments,
-            is_method_call,
-        ))
+        matches!(cx.tcx.def_kind(target), DefKind::Fn | DefKind::AssocFn).then_some(
+            RedundantWrapperCall {
+                target,
+                arguments,
+                is_method: is_method_call,
+            },
+        )
     }
 
     fn emit(&self, cx: &LateContext<'_>) {

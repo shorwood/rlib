@@ -95,6 +95,8 @@ pub(crate) struct DeclarationNode {
     pub(crate) defs: Vec<LocalDefId>,
     pub(crate) name: String,
     pub(crate) span: Span,
+    /// Zero for unsectioned declarations, otherwise the authored section's source ordinal.
+    pub(crate) section: usize,
     pub(crate) category: u8,
     pub(crate) is_outward_visible: bool,
     pub(crate) dependencies: HashSet<LocalDefId>,
@@ -128,7 +130,9 @@ impl DeclarationNodeList {
                 node.dependencies
                     .iter()
                     .filter_map(|dependency| owner.get(dependency).copied())
-                    .filter(|dependency| *dependency != index)
+                    .filter(|dependency| {
+                        *dependency != index && self[*dependency].section == self[index].section
+                    })
                     .collect::<HashSet<_>>()
             })
             .collect::<Vec<_>>();
@@ -164,7 +168,12 @@ impl DeclarationNodeList {
                 })
                 .min_by_key(|component| {
                     let first = components[*component][0];
-                    (self[first].category, !self[first].is_outward_visible, first)
+                    (
+                        self[first].section,
+                        self[first].category,
+                        !self[first].is_outward_visible,
+                        first,
+                    )
                 });
             let Some(next) = next else { break };
             emitted[next] = true;

@@ -33,7 +33,7 @@ LL | | // ----------------------------------------------------------------------
    |
    = help: shorten the optional description or choose a more compact template
 
-warning: section divider does not contain any type-family declarations
+warning: section divider does not contain any module declarations
   --> $DIR/semantic.rs:22:1
    |
 LL | / // -----------------------------------------------------------------------------

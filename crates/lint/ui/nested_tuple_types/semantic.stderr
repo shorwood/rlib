@@ -1,0 +1,47 @@
+warning: this explicit type contains an unnamed tuple shape
+  --> $DIR/semantic.rs:7:21
+   |
+LL | type Affected<'a> = &'a [(&'a Participant, NameTokens)];
+   |                     ^^^^^-----------------------------^
+   |                          |
+   |                          the nested tuple hides its component roles
+   |
+   = help: replace the tuple with a concept-specific record struct and named fields
+note: the lint level is defined here
+  --> $DIR/semantic.rs:1:9
+   |
+LL | #![warn(nested_tuple_types)]
+   |         ^^^^^^^^^^^^^^^^^^
+
+warning: this explicit type contains an unnamed tuple shape
+  --> $DIR/semantic.rs:10:15
+   |
+LL |     affected: Vec<(&'static Participant, NameTokens)>,
+   |               ^^^^----------------------------------^
+   |                   |
+   |                   the nested tuple hides its component roles
+   |
+   = help: replace the tuple with a concept-specific record struct and named fields
+
+warning: this explicit type contains an unnamed tuple shape
+  --> $DIR/semantic.rs:14:12
+   |
+LL |     input: Option<(&Participant, NameTokens)>,
+   |            ^^^^^^^--------------------------^
+   |                   |
+   |                   the nested tuple hides its component roles
+   |
+   = help: replace the tuple with a concept-specific record struct and named fields
+
+warning: this explicit type contains an unnamed tuple shape
+  --> $DIR/semantic.rs:15:6
+   |
+LL | ) -> Result<Vec<(&Participant, NameTokens)>, ()> {
+   |      ^^^^^^^^^^^--------------------------^^^^^^
+   |                 |
+   |                 the nested tuple hides its component roles
+   |
+   = help: replace the tuple with a concept-specific record struct and named fields
+
+warning: 4 warnings emitted
+

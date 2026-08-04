@@ -7,13 +7,24 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 
 use crate::utils::declaration_node::{DeclarationNode, DeclarationNodeList};
 use crate::utils::item_dependencies::item_dependencies;
-use crate::utils::reorder_declarations::reorder_declarations;
+use crate::utils::reorder_declarations::DeclarationOrder;
+use crate::utils::source_organization::SectionAnalyzer;
 
 // -----------------------------------------------------------------------------
 // MisorderedTypeDeclarations
 // -----------------------------------------------------------------------------
 
-struct MisorderedTypeDeclarations;
+struct MisorderedTypeDeclarations {
+    sections: SectionAnalyzer,
+}
+
+impl MisorderedTypeDeclarations {
+    fn new() -> Self {
+        Self {
+            sections: SectionAnalyzer::from_config(),
+        }
+    }
+}
 
 dylint_linting::impl_late_lint! {
     /// ### What it does
@@ -43,7 +54,7 @@ dylint_linting::impl_late_lint! {
     pub MISORDERED_TYPE_DECLARATIONS,
     Warn,
     "enforces dependency-first ordering of local type declarations",
-    MisorderedTypeDeclarations
+    MisorderedTypeDeclarations::new()
 }
 
 impl MisorderedTypeDeclarations {
@@ -96,7 +107,7 @@ impl MisorderedTypeDeclarations {
             })
         });
         let edits = editable
-            .then(|| reorder_declarations(cx, nodes, &ordering))
+            .then(|| DeclarationOrder::edits(cx, nodes, &ordering))
             .flatten();
         cx.tcx.emit_node_span_lint(
             MISORDERED_TYPE_DECLARATIONS,
@@ -112,7 +123,10 @@ impl MisorderedTypeDeclarations {
                 if let Some(edits) = edits {
                     diag.multipart_suggestion(
                         "reorder these declarations",
-                        edits,
+                        edits
+                            .into_iter()
+                            .map(|edit| (edit.span, edit.replacement))
+                            .collect(),
                         Applicability::MachineApplicable,
                     );
                 } else {
@@ -128,6 +142,7 @@ impl MisorderedTypeDeclarations {
 impl<'tcx> LateLintPass<'tcx> for MisorderedTypeDeclarations {
     fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, hir_id: HirId) {
         let source_map = cx.sess().source_map();
+        let sections = self.sections.analyze(cx, module, hir_id);
         let items = module
             .item_ids
             .iter()
@@ -152,6 +167,7 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedTypeDeclarations {
                 defs,
                 name: cx.tcx.item_name(item.owner_id.to_def_id()).to_string(),
                 span,
+                section: sections.section_ordinal_for_span(item.span).unwrap_or(0),
                 category: 0,
                 // Visibility is intentionally neutral: independent types retain authored order.
                 is_outward_visible: false,

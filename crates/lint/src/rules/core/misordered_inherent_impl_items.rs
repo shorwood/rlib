@@ -7,7 +7,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 
 use crate::utils::declaration_node::{DeclarationNode, DeclarationNodeList};
 use crate::utils::impl_item_dependencies::impl_item_dependencies;
-use crate::utils::reorder_declarations::reorder_declarations;
+use crate::utils::reorder_declarations::DeclarationOrder;
 
 // -----------------------------------------------------------------------------
 // MisorderedInherentImplItems
@@ -112,7 +112,7 @@ impl MisorderedInherentImplItems {
             })
         });
         let edits = editable
-            .then(|| reorder_declarations(cx, nodes, &ordering))
+            .then(|| DeclarationOrder::edits(cx, nodes, &ordering))
             .flatten();
         cx.tcx.emit_node_span_lint(
             MISORDERED_INHERENT_IMPL_ITEMS,
@@ -125,7 +125,10 @@ impl MisorderedInherentImplItems {
                 if let Some(edits) = edits {
                     diag.multipart_suggestion(
                         "reorder these associated items",
-                        edits,
+                        edits
+                            .into_iter()
+                            .map(|edit| (edit.span, edit.replacement))
+                            .collect(),
                         Applicability::MachineApplicable,
                     );
                 } else {
@@ -159,6 +162,7 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedInherentImplItems {
                 defs: vec![item.owner_id.def_id],
                 name: item.ident.name.to_string(),
                 span: item.span,
+                section: 0,
                 category: Self::category(cx, item),
                 is_outward_visible: item.vis_span().is_some_and(|span| !span.is_empty()),
                 dependencies: impl_item_dependencies(cx.tcx, item),

@@ -1,0 +1,24 @@
+warning: type names in the `UnsectionedContext` section repeat organizational context
+  --> $DIR/unsectioned_context.rs:1:1
+   |
+LL | / #![allow(dead_code)]
+LL | | #![warn(incoherent_type_family_names)]
+LL | |
+LL | | struct UnsectionedContext;
+LL | | struct UnsectionedContextParser;
+   | | -------------------------------- `UnsectionedContextParser` obscures the inferred `Parser` role
+LL | | struct UnsectionedContextPolicy;
+   | | -------------------------------- `UnsectionedContextPolicy` obscures the inferred `Policy` role
+LL | |
+LL | | fn main() {}
+   | |____________^
+   |
+   = help: prefer the concept-first names `UnsectionedContextParser` → `Parser`, `UnsectionedContextPolicy` → `Policy`; rename before creating additional sections (the divider prefix repeats the enclosing module; an exact root declaration already carries the context name; the redundant prefix can be removed without losing vocabulary)
+note: the lint level is defined here
+  --> $DIR/unsectioned_context.rs:2:9
+   |
+LL | #![warn(incoherent_type_family_names)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: 1 warning emitted
+

@@ -1,5 +1,5 @@
 warning: section prefix `Req` does not match its declaration family
-  --> $DIR/semantic.rs:4:1
+  --> $DIR/semantic.rs:6:1
    |
 LL | / // -----------------------------------------------------------------------------
 LL | | // Req
@@ -14,7 +14,7 @@ LL | #![warn(mismatched_section_divider_prefixes)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: section `Payload` contains declarations without a shared PascalCase prefix
-  --> $DIR/semantic.rs:11:1
+  --> $DIR/semantic.rs:13:1
    |
 LL | / // -----------------------------------------------------------------------------
 LL | | // Payload
@@ -23,5 +23,15 @@ LL | | // ----------------------------------------------------------------------
    |
    = help: reconsider the names `Payload`, `Response` so closely related declarations share a visible prefix; split the section only when they represent independent concepts
 
-warning: 2 warnings emitted
+warning: section `Handler` contains declarations without a shared PascalCase prefix
+  --> $DIR/semantic.rs:26:1
+   |
+LL | / // -----------------------------------------------------------------------------
+LL | | // Handler
+LL | | // -----------------------------------------------------------------------------
+   | |________________________________________________________________________________^
+   |
+   = help: reconsider the names `handler_parse`, `render_response` so closely related declarations share a visible prefix; split the section only when they represent independent concepts
+
+warning: 3 warnings emitted
 

@@ -1,0 +1,21 @@
+warning: type names in the `MalformedContext` section repeat organizational context
+  --> $DIR/malformed_context.rs:1:1
+   |
+LL | / #![allow(dead_code)]
+LL | | #![warn(incoherent_type_family_names)]
+...  |
+LL | | struct MalformedContextState;
+   | | ----------------------------- `MalformedContextState` obscures the inferred `State` role
+LL | |
+LL | | fn main() {}
+   | |____________^
+   |
+   = help: prefer the concept-first names `MalformedContextState` → `State`; rename before creating additional sections (the divider prefix repeats the enclosing module; an exact root declaration already carries the context name; the redundant prefix can be removed without losing vocabulary)
+note: the lint level is defined here
+  --> $DIR/malformed_context.rs:2:9
+   |
+LL | #![warn(incoherent_type_family_names)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: 1 warning emitted
+

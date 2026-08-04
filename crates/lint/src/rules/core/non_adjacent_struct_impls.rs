@@ -58,6 +58,11 @@ impl ImplGroup<'_> {
 // Migration: Conservative automatic migration
 // -----------------------------------------------------------------------------
 
+struct MigrationEdit {
+    span: Span,
+    replacement: String,
+}
+
 /// Builds a source move for an entire impl group when comments, macros, and file boundaries are
 /// known not to change its meaning.
 struct Migration<'lint, 'hir> {
@@ -145,7 +150,7 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
 
     /// Returns all deletions and the matching insertion, or declines if any source ownership is
     /// uncertain.
-    fn build(&self) -> Option<Vec<(Span, String)>> {
+    fn build(&self) -> Option<Vec<MigrationEdit>> {
         self.check_plain_same_file_source()?;
         self.check_comments_are_unattached()?;
         self.check_no_macro_definition_is_crossed()?;
@@ -163,9 +168,15 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
             .group
             .impls
             .iter()
-            .map(|impl_| (impl_.item.span, String::new()))
+            .map(|impl_| MigrationEdit {
+                span: impl_.item.span,
+                replacement: String::new(),
+            })
             .collect::<Vec<_>>();
-        edits.push((self.group.struct_item.span.shrink_to_hi(), insertion));
+        edits.push(MigrationEdit {
+            span: self.group.struct_item.span.shrink_to_hi(),
+            replacement: insertion,
+        });
         Some(edits)
     }
 }
@@ -309,7 +320,10 @@ impl NonAdjacentStructImpls {
                 if let Some(edits) = suggestion {
                     diag.multipart_suggestion(
                         move_message,
-                        edits,
+                        edits
+                            .into_iter()
+                            .map(|edit| (edit.span, edit.replacement))
+                            .collect(),
                         Applicability::MachineApplicable,
                     );
                 } else {

@@ -1,0 +1,26 @@
+#![warn(positional_aggregate_fields)]
+#![allow(dead_code, misordered_module_declarations)]
+
+struct Span;
+
+struct Rename(Span, String);
+
+enum Finding {
+    Replacement(Span, String),
+    Newtype(String),
+    Unit,
+    Record { span: Span, replacement: String },
+}
+
+struct UserId(u64);
+struct Marker;
+
+fn main() {}
+
+macro_rules! generated_tuple_struct {
+    () => {
+        struct GeneratedTupleStruct(Span, String);
+    };
+}
+
+generated_tuple_struct!();

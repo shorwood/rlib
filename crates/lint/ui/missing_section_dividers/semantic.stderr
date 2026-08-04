@@ -1,4 +1,4 @@
-warning: type-family declarations are not covered by a section divider
+warning: module declarations are not covered by a section divider
   --> $DIR/semantic.rs:10:1
    |
 LL | struct Missing;
@@ -11,8 +11,8 @@ note: the lint level is defined here
 LL | #![warn(missing_section_dividers)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^
 
-warning: type-family declarations are not covered by a section divider
-  --> $DIR/semantic.rs:21:5
+warning: module declarations are not covered by a section divider
+  --> $DIR/semantic.rs:23:5
    |
 LL |     struct NestedMissing;
    |     ^^^^^^^^^^^^^^^^^^^^^

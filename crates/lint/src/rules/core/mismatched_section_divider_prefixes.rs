@@ -5,20 +5,20 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{HirId, Mod};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 
-use crate::utils::section_dividers::DividerAnalyzer;
+use crate::utils::source_organization::SectionAnalyzer;
 
 // -----------------------------------------------------------------------------
 // MismatchedSectionDividerPrefixes
 // -----------------------------------------------------------------------------
 
 struct MismatchedSectionDividerPrefixes {
-    analyzer: DividerAnalyzer,
+    analyzer: SectionAnalyzer,
 }
 
 impl MismatchedSectionDividerPrefixes {
     fn new() -> Self {
         Self {
-            analyzer: DividerAnalyzer::from_config(),
+            analyzer: SectionAnalyzer::from_config(),
         }
     }
 }
@@ -27,7 +27,8 @@ dylint_linting::impl_late_lint! {
     /// ### What it does
     ///
     /// Requires a divider prefix to equal the longest PascalCase word prefix shared by every
-    /// participating declaration in its section.
+    /// participating type, free function, constant, and static in its section. Rust identifier
+    /// conventions are normalized before comparison, so `request_parser` belongs to `Request`.
     ///
     /// ### Why is this bad?
     ///

@@ -9,6 +9,8 @@
 
 struct Missing;
 impl Missing {}
+fn missing_parser() {}
+fn missing_renderer() {}
 
 // -----------------------------------------------------------------------------
 // Covered: Covered model and behavior

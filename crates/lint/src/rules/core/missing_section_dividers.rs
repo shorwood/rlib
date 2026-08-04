@@ -5,20 +5,20 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{HirId, Mod};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 
-use crate::utils::section_dividers::DividerAnalyzer;
+use crate::utils::source_organization::SectionAnalyzer;
 
 // -----------------------------------------------------------------------------
 // MissingSectionDividers
 // -----------------------------------------------------------------------------
 
 struct MissingSectionDividers {
-    analyzer: DividerAnalyzer,
+    analyzer: SectionAnalyzer,
 }
 
 impl MissingSectionDividers {
     fn new() -> Self {
         Self {
-            analyzer: DividerAnalyzer::from_config(),
+            analyzer: SectionAnalyzer::from_config(),
         }
     }
 }
@@ -26,14 +26,17 @@ impl MissingSectionDividers {
 dylint_linting::impl_late_lint! {
     /// ### What it does
     ///
-    /// Requires module-level type families to be covered by a configured section divider.
-    /// Structs, enums, unions, traits, type aliases, and direct impls participate; other items do
-    /// not affect section membership.
+    /// Requires module-level declaration groups to be covered by a configured section divider.
+    /// Nominal types and their direct impls always participate. Free functions, constants, and
+    /// statics also participate when they form a group or occur inside an authored section; an
+    /// isolated value declaration does not require a divider by itself.
     ///
     /// ### Why is this bad?
     ///
-    /// A divider makes the intended naming family explicit. Without one, agents cannot tell whether
-    /// neighboring declarations are deliberately related or merely accumulated in the same file.
+    /// A divider makes the intended naming family explicit. Without one, agents cannot tell
+    /// whether neighboring declarations are deliberately related or merely accumulated in the
+    /// same file. Ignoring free helpers also lets a nominally valid section conceal inconsistent
+    /// vocabulary.
     ///
     /// For example, these declarations have no stated family:
     ///
@@ -54,7 +57,7 @@ dylint_linting::impl_late_lint! {
     /// ```
     pub MISSING_SECTION_DIVIDERS,
     Warn,
-    "requires section dividers for module-level type families",
+    "requires section dividers for module-level declaration groups",
     MissingSectionDividers::new()
 }
 

@@ -1,4 +1,4 @@
-warning: section divider description must start in sentence case
+warning: section divider description must use sentence case
   --> $DIR/fix.rs:5:1
    |
 LL | / // -----------------------------------------------------------------------------
