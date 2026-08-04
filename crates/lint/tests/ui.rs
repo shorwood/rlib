@@ -1,10 +1,14 @@
-const CROSS_CUTTING_LINT_ALLOWS: [&str; 16] = [
+const CROSS_CUTTING_LINT_ALLOWS: [&str; 24] = [
     "-A",
     "bare_tuple_types",
+    "-A",
+    "bidirectional_module_dependencies",
     "-A",
     "duplicate_section_divider_prefixes",
     "-A",
     "incoherent_type_family_names",
+    "-A",
+    "implicit_first_wins_deduplication",
     "-A",
     "malformed_section_dividers",
     "-A",
@@ -15,6 +19,10 @@ const CROSS_CUTTING_LINT_ALLOWS: [&str; 16] = [
     "nested_tuple_types",
     "-A",
     "positional_aggregate_fields",
+    "-A",
+    "repeated_identical_statements",
+    "-A",
+    "unparenthesized_mixed_boolean_operators",
 ];
 
 /// Runs every default-configuration UI fixture against the lint library.

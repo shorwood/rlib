@@ -421,7 +421,7 @@ struct CandidateBindingUse {
 // Migration: Conservative automatic migration
 // -----------------------------------------------------------------------------
 
-/// A group of replacements made inside one larger source range.
+/// One replacement made inside a larger source range.
 struct MigrationEdit {
     span: Span,
     replacement: String,

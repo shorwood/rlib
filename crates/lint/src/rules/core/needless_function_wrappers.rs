@@ -20,13 +20,14 @@ use rustc_span::{Span, Symbol, sym};
 // RedundantWrapper: Forwarding wrapper model
 // -----------------------------------------------------------------------------
 
-/// A function whose body only forwards its parameters to another local function.
+/// The forwarding expression and parameter bindings found inside a wrapper.
 struct RedundantWrapperForwarding<'hir> {
     expression: &'hir Expr<'hir>,
     bindings: Vec<HirId>,
     typeck_owner: LocalDefId,
 }
 
+/// The local call targeted by a possible forwarding wrapper.
 struct RedundantWrapperCall<'hir> {
     target: LocalDefId,
     arguments: Vec<&'hir Expr<'hir>>,

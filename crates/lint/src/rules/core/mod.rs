@@ -1,9 +1,11 @@
 pub(crate) mod bare_tuple_types;
+pub(crate) mod bidirectional_module_dependencies;
 pub(crate) mod bool_fields_without_predicate_prefix;
 pub(crate) mod collection_method_like_free_functions;
 pub(crate) mod cross_file_struct_impls;
 pub(crate) mod duplicate_section_divider_prefixes;
 pub(crate) mod incoherent_type_family_names;
+pub(crate) mod implicit_first_wins_deduplication;
 pub(crate) mod invalid_barrel_file_items;
 pub(crate) mod malformed_section_dividers;
 pub(crate) mod method_like_free_functions;
@@ -16,3 +18,5 @@ pub(crate) mod needless_function_wrappers;
 pub(crate) mod nested_tuple_types;
 pub(crate) mod non_adjacent_struct_impls;
 pub(crate) mod positional_aggregate_fields;
+pub(crate) mod repeated_identical_statements;
+pub(crate) mod unparenthesized_mixed_boolean_operators;

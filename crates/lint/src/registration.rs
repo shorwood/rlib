@@ -15,11 +15,13 @@ pub extern "Rust" fn register_lints(
     lint_store: &mut rustc_lint::LintStore,
 ) {
     rules::core::bare_tuple_types::register_lints(sess, lint_store);
+    rules::core::bidirectional_module_dependencies::register_lints(sess, lint_store);
     rules::core::bool_fields_without_predicate_prefix::register_lints(sess, lint_store);
     rules::core::collection_method_like_free_functions::register_lints(sess, lint_store);
     rules::core::cross_file_struct_impls::register_lints(sess, lint_store);
     rules::core::duplicate_section_divider_prefixes::register_lints(sess, lint_store);
     rules::core::incoherent_type_family_names::register_lints(sess, lint_store);
+    rules::core::implicit_first_wins_deduplication::register_lints(sess, lint_store);
     rules::core::invalid_barrel_file_items::register_lints(sess, lint_store);
     rules::core::malformed_section_dividers::register_lints(sess, lint_store);
     rules::core::method_like_free_functions::register_lints(sess, lint_store);
@@ -32,4 +34,6 @@ pub extern "Rust" fn register_lints(
     rules::core::nested_tuple_types::register_lints(sess, lint_store);
     rules::core::non_adjacent_struct_impls::register_lints(sess, lint_store);
     rules::core::positional_aggregate_fields::register_lints(sess, lint_store);
+    rules::core::repeated_identical_statements::register_lints(sess, lint_store);
+    rules::core::unparenthesized_mixed_boolean_operators::register_lints(sess, lint_store);
 }

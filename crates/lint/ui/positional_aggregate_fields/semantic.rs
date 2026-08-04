@@ -7,6 +7,8 @@ struct Rename(Span, String);
 
 enum Finding {
     Replacement(Span, String),
+    #[allow(positional_aggregate_fields)]
+    ExplicitlyAllowed(Span, String),
     Newtype(String),
     Unit,
     Record { span: Span, replacement: String },

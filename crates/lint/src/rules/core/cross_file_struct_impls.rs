@@ -9,7 +9,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use crate::utils::direct_impl_struct::direct_impl_struct;
 
 // -----------------------------------------------------------------------------
-// ImplPlacement: Cross-file placement model
+// ImplPlacement: Cross file placement model
 // -----------------------------------------------------------------------------
 
 /// One direct struct impl whose physical source can be compared with its struct definition.

@@ -3,7 +3,7 @@ extern crate rustc_hir;
 extern crate rustc_span;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{Item, ItemKind, VariantData};
+use rustc_hir::{Item, ItemKind, Variant, VariantData};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
@@ -76,23 +76,19 @@ impl LateLintPass<'_> for PositionalAggregateFields {
         if item.span.from_expansion() {
             return;
         }
-        match item.kind {
-            ItemKind::Struct(_, _, data) => {
-                if let Some(span) = Self::positional_span(&data, item.span) {
-                    Self::emit(cx, span, "tuple struct");
-                }
-            }
-            ItemKind::Enum(_, _, definition) => {
-                for variant in definition.variants {
-                    if variant.span.from_expansion() {
-                        continue;
-                    }
-                    if let Some(span) = Self::positional_span(&variant.data, variant.span) {
-                        Self::emit(cx, span, "tuple-like enum variant");
-                    }
-                }
-            }
-            _ => {}
+        if let ItemKind::Struct(_, _, data) = item.kind
+            && let Some(span) = Self::positional_span(&data, item.span)
+        {
+            Self::emit(cx, span, "tuple struct");
+        }
+    }
+
+    fn check_variant(&mut self, cx: &LateContext<'_>, variant: &Variant<'_>) {
+        if variant.span.from_expansion() {
+            return;
+        }
+        if let Some(span) = Self::positional_span(&variant.data, variant.span) {
+            Self::emit(cx, span, "tuple-like enum variant");
         }
     }
 }

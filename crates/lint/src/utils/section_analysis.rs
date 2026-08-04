@@ -14,12 +14,58 @@ use serde::Deserialize;
 use super::identifier_case::{
     identifier_is_pascal_case, identifier_longest_pascal_prefix, sentence_case,
 };
-use super::source_organization::{
-    SectionAnalysis, SectionFinding, SectionGroup, SectionParticipant,
-};
 
 // -----------------------------------------------------------------------------
-// Config: Shared section-divider configuration
+// Section: Shared organization analysis data
+// -----------------------------------------------------------------------------
+
+/// One source-level problem found by the shared analyzer.
+pub(crate) struct SectionFinding {
+    pub(crate) span: Span,
+    pub(crate) message: String,
+    pub(crate) help: String,
+    pub(crate) replacement: Option<String>,
+}
+
+/// One distinct declaration covered by a valid section.
+pub(crate) struct SectionParticipant {
+    pub(crate) def_id: rustc_hir::def_id::LocalDefId,
+    pub(crate) name: String,
+    pub(crate) span: Span,
+    pub(crate) is_nominal: bool,
+}
+
+/// One valid authored section available to semantic companion lints.
+pub(crate) struct SectionGroup {
+    pub(crate) ordinal: usize,
+    pub(crate) prefix: String,
+    pub(crate) span: Span,
+    pub(crate) participants: Vec<SectionParticipant>,
+}
+
+/// Findings split by lint identity so each rule remains independently configurable.
+#[derive(Default)]
+pub(crate) struct SectionAnalysis {
+    pub(crate) missing: Vec<SectionFinding>,
+    pub(crate) malformed: Vec<SectionFinding>,
+    pub(crate) duplicates: Vec<SectionFinding>,
+    pub(crate) mismatches: Vec<SectionFinding>,
+    pub(crate) sections: Vec<SectionGroup>,
+}
+
+impl SectionAnalysis {
+    /// Returns the authored section containing an item at the given source span.
+    pub(crate) fn section_ordinal_for_span(&self, span: Span) -> Option<usize> {
+        self.sections
+            .iter()
+            .rev()
+            .find(|section| section.span.lo() <= span.lo())
+            .map(|section| section.ordinal)
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Config: Shared section divider configuration
 // -----------------------------------------------------------------------------
 
 /// Shared configuration for the section-divider lint family.
@@ -44,10 +90,8 @@ impl Default for Config {
     }
 }
 
-const CONFIG_KEY: &str = env!("CARGO_PKG_NAME");
-
 // -----------------------------------------------------------------------------
-// LibraryConfig: Top-level lint configuration
+// LibraryConfig: Top level lint configuration
 // -----------------------------------------------------------------------------
 
 /// Top-level library configuration read from the `rlib-lint` table.
@@ -56,6 +100,8 @@ const CONFIG_KEY: &str = env!("CARGO_PKG_NAME");
 struct LibraryConfig {
     section_dividers: Config,
 }
+
+const LIBRARY_CONFIG_KEY: &str = env!("CARGO_PKG_NAME");
 
 // -----------------------------------------------------------------------------
 // SectionAnalyzer: Source analysis
@@ -71,7 +117,7 @@ impl SectionAnalyzer {
     /// Loads and validates the shared library configuration.
     pub(crate) fn from_config() -> Self {
         let config =
-            dylint_linting::config_or_default::<LibraryConfig>(CONFIG_KEY).section_dividers;
+            dylint_linting::config_or_default::<LibraryConfig>(LIBRARY_CONFIG_KEY).section_dividers;
         let template = Template::parse(&config.template, config.max_line_length)
             .unwrap_or_else(|message| panic!("invalid section divider template: {message}"));
         Self {
@@ -90,7 +136,7 @@ impl SectionAnalyzer {
         ModuleAnalysis::analyze(self, cx, module, hir_id)
     }
 
-    fn dividers_in_span(&self, cx: &LateContext<'_>, span: Span) -> Vec<SectionDividerOccurrence> {
+    fn dividers_in_span(&self, cx: &LateContext<'_>, span: Span) -> Vec<SectionEventDivider> {
         let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
             return Vec::new();
         };
@@ -102,7 +148,7 @@ impl SectionAnalyzer {
                     u32::try_from(matched.start).expect("source span offset should fit in BytePos");
                 let end =
                     u32::try_from(matched.end).expect("source span offset should fit in BytePos");
-                SectionDividerOccurrence {
+                SectionEventDivider {
                     span: span
                         .with_lo(span.lo() + BytePos(start))
                         .with_hi(span.lo() + BytePos(end)),
@@ -167,11 +213,11 @@ impl ModuleAnalysis {
                     analyzer
                         .dividers_in_span(cx, gap)
                         .into_iter()
-                        .map(SectionEvent::SectionDividerOccurrence),
+                        .map(SectionEvent::Divider),
                 );
             }
-            if let Some(participant) = SectionCandidate::from_item(cx, item) {
-                events.push(SectionEvent::SectionCandidate(participant));
+            if let Some(participant) = SectionEventCandidate::from_item(cx, item) {
+                events.push(SectionEvent::Candidate(participant));
             }
             previous = previous.max(item.span.hi());
         }
@@ -181,7 +227,7 @@ impl ModuleAnalysis {
                 analyzer
                     .dividers_in_span(cx, gap)
                     .into_iter()
-                    .map(SectionEvent::SectionDividerOccurrence),
+                    .map(SectionEvent::Divider),
             );
         }
         events.sort_unstable_by_key(SectionEvent::position);
@@ -190,20 +236,20 @@ impl ModuleAnalysis {
 
     fn analyze_events(analyzer: &SectionAnalyzer, events: Vec<SectionEvent>) -> SectionAnalysis {
         let mut analysis = SectionAnalysis::default();
-        let mut uncovered = SectionCandidateList::default();
-        let mut current: Option<Section> = None;
+        let mut uncovered = SectionEventCandidates::default();
+        let mut current: Option<SectionEventGroup> = None;
         let mut seen_prefixes = HashMap::<String, Span>::new();
 
         for event in events {
             match event {
-                SectionEvent::SectionCandidate(participant) => {
+                SectionEvent::Candidate(participant) => {
                     if let Some(section) = &mut current {
                         section.participants.push(participant);
                     } else {
                         uncovered.push(participant);
                     }
                 }
-                SectionEvent::SectionDividerOccurrence(divider) => {
+                SectionEvent::Divider(divider) => {
                     if uncovered.requires_divider() {
                         analysis.missing.push(uncovered.missing_finding());
                     }
@@ -211,9 +257,9 @@ impl ModuleAnalysis {
                     if let Some(section) = current.take() {
                         Self::finish_section(analyzer, &section, &mut seen_prefixes, &mut analysis);
                     }
-                    current = Some(Section {
+                    current = Some(SectionEventGroup {
                         divider,
-                        participants: SectionCandidateList::default(),
+                        participants: SectionEventCandidates::default(),
                     });
                 }
             }
@@ -263,7 +309,7 @@ impl ModuleAnalysis {
 
     fn finish_section(
         analyzer: &SectionAnalyzer,
-        section: &Section,
+        section: &SectionEventGroup,
         seen_prefixes: &mut HashMap<String, Span>,
         analysis: &mut SectionAnalysis,
     ) {
@@ -333,54 +379,54 @@ impl ModuleAnalysis {
             if !section.participants.is_empty() {
                 let names = section.participants.names();
                 match identifier_longest_pascal_prefix(&names) {
-                Some(expected) if expected != prefix => {
-                    analysis.mismatches.push(SectionFinding {
+                    Some(expected) if expected != prefix => {
+                        analysis.mismatches.push(SectionFinding {
+                            span: section.divider.span,
+                            message: format!(
+                                "section prefix `{prefix}` does not match its declaration family"
+                            ),
+                            help: format!(
+                                "rename the declarations into one coherent family first; their longest shared PascalCase prefix is `{expected}`, and a new section is appropriate only for an independent concept"
+                            ),
+                            replacement: None,
+                        });
+                    }
+                    None => analysis.mismatches.push(SectionFinding {
                         span: section.divider.span,
                         message: format!(
-                            "section prefix `{prefix}` does not match its declaration family"
+                            "section `{prefix}` contains declarations without a shared PascalCase prefix"
                         ),
                         help: format!(
-                            "rename the declarations into one coherent family first; their longest shared PascalCase prefix is `{expected}`, and a new section is appropriate only for an independent concept"
+                            "reconsider the names {} so closely related declarations share a visible prefix; split the section only when they represent independent concepts",
+                            section.participants.formatted_names()
                         ),
                         replacement: None,
-                    });
+                    }),
+                    _ => {}
                 }
-                None => analysis.mismatches.push(SectionFinding {
-                    span: section.divider.span,
-                    message: format!(
-                        "section `{prefix}` contains declarations without a shared PascalCase prefix"
-                    ),
-                    help: format!(
-                        "reconsider the names {} so closely related declarations share a visible prefix; split the section only when they represent independent concepts",
-                        section.participants.formatted_names()
-                    ),
-                    replacement: None,
-                }),
-                _ => {}
-            }
             }
         }
     }
 }
 
 // -----------------------------------------------------------------------------
-// Section: Section events and participants
+// SectionEvent: Section events and participants
 // -----------------------------------------------------------------------------
 
-struct SectionDividerOccurrence {
+struct SectionEventDivider {
     span: Span,
     raw_content: String,
     indentation: String,
 }
 
-struct SectionCandidate {
+struct SectionEventCandidate {
     def_id: rustc_hir::def_id::LocalDefId,
     name: String,
     span: Span,
     is_nominal_declaration: bool,
 }
 
-impl SectionCandidate {
+impl SectionEventCandidate {
     fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         if item.span.from_expansion() {
             return None;
@@ -421,23 +467,23 @@ impl SectionCandidate {
 }
 
 enum SectionEvent {
-    SectionDividerOccurrence(SectionDividerOccurrence),
-    SectionCandidate(SectionCandidate),
+    Divider(SectionEventDivider),
+    Candidate(SectionEventCandidate),
 }
 
 impl SectionEvent {
     fn position(&self) -> BytePos {
         match self {
-            Self::SectionDividerOccurrence(divider) => divider.span.lo(),
-            Self::SectionCandidate(participant) => participant.span.lo(),
+            Self::Divider(divider) => divider.span.lo(),
+            Self::Candidate(participant) => participant.span.lo(),
         }
     }
 }
 
 #[derive(Default)]
-struct SectionCandidateList(Vec<SectionCandidate>);
+struct SectionEventCandidates(Vec<SectionEventCandidate>);
 
-impl SectionCandidateList {
+impl SectionEventCandidates {
     fn clear(&mut self) {
         self.0.clear();
     }
@@ -446,7 +492,7 @@ impl SectionCandidateList {
         self.0.is_empty()
     }
 
-    fn push(&mut self, participant: SectionCandidate) {
+    fn push(&mut self, participant: SectionEventCandidate) {
         self.0.push(participant);
     }
 
@@ -477,17 +523,26 @@ impl SectionCandidateList {
     }
 
     fn distinct_declarations(&self) -> Vec<SectionParticipant> {
-        let mut seen = std::collections::HashSet::new();
-        self.0
-            .iter()
-            .filter(|participant| seen.insert(participant.def_id))
-            .map(|participant| SectionParticipant {
+        let mut positions = HashMap::<rustc_hir::def_id::LocalDefId, usize>::new();
+        let mut declarations = Vec::<SectionParticipant>::new();
+        for participant in &self.0 {
+            let candidate = SectionParticipant {
                 def_id: participant.def_id,
                 name: participant.name.clone(),
                 span: participant.span,
                 is_nominal: participant.is_nominal_declaration,
-            })
-            .collect()
+            };
+            if let Some(index) = positions.get(&participant.def_id).copied() {
+                if candidate.is_nominal && !declarations[index].is_nominal {
+                    declarations[index] = candidate;
+                }
+            } else {
+                positions.insert(participant.def_id, declarations.len());
+                declarations.push(candidate);
+            }
+        }
+        declarations.sort_unstable_by_key(|participant| participant.span.lo());
+        declarations
     }
 
     fn missing_finding(&self) -> SectionFinding {
@@ -510,9 +565,9 @@ impl SectionCandidateList {
     }
 }
 
-struct Section {
-    divider: SectionDividerOccurrence,
-    participants: SectionCandidateList,
+struct SectionEventGroup {
+    divider: SectionEventDivider,
+    participants: SectionEventCandidates,
 }
 
 // -----------------------------------------------------------------------------

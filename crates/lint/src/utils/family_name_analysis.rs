@@ -13,8 +13,7 @@ use rustc_span::Span;
 
 use super::identifier_case::{identifier_pascal_words, identifier_words};
 use super::item_dependencies::item_dependencies;
-use super::section_analysis::SectionAnalyzer;
-use super::source_organization::{SectionGroup, SectionParticipant};
+use super::section_analysis::{SectionAnalyzer, SectionGroup, SectionParticipant};
 
 // -----------------------------------------------------------------------------
 // Threshold: Inference reporting thresholds
@@ -27,7 +26,7 @@ const THRESHOLD_SUGGESTION: i32 = 9;
 // FamilyName: Diagnostics and analysis
 // -----------------------------------------------------------------------------
 
-/// One naming-family diagnostic with all supporting source labels.
+/// One supporting source label attached to a naming-family diagnostic.
 pub(crate) struct FamilyNameLabel {
     pub(crate) span: Span,
     pub(crate) message: String,
@@ -43,13 +42,13 @@ pub(crate) struct FamilyNameFinding {
 
 /// Finds naming families whose shared prefix reflects source organization instead of concepts.
 pub(crate) struct FamilyNameAnalyzer {
-    dividers: SectionAnalyzer,
+    sections: SectionAnalyzer,
 }
 
 impl FamilyNameAnalyzer {
     pub(crate) fn from_config() -> Self {
         Self {
-            dividers: SectionAnalyzer::from_config(),
+            sections: SectionAnalyzer::from_config(),
         }
     }
 
@@ -59,7 +58,7 @@ impl FamilyNameAnalyzer {
         module: &Mod<'_>,
         hir_id: HirId,
     ) -> Vec<FamilyNameFinding> {
-        let analysis = self.dividers.analyze(cx, module, hir_id);
+        let analysis = self.sections.analyze(cx, module, hir_id);
         let module_analysis = ModuleNamingAnalysis::collect(cx, module, hir_id);
         let mut findings = analysis
             .sections
@@ -407,6 +406,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         renames.retain(|rename| rename.replacement != rename.participant.name);
         Some(renames)
     }
+
     fn infer(
         mut self,
         context: Option<&str>,
@@ -469,7 +469,6 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
             );
         }
         if self.declarations_are_contiguous() {
-            confidence.add(ConfidenceSignal::Contiguous);
             confidence.add(ConfidenceSignal::Contiguous);
         }
         if competing_stems {
@@ -545,14 +544,14 @@ impl NameTokens {
                     return true;
                 }
                 index + 1 == self.words.len()
-                    && left.strip_suffix('s').is_some_and(|left| left == right)
-                    || right.strip_suffix('s').is_some_and(|right| left == right)
+                    && (left.strip_suffix('s').is_some_and(|left| left == right)
+                        || right.strip_suffix('s').is_some_and(|right| left == right))
             })
     }
 }
 
 // -----------------------------------------------------------------------------
-// ModuleNamingAnalysis: Module-level semantic context
+// ModuleNamingAnalysis: Module level semantic context
 // -----------------------------------------------------------------------------
 
 struct ModuleNamingAnalysis {
@@ -692,6 +691,10 @@ mod tests {
         assert!(
             NameTokens::pascal("SectionDivider")
                 .matches_context(&NameTokens::context("section_dividers"))
+        );
+        assert!(
+            !NameTokens::pascal("SectionsDivider")
+                .matches_context(&NameTokens::context("section_divider"))
         );
     }
 

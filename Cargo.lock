@@ -869,6 +869,7 @@ dependencies = [
  "dylint_linting",
  "dylint_testing",
  "serde",
+ "syn 2.0.119",
 ]
 
 [[package]]

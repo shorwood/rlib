@@ -52,31 +52,19 @@ pub(crate) fn identifier_longest_pascal_prefix(names: &[&str]) -> Option<String>
 }
 
 // -----------------------------------------------------------------------------
-// SentenceCase: Free-text sentence casing
+// SentenceCase: Free text sentence casing
 // -----------------------------------------------------------------------------
 
-/// Normalizes the first alphabetic character without rewriting the remaining text.
+/// Normalizes free text to canonical sentence case.
 pub(crate) fn sentence_case(value: &str) -> String {
-    let Some((index, character)) = value
-        .char_indices()
-        .find(|(_, character)| character.is_alphabetic())
-    else {
-        return value.to_owned();
-    };
-    let end = index + character.len_utf8();
-    format!(
-        "{}{}{}",
-        &value[..index],
-        character.to_string().to_case(Case::Upper),
-        &value[end..]
-    )
+    value.to_case(Case::Sentence)
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         identifier_is_pascal_case, identifier_longest_pascal_prefix, identifier_pascal_words,
-        identifier_words,
+        identifier_words, sentence_case,
     };
 
     #[test]
@@ -103,6 +91,15 @@ mod tests {
         assert_eq!(
             identifier_longest_pascal_prefix(&["request_parser", "RequestPolicy"]),
             Some("Request".to_owned())
+        );
+    }
+
+    #[test]
+    fn normalizes_the_complete_sentence() {
+        assert_eq!(sentence_case("THIS IS LOUD"), "This is loud");
+        assert_eq!(
+            sentence_case("already sentence case"),
+            "Already sentence case"
         );
     }
 }
