@@ -47,6 +47,7 @@
             packages = [
               rust.toolchain
               dylintTools
+              pkgs.just
               pkgs.openssl
               pkgs.pkg-config
               pkgs.stdenv.cc
