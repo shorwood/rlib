@@ -9,8 +9,8 @@ use rustc_hir::{HirId, Item, ItemKind, Mod, Node};
 use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty;
 use rustc_span::{BytePos, Span};
-use serde::Deserialize;
 
+use super::config::LibraryConfig;
 use super::identifier_case::{
     identifier_is_pascal_case, identifier_longest_pascal_prefix, sentence_case,
 };
@@ -56,52 +56,14 @@ pub(crate) struct SectionAnalysis {
 impl SectionAnalysis {
     /// Returns the authored section containing an item at the given source span.
     pub(crate) fn section_ordinal_for_span(&self, span: Span) -> Option<usize> {
-        self.sections
+        let preceding_section = self
+            .sections
             .iter()
             .rev()
-            .find(|section| section.span.lo() <= span.lo())
-            .map(|section| section.ordinal)
+            .find(|section| section.span.lo() <= span.lo());
+        preceding_section.map(|section| section.ordinal)
     }
 }
-
-// -----------------------------------------------------------------------------
-// Config: Shared section divider configuration
-// -----------------------------------------------------------------------------
-
-/// Shared configuration for the section-divider lint family.
-#[derive(Clone, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct Config {
-    template: String,
-    max_line_length: usize,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            max_line_length: 80,
-            template: concat!(
-                "// -----------------------------------------------------------------------------\n",
-                "// {content}\n",
-                "// -----------------------------------------------------------------------------"
-            )
-            .to_owned(),
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------
-// LibraryConfig: Top level lint configuration
-// -----------------------------------------------------------------------------
-
-/// Top-level library configuration read from the `rlib-lint` table.
-#[derive(Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-struct LibraryConfig {
-    section_dividers: Config,
-}
-
-const LIBRARY_CONFIG_KEY: &str = env!("CARGO_PKG_NAME");
 
 // -----------------------------------------------------------------------------
 // SectionAnalyzer: Source analysis
@@ -116,13 +78,32 @@ pub(crate) struct SectionAnalyzer {
 impl SectionAnalyzer {
     /// Loads and validates the shared library configuration.
     pub(crate) fn from_config() -> Self {
-        let config =
-            dylint_linting::config_or_default::<LibraryConfig>(LIBRARY_CONFIG_KEY).section_dividers;
-        let template = Template::parse(&config.template, config.max_line_length)
+        let config = LibraryConfig::load().section_dividers;
+
+        // Fail during lint construction when the project template is invalid.
+        let parsed_template = Template::parse(&config.template, config.max_line_length);
+        let template = parsed_template
             .unwrap_or_else(|message| panic!("invalid section divider template: {message}"));
         Self {
             template,
             max_line_length: config.max_line_length,
+        }
+    }
+
+    fn divider_from_match(span: Span, matched: TemplateMatch) -> SectionEventDivider {
+        let start = u32::try_from(matched.start).expect("source span offset should fit in BytePos");
+        let end = u32::try_from(matched.end).expect("source span offset should fit in BytePos");
+
+        // Preserve the template's exact authored extent and indentation.
+        let divider_span = span
+            .with_lo(span.lo() + BytePos(start))
+            .with_hi(span.lo() + BytePos(end));
+
+        // Carry authored content forward for semantic validation and fixes.
+        SectionEventDivider {
+            span: divider_span,
+            raw_content: matched.content,
+            indentation: matched.indentation,
         }
     }
 
@@ -140,22 +121,12 @@ impl SectionAnalyzer {
         let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
             return Vec::new();
         };
-        self.template
-            .find_matches(&source)
+
+        // Translate template-relative offsets back into source-map spans.
+        let matches = self.template.find_matches(&source);
+        matches
             .into_iter()
-            .map(|matched| {
-                let start =
-                    u32::try_from(matched.start).expect("source span offset should fit in BytePos");
-                let end =
-                    u32::try_from(matched.end).expect("source span offset should fit in BytePos");
-                SectionEventDivider {
-                    span: span
-                        .with_lo(span.lo() + BytePos(start))
-                        .with_hi(span.lo() + BytePos(end)),
-                    raw_content: matched.content,
-                    indentation: matched.indentation,
-                }
-            })
+            .map(|matched| Self::divider_from_match(span, matched))
             .collect()
     }
 
@@ -168,8 +139,8 @@ impl SectionAnalyzer {
 
     fn render_replacement(&self, content: &str, indentation: &str) -> Option<String> {
         self.rendered_lines_fit(content).then(|| {
-            self.template
-                .render(content)
+            let rendered = self.template.render(content);
+            rendered
                 .lines()
                 .collect::<Vec<_>>()
                 .join(&format!("\n{indentation}"))
@@ -184,6 +155,16 @@ impl SectionAnalyzer {
 struct ModuleAnalysis;
 
 impl ModuleAnalysis {
+    fn append_dividers(
+        analyzer: &SectionAnalyzer,
+        cx: &LateContext<'_>,
+        span: Span,
+        events: &mut Vec<SectionEvent>,
+    ) {
+        let dividers = analyzer.dividers_in_span(cx, span);
+        events.extend(dividers.into_iter().map(SectionEvent::Divider));
+    }
+
     fn analyze(
         analyzer: &SectionAnalyzer,
         cx: &LateContext<'_>,
@@ -192,29 +173,31 @@ impl ModuleAnalysis {
     ) -> SectionAnalysis {
         let source_map = cx.sess().source_map();
         let module_span = Self::source_span(cx, module, hir_id);
-        let mut items = module
+        let module_file = source_map.span_to_filename(module_span);
+
+        // Retain only authored declarations from the module's physical file.
+        let source_items = module
             .item_ids
             .iter()
-            .map(|item_id| cx.tcx.hir_item(*item_id))
+            .map(|item_id| cx.tcx.hir_item(*item_id));
+
+        // Ignore expansions and declarations sourced from child module files.
+        let mut items = source_items
             .filter(|item| {
-                !item.span.from_expansion()
-                    && source_map.span_to_filename(item.span)
-                        == source_map.span_to_filename(module_span)
+                !item.span.from_expansion() && source_map.span_to_filename(item.span) == module_file
             })
             .collect::<Vec<_>>();
+
+        // Establish source order before constructing the section event stream.
         items.sort_unstable_by_key(|item| item.span.lo());
 
+        // Interleave authored dividers with the declarations they introduce.
         let mut events = Vec::new();
         let mut previous = module_span.lo();
         for item in items {
             if previous <= item.span.lo() {
                 let gap = module_span.with_lo(previous).with_hi(item.span.lo());
-                events.extend(
-                    analyzer
-                        .dividers_in_span(cx, gap)
-                        .into_iter()
-                        .map(SectionEvent::Divider),
-                );
+                Self::append_dividers(analyzer, cx, gap, &mut events);
             }
             if let Some(participant) = SectionEventCandidate::from_item(cx, item) {
                 events.push(SectionEvent::Candidate(participant));
@@ -223,65 +206,31 @@ impl ModuleAnalysis {
         }
         if previous <= module_span.hi() {
             let gap = module_span.with_lo(previous).with_hi(module_span.hi());
-            events.extend(
-                analyzer
-                    .dividers_in_span(cx, gap)
-                    .into_iter()
-                    .map(SectionEvent::Divider),
-            );
+            Self::append_dividers(analyzer, cx, gap, &mut events);
         }
         events.sort_unstable_by_key(SectionEvent::position);
         Self::analyze_events(analyzer, events)
     }
 
     fn analyze_events(analyzer: &SectionAnalyzer, events: Vec<SectionEvent>) -> SectionAnalysis {
-        let mut analysis = SectionAnalysis::default();
-        let mut uncovered = SectionEventCandidates::default();
-        let mut current: Option<SectionEventGroup> = None;
-        let mut seen_prefixes = HashMap::<String, Span>::new();
+        let mut state = SectionEventAnalysisState::default();
 
+        // Close each group when the following divider starts a new one.
         for event in events {
-            match event {
-                SectionEvent::Candidate(participant) => {
-                    if let Some(section) = &mut current {
-                        section.participants.push(participant);
-                    } else {
-                        uncovered.push(participant);
-                    }
-                }
-                SectionEvent::Divider(divider) => {
-                    if uncovered.requires_divider() {
-                        analysis.missing.push(uncovered.missing_finding());
-                    }
-                    uncovered.clear();
-                    if let Some(section) = current.take() {
-                        Self::finish_section(analyzer, &section, &mut seen_prefixes, &mut analysis);
-                    }
-                    current = Some(SectionEventGroup {
-                        divider,
-                        participants: SectionEventCandidates::default(),
-                    });
-                }
-            }
+            state.apply(analyzer, event);
         }
-
-        if uncovered.requires_divider() {
-            analysis.missing.push(uncovered.missing_finding());
-        }
-        if let Some(section) = current {
-            Self::finish_section(analyzer, &section, &mut seen_prefixes, &mut analysis);
-        }
-        analysis
+        state.finish(analyzer)
     }
 
     fn source_span(cx: &LateContext<'_>, module: &Mod<'_>, hir_id: HirId) -> Span {
         let inner = module.spans.inner_span;
-        let item = [cx.tcx.hir_node(hir_id), cx.tcx.parent_hir_node(hir_id)]
-            .into_iter()
-            .find_map(|node| match node {
-                Node::Item(item) if matches!(item.kind, ItemKind::Mod(..)) => Some(item),
-                _ => None,
-            });
+        let containing_nodes = [cx.tcx.hir_node(hir_id), cx.tcx.parent_hir_node(hir_id)];
+        let item = containing_nodes.into_iter().find_map(|node| match node {
+            Node::Item(item) if matches!(item.kind, ItemKind::Mod(..)) => Some(item),
+            _ => None,
+        });
+
+        // File modules already expose the complete inner span from HIR.
         let Some(item) = item else {
             return inner;
         };
@@ -291,31 +240,30 @@ impl ModuleAnalysis {
             return inner;
         }
 
+        // Expand inline-module bodies to include comments beside their braces.
         let source_map = cx.sess().source_map();
-        let lo = source_map
-            .span_to_snippet(item.span.with_hi(inner.lo()))
-            .ok()
-            .and_then(|source| source.rfind('{'))
+        let opening_source = source_map.span_to_snippet(item.span.with_hi(inner.lo()));
+        let opening_brace = opening_source.ok().and_then(|source| source.rfind('{'));
+        let opening_offset = opening_brace
             .and_then(|offset| u32::try_from(offset + 1).ok())
-            .map_or(inner.lo(), |offset| item.span.lo() + BytePos(offset));
-        let hi = source_map
-            .span_to_snippet(item.span.with_lo(inner.hi()))
-            .ok()
-            .and_then(|source| source.find('}'))
+            .map(BytePos);
+        let lo = opening_offset.map_or(inner.lo(), |offset| item.span.lo() + offset);
+
+        let closing_source = source_map.span_to_snippet(item.span.with_lo(inner.hi()));
+        let closing_brace = closing_source.ok().and_then(|source| source.find('}'));
+        let closing_offset = closing_brace
             .and_then(|offset| u32::try_from(offset).ok())
-            .map_or(inner.hi(), |offset| inner.hi() + BytePos(offset));
+            .map(BytePos);
+        let hi = closing_offset.map_or(inner.hi(), |offset| inner.hi() + offset);
         inner.with_lo(lo).with_hi(hi)
     }
 
-    fn finish_section(
+    fn record_malformed_section(
         analyzer: &SectionAnalyzer,
         section: &SectionEventGroup,
-        seen_prefixes: &mut HashMap<String, Span>,
+        parsed: &ParsedContent,
         analysis: &mut SectionAnalysis,
     ) {
-        let parsed = ParsedContent::parse(&section.divider.raw_content);
-        let prefix = parsed.prefix.clone();
-
         if section.participants.is_empty() {
             analysis.malformed.push(SectionFinding {
                 span: section.divider.span,
@@ -326,10 +274,13 @@ impl ModuleAnalysis {
             });
         }
 
+        // Prefer a safe canonical replacement for syntactic content errors.
         if let Some(message) = &parsed.error {
             let replacement = parsed.normalized.as_ref().and_then(|content| {
                 analyzer.render_replacement(content, &section.divider.indentation)
             });
+
+            // Explain the canonical grammar alongside any machine-applicable fix.
             analysis.malformed.push(SectionFinding {
                 span: section.divider.span,
                 message: message.clone(),
@@ -349,63 +300,111 @@ impl ModuleAnalysis {
                 replacement: None,
             });
         }
+    }
 
-        if let Some(prefix) = prefix {
-            if parsed.error.is_none()
-                && analyzer.rendered_lines_fit(&section.divider.raw_content)
-                && !section.participants.is_empty()
-            {
-                analysis.sections.push(SectionGroup {
-                    ordinal: analysis.sections.len() + 1,
-                    prefix: prefix.clone(),
-                    span: section.divider.span,
-                    participants: section.participants.distinct_declarations(),
-                });
-            }
-            if seen_prefixes
-                .insert(prefix.clone(), section.divider.span)
-                .is_some()
-            {
-                analysis.duplicates.push(SectionFinding {
-                    span: section.divider.span,
-                    message: format!(
-                        "section prefix `{prefix}` is used more than once in this module"
-                    ),
-                    help: format!("combine this family with the earlier `{prefix}` section"),
-                    replacement: None,
-                });
-            }
-
-            if !section.participants.is_empty() {
-                let names = section.participants.names();
-                match identifier_longest_pascal_prefix(&names) {
-                    Some(expected) if expected != prefix => {
-                        analysis.mismatches.push(SectionFinding {
-                            span: section.divider.span,
-                            message: format!(
-                                "section prefix `{prefix}` does not match its declaration family"
-                            ),
-                            help: format!(
-                                "rename the declarations into one coherent family first; their longest shared PascalCase prefix is `{expected}`, and a new section is appropriate only for an independent concept"
-                            ),
-                            replacement: None,
-                        });
-                    }
-                    None => analysis.mismatches.push(SectionFinding {
-                        span: section.divider.span,
-                        message: format!(
-                            "section `{prefix}` contains declarations without a shared PascalCase prefix"
-                        ),
-                        help: format!(
-                            "reconsider the names {} so closely related declarations share a visible prefix; split the section only when they represent independent concepts",
-                            section.participants.formatted_names()
-                        ),
-                        replacement: None,
-                    }),
-                    _ => {}
-                }
-            }
+    fn record_valid_section(
+        analyzer: &SectionAnalyzer,
+        section: &SectionEventGroup,
+        parsed: &ParsedContent,
+        prefix: &str,
+        analysis: &mut SectionAnalysis,
+    ) {
+        let is_valid = parsed.error.is_none()
+            && analyzer.rendered_lines_fit(&section.divider.raw_content)
+            && !section.participants.is_empty();
+        if !is_valid {
+            return;
         }
+        analysis.sections.push(SectionGroup {
+            ordinal: analysis.sections.len() + 1,
+            prefix: prefix.to_owned(),
+            span: section.divider.span,
+            participants: section.participants.distinct_declarations(),
+        });
+    }
+
+    fn record_duplicate_section(
+        section: &SectionEventGroup,
+        prefix: &str,
+        seen_prefixes: &mut HashMap<String, Span>,
+        analysis: &mut SectionAnalysis,
+    ) {
+        if seen_prefixes
+            .insert(prefix.to_owned(), section.divider.span)
+            .is_none()
+        {
+            return;
+        }
+        analysis.duplicates.push(SectionFinding {
+            span: section.divider.span,
+            message: format!("section prefix `{prefix}` is used more than once in this module"),
+            help: format!("combine this family with the earlier `{prefix}` section"),
+            replacement: None,
+        });
+    }
+
+    fn wrong_prefix_finding(
+        section: &SectionEventGroup,
+        prefix: &str,
+        expected: &str,
+    ) -> SectionFinding {
+        SectionFinding {
+            span: section.divider.span,
+            message: format!("section prefix `{prefix}` does not match its declaration family"),
+            help: format!(
+                "rename the declarations into one coherent family first; their longest shared PascalCase prefix is `{expected}`, and a new section is appropriate only for an independent concept"
+            ),
+            replacement: None,
+        }
+    }
+
+    fn unrelated_names_finding(section: &SectionEventGroup, prefix: &str) -> SectionFinding {
+        SectionFinding {
+            span: section.divider.span,
+            message: format!(
+                "section `{prefix}` contains declarations without a shared PascalCase prefix"
+            ),
+            help: format!(
+                "reconsider the names {} so closely related declarations share a visible prefix; split the section only when they represent independent concepts",
+                section.participants.formatted_names()
+            ),
+            replacement: None,
+        }
+    }
+
+    fn mismatch_finding(section: &SectionEventGroup, prefix: &str) -> Option<SectionFinding> {
+        if section.participants.is_empty() {
+            return None;
+        }
+        let names = section.participants.names();
+        match identifier_longest_pascal_prefix(&names) {
+            Some(expected) if expected != prefix => {
+                Some(Self::wrong_prefix_finding(section, prefix, &expected))
+            }
+            None => Some(Self::unrelated_names_finding(section, prefix)),
+            _ => None,
+        }
+    }
+
+    fn finish_section(
+        analyzer: &SectionAnalyzer,
+        section: &SectionEventGroup,
+        seen_prefixes: &mut HashMap<String, Span>,
+        analysis: &mut SectionAnalysis,
+    ) {
+        let parsed = ParsedContent::parse(&section.divider.raw_content);
+        Self::record_malformed_section(analyzer, section, &parsed, analysis);
+        let Some(prefix) = parsed.prefix.as_deref() else {
+            return;
+        };
+
+        // Record the section independently for each semantic companion lint.
+        Self::record_valid_section(analyzer, section, &parsed, prefix, analysis);
+        Self::record_duplicate_section(section, prefix, seen_prefixes, analysis);
+        let Some(finding) = Self::mismatch_finding(section, prefix) else {
+            return;
+        };
+        analysis.mismatches.push(finding);
     }
 }
 
@@ -427,6 +426,20 @@ struct SectionEventCandidate {
 }
 
 impl SectionEventCandidate {
+    fn from_impl(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+        let self_type = cx.tcx.type_of(item.owner_id).instantiate_identity();
+        let ty::Adt(definition, _) = self_type.kind() else {
+            return None;
+        };
+        let definition = definition.did().as_local()?;
+        Some(Self {
+            def_id: definition,
+            name: cx.tcx.item_name(definition.to_def_id()).to_string(),
+            span: item.span,
+            is_nominal_declaration: false,
+        })
+    }
+
     fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         if item.span.from_expansion() {
             return None;
@@ -449,18 +462,7 @@ impl SectionEventCandidate {
                 span: item.span,
                 is_nominal_declaration: false,
             }),
-            ItemKind::Impl(_) => {
-                let self_type = cx.tcx.type_of(item.owner_id).instantiate_identity();
-                let ty::Adt(definition, _) = self_type.kind() else {
-                    return None;
-                };
-                definition.did().as_local().map(|definition| Self {
-                    def_id: definition,
-                    name: cx.tcx.item_name(definition.to_def_id()).to_string(),
-                    span: item.span,
-                    is_nominal_declaration: false,
-                })
-            }
+            ItemKind::Impl(_) => Self::from_impl(cx, item),
             _ => None,
         }
     }
@@ -484,6 +486,22 @@ impl SectionEvent {
 struct SectionEventCandidates(Vec<SectionEventCandidate>);
 
 impl SectionEventCandidates {
+    fn record_distinct_declaration(
+        positions: &mut HashMap<rustc_hir::def_id::LocalDefId, usize>,
+        declarations: &mut Vec<SectionParticipant>,
+        candidate: SectionParticipant,
+    ) {
+        let Some(index) = positions.get(&candidate.def_id).copied() else {
+            positions.insert(candidate.def_id, declarations.len());
+            declarations.push(candidate);
+            return;
+        };
+        if !candidate.is_nominal || declarations[index].is_nominal {
+            return;
+        }
+        declarations[index] = candidate;
+    }
+
     fn clear(&mut self) {
         self.0.clear();
     }
@@ -515,11 +533,13 @@ impl SectionEventCandidates {
         let mut names = self.names();
         names.sort_unstable();
         names.dedup();
-        names
+
+        // Quote and join the stable set for diagnostic prose.
+        let quoted_names = names
             .into_iter()
             .map(|name| format!("`{name}`"))
-            .collect::<Vec<_>>()
-            .join(", ")
+            .collect::<Vec<_>>();
+        quoted_names.join(", ")
     }
 
     fn distinct_declarations(&self) -> Vec<SectionParticipant> {
@@ -532,22 +552,19 @@ impl SectionEventCandidates {
                 span: participant.span,
                 is_nominal: participant.is_nominal_declaration,
             };
-            if let Some(index) = positions.get(&participant.def_id).copied() {
-                if candidate.is_nominal && !declarations[index].is_nominal {
-                    declarations[index] = candidate;
-                }
-            } else {
-                positions.insert(participant.def_id, declarations.len());
-                declarations.push(candidate);
-            }
+            Self::record_distinct_declaration(&mut positions, &mut declarations, candidate);
         }
+
+        // Return declarations in authored order after collapsing their impls.
         declarations.sort_unstable_by_key(|participant| participant.span.lo());
         declarations
     }
 
-    fn missing_finding(&self) -> SectionFinding {
+    fn missing_guidance(&self) -> String {
         let names = self.names();
-        let guidance = identifier_longest_pascal_prefix(&names).map_or_else(
+
+        // Turn the inferred prefix, or its absence, into naming-first guidance.
+        identifier_longest_pascal_prefix(&names).map_or_else(
             || format!(
                 "reconsider the names {} so related declarations share a visible prefix, then add a divider; create separate sections only for independent concepts",
                 self.formatted_names()
@@ -555,7 +572,12 @@ impl SectionEventCandidates {
             |prefix| format!(
                 "add a divider for `{prefix}`, after first checking whether any outlier should be renamed into that family"
             ),
-        );
+        )
+    }
+
+    fn missing_finding(&self) -> SectionFinding {
+        // Prefer an inferred family prefix while keeping naming guidance actionable.
+        let guidance = self.missing_guidance();
         SectionFinding {
             span: self.0[0].span,
             message: "module declarations are not covered by a section divider".to_owned(),
@@ -568,6 +590,72 @@ impl SectionEventCandidates {
 struct SectionEventGroup {
     divider: SectionEventDivider,
     participants: SectionEventCandidates,
+}
+
+#[derive(Default)]
+struct SectionEventAnalysisState {
+    analysis: SectionAnalysis,
+    uncovered: SectionEventCandidates,
+    current: Option<SectionEventGroup>,
+    seen_prefixes: HashMap<String, Span>,
+}
+
+impl SectionEventAnalysisState {
+    fn record_candidate(&mut self, participant: SectionEventCandidate) {
+        let Some(section) = &mut self.current else {
+            self.uncovered.push(participant);
+            return;
+        };
+        section.participants.push(participant);
+    }
+
+    fn record_uncovered(&mut self) {
+        if self.uncovered.requires_divider() {
+            self.analysis.missing.push(self.uncovered.missing_finding());
+        }
+        self.uncovered.clear();
+    }
+
+    fn start_section(&mut self, analyzer: &SectionAnalyzer, divider: SectionEventDivider) {
+        self.record_uncovered();
+
+        // Finish the preceding section before installing its successor.
+        if let Some(section) = self.current.take() {
+            ModuleAnalysis::finish_section(
+                analyzer,
+                &section,
+                &mut self.seen_prefixes,
+                &mut self.analysis,
+            );
+        }
+        self.current = Some(SectionEventGroup {
+            divider,
+            participants: SectionEventCandidates::default(),
+        });
+    }
+
+    fn apply(&mut self, analyzer: &SectionAnalyzer, event: SectionEvent) {
+        match event {
+            SectionEvent::Candidate(participant) => self.record_candidate(participant),
+            SectionEvent::Divider(divider) => self.start_section(analyzer, divider),
+        }
+    }
+
+    fn finish(mut self, analyzer: &SectionAnalyzer) -> SectionAnalysis {
+        self.record_uncovered();
+        let Some(section) = self.current.take() else {
+            return self.analysis;
+        };
+
+        // Close the final authored section after the event stream ends.
+        ModuleAnalysis::finish_section(
+            analyzer,
+            &section,
+            &mut self.seen_prefixes,
+            &mut self.analysis,
+        );
+        self.analysis
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -588,34 +676,56 @@ impl ParsedContent {
             .map_or((trimmed, None), |(prefix, description)| {
                 (prefix.trim(), Some(description.trim()))
             });
+
+        // Normalize both halves before classifying the first canonical-form violation.
         let prefix = identifier_is_pascal_case(raw_prefix).then(|| raw_prefix.to_owned());
         let normalized_description = raw_description.map(sentence_case);
-        let normalized = prefix
-            .as_ref()
-            .and_then(|prefix| match &normalized_description {
-                Some(description) if !description.is_empty() => {
-                    Some(format!("{prefix}: {description}"))
-                }
-                None => Some(prefix.clone()),
-                _ => None,
-            });
+        let normalized =
+            Self::normalized_content(prefix.as_deref(), normalized_description.as_deref());
 
-        let error = if prefix.is_none() {
-            Some("section divider prefix is not PascalCase".to_owned())
-        } else if raw_description.is_some_and(str::is_empty) {
-            Some("section divider description is empty".to_owned())
-        } else if raw_description != normalized_description.as_deref() {
-            Some("section divider description must use sentence case".to_owned())
-        } else if normalized.as_deref() != Some(content) {
-            Some("section divider content has non-canonical spacing".to_owned())
-        } else {
-            None
-        };
+        // Compare the authored content with its canonical representation.
+        let error = Self::content_error(
+            content,
+            prefix.as_ref(),
+            raw_description,
+            normalized_description.as_deref(),
+            normalized.as_deref(),
+        );
 
         Self {
             prefix,
             normalized,
             error,
+        }
+    }
+
+    fn normalized_content(prefix: Option<&str>, description: Option<&str>) -> Option<String> {
+        match (prefix, description) {
+            (Some(prefix), Some(description)) if !description.is_empty() => {
+                Some(format!("{prefix}: {description}"))
+            }
+            (Some(prefix), None) => Some(prefix.to_owned()),
+            _ => None,
+        }
+    }
+
+    fn content_error(
+        content: &str,
+        prefix: Option<&String>,
+        raw_description: Option<&str>,
+        normalized_description: Option<&str>,
+        normalized: Option<&str>,
+    ) -> Option<String> {
+        if prefix.is_none() {
+            Some("section divider prefix is not PascalCase".to_owned())
+        } else if raw_description.is_some_and(str::is_empty) {
+            Some("section divider description is empty".to_owned())
+        } else if raw_description != normalized_description {
+            Some("section divider description must use sentence case".to_owned())
+        } else if normalized != Some(content) {
+            Some("section divider content has non-canonical spacing".to_owned())
+        } else {
+            None
         }
     }
 }
@@ -645,25 +755,28 @@ struct TemplateSourceLine<'source> {
 impl<'source> TemplateSourceLine<'source> {
     fn parse_all(source: &'source str) -> Vec<Self> {
         let mut start = 0;
-        source
-            .split_inclusive('\n')
-            .map(|line| {
-                let body = line.strip_suffix('\n').unwrap_or(line);
-                let indentation_end = body
-                    .char_indices()
-                    .find_map(|(index, character)| {
-                        (!matches!(character, ' ' | '\t')).then_some(index)
-                    })
-                    .unwrap_or(body.len());
-                let result = Self {
-                    start,
-                    indentation: &body[..indentation_end],
-                    content: &body[indentation_end..],
-                };
-                start += line.len();
-                result
-            })
-            .collect()
+        let source_lines = source.split_inclusive('\n').map(|line| {
+            let result = Self::parse(line, start);
+            start += line.len();
+            result
+        });
+        source_lines.collect()
+    }
+
+    fn parse(line: &'source str, start: usize) -> Self {
+        let body = line.strip_suffix('\n').unwrap_or(line);
+        let indentation_end = Self::indentation_end(body);
+        Self {
+            start,
+            indentation: &body[..indentation_end],
+            content: &body[indentation_end..],
+        }
+    }
+
+    fn indentation_end(body: &str) -> usize {
+        body.char_indices()
+            .find_map(|(index, character)| (!matches!(character, ' ' | '\t')).then_some(index))
+            .unwrap_or(body.len())
     }
 }
 
@@ -689,24 +802,7 @@ impl Template {
         }
         let lines = source
             .split('\n')
-            .map(|line| {
-                if !line.starts_with("//") || line.starts_with("///") || line.starts_with("//!") {
-                    return Err("every template line must be a normal `//` comment".to_owned());
-                }
-                if line
-                    .replace(TEMPLATE_CONTENT_PLACEHOLDER, "")
-                    .chars()
-                    .count()
-                    > max_line_length
-                {
-                    return Err("a static template line exceeds max_line_length".to_owned());
-                }
-                let (before, after) = line.split_once(TEMPLATE_CONTENT_PLACEHOLDER).map_or_else(
-                    || (line.to_owned(), None),
-                    |(before, after)| (before.to_owned(), Some(after.to_owned())),
-                );
-                Ok(TemplateLine { before, after })
-            })
+            .map(|line| Self::parse_line(line, max_line_length))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             source: source.to_owned(),
@@ -714,8 +810,66 @@ impl Template {
         })
     }
 
+    fn parse_line(line: &str, max_line_length: usize) -> Result<TemplateLine, String> {
+        if !line.starts_with("//") || line.starts_with("///") || line.starts_with("//!") {
+            return Err("every template line must be a normal `//` comment".to_owned());
+        }
+        let static_content = line.replace(TEMPLATE_CONTENT_PLACEHOLDER, "");
+        if static_content.chars().count() > max_line_length {
+            return Err("a static template line exceeds max_line_length".to_owned());
+        }
+
+        // Retain the static fragments surrounding the optional placeholder.
+        let (before, after) = line.split_once(TEMPLATE_CONTENT_PLACEHOLDER).map_or_else(
+            || (line.to_owned(), None),
+            |(before, after)| (before.to_owned(), Some(after.to_owned())),
+        );
+        Ok(TemplateLine { before, after })
+    }
+
+    fn line_content<'source>(
+        template: &TemplateLine,
+        line: &TemplateSourceLine<'source>,
+    ) -> Result<Option<&'source str>, ()> {
+        let Some(after) = &template.after else {
+            return (line.content == template.before).then_some(None).ok_or(());
+        };
+        let rest = line.content.strip_prefix(&template.before).ok_or(())?;
+        let content = rest.strip_suffix(after).ok_or(())?;
+        Ok(Some(content))
+    }
+
     fn render(&self, content: &str) -> String {
         self.source.replace(TEMPLATE_CONTENT_PLACEHOLDER, content)
+    }
+
+    fn match_at(&self, lines: &[TemplateSourceLine<'_>], index: usize) -> Option<TemplateMatch> {
+        let indentation = lines[index].indentation;
+        let mut content = None;
+        for (offset, template) in self.lines.iter().enumerate() {
+            let line = &lines[index + offset];
+            if line.indentation != indentation {
+                return None;
+            }
+            let Some(value) = Self::line_content(template, line).ok()? else {
+                continue;
+            };
+            content = Some(value);
+        }
+
+        // Convert the matched source lines into one replacement-ready extent.
+        let first = &lines[index];
+        let last = &lines[index + self.lines.len() - 1];
+
+        // Capture both the semantic content and its complete authored span.
+        Some(TemplateMatch {
+            start: first.start + indentation.len(),
+            end: last.start + last.indentation.len() + last.content.len(),
+            content: content
+                .expect("validated template has one placeholder")
+                .to_owned(),
+            indentation: indentation.to_owned(),
+        })
     }
 
     fn find_matches(&self, source: &str) -> Vec<TemplateMatch> {
@@ -723,47 +877,14 @@ impl Template {
         let mut matches = Vec::new();
         let mut index = 0;
         while index + self.lines.len() <= lines.len() {
-            let indentation = lines[index].indentation;
-            let mut content = None;
-            let mut valid = true;
-            for (offset, template) in self.lines.iter().enumerate() {
-                let line = &lines[index + offset];
-                if line.indentation != indentation {
-                    valid = false;
-                    break;
-                }
-                match &template.after {
-                    None if line.content != template.before => {
-                        valid = false;
-                        break;
-                    }
-                    None => {}
-                    Some(after) => {
-                        let Some(rest) = line.content.strip_prefix(&template.before) else {
-                            valid = false;
-                            break;
-                        };
-                        let Some(value) = rest.strip_suffix(after) else {
-                            valid = false;
-                            break;
-                        };
-                        content = Some(value.to_owned());
-                    }
-                }
-            }
-            if valid {
-                let first = &lines[index];
-                let last = &lines[index + self.lines.len() - 1];
-                matches.push(TemplateMatch {
-                    start: first.start + indentation.len(),
-                    end: last.start + last.indentation.len() + last.content.len(),
-                    content: content.expect("validated template has one placeholder"),
-                    indentation: indentation.to_owned(),
-                });
-                index += self.lines.len();
-            } else {
+            let Some(found_match) = self.match_at(&lines, index) else {
                 index += 1;
-            }
+                continue;
+            };
+
+            // Advance by the whole template after recording a non-overlapping match.
+            matches.push(found_match);
+            index += self.lines.len();
         }
         matches
     }

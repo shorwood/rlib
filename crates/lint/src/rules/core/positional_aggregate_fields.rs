@@ -76,19 +76,22 @@ impl LateLintPass<'_> for PositionalAggregateFields {
         if item.span.from_expansion() {
             return;
         }
-        if let ItemKind::Struct(_, _, data) = item.kind
-            && let Some(span) = Self::positional_span(&data, item.span)
-        {
-            Self::emit(cx, span, "tuple struct");
-        }
+        let ItemKind::Struct(_, _, data) = item.kind else {
+            return;
+        };
+        let Some(span) = Self::positional_span(&data, item.span) else {
+            return;
+        };
+        Self::emit(cx, span, "tuple struct");
     }
 
     fn check_variant(&mut self, cx: &LateContext<'_>, variant: &Variant<'_>) {
         if variant.span.from_expansion() {
             return;
         }
-        if let Some(span) = Self::positional_span(&variant.data, variant.span) {
-            Self::emit(cx, span, "tuple-like enum variant");
-        }
+        let Some(span) = Self::positional_span(&variant.data, variant.span) else {
+            return;
+        };
+        Self::emit(cx, span, "tuple-like enum variant");
     }
 }

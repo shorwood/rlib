@@ -6,7 +6,7 @@ extern crate rustc_span;
 use std::collections::{HashMap, HashSet};
 
 use rustc_hir::def_id::LocalDefId;
-use rustc_hir::{HirId, ItemKind, Mod, Node};
+use rustc_hir::{HirId, Item, ItemKind, Mod, Node};
 use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty;
 use rustc_span::Span;
@@ -58,28 +58,35 @@ impl FamilyNameAnalyzer {
         module: &Mod<'_>,
         hir_id: HirId,
     ) -> Vec<FamilyNameFinding> {
+        // Analyze authored sections against the module's complete naming context.
         let analysis = self.sections.analyze(cx, module, hir_id);
         let module_analysis = ModuleNamingAnalysis::collect(cx, module, hir_id);
-        let mut findings = analysis
-            .sections
-            .iter()
-            .filter_map(|section| {
-                FamilyCandidateSet::collect(section, &module_analysis.dependencies).infer(
-                    module_analysis.context.as_deref(),
-                    &module_analysis.occupied_names,
-                )
-            })
-            .collect::<Vec<_>>();
 
-        let covered = analysis
+        // Infer findings independently for every authored section.
+        let section_candidates = analysis.sections.iter().filter_map(|section| {
+            FamilyCandidateSet::collect(section, &module_analysis.dependencies).infer(
+                module_analysis.context.as_deref(),
+                &module_analysis.occupied_names,
+            )
+        });
+
+        // Retain authored findings before considering unsectioned declarations.
+        let mut findings = section_candidates.collect::<Vec<_>>();
+
+        // Infer one synthetic family from declarations outside authored sections.
+        let section_participants = analysis
             .sections
             .iter()
-            .flat_map(|section| &section.participants)
+            .flat_map(|section| &section.participants);
+
+        // Exclude declarations already represented by an authored section.
+        let covered = section_participants
             .map(|participant| participant.def_id)
             .collect::<HashSet<_>>();
-        let unsectioned = module_analysis
-            .participants
-            .into_iter()
+
+        // Collect the remaining declarations for contextual inference.
+        let unsectioned_participants = module_analysis.participants.into_iter();
+        let unsectioned = unsectioned_participants
             .filter(|participant| !covered.contains(&participant.def_id))
             .collect::<Vec<_>>();
         if !unsectioned.is_empty()
@@ -131,12 +138,15 @@ impl FamilyInference<'_> {
             rename.replacement != rename.participant.name
                 && occupied_names.contains(&rename.replacement)
         });
-        let replacements = self
+
+        // Render every inferred replacement for the diagnostic guidance.
+        let rendered_renames = self
             .renames
             .iter()
-            .map(|rename| format!("`{}` → `{}`", rename.participant.name, rename.replacement))
-            .collect::<Vec<_>>()
-            .join(", ");
+            .map(|rename| format!("`{}` → `{}`", rename.participant.name, rename.replacement));
+        let replacements = rendered_renames.collect::<Vec<_>>().join(", ");
+
+        // Tailor naming guidance to confidence and namespace collisions.
         let help = if ConfidenceEvidence::allows_exact_names(self.score, has_collision) {
             format!(
                 "prefer the concept-first names {replacements}; rename before creating additional sections"
@@ -146,18 +156,21 @@ impl FamilyInference<'_> {
         } else {
             "reconsider the family vocabulary before adding another section; the evidence is not strong enough to prescribe exact names".to_owned()
         };
+
+        // Attach the supporting evidence and one focused label per proposed rename.
         let evidence = self.evidence.join("; ");
-        let labels = self
-            .renames
-            .iter()
-            .map(|rename| FamilyNameLabel {
-                span: rename.participant.span,
-                message: format!(
-                    "`{}` obscures the inferred `{}` role",
-                    rename.participant.name, rename.replacement
-                ),
-            })
-            .collect();
+
+        // Explain the obscured role at each affected declaration.
+        let rename_labels = self.renames.iter().map(|rename| FamilyNameLabel {
+            span: rename.participant.span,
+            message: format!(
+                "`{}` obscures the inferred `{}` role",
+                rename.participant.name, rename.replacement
+            ),
+        });
+
+        // Materialize labels after their messages have captured every inferred role.
+        let labels = rename_labels.collect();
 
         Some(FamilyNameFinding {
             span: self.section.span,
@@ -198,6 +211,12 @@ impl ConfidenceEvidence {
 
     fn add(&mut self, signal: ConfidenceSignal) {
         self.0.push(signal);
+    }
+
+    fn discard_tokens(&mut self, count: usize) {
+        for _ in 0..count {
+            self.add(ConfidenceSignal::DiscardedToken);
+        }
     }
 
     fn score(&self) -> i32 {
@@ -244,17 +263,21 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         dependencies: &'analysis HashMap<LocalDefId, HashSet<LocalDefId>>,
     ) -> Self {
         let prefix = NameTokens::pascal(&section.prefix);
-        let affected = section
+        let nominal = section
             .participants
             .iter()
-            .filter(|participant| participant.is_nominal)
-            .filter_map(|participant| {
-                NameTokens::pascal(&participant.name)
-                    .strip_prefix(&prefix)
-                    .filter(|name| !name.is_empty())
-                    .map(|name| FamilyCandidate { participant, name })
-            })
-            .collect();
+            .filter(|participant| participant.is_nominal);
+
+        // Strip the section prefix from every nominal declaration that retains a role name.
+        let candidates = nominal.filter_map(|participant| {
+            NameTokens::pascal(&participant.name)
+                .strip_prefix(&prefix)
+                .filter(|name| !name.is_empty())
+                .map(|name| FamilyCandidate { participant, name })
+        });
+        let affected = candidates.collect();
+
+        // Retain dependency evidence for the later confidence-scoring pass.
         Self {
             section,
             affected,
@@ -298,19 +321,23 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
             })
     }
 
-    fn dependency_stems(&self) -> HashSet<String> {
-        self.affected
-            .iter()
-            .filter(|owner| {
-                owner.name.len() > 1
-                    && self.affected.iter().any(|child| {
-                        child.participant.def_id != owner.participant.def_id
-                            && self
-                                .dependencies
-                                .get(&owner.participant.def_id)
-                                .is_some_and(|items| items.contains(&child.participant.def_id))
-                    })
+    fn has_dependent_family_member(&self, owner: &FamilyCandidate<'_>) -> bool {
+        owner.name.len() > 1
+            && self.affected.iter().any(|child| {
+                child.participant.def_id != owner.participant.def_id
+                    && self
+                        .dependencies
+                        .get(&owner.participant.def_id)
+                        .is_some_and(|items| items.contains(&child.participant.def_id))
             })
+    }
+
+    fn dependency_stems(&self) -> HashSet<String> {
+        let owners = self
+            .affected
+            .iter()
+            .filter(|owner| self.has_dependent_family_member(owner));
+        owners
             .map(|owner| owner.name.words[..owner.name.len() - 1].concat())
             .collect()
     }
@@ -340,17 +367,47 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
     }
 
     fn declarations_are_contiguous(&self) -> bool {
-        let indices = self
-            .affected
-            .iter()
-            .filter_map(|affected| {
-                self.section
-                    .participants
-                    .iter()
-                    .position(|participant| participant.def_id == affected.participant.def_id)
-            })
-            .collect::<Vec<_>>();
+        // Locate affected declarations in the section's complete source order.
+        let positions = self.affected.iter().filter_map(|affected| {
+            self.section
+                .participants
+                .iter()
+                .position(|participant| participant.def_id == affected.participant.def_id)
+        });
+
+        // Require every affected declaration to occupy the next source position.
+        let indices = positions.collect::<Vec<_>>();
         indices.windows(2).all(|window| window[1] == window[0] + 1)
+    }
+
+    fn dependency_renames(
+        &self,
+        relationship: FamilyCandidateRelationship,
+        confidence: &mut ConfidenceEvidence,
+    ) -> Option<Vec<FamilyInferenceRename<'section>>> {
+        let owner_name = &self.affected[relationship.owner_index].name;
+        if owner_name.len() <= 1 {
+            return None;
+        }
+        let stem = &owner_name.words[..owner_name.len() - 1];
+        let mut renames = Vec::new();
+        for (index, affected) in self.affected.iter().enumerate() {
+            let replacement = if index == relationship.owner_index {
+                affected.name.join()
+            } else if index == relationship.child_index {
+                let mut words = stem.to_vec();
+                words.push(affected.name.last()?.to_owned());
+                confidence.discard_tokens(affected.name.len() - 1);
+                words.concat()
+            } else {
+                affected.name.join()
+            };
+            renames.push(FamilyInferenceRename {
+                participant: affected.participant,
+                replacement,
+            });
+        }
+        Some(renames)
     }
 
     fn renames(
@@ -358,7 +415,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         reverse_owner: Option<FamilyCandidateRelationship>,
         dependency_relationship: Option<FamilyCandidateRelationship>,
         confidence: &mut ConfidenceEvidence,
-    ) -> Option<Vec<FamilyInferenceRename<'section>>> {
+    ) -> Vec<FamilyInferenceRename<'section>> {
         let mut renames = Vec::new();
         if let Some(relationship) = reverse_owner {
             let owner = &self.affected[relationship.owner_index];
@@ -369,29 +426,10 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
                     replacement: owner.name.join(),
                 });
             }
-        } else if let Some(relationship) = dependency_relationship {
-            let owner_name = &self.affected[relationship.owner_index].name;
-            if owner_name.len() > 1 {
-                let stem = &owner_name.words[..owner_name.len() - 1];
-                for (index, affected) in self.affected.iter().enumerate() {
-                    let replacement = if index == relationship.owner_index {
-                        affected.name.join()
-                    } else if index == relationship.child_index {
-                        let mut words = stem.to_vec();
-                        words.push(affected.name.last()?.to_owned());
-                        for _ in 1..affected.name.len() {
-                            confidence.add(ConfidenceSignal::DiscardedToken);
-                        }
-                        words.concat()
-                    } else {
-                        affected.name.join()
-                    };
-                    renames.push(FamilyInferenceRename {
-                        participant: affected.participant,
-                        replacement,
-                    });
-                }
-            }
+        } else if let Some(relationship) = dependency_relationship
+            && let Some(inferred) = self.dependency_renames(relationship, confidence)
+        {
+            renames = inferred;
         }
         if renames.is_empty() {
             renames.extend(
@@ -404,7 +442,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
             );
         }
         renames.retain(|rename| rename.replacement != rename.participant.name);
-        Some(renames)
+        renames
     }
 
     fn infer(
@@ -476,7 +514,9 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
             evidence.push("multiple dependency owners provide competing family stems".to_owned());
         }
 
-        let renames = self.renames(reverse_owner, dependency_relationship, &mut confidence)?;
+        let renames = self.renames(reverse_owner, dependency_relationship, &mut confidence);
+
+        // Resolve scored evidence and proposed names into an actionable finding.
         FamilyInference {
             score: confidence.score(),
             section: self.section,
@@ -535,18 +575,17 @@ impl NameTokens {
         if self.words.len() != context.words.len() {
             return false;
         }
-        self.words
-            .iter()
-            .zip(&context.words)
-            .enumerate()
-            .all(|(index, (left, right))| {
-                if left == right {
-                    return true;
-                }
-                index + 1 == self.words.len()
-                    && (left.strip_suffix('s').is_some_and(|left| left == right)
-                        || right.strip_suffix('s').is_some_and(|right| left == right))
-            })
+        let paired = self.words.iter().zip(&context.words);
+
+        // Permit a plural variation only on the final contextual word.
+        paired.enumerate().all(|(index, (left, right))| {
+            if left == right {
+                return true;
+            }
+            index + 1 == self.words.len()
+                && (left.strip_suffix('s').is_some_and(|left| left == right)
+                    || right.strip_suffix('s').is_some_and(|right| left == right))
+        })
     }
 }
 
@@ -563,10 +602,13 @@ struct ModuleNamingAnalysis {
 
 impl ModuleNamingAnalysis {
     fn collect(cx: &LateContext<'_>, module: &Mod<'_>, hir_id: HirId) -> Self {
-        let participants = module
+        let resolved = module
             .item_ids
             .iter()
-            .map(|item_id| cx.tcx.hir_item(*item_id))
+            .map(|item_id| cx.tcx.hir_item(*item_id));
+
+        // Retain nominal declarations written directly in the module.
+        let authored = resolved
             .filter(|item| !item.span.from_expansion())
             .filter_map(|item| {
                 Self::nominal_name(cx, item.kind, item.owner_id.def_id).map(|name| {
@@ -577,12 +619,18 @@ impl ModuleNamingAnalysis {
                         is_nominal: true,
                     }
                 })
-            })
-            .collect::<Vec<_>>();
+            });
+
+        // Materialize participants before deriving occupied namespace names.
+        let participants = authored.collect::<Vec<_>>();
+
+        // Reserve every existing nominal name before proposing concise replacements.
         let occupied_names = participants
             .iter()
             .map(|participant| participant.name.clone())
             .collect();
+
+        // Combine naming context, dependency evidence, and namespace occupancy.
         Self {
             context: Self::context(cx, module, hir_id),
             dependencies: Self::dependencies(cx, module),
@@ -593,20 +641,26 @@ impl ModuleNamingAnalysis {
 
     fn context(cx: &LateContext<'_>, module: &Mod<'_>, hir_id: HirId) -> Option<String> {
         for node in [cx.tcx.hir_node(hir_id), cx.tcx.parent_hir_node(hir_id)] {
-            if let Node::Item(item) = node
-                && let Some(identifier) = item.kind.ident()
-            {
-                return Some(identifier.name.to_string());
-            }
+            let Node::Item(item) = node else { continue };
+            let Some(identifier) = item.kind.ident() else {
+                continue;
+            };
+            return Some(identifier.name.to_string());
         }
-        cx.sess()
-            .source_map()
-            .span_to_filename(module.spans.inner_span)
-            .into_local_path()
-            .and_then(|path| {
-                path.file_stem()
-                    .map(|stem| stem.to_string_lossy().into_owned())
-            })
+        let source_map = cx.sess().source_map();
+        let filename = source_map.span_to_filename(module.spans.inner_span);
+        filename.into_local_path().and_then(|path| {
+            path.file_stem()
+                .map(|stem| stem.to_string_lossy().into_owned())
+        })
+    }
+
+    fn impl_dependency_owner(cx: &LateContext<'_>, item: &Item<'_>) -> Option<LocalDefId> {
+        let self_type = cx.tcx.type_of(item.owner_id).instantiate_identity();
+        let ty::Adt(definition, _) = self_type.kind() else {
+            return None;
+        };
+        definition.did().as_local()
     }
 
     fn dependencies(
@@ -629,15 +683,13 @@ impl ModuleNamingAnalysis {
                         .extend(item_dependencies(cx.tcx, item));
                 }
                 ItemKind::Impl(_) => {
-                    let self_type = cx.tcx.type_of(item.owner_id).instantiate_identity();
-                    if let ty::Adt(definition, _) = self_type.kind()
-                        && let Some(definition) = definition.did().as_local()
-                    {
-                        dependencies
-                            .entry(definition)
-                            .or_default()
-                            .extend(item_dependencies(cx.tcx, item));
-                    }
+                    let Some(definition) = Self::impl_dependency_owner(cx, item) else {
+                        continue;
+                    };
+                    dependencies
+                        .entry(definition)
+                        .or_default()
+                        .extend(item_dependencies(cx.tcx, item));
                 }
                 _ => {}
             }

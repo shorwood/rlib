@@ -47,11 +47,14 @@ impl<'hir> ImplPlacement<'hir> {
     }
 
     fn emit(&self, cx: &LateContext<'_>) {
+        // Resolve compact filenames for both ends of the misplaced relationship.
         let source_map = cx.sess().source_map();
         let implementation_file = source_map.span_to_filename(self.implementation.span);
         let struct_file = source_map.span_to_filename(self.struct_span);
         let implementation_file = implementation_file.short();
         let struct_file = struct_file.short();
+
+        // Connect the implementation and definition in one actionable diagnostic.
         cx.tcx.emit_node_span_lint(
             CROSS_FILE_STRUCT_IMPLS,
             self.implementation.hir_id(),
@@ -128,8 +131,9 @@ impl<'tcx> LateLintPass<'tcx> for CrossFileStructImpls {
         let Some(placement) = ImplPlacement::discover(cx, item) else {
             return;
         };
-        if !placement.is_colocated(cx) {
-            placement.emit(cx);
+        if placement.is_colocated(cx) {
+            return;
         }
+        placement.emit(cx);
     }
 }

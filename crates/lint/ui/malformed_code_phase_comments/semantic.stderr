@@ -1,0 +1,43 @@
+warning: this code phase comment is not canonical
+  --> $DIR/semantic.rs:5:5
+   |
+LL |     //
+   |     ^^
+   |
+   = help: use `//` followed by concise sentence-style prose immediately before the phase
+note: the lint level is defined here
+  --> $DIR/semantic.rs:1:9
+   |
+LL | #![warn(malformed_code_phase_comments)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: this code phase comment is not canonical
+  --> $DIR/semantic.rs:10:5
+   |
+LL |     // THIS IS LOUD
+   |     ^^^^^^^^^^^^^^^ help: render this phase comment canonically: `// This is loud`
+
+warning: this code phase comment is not canonical
+  --> $DIR/semantic.rs:15:5
+   |
+LL |     //  Normalize prefix spacing
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: render this phase comment canonically: `// Normalize prefix spacing`
+
+warning: this code phase comment must immediately precede its phase
+  --> $DIR/semantic.rs:20:5
+   |
+LL |     // Prepare the value.
+   |     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: use `//` followed by concise sentence-style prose immediately before the phase
+
+warning: this code phase comment must be preceded by a blank line
+  --> $DIR/semantic.rs:27:5
+   |
+LL |     // Prepare the second value.
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: use `//` followed by concise sentence-style prose immediately before the phase
+
+warning: 5 warnings emitted
+

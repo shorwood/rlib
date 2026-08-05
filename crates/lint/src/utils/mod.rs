@@ -1,11 +1,16 @@
+pub(crate) mod config;
 pub(crate) mod declaration_node;
 mod dependency_collector;
 pub(crate) mod direct_impl_struct;
 pub(crate) mod identifier_case;
+mod function_layout_comments;
+mod function_layout_analysis;
+mod control_flow_analysis;
+pub(crate) mod function_structure;
 pub(crate) mod impl_item_dependencies;
 pub(crate) mod item_dependencies;
+pub(crate) mod reorder_declarations;
 mod section_analysis;
 mod family_name_analysis;
 pub(crate) mod source_organization;
-pub(crate) mod reorder_declarations;
 pub(crate) mod tuple_types;

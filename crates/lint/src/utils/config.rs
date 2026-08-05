@@ -1,0 +1,159 @@
+use serde::Deserialize;
+
+// -----------------------------------------------------------------------------
+// LibraryConfig: Complete lint library configuration
+// -----------------------------------------------------------------------------
+
+const LIBRARY_CONFIG_KEY: &str = env!("CARGO_PKG_NAME");
+
+/// Every configurable policy exposed through the `rlib-lint` Dylint table.
+#[derive(Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct LibraryConfig {
+    pub(crate) function_structure: FunctionStructureConfig,
+    pub(crate) section_dividers: SectionDividerConfig,
+}
+
+impl LibraryConfig {
+    /// Loads the complete library configuration from Dylint's process environment.
+    pub(crate) fn load() -> Self {
+        dylint_linting::config_or_default(LIBRARY_CONFIG_KEY)
+    }
+}
+
+// -----------------------------------------------------------------------------
+// FunctionStructureConfig: Named function readability limits
+// -----------------------------------------------------------------------------
+
+/// Limits shared by the function-structure lint family.
+#[derive(Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct FunctionStructureConfig {
+    pub(crate) max_phase_lines: usize,
+    pub(crate) phase_comment_prefix: String,
+    pub(crate) max_control_flow_depth: usize,
+    pub(crate) max_match_arm_lines: usize,
+    pub(crate) max_method_chain_calls: usize,
+}
+
+impl Default for FunctionStructureConfig {
+    fn default() -> Self {
+        Self {
+            max_phase_lines: 7,
+            phase_comment_prefix: "//".to_owned(),
+            max_control_flow_depth: 2,
+            max_match_arm_lines: 7,
+            max_method_chain_calls: 3,
+        }
+    }
+}
+
+impl FunctionStructureConfig {
+    /// Rejects values that would make source analysis ambiguous or degenerate.
+    pub(crate) fn validate(&self) -> Result<(), String> {
+        // Numeric limits must leave every policy with a meaningful nonzero boundary.
+        for (name, value) in [
+            ("max_phase_lines", self.max_phase_lines),
+            ("max_control_flow_depth", self.max_control_flow_depth),
+            ("max_match_arm_lines", self.max_match_arm_lines),
+            ("max_method_chain_calls", self.max_method_chain_calls),
+        ] {
+            if value != 0 {
+                continue;
+            }
+            return Err(format!(
+                "function_structure.{name} must be greater than zero"
+            ));
+        }
+
+        // The phase marker must remain an ordinary, single-line Rust comment prefix.
+        let prefix = &self.phase_comment_prefix;
+        if prefix.trim() != prefix
+            || prefix.contains(['\n', '\r'])
+            || !prefix.starts_with("//")
+            || prefix.starts_with("///")
+            || prefix.starts_with("//!")
+        {
+            return Err(
+                "function_structure.phase_comment_prefix must be one trimmed ordinary `//` comment prefix"
+                    .to_owned(),
+            );
+        }
+        Ok(())
+    }
+}
+
+// -----------------------------------------------------------------------------
+// SectionDividerConfig: Module section divider rendering
+// -----------------------------------------------------------------------------
+
+/// Shared configuration for the section-divider lint family.
+#[derive(Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub(crate) struct SectionDividerConfig {
+    pub(crate) template: String,
+    pub(crate) max_line_length: usize,
+}
+
+impl Default for SectionDividerConfig {
+    fn default() -> Self {
+        Self {
+            max_line_length: 80,
+            template: concat!(
+                "// -----------------------------------------------------------------------------\n",
+                "// {content}\n",
+                "// -----------------------------------------------------------------------------"
+            )
+            .to_owned(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FunctionStructureConfig, LibraryConfig};
+
+    #[test]
+    fn parses_custom_function_structure_limits() {
+        let config = toml::from_str::<LibraryConfig>(
+            r#"
+                [function_structure]
+                max_phase_lines = 11
+                phase_comment_prefix = "// Phase:"
+                max_control_flow_depth = 3
+                max_match_arm_lines = 13
+                max_method_chain_calls = 5
+            "#,
+        )
+        .expect("custom function structure should parse");
+        assert_eq!(config.function_structure.max_phase_lines, 11);
+        assert_eq!(config.function_structure.phase_comment_prefix, "// Phase:");
+        assert_eq!(config.function_structure.max_control_flow_depth, 3);
+        assert_eq!(config.function_structure.max_match_arm_lines, 13);
+        assert_eq!(config.function_structure.max_method_chain_calls, 5);
+        assert!(config.function_structure.validate().is_ok());
+    }
+
+    #[test]
+    fn uses_natural_line_comments_by_default() {
+        assert_eq!(
+            FunctionStructureConfig::default().phase_comment_prefix,
+            "//"
+        );
+    }
+
+    #[test]
+    fn rejects_zero_limits_and_non_comment_prefixes() {
+        let config = FunctionStructureConfig {
+            max_phase_lines: 0,
+            ..FunctionStructureConfig::default()
+        };
+        assert!(config.validate().is_err());
+
+        let config = FunctionStructureConfig {
+            phase_comment_prefix: "---".to_owned(),
+            ..FunctionStructureConfig::default()
+        };
+        assert!(config.validate().is_err());
+    }
+}

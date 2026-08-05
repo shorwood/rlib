@@ -156,6 +156,8 @@ impl Candidate {
 
         let element_name = cx.tcx.item_name(element_def_id.to_def_id());
         let wrapper_name = Symbol::intern(&format!("{element_name}List"));
+
+        // Retain the semantic receiver and names needed for later wrapper guidance.
         Some(Self {
             hir_id: item.hir_id(),
             function_name: ident.name,
@@ -230,6 +232,8 @@ impl Candidate {
         let ItemKind::Struct(_, _, fields) = item.kind else {
             return CandidateWrapperState::Conflicting;
         };
+
+        // Confirm that the existing wrapper stores the expected element vector in `items`.
         let items = Symbol::intern("items");
         let has_expected_field = fields.fields().iter().any(|field| {
             field.ident.name == items
@@ -247,10 +251,13 @@ impl Candidate {
     fn element_module_items<'tcx>(&self, cx: &LateContext<'tcx>) -> Vec<&'tcx Item<'tcx>> {
         let source_map = cx.sess().source_map();
         let module = cx.tcx.parent_module_from_def_id(self.element_def_id);
-        cx.tcx
-            .hir_module_items(module)
+        let module_items = cx.tcx.hir_module_items(module);
+
+        // Resolve free items and discard code produced by external macros.
+        let authored_items = module_items
             .free_items()
-            .map(|item_id| cx.tcx.hir_item(item_id))
+            .map(|item_id| cx.tcx.hir_item(item_id));
+        authored_items
             .filter(|item| !item.span.in_external_macro(source_map))
             .collect()
     }
@@ -258,13 +265,14 @@ impl Candidate {
     /// Reports the violation and gives a concrete wrapper recipe without pretending it is a safe
     /// automatic rewrite.
     fn emit(&self, cx: &LateContext<'_>) {
+        // Resolve wrapper compatibility and the element's owning source file.
         let module_items = self.element_module_items(cx);
         let wrapper = self.wrapper_state(cx, &module_items);
-        let element_file = cx
-            .sess()
-            .source_map()
-            .span_to_filename(cx.tcx.def_span(self.element_def_id));
+        let source_map = cx.sess().source_map();
+        let element_file = source_map.span_to_filename(cx.tcx.def_span(self.element_def_id));
         let element_file = element_file.short();
+
+        // Tailor one wrapper recipe to the namespace state discovered above.
         cx.tcx.emit_node_span_lint(
             COLLECTION_METHOD_LIKE_FREE_FUNCTIONS,
             self.hir_id,
@@ -364,17 +372,21 @@ impl<'tcx> LateLintPass<'tcx> for CollectionMethodLikeFreeFunctions {
     /// Checks complete modules so wrapper discovery and function discovery see the same namespace.
     fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, _: HirId) {
         let source_map = cx.sess().source_map();
-        let items = module
+
+        // Resolve authored items once so every candidate sees the same namespace.
+        let resolved = module
             .item_ids
             .iter()
-            .map(|item_id| cx.tcx.hir_item(*item_id))
+            .map(|item_id| cx.tcx.hir_item(*item_id));
+        let items = resolved
             .filter(|item| !item.span.in_external_macro(source_map))
             .collect::<Vec<_>>();
 
         for item in &items {
-            if let Some(candidate) = Candidate::discover(cx, item) {
-                candidate.emit(cx);
-            }
+            let Some(candidate) = Candidate::discover(cx, item) else {
+                continue;
+            };
+            candidate.emit(cx);
         }
     }
 }

@@ -106,23 +106,20 @@ impl RedundantWrapper {
             }
         }
 
-        for (index, ((binding, argument), input)) in forwarding
-            .bindings
-            .iter()
-            .zip(call.arguments)
-            .zip(signature.inputs())
-            .enumerate()
-        {
+        let bound_arguments = forwarding.bindings.iter().zip(call.arguments);
+        let typed_arguments = bound_arguments.zip(signature.inputs());
+        for (index, ((binding, argument), input)) in typed_arguments.enumerate() {
             let ExprKind::Path(path) = argument.kind else {
                 return None;
             };
             let has_incompatible_type =
                 !(call.is_method && index == 0) && typeck.expr_ty_adjusted(argument) != *input;
-            if !matches!(cx.qpath_res(&path, argument.hir_id), Res::Local(id) if id == *binding)
-                || has_incompatible_type
-            {
-                return None;
+            let has_matching_binding =
+                matches!(cx.qpath_res(&path, argument.hir_id), Res::Local(id) if id == *binding);
+            if has_matching_binding && !has_incompatible_type {
+                continue;
             }
+            return None;
         }
 
         Some(Self {
@@ -156,22 +153,10 @@ impl RedundantWrapper {
 
         let mut inner_bindings = Vec::with_capacity(outer_bindings.len());
         for (statement, outer_binding) in block.stmts.iter().zip(outer_bindings) {
-            let rustc_hir::StmtKind::Let(local) = statement.kind else {
-                return None;
-            };
-            let PatKind::Binding(_, inner_binding, _, None) = local.pat.kind else {
-                return None;
-            };
-            let ExprKind::Path(path) = local.init?.kind else {
-                return None;
-            };
-            if !matches!(cx.qpath_res(&path, local.init?.hir_id), Res::Local(id) if id == *outer_binding)
-            {
-                return None;
-            }
-            inner_bindings.push(inner_binding);
+            inner_bindings.push(Self::async_inner_binding(cx, statement, *outer_binding)?);
         }
 
+        // Unwrap the compiler's await lowering to the one forwarded future.
         let awaited = Self::single_body_expression(block.expr?)?;
         let ExprKind::Match(scrutinee, _, MatchSource::AwaitDesugar) = awaited.kind else {
             return None;
@@ -179,9 +164,13 @@ impl RedundantWrapper {
         let ExprKind::Call(_, futures) = scrutinee.kind else {
             return None;
         };
+
+        // Require exactly the future passed through by the wrapper.
         let [forwarded] = futures else {
             return None;
         };
+
+        // Reject await adapters that rely on a semantic type adjustment.
         let owner = cx.tcx.hir_body_owner_def_id(closure.body);
         let typeck = cx.tcx.typeck(owner);
         if typeck.expr_ty(awaited) != typeck.expr_ty_adjusted(awaited) {
@@ -192,6 +181,29 @@ impl RedundantWrapper {
             bindings: inner_bindings,
             typeck_owner: owner,
         })
+    }
+
+    fn async_inner_binding(
+        cx: &LateContext<'_>,
+        statement: &rustc_hir::Stmt<'_>,
+        outer_binding: HirId,
+    ) -> Option<HirId> {
+        // Recover the compiler-generated local binding.
+        let rustc_hir::StmtKind::Let(local) = statement.kind else {
+            return None;
+        };
+
+        // Require a simple binding initialized from the authored parameter.
+        let PatKind::Binding(_, inner_binding, _, None) = local.pat.kind else {
+            return None;
+        };
+        let ExprKind::Path(path) = local.init?.kind else {
+            return None;
+        };
+
+        // Preserve the binding only when resolution confirms the forwarding relationship.
+        matches!(cx.qpath_res(&path, local.init?.hir_id), Res::Local(id) if id == outer_binding)
+            .then_some(inner_binding)
     }
 
     fn is_async_function(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
@@ -260,14 +272,7 @@ impl RedundantWrapper {
             expression = match expression.kind {
                 ExprKind::Block(block, None) if block.stmts.is_empty() => block.expr?,
                 ExprKind::Block(block, None) if block.expr.is_none() && block.stmts.len() == 1 => {
-                    let statement = &block.stmts[0];
-                    let rustc_hir::StmtKind::Semi(expression) = statement.kind else {
-                        return None;
-                    };
-                    let ExprKind::Ret(Some(expression)) = expression.kind else {
-                        return None;
-                    };
-                    expression
+                    Self::returned_expression(&block.stmts[0])?
                 }
                 ExprKind::DropTemps(inner) | ExprKind::Ret(Some(inner)) => inner,
                 _ => return Some(expression),
@@ -275,47 +280,81 @@ impl RedundantWrapper {
         }
     }
 
+    fn returned_expression<'hir>(
+        statement: &'hir rustc_hir::Stmt<'hir>,
+    ) -> Option<&'hir Expr<'hir>> {
+        let rustc_hir::StmtKind::Semi(expression) = statement.kind else {
+            return None;
+        };
+        let ExprKind::Ret(Some(expression)) = expression.kind else {
+            return None;
+        };
+        Some(expression)
+    }
+
+    fn direct_function_call<'hir>(
+        cx: &LateContext<'_>,
+        callee: &Expr<'_>,
+        arguments: &'hir [Expr<'hir>],
+    ) -> Option<RedundantWrapperCall<'hir>> {
+        let ExprKind::Path(path) = callee.kind else {
+            return None;
+        };
+        let target = cx
+            .qpath_res(&path, callee.hir_id)
+            .opt_def_id()?
+            .as_local()?;
+        Some(RedundantWrapperCall {
+            target,
+            arguments: arguments.iter().collect(),
+            is_method: false,
+        })
+    }
+
+    fn direct_method_call<'hir>(
+        cx: &LateContext<'_>,
+        owner: LocalDefId,
+        expression: &Expr<'_>,
+        receiver: &'hir Expr<'hir>,
+        arguments: &'hir [Expr<'hir>],
+    ) -> Option<RedundantWrapperCall<'hir>> {
+        let target = cx
+            .tcx
+            .typeck(owner)
+            .type_dependent_def_id(expression.hir_id)?
+            .as_local()?;
+        let mut forwarded = Vec::with_capacity(arguments.len() + 1);
+        forwarded.push(receiver);
+        forwarded.extend(arguments);
+
+        // Return the receiver followed by every explicit method argument.
+        Some(RedundantWrapperCall {
+            target,
+            arguments: forwarded,
+            is_method: true,
+        })
+    }
+
     fn direct_call<'hir>(
         cx: &LateContext<'_>,
         owner: LocalDefId,
         expression: &'hir Expr<'hir>,
     ) -> Option<RedundantWrapperCall<'hir>> {
-        let (target, arguments, is_method_call) = match expression.kind {
-            ExprKind::Call(callee, arguments) => {
-                let ExprKind::Path(path) = callee.kind else {
-                    return None;
-                };
-                let target = cx
-                    .qpath_res(&path, callee.hir_id)
-                    .opt_def_id()?
-                    .as_local()?;
-                (target, arguments.iter().collect(), false)
-            }
+        let call = match expression.kind {
+            ExprKind::Call(callee, arguments) => Self::direct_function_call(cx, callee, arguments)?,
             ExprKind::MethodCall(_, receiver, arguments, _) => {
-                let target = cx
-                    .tcx
-                    .typeck(owner)
-                    .type_dependent_def_id(expression.hir_id)?
-                    .as_local()?;
-                let mut forwarded = Vec::with_capacity(arguments.len() + 1);
-                forwarded.push(receiver);
-                forwarded.extend(arguments);
-                (target, forwarded, true)
+                Self::direct_method_call(cx, owner, expression, receiver, arguments)?
             }
             _ => return None,
         };
-        matches!(cx.tcx.def_kind(target), DefKind::Fn | DefKind::AssocFn).then_some(
-            RedundantWrapperCall {
-                target,
-                arguments,
-                is_method: is_method_call,
-            },
-        )
+        matches!(cx.tcx.def_kind(call.target), DefKind::Fn | DefKind::AssocFn).then_some(call)
     }
 
     fn emit(&self, cx: &LateContext<'_>) {
         let target_name = cx.tcx.def_path_str(self.target.to_def_id());
         let target_span = cx.tcx.def_span(self.target);
+
+        // Relate the redundant wrapper to the implementation callers should use directly.
         cx.tcx.emit_node_span_lint(
             NEEDLESS_FUNCTION_WRAPPERS,
             self.hir_id,
@@ -387,8 +426,12 @@ impl<'tcx> LateLintPass<'tcx> for NeedlessFunctionWrappers {
         else {
             return;
         };
+
+        // Analyze the authored body and emit only complete forwarding wrappers.
         let body = cx.tcx.hir_body(body);
-        if let Some(wrapper) = RedundantWrapper::discover(
+
+        // Discover one direct forwarding target without guessing through adapters.
+        let Some(wrapper) = RedundantWrapper::discover(
             cx,
             item.owner_id.def_id,
             item.hir_id(),
@@ -396,15 +439,20 @@ impl<'tcx> LateLintPass<'tcx> for NeedlessFunctionWrappers {
             ident.span,
             sig.header,
             body,
-        ) {
-            wrapper.emit(cx);
-        }
+        ) else {
+            return;
+        };
+
+        // Report the complete redundant wrapper after semantic validation.
+        wrapper.emit(cx);
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
         let ImplItemKind::Fn(signature, body) = item.kind else {
             return;
         };
+
+        // Resolve the enclosing implementation before classifying the method.
         let parent = cx.tcx.local_parent(item.owner_id.def_id);
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(parent) else {
             return;
@@ -412,11 +460,14 @@ impl<'tcx> LateLintPass<'tcx> for NeedlessFunctionWrappers {
         let ItemKind::Impl(implementation) = parent.kind else {
             return;
         };
+
+        // Trait methods intentionally adapt an external contract and are not redundant wrappers.
         if implementation.of_trait.is_some() {
             return;
         }
 
-        if let Some(wrapper) = RedundantWrapper::discover(
+        // Discover one direct forwarding target without guessing through adapters.
+        let Some(wrapper) = RedundantWrapper::discover(
             cx,
             item.owner_id.def_id,
             item.hir_id(),
@@ -424,8 +475,11 @@ impl<'tcx> LateLintPass<'tcx> for NeedlessFunctionWrappers {
             item.ident.span,
             signature.header,
             cx.tcx.hir_body(body),
-        ) {
-            wrapper.emit(cx);
-        }
+        ) else {
+            return;
+        };
+
+        // Report the complete redundant wrapper after semantic validation.
+        wrapper.emit(cx);
     }
 }

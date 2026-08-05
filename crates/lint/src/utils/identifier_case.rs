@@ -6,12 +6,9 @@ use convert_case::{Case, Casing};
 
 /// Splits a Rust-style `PascalCase` identifier into normalized `PascalCase` words.
 pub(crate) fn identifier_pascal_words(value: &str) -> Vec<String> {
-    Case::Pascal
-        .split(&value)
-        .into_iter()
-        .filter(|word| !word.is_empty())
-        .map(|word| word.to_case(Case::Pascal))
-        .collect()
+    let words = Case::Pascal.split(&value);
+    let populated = words.into_iter().filter(|word| !word.is_empty());
+    populated.map(|word| word.to_case(Case::Pascal)).collect()
 }
 
 /// Converts a Rust identifier from its authored convention to `PascalCase` words.
@@ -21,12 +18,9 @@ pub(crate) fn identifier_words(value: &str) -> Vec<String> {
     } else {
         Case::Pascal
     };
-    source
-        .split(&value)
-        .into_iter()
-        .filter(|word| !word.is_empty())
-        .map(|word| word.to_case(Case::Pascal))
-        .collect()
+    let words = source.split(&value);
+    let populated = words.into_iter().filter(|word| !word.is_empty());
+    populated.map(|word| word.to_case(Case::Pascal)).collect()
 }
 
 /// Normalizes a Rust identifier to canonical `PascalCase`.
@@ -42,6 +36,8 @@ pub(crate) fn identifier_is_pascal_case(value: &str) -> bool {
 /// Returns the longest canonical `PascalCase` word prefix shared by the identifiers.
 pub(crate) fn identifier_longest_pascal_prefix(names: &[&str]) -> Option<String> {
     let first = identifier_words(names.first()?);
+
+    // Prefer the longest prefix that remains visible in every authored name.
     (1..=first.len()).rev().find_map(|length| {
         names
             .iter()

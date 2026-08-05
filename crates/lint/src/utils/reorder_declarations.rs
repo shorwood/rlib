@@ -45,24 +45,21 @@ impl DeclarationOrder {
                     nodes[pair[1]].span.lo(),
                 ))
                 .ok()?;
-            if gap.contains("//") || gap.contains("/*") || gap.contains("macro_rules!") {
-                return None;
+            if !gap.contains("//") && !gap.contains("/*") && !gap.contains("macro_rules!") {
+                continue;
             }
+            return None;
         }
 
         let snippets = order
             .iter()
             .map(|index| source_map.span_to_snippet(nodes[*index].span).ok())
             .collect::<Option<Vec<_>>>()?;
-        Some(
-            by_source
-                .iter()
-                .zip(snippets)
-                .map(|(target, replacement)| DeclarationOrderEdit {
-                    span: nodes[*target].span,
-                    replacement,
-                })
-                .collect(),
-        )
+        let targets = by_source.iter().zip(snippets);
+        let edits = targets.map(|(target, replacement)| DeclarationOrderEdit {
+            span: nodes[*target].span,
+            replacement,
+        });
+        Some(edits.collect())
     }
 }

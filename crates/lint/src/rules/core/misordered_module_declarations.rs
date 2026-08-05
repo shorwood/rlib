@@ -77,11 +77,27 @@ impl MisorderedModuleDeclarations {
         if !matches!(item.kind, ItemKind::Impl(_)) {
             return false;
         }
-        cx.tcx
-            .type_of(item.owner_id)
-            .instantiate_identity()
+        let item_type = cx.tcx.type_of(item.owner_id).instantiate_identity();
+        item_type
             .ty_adt_def()
             .is_some_and(|definition| definition.did().as_local() == Some(expected))
+    }
+
+    fn extend_direct_impl_group<'tcx>(
+        cx: &LateContext<'tcx>,
+        items: &[&'tcx Item<'tcx>],
+        owner: LocalDefId,
+        end: &mut usize,
+        definitions: &mut HashSet<LocalDefId>,
+        dependencies: &mut HashSet<LocalDefId>,
+    ) {
+        while let Some(next) = items.get(*end + 1)
+            && Self::is_direct_impl_of(cx, next, owner)
+        {
+            *end += 1;
+            definitions.extend(Self::contained_definitions(cx, items[*end]));
+            dependencies.extend(item_dependencies(cx.tcx, items[*end]));
+        }
     }
 
     fn contained_definitions(cx: &LateContext<'_>, item: &Item<'_>) -> HashSet<LocalDefId> {
@@ -140,26 +156,19 @@ impl MisorderedModuleDeclarations {
         if ordering.iter().copied().eq(0..nodes.len()) {
             return;
         }
-        let mismatch = ordering
-            .iter()
-            .enumerate()
-            .find_map(|(position, expected)| (position != *expected).then_some(position))
-            .expect("different orders have a mismatch");
-        let names = ordering
-            .iter()
-            .map(|index| format!("`{}`", nodes[*index].name))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let editable = nodes.iter().all(|node| {
-            node.defs.iter().all(|definition| {
-                cx.tcx
-                    .hir_attrs(rustc_hir::HirId::make_owner(*definition))
-                    .is_empty()
-            })
-        });
+
+        // Describe the first mismatch and the complete expected order.
+        let source = (0..nodes.len()).collect::<Vec<_>>();
+        let mismatch = DeclarationNodeList::first_mismatch(&source, &ordering);
+        let names = nodes.formatted_names(&ordering);
+
+        // Offer an atomic edit only when no declaration in a group carries attributes.
+        let editable = nodes.has_only_unattributed_definitions(cx);
         let edits = editable
             .then(|| DeclarationOrder::edits(cx, nodes, &ordering))
             .flatten();
+
+        // Keep the diagnostic useful even when comments or macros block a safe rewrite.
         cx.tcx.emit_node_span_lint(
             MISORDERED_MODULE_DECLARATIONS,
             hir_id,
@@ -189,14 +198,15 @@ impl MisorderedModuleDeclarations {
 
 impl<'tcx> LateLintPass<'tcx> for MisorderedModuleDeclarations {
     fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, hir_id: HirId) {
+        // Resolve authored module items and their optional section boundaries.
         let source_map = cx.sess().source_map();
         let sections = self.sections.analyze(cx, module, hir_id);
-        let items = module
-            .item_ids
-            .iter()
-            .map(|id| cx.tcx.hir_item(*id))
+        let resolved = module.item_ids.iter().map(|id| cx.tcx.hir_item(*id));
+        let items = resolved
             .filter(|item| !item.span.in_external_macro(source_map))
             .collect::<Vec<_>>();
+
+        // Combine each nominal declaration with directly following inherent impl blocks.
         let mut nodes = Vec::new();
         let mut index = 0;
         while index < items.len() {
@@ -212,15 +222,16 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedModuleDeclarations {
             let mut definitions = Self::contained_definitions(cx, item);
             let mut dependencies = item_dependencies(cx.tcx, item);
             if Self::is_type(item) {
-                while let Some(next) = items.get(end + 1)
-                    && Self::is_direct_impl_of(cx, next, item.owner_id.def_id)
-                {
-                    end += 1;
-                    definitions.extend(Self::contained_definitions(cx, items[end]));
-                    dependencies.extend(item_dependencies(cx.tcx, items[end]));
-                }
+                Self::extend_direct_impl_group(
+                    cx,
+                    &items,
+                    item.owner_id.def_id,
+                    &mut end,
+                    &mut definitions,
+                    &mut dependencies,
+                );
             }
-            nodes.push(DeclarationNode {
+            let node = DeclarationNode {
                 defs: definitions.into_iter().collect(),
                 name: Self::canonical_name(cx, item),
                 span: item.span.with_hi(items[end].span.hi()),
@@ -228,7 +239,10 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedModuleDeclarations {
                 category: Self::category(item),
                 is_outward_visible: Self::is_outward_visible_value(item),
                 dependencies,
-            });
+            };
+
+            // Preserve the declaration group as one source-ordering unit.
+            nodes.push(node);
             index = end + 1;
         }
         Self::emit_if_needed(cx, hir_id, &DeclarationNodeList::new(nodes));

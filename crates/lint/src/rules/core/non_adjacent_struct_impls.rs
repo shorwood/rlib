@@ -44,13 +44,11 @@ impl ImplGroup<'_> {
 
     /// Returns the first impl that is not in its required position.
     fn first_misplaced(&self) -> ImplGroupItem<'_> {
-        self.impls
-            .iter()
-            .enumerate()
-            .find_map(|(offset, impl_)| {
-                (impl_.index != self.struct_index + offset + 1).then_some(*impl_)
-            })
-            .expect("a reported impl group must contain a misplaced block")
+        let mut indexed = self.impls.iter().enumerate();
+        let misplaced = indexed.find_map(|(offset, impl_)| {
+            (impl_.index != self.struct_index + offset + 1).then_some(*impl_)
+        });
+        misplaced.expect("a reported impl group must contain a misplaced block")
     }
 }
 
@@ -119,32 +117,42 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
             {
                 boundaries.push((previous.span.hi(), impl_.item.span.lo()));
             }
-            if let Some(next) = self.items.get(impl_.index + 1) {
-                boundaries.push((impl_.item.span.hi(), next.span.lo()));
-            }
+            let Some(next) = self.items.get(impl_.index + 1) else {
+                continue;
+            };
+            boundaries.push((impl_.item.span.hi(), next.span.lo()));
         }
 
         for (lo, hi) in boundaries {
             let gap = source_map
                 .span_to_snippet(Span::with_root_ctxt(lo, hi))
                 .ok()?;
-            if gap.contains("//") || gap.contains("/*") {
-                return None;
+            if !gap.contains("//") && !gap.contains("/*") {
+                continue;
             }
+            return None;
         }
         Some(())
     }
 
+    fn crosses_macro_definition(&self, impl_: ImplGroupItem<'_>) -> bool {
+        let target = self.group.struct_index;
+        let start = target.min(impl_.index);
+        let end = target.max(impl_.index);
+        self.items[start + 1..end]
+            .iter()
+            .any(|item| matches!(item.kind, ItemKind::Macro(..)))
+    }
+
     /// Rejects moves across `macro_rules!` definitions because those names follow textual order.
     fn check_no_macro_definition_is_crossed(&self) -> Option<()> {
-        let target = self.group.struct_index;
-        let crosses_macro = self.group.impls.iter().any(|impl_| {
-            let start = target.min(impl_.index);
-            let end = target.max(impl_.index);
-            self.items[start + 1..end]
-                .iter()
-                .any(|item| matches!(item.kind, ItemKind::Macro(..)))
-        });
+        let crosses_macro = self
+            .group
+            .impls
+            .iter()
+            .any(|impl_| self.crosses_macro_definition(*impl_));
+
+        // Permit the move only when textual macro scope cannot change.
         (!crosses_macro).then_some(())
     }
 
@@ -164,6 +172,7 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
             .collect::<Option<Vec<_>>>()?;
         let insertion = format!("\n\n{}", snippets.join("\n\n"));
 
+        // Delete every old impl location before inserting their combined source.
         let mut edits = self
             .group
             .impls
@@ -173,6 +182,8 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
                 replacement: String::new(),
             })
             .collect::<Vec<_>>();
+
+        // Insert the complete group immediately after its struct definition.
         edits.push(MigrationEdit {
             span: self.group.struct_item.span.shrink_to_hi(),
             replacement: insertion,
@@ -232,10 +243,13 @@ impl NonAdjacentStructImpls {
         module: &'tcx Mod<'tcx>,
     ) -> Vec<&'tcx Item<'tcx>> {
         let source_map = cx.sess().source_map();
-        module
+        let resolved = module
             .item_ids
             .iter()
-            .map(|item_id| cx.tcx.hir_item(*item_id))
+            .map(|item_id| cx.tcx.hir_item(*item_id));
+
+        // Exclude only items whose source belongs to an external macro.
+        resolved
             .filter(|item| !item.span.in_external_macro(source_map))
             .collect()
     }
@@ -257,30 +271,33 @@ impl NonAdjacentStructImpls {
     ) -> Vec<ImplGroup<'tcx>> {
         let mut impls_by_struct = HashMap::<LocalDefId, Vec<ImplGroupItem<'tcx>>>::new();
         for (index, item) in items.iter().enumerate() {
-            if let Some(struct_def_id) = direct_impl_struct(cx, item) {
-                impls_by_struct
-                    .entry(struct_def_id)
-                    .or_default()
-                    .push(ImplGroupItem { index, item });
-            }
+            let Some(struct_def_id) = direct_impl_struct(cx, item) else {
+                continue;
+            };
+            impls_by_struct
+                .entry(struct_def_id)
+                .or_default()
+                .push(ImplGroupItem { index, item });
         }
 
-        items
-            .iter()
-            .enumerate()
-            .filter_map(|(struct_index, item)| {
-                let ItemKind::Struct(name, ..) = item.kind else {
-                    return None;
-                };
-                let impls = impls_by_struct.remove(&item.owner_id.def_id)?;
-                Some(ImplGroup {
-                    struct_index,
-                    struct_item: item,
-                    struct_name: name.name,
-                    impls,
-                })
+        let indexed = items.iter().enumerate();
+
+        // Construct groups only for structs that own at least one direct impl.
+        let groups = indexed.filter_map(|(struct_index, item)| {
+            let ItemKind::Struct(name, ..) = item.kind else {
+                return None;
+            };
+            let impls = impls_by_struct.remove(&item.owner_id.def_id)?;
+            Some(ImplGroup {
+                struct_index,
+                struct_item: item,
+                struct_name: name.name,
+                impls,
             })
-            .collect()
+        });
+
+        // Preserve module order when returning the discovered struct groups.
+        groups.collect()
     }
 
     /// Emits one warning for the complete misplaced group and offers one atomic move when safe.
@@ -342,9 +359,10 @@ impl<'tcx> LateLintPass<'tcx> for NonAdjacentStructImpls {
     fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, _: HirId) {
         let items = Self::editable_module_items(cx, module);
         for group in Self::discover_impl_groups(cx, &items) {
-            if !group.is_immediately_after_struct() {
-                Self::emit_group(cx, &items, &group);
+            if group.is_immediately_after_struct() {
+                continue;
             }
+            Self::emit_group(cx, &items, &group);
         }
     }
 }

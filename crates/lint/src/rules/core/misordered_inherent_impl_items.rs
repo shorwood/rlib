@@ -59,14 +59,15 @@ impl MisorderedInherentImplItems {
         let rustc_hir::FnRetTy::Return(ty) = output else {
             return false;
         };
-        cx.sess()
-            .source_map()
-            .span_to_snippet(ty.span)
-            .is_ok_and(|snippet| {
-                snippet
-                    .split(|character: char| !character.is_alphanumeric() && character != '_')
-                    .any(|word| word == "Self")
-            })
+
+        // Inspect identifier-like words in the authored return type.
+        let source_map = cx.sess().source_map();
+        let Ok(snippet) = source_map.span_to_snippet(ty.span) else {
+            return false;
+        };
+        snippet
+            .split(|character: char| !character.is_alphanumeric() && character != '_')
+            .any(|word| word == "Self")
     }
 
     fn category(cx: &LateContext<'_>, item: &ImplItem<'_>) -> u8 {
@@ -94,26 +95,19 @@ impl MisorderedInherentImplItems {
         if ordering.iter().copied().eq(0..nodes.len()) {
             return;
         }
-        let mismatch = ordering
-            .iter()
-            .enumerate()
-            .find_map(|(position, expected)| (position != *expected).then_some(position))
-            .expect("different orders have a mismatch");
-        let expected_names = ordering
-            .iter()
-            .map(|index| format!("`{}`", nodes[*index].name))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let editable = nodes.iter().all(|node| {
-            node.defs.iter().all(|definition| {
-                cx.tcx
-                    .hir_attrs(rustc_hir::HirId::make_owner(*definition))
-                    .is_empty()
-            })
-        });
+
+        // Describe the first mismatch and the complete expected order.
+        let source = (0..nodes.len()).collect::<Vec<_>>();
+        let mismatch = DeclarationNodeList::first_mismatch(&source, &ordering);
+        let expected_names = nodes.formatted_names(&ordering);
+
+        // Offer an atomic edit only when no associated item carries attributes.
+        let editable = nodes.has_only_unattributed_definitions(cx);
         let edits = editable
             .then(|| DeclarationOrder::edits(cx, nodes, &ordering))
             .flatten();
+
+        // Keep the diagnostic useful even when source ownership blocks a safe rewrite.
         cx.tcx.emit_node_span_lint(
             MISORDERED_INHERENT_IMPL_ITEMS,
             implementation.hir_id(),
@@ -150,12 +144,15 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedInherentImplItems {
         {
             return;
         }
-        let items = implementation
+        let resolved = implementation
             .items
             .iter()
-            .map(|id| cx.tcx.hir_impl_item(*id))
+            .map(|id| cx.tcx.hir_impl_item(*id));
+        let items = resolved
             .filter(|item| !item.span.in_external_macro(cx.sess().source_map()))
             .collect::<Vec<_>>();
+
+        // Model every associated item with its ordering category and dependencies.
         let nodes = items
             .iter()
             .map(|item| DeclarationNode {
@@ -168,6 +165,8 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedInherentImplItems {
                 dependencies: impl_item_dependencies(cx.tcx, item),
             })
             .collect::<Vec<_>>();
+
+        // Compare the authored implementation against its dependency-first order.
         Self::emit_if_needed(cx, item, &DeclarationNodeList::new(nodes));
     }
 }

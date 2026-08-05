@@ -30,6 +30,12 @@ struct ModulePair {
     target: LocalDefId,
 }
 
+impl ModulePair {
+    fn new(source: LocalDefId, target: LocalDefId) -> Self {
+        Self { source, target }
+    }
+}
+
 // -----------------------------------------------------------------------------
 // BidirectionalModuleDependencies: Module dependency direction policy
 // -----------------------------------------------------------------------------
@@ -115,15 +121,7 @@ impl LateLintPass<'_> for BidirectionalModuleDependencies {
             {
                 continue;
             }
-            self.dependencies.push(ModuleDependency {
-                source,
-                target,
-                span: item.span,
-            });
-            self.report_cycle(
-                cx,
-                *self.dependencies.last().expect("dependency was just added"),
-            );
+            self.record_dependency(cx, source, target, item.span);
             break;
         }
     }
@@ -132,23 +130,24 @@ impl LateLintPass<'_> for BidirectionalModuleDependencies {
 impl BidirectionalModuleDependencies {
     /// Emits a diagnostic when the latest dependency completes an unreported cycle.
     fn report_cycle(&mut self, cx: &LateContext<'_>, dependency: ModuleDependency) {
+        // Locate the import that closes the dependency cycle.
         let Some(reverse) = self.dependencies.iter().find(|candidate| {
             candidate.source == dependency.target && candidate.target == dependency.source
         }) else {
             return;
         };
-        let pair = ModulePair {
-            source: dependency.source,
-            target: dependency.target,
-        };
-        let reverse_pair = ModulePair {
-            source: dependency.target,
-            target: dependency.source,
-        };
+
+        // Canonicalize both directions before consulting the reported-pair set.
+        let pair = ModulePair::new(dependency.source, dependency.target);
+        let reverse_pair = ModulePair::new(dependency.target, dependency.source);
         if self.reported.contains(&pair) || self.reported.contains(&reverse_pair) {
             return;
         }
+
+        // Emit one diagnostic that connects both contributing imports.
         self.reported.insert(pair);
+
+        // Relate the two import sites and explain how to remove the cycle.
         cx.emit_span_lint(
             BIDIRECTIONAL_MODULE_DEPENDENCIES,
             dependency.span,
@@ -162,5 +161,21 @@ impl BidirectionalModuleDependencies {
                 );
             }),
         );
+    }
+
+    fn record_dependency(
+        &mut self,
+        cx: &LateContext<'_>,
+        source: LocalDefId,
+        target: LocalDefId,
+        span: Span,
+    ) {
+        self.dependencies.push(ModuleDependency {
+            source,
+            target,
+            span,
+        });
+        let dependency = *self.dependencies.last().expect("dependency was just added");
+        self.report_cycle(cx, dependency);
     }
 }

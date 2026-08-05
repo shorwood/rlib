@@ -137,6 +137,8 @@ impl Candidate {
             semantic_receiver.kind,
             semantic_receiver.struct_def_id,
         );
+
+        // Separate impl-level generics from syntax that must remain on the method.
         let candidate_generics = Self::movable_generics(cx, generics, receiver_syntax.span);
 
         // Warnings use semantic types and are intentionally broad. Suggestions require editable,
@@ -335,16 +337,12 @@ impl Candidate {
             .collect::<Vec<_>>();
 
         if explicit_type_params.is_empty() {
-            let has_unsupported_parameter = generics.params.iter().any(|param| {
-                !matches!(
-                    param.kind,
-                    GenericParamKind::Lifetime { .. }
-                        | GenericParamKind::Type {
-                            synthetic: true,
-                            ..
-                        }
-                ) && !param.span.is_empty()
-            });
+            let has_unsupported_parameter = generics
+                .params
+                .iter()
+                .any(Self::is_unsupported_implicit_parameter);
+
+            // Preserve warnings while withholding unsafe generic source movement.
             return CandidateGenerics {
                 span: None,
                 is_safe: !has_unsupported_parameter,
@@ -353,6 +351,13 @@ impl Candidate {
 
         // A single unbounded type parameter can move wholesale to the impl. Bounds, defaults, and
         // multiple parameters may belong on either the impl or method, which is an API decision.
+        let source_map = cx.sess().source_map();
+        let receiver = source_map.span_to_snippet(receiver_type_span);
+        let receiver_mentions_parameter = receiver.is_ok_and(|receiver| {
+            receiver.contains(explicit_type_params[0].name.ident().name.as_str())
+        });
+
+        // Move only one unbounded parameter that visibly occurs in the receiver type.
         let can_move = explicit_type_params.len() == 1
             && generics.predicates.is_empty()
             && generics.params.iter().all(|param| {
@@ -365,18 +370,23 @@ impl Candidate {
                         }
                     )
             })
-            && cx
-                .sess()
-                .source_map()
-                .span_to_snippet(receiver_type_span)
-                .is_ok_and(|receiver| {
-                    receiver.contains(explicit_type_params[0].name.ident().name.as_str())
-                });
+            && receiver_mentions_parameter;
 
         CandidateGenerics {
             span: can_move.then_some(generics.span),
             is_safe: can_move,
         }
+    }
+
+    fn is_unsupported_implicit_parameter(param: &rustc_hir::GenericParam<'_>) -> bool {
+        !matches!(
+            param.kind,
+            GenericParamKind::Lifetime { .. }
+                | GenericParamKind::Type {
+                    synthetic: true,
+                    ..
+                }
+        ) && !param.span.is_empty()
     }
 
     /// Returns whether a source range is part of this function.
@@ -389,11 +399,10 @@ impl Candidate {
     /// A collision needs a naming decision from the author and therefore cannot be fixed
     /// automatically.
     fn has_method_collision(&self, cx: &LateContext<'_>) -> bool {
-        cx.tcx
-            .inherent_impls(self.struct_def_id)
-            .iter()
-            .flat_map(|impl_id| cx.tcx.associated_items(*impl_id).in_definition_order())
-            .any(|item| item.name() == self.name)
+        let impls = cx.tcx.inherent_impls(self.struct_def_id).iter();
+        let associated =
+            impls.flat_map(|impl_id| cx.tcx.associated_items(*impl_id).in_definition_order());
+        associated.into_iter().any(|item| item.name() == self.name)
     }
 
     /// Builds an unambiguous path such as `crate::module::Struct::method` for rewritten call sites.
@@ -487,6 +496,14 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
         }
     }
 
+    fn overlaps_candidate_migration(&self, other: &Candidate) -> bool {
+        other.def_id != self.candidate.def_id
+            && self
+                .function_uses
+                .get(&other.def_id)
+                .is_some_and(|uses| uses.iter().any(|span| self.candidate.contains(*span)))
+    }
+
     /// Rejects moves that cannot be applied as one complete, non-overlapping change.
     ///
     /// This covers imports, generic call syntax, and interactions with other candidates that
@@ -509,19 +526,29 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
         // Rustfix applies all machine suggestions together. If this function refers to another
         // candidate, moving both would produce overlapping whole-item edits. Keep the caller as a
         // warning-only case and let the callee safely rewrite the reference inside it.
-        let overlaps_another_migration = self.candidates.iter().any(|other| {
-            other.def_id != self.candidate.def_id
-                && self
-                    .function_uses
-                    .get(&other.def_id)
-                    .is_some_and(|uses| uses.iter().any(|span| self.candidate.contains(*span)))
-        });
+        let overlaps_another_migration = self
+            .candidates
+            .iter()
+            .any(|other| self.overlaps_candidate_migration(other));
         (!overlaps_another_migration).then_some(())
     }
 
     /// Reads the original source text covered by a compiler source range.
     fn snippet(&self, span: Span) -> Option<String> {
-        self.cx.sess().source_map().span_to_snippet(span).ok()
+        let source_map = self.cx.sess().source_map();
+        source_map.span_to_snippet(span).ok()
+    }
+
+    fn rewrite_reference_receiver(&self, parameter: &str) -> Option<String> {
+        let inner = self.snippet(self.candidate.receiver_type_span)?;
+        let offset = parameter.rfind(&inner)?;
+        format!(
+            "{}self{}",
+            &parameter[..offset],
+            &parameter[offset + inner.len()..]
+        )
+        .split_once(':')
+        .map(|(_, receiver)| receiver.trim().to_owned())
     }
 
     /// Replaces the first parameter with the appropriate `self` spelling.
@@ -547,19 +574,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
         let receiver = match self.candidate.receiver_kind {
             ReceiverKind::Value if pattern.starts_with("mut ") => "mut self".to_owned(),
             ReceiverKind::Value => "self".to_owned(),
-            ReceiverKind::Ref(_) => {
-                let inner = self.snippet(self.candidate.receiver_type_span)?;
-                let offset = parameter.rfind(&inner)?;
-                format!(
-                    "{}self{}",
-                    &parameter[..offset],
-                    &parameter[offset + inner.len()..]
-                )
-                .split_once(':')?
-                .1
-                .trim()
-                .to_owned()
-            }
+            ReceiverKind::Ref(_) => self.rewrite_reference_receiver(&parameter)?,
         };
         self.internal_edits
             .push(self.candidate.parameter_span, receiver);
@@ -730,9 +745,10 @@ impl LateLintPass<'_> for MethodLikeFreeFunctions {
             return;
         }
 
-        if let Some(candidate) = Candidate::discover(cx, item) {
-            self.candidates.push(candidate);
-        }
+        let Some(candidate) = Candidate::discover(cx, item) else {
+            return;
+        };
+        self.candidates.push(candidate);
     }
 
     /// Remembers uses of local names and free functions that a later fix may need to rewrite.
@@ -753,21 +769,7 @@ impl LateLintPass<'_> for MethodLikeFreeFunctions {
                 }
             }
             Res::Local(binding_id) => {
-                let shorthand_field =
-                    cx.tcx
-                        .hir_parent_iter(expr.hir_id)
-                        .next()
-                        .and_then(|(_, node)| match node {
-                            Node::ExprField(field) if field.is_shorthand => Some(field.ident.name),
-                            _ => None,
-                        });
-                self.binding_uses
-                    .entry(binding_id)
-                    .or_default()
-                    .push(CandidateBindingUse {
-                        span: expr.span,
-                        shorthand_field,
-                    });
+                self.record_binding_use(cx, expr, binding_id);
             }
             _ => {}
         }
@@ -787,6 +789,30 @@ impl LateLintPass<'_> for MethodLikeFreeFunctions {
 }
 
 impl MethodLikeFreeFunctions {
+    fn shorthand_field(cx: &LateContext<'_>, expr: &Expr<'_>) -> Option<Symbol> {
+        cx.tcx
+            .hir_parent_iter(expr.hir_id)
+            .next()
+            .and_then(|(_, node)| match node {
+                Node::ExprField(field) if field.is_shorthand => Some(field.ident.name),
+                _ => None,
+            })
+    }
+
+    fn record_binding_use(&mut self, cx: &LateContext<'_>, expr: &Expr<'_>, binding_id: HirId) {
+        let shorthand_field = Self::shorthand_field(cx, expr);
+        let binding_use = CandidateBindingUse {
+            span: expr.span,
+            shorthand_field,
+        };
+
+        // Retain every source use under the local binding it resolves to.
+        self.binding_uses
+            .entry(binding_id)
+            .or_default()
+            .push(binding_use);
+    }
+
     /// Records a function import and returns whether the item was an import.
     ///
     /// An imported alias is part of the function's public shape inside the module, so the fixer
@@ -808,13 +834,13 @@ impl MethodLikeFreeFunctions {
 }
 
 impl MethodLikeFreeFunctions {
-    /// Emits the warning and includes a complete migration only when every edit is known to be safe.
-    ///
-    /// When no automatic migration is available, the help still explains the intended method form
-    /// or the naming collision that requires a manual choice.
-    fn emit_candidate(&self, cx: &LateContext<'_>, candidate: &Candidate) {
-        let has_collision = candidate.has_method_collision(cx);
-        let migration = (!has_collision)
+    fn candidate_migration(
+        &self,
+        cx: &LateContext<'_>,
+        candidate: &Candidate,
+        has_collision: bool,
+    ) -> Option<Vec<MigrationEdit>> {
+        (!has_collision)
             .then(|| {
                 MigrationBuilder::new(
                     cx,
@@ -826,8 +852,18 @@ impl MethodLikeFreeFunctions {
                 )
                 .build()
             })
-            .flatten();
+            .flatten()
+    }
 
+    /// Emits the warning and includes a complete migration only when every edit is known to be safe.
+    ///
+    /// When no automatic migration is available, the help still explains the intended method form
+    /// or the naming collision that requires a manual choice.
+    fn emit_candidate(&self, cx: &LateContext<'_>, candidate: &Candidate) {
+        let has_collision = candidate.has_method_collision(cx);
+        let migration = self.candidate_migration(cx, candidate, has_collision);
+
+        // Explain the preferred method location and attach the complete safe migration.
         cx.tcx.emit_node_span_lint(
             METHOD_LIKE_FREE_FUNCTIONS,
             candidate.hir_id,

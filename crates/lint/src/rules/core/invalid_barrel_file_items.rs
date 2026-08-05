@@ -164,9 +164,10 @@ impl EarlyLintPass for InvalidBarrelFileItems {
 
     /// Leaves an ignored inline-module body after all of its children have been visited.
     fn check_item_post(&mut self, _: &EarlyContext<'_>, item: &Item) {
-        if self.ignored_inline_depth > 0 && Self::is_inline_module(item) {
-            self.ignored_inline_depth -= 1;
+        if self.ignored_inline_depth == 0 || !Self::is_inline_module(item) {
+            return;
         }
+        self.ignored_inline_depth -= 1;
     }
 }
 
@@ -184,12 +185,11 @@ impl InvalidBarrelFileItems {
     /// Compiler-created and virtual filenames are ignored because they do not represent a barrel
     /// file that a developer can open and reorganize.
     fn is_written_in_barrel_file(cx: &EarlyContext<'_>, item: &Item) -> bool {
-        cx.sess()
-            .source_map()
-            .span_to_filename(item.span)
-            .into_local_path()
-            .and_then(|path| path.file_name().map(ToOwned::to_owned))
-            .is_some_and(|name| name == "mod.rs" || name == "lib.rs")
+        let source_map = cx.sess().source_map();
+        let filename = source_map.span_to_filename(item.span);
+        let local_path = filename.into_local_path();
+        let basename = local_path.and_then(|path| path.file_name().map(ToOwned::to_owned));
+        basename.is_some_and(|name| name == "mod.rs" || name == "lib.rs")
     }
 
     /// Emits one focused explanation for the forbidden item without proposing a risky rewrite.
@@ -206,8 +206,9 @@ impl InvalidBarrelFileItems {
 
     /// Records entry into an inline module so its contents do not receive duplicate warnings.
     fn enter_inline_module(&mut self, item: &Item) {
-        if Self::is_inline_module(item) {
-            self.ignored_inline_depth += 1;
+        if !Self::is_inline_module(item) {
+            return;
         }
+        self.ignored_inline_depth += 1;
     }
 }

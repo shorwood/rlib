@@ -89,26 +89,18 @@ impl MisorderedTypeDeclarations {
         if ordering == source {
             return;
         }
-        let mismatch = source
-            .iter()
-            .zip(&ordering)
-            .position(|(actual, expected)| actual != expected)
-            .expect("different orders have a mismatch");
-        let expected_names = ordering
-            .iter()
-            .map(|index| format!("`{}`", nodes[*index].name))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let editable = nodes.iter().all(|node| {
-            node.defs.iter().all(|definition| {
-                cx.tcx
-                    .hir_attrs(rustc_hir::HirId::make_owner(*definition))
-                    .is_empty()
-            })
-        });
+
+        // Describe the first mismatch and the complete expected order.
+        let mismatch = DeclarationNodeList::first_mismatch(&source, &ordering);
+        let expected_names = nodes.formatted_names(&ordering);
+
+        // Offer an atomic edit only when no declaration in a group carries attributes.
+        let editable = nodes.has_only_unattributed_definitions(cx);
         let edits = editable
             .then(|| DeclarationOrder::edits(cx, nodes, &ordering))
             .flatten();
+
+        // Keep the diagnostic useful even when comments or macros block a safe rewrite.
         cx.tcx.emit_node_span_lint(
             MISORDERED_TYPE_DECLARATIONS,
             hir_id,
@@ -141,14 +133,15 @@ impl MisorderedTypeDeclarations {
 
 impl<'tcx> LateLintPass<'tcx> for MisorderedTypeDeclarations {
     fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, hir_id: HirId) {
+        // Resolve authored items and section membership before selecting local types.
         let source_map = cx.sess().source_map();
         let sections = self.sections.analyze(cx, module, hir_id);
-        let items = module
-            .item_ids
-            .iter()
-            .map(|id| cx.tcx.hir_item(*id))
+        let resolved = module.item_ids.iter().map(|id| cx.tcx.hir_item(*id));
+        let items = resolved
             .filter(|item| !item.span.in_external_macro(source_map))
             .collect::<Vec<_>>();
+
+        // Treat each type and its directly following impls as one movable declaration.
         let mut nodes = Vec::new();
         for (index, item) in items.iter().enumerate() {
             if !Self::is_type(item) {
@@ -156,10 +149,10 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedTypeDeclarations {
             }
             let mut span = item.span;
             let mut defs = vec![item.owner_id.def_id];
-            for following in &items[index + 1..] {
-                if !Self::is_direct_impl_of(cx, following, item.owner_id.def_id) {
-                    break;
-                }
+            let following_impls = items[index + 1..].iter().take_while(|following| {
+                Self::is_direct_impl_of(cx, following, item.owner_id.def_id)
+            });
+            for following in following_impls {
                 span = span.with_hi(following.span.hi());
                 defs.push(following.owner_id.def_id);
             }

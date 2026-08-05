@@ -92,8 +92,9 @@ impl LateLintPass<'_> for ImplicitFirstWinsDeduplication {
 impl ImplicitFirstWinsDeduplication {
     /// Returns whether the receiver is the standard library's `HashSet` type.
     fn is_hash_set(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
-        let ty::Adt(definition, _) = cx.typeck_results().expr_ty(expression).peel_refs().kind()
-        else {
+        let expression_type = cx.typeck_results().expr_ty(expression);
+        let referent_type = expression_type.peel_refs();
+        let ty::Adt(definition, _) = referent_type.kind() else {
             return false;
         };
         cx.tcx.is_diagnostic_item(sym::HashSet, definition.did())
