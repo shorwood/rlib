@@ -9,6 +9,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 // BoolFieldsWithoutPredicatePrefix
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that requires boolean field names to read as predicates.
 struct BoolFieldsWithoutPredicatePrefix;
 
 dylint_linting::impl_late_lint! {

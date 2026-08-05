@@ -18,14 +18,21 @@ use rustc_span::{Span, Symbol, sym};
 /// The method receiver that preserves how the original collection was passed.
 #[derive(Clone, Copy)]
 enum CollectionReceiver {
+    /// Collection is passed by value through an immutable binding.
     Owned,
+    /// Collection is passed by value through a mutable binding.
     MutOwned,
+    /// Collection is shared through an immutable reference.
     Shared,
+    /// Collection is borrowed through a mutable reference.
     Mutable,
 }
 
+/// Supported collection receiver together with its direct element type.
 struct CollectionReceiverType<'tcx> {
+    /// Receiver syntax preserving the function parameter's ownership contract.
     receiver: CollectionReceiver,
+    /// Semantic type stored directly in the collection.
     element: Ty<'tcx>,
 }
 
@@ -72,7 +79,7 @@ impl CollectionReceiver {
     }
 
     /// Describes the receiver agents should use to retain the original ownership contract.
-    fn description(self) -> &'static str {
+    const fn description(self) -> &'static str {
         match self {
             Self::Owned => "`self`",
             Self::MutOwned => "`mut self`",
@@ -88,22 +95,35 @@ impl CollectionReceiver {
 
 /// Whether the canonical wrapper can receive the misplaced function.
 enum CandidateWrapperState {
+    /// No item occupies the canonical wrapper name.
     Missing,
+    /// Existing wrapper has the canonical named vector field.
     Compatible,
+    /// The canonical name exists but does not represent the expected wrapper.
     Conflicting,
 }
 
 /// One free function whose first parameter represents a collection that needs a domain wrapper.
 struct Candidate {
+    /// Function HIR node on which the diagnostic is emitted.
     hir_id: HirId,
+    /// Free-function name proposed for the wrapper method.
     function_name: Symbol,
+    /// Identifier span used as the primary diagnostic location.
     function_name_span: Span,
+    /// First-parameter span describing the collection contract.
     parameter_span: Span,
+    /// Local definition of the collection element struct.
     element_def_id: LocalDefId,
+    /// Whether the element type requires generic wrapper design decisions.
     has_element_parameters: bool,
+    /// Displayable semantic element type including generic arguments.
     element_type: String,
+    /// Element struct name shown in diagnostics.
     element_name: Symbol,
+    /// Canonical `<Element>List` wrapper name.
     wrapper_name: Symbol,
+    /// Method receiver preserving collection ownership and mutability.
     receiver: CollectionReceiver,
 }
 
@@ -329,6 +349,7 @@ impl Candidate {
 // CollectionMethodLikeFreeFunctions: Lint pass
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that relocates collection-shaped free functions to domain wrappers.
 struct CollectionMethodLikeFreeFunctions;
 
 dylint_linting::impl_late_lint! {

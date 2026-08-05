@@ -15,11 +15,14 @@ use crate::utils::function_structure::FunctionStructureAnalyzer;
 // LongMethodChains
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that limits calls in one fluent method chain.
 struct LongMethodChains {
+    /// Shared named-function analyzer configured for this lint family.
     analyzer: FunctionStructureAnalyzer,
 }
 
 impl LongMethodChains {
+    /// Builds the pass from validated function-structure configuration.
     fn new() -> Self {
         Self {
             analyzer: FunctionStructureAnalyzer::from_config(),

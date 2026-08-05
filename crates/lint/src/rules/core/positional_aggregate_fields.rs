@@ -11,6 +11,7 @@ use rustc_span::Span;
 // PositionalAggregateFields
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that rejects aggregates with several unnamed field roles.
 struct PositionalAggregateFields;
 
 dylint_linting::impl_late_lint! {
@@ -54,11 +55,13 @@ dylint_linting::impl_late_lint! {
 }
 
 impl PositionalAggregateFields {
+    /// Returns a diagnostic span when variant data has multiple positional fields.
     fn positional_span(data: &VariantData<'_>, fallback: Span) -> Option<Span> {
         let fields = data.fields();
         (fields.len() >= 2 && fields[0].is_positional()).then_some(fallback)
     }
 
+    /// Emits record-field guidance for one positional aggregate.
     fn emit(cx: &LateContext<'_>, span: Span, kind: &str) {
         cx.emit_span_lint(
             POSITIONAL_AGGREGATE_FIELDS,

@@ -11,11 +11,14 @@ use crate::utils::source_organization::SectionAnalyzer;
 // MismatchedSectionDividerPrefixes
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that compares divider prefixes with declaration-family names.
 struct MismatchedSectionDividerPrefixes {
+    /// Shared analyzer that parses and groups authored section dividers.
     analyzer: SectionAnalyzer,
 }
 
 impl MismatchedSectionDividerPrefixes {
+    /// Builds the pass from configured divider syntax.
     fn new() -> Self {
         Self {
             analyzer: SectionAnalyzer::from_config(),

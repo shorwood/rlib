@@ -11,11 +11,14 @@ use crate::utils::source_organization::FamilyNameAnalyzer;
 // IncoherentTypeFamilyNames
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that detects organizational context embedded in type names.
 struct IncoherentTypeFamilyNames {
+    /// Shared semantic analyzer for declaration-family naming.
     analyzer: FamilyNameAnalyzer,
 }
 
 impl IncoherentTypeFamilyNames {
+    /// Builds the pass from configured source-organization policy.
     fn new() -> Self {
         Self {
             analyzer: FamilyNameAnalyzer::from_config(),

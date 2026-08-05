@@ -18,20 +18,26 @@ use rustc_span::Span;
 /// One resolved import from a module to one of its siblings.
 #[derive(Clone, Copy)]
 struct ModuleDependency {
+    /// Sibling module containing the import.
     source: LocalDefId,
+    /// Sibling module reached by the import.
     target: LocalDefId,
+    /// Import span used to relate both directions of a cycle.
     span: Span,
 }
 
 /// One directed module pair that has already produced a diagnostic.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 struct ModulePair {
+    /// Origin of the directed dependency.
     source: LocalDefId,
+    /// Destination of the directed dependency.
     target: LocalDefId,
 }
 
 impl ModulePair {
-    fn new(source: LocalDefId, target: LocalDefId) -> Self {
+    /// Constructs one directed pair for cycle deduplication.
+    const fn new(source: LocalDefId, target: LocalDefId) -> Self {
         Self { source, target }
     }
 }
@@ -43,7 +49,9 @@ impl ModulePair {
 /// Collects sibling imports and reports each two-way module pair once.
 #[derive(Default)]
 struct BidirectionalModuleDependencies {
+    /// Sibling dependency edges collected from resolved imports.
     dependencies: Vec<ModuleDependency>,
+    /// Directed pairs for cycles that have already emitted one diagnostic.
     reported: HashSet<ModulePair>,
 }
 
@@ -163,6 +171,7 @@ impl BidirectionalModuleDependencies {
         );
     }
 
+    /// Records one resolved dependency and checks whether it closes a cycle.
     fn record_dependency(
         &mut self,
         cx: &LateContext<'_>,

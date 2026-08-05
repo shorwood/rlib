@@ -15,11 +15,14 @@ use crate::utils::function_structure::FunctionStructureAnalyzer;
 // OversizedMatchArms
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that limits authored code lines in one match arm.
 struct OversizedMatchArms {
+    /// Shared named-function analyzer configured for this lint family.
     analyzer: FunctionStructureAnalyzer,
 }
 
 impl OversizedMatchArms {
+    /// Builds the pass from validated function-structure configuration.
     fn new() -> Self {
         Self {
             analyzer: FunctionStructureAnalyzer::from_config(),

@@ -22,27 +22,38 @@ use rustc_span::{Span, Symbol, sym};
 
 /// The forwarding expression and parameter bindings found inside a wrapper.
 struct RedundantWrapperForwarding<'hir> {
+    /// Direct call expression remaining after transparent syntax is removed.
     expression: &'hir Expr<'hir>,
+    /// Parameter binding identities in their declared order.
     bindings: Vec<HirId>,
+    /// Body owner whose type-checking results apply to `expression`.
     typeck_owner: LocalDefId,
 }
 
 /// The local call targeted by a possible forwarding wrapper.
 struct RedundantWrapperCall<'hir> {
+    /// Local function or method definition being forwarded to.
     target: LocalDefId,
+    /// Receiver and arguments in signature order.
     arguments: Vec<&'hir Expr<'hir>>,
+    /// Whether the target is invoked with method-call syntax.
     is_method: bool,
 }
 
 /// A function whose body only forwards its parameters to another local function.
 struct RedundantWrapper {
+    /// Wrapper HIR node used for diagnostic ownership.
     hir_id: HirId,
+    /// Wrapper name shown in remediation guidance.
     name: Symbol,
+    /// Identifier span used as the primary diagnostic site.
     name_span: Span,
+    /// Local implementation to which every argument is forwarded.
     target: LocalDefId,
 }
 
 impl RedundantWrapper {
+    /// Recognizes a safe wrapper that forwards every parameter unchanged to one local target.
     fn discover<'tcx>(
         cx: &LateContext<'tcx>,
         def_id: LocalDefId,
@@ -183,6 +194,7 @@ impl RedundantWrapper {
         })
     }
 
+    /// Maps one compiler-generated coroutine binding back to its authored parameter.
     fn async_inner_binding(
         cx: &LateContext<'_>,
         statement: &rustc_hir::Stmt<'_>,
@@ -206,6 +218,7 @@ impl RedundantWrapper {
             .then_some(inner_binding)
     }
 
+    /// Returns whether a local free function or inherent method is asynchronous.
     fn is_async_function(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
         match cx.tcx.hir_node_by_def_id(def_id) {
             Node::Item(item) => {
@@ -243,6 +256,7 @@ impl RedundantWrapper {
                 .ty_adt_def()
     }
 
+    /// Compares receiver types while requiring reference mutability to match exactly.
     fn same_receiver_type<'tcx>(left: Ty<'tcx>, right: Ty<'tcx>) -> bool {
         match (left.kind(), right.kind()) {
             (ty::Ref(_, left, left_mutability), ty::Ref(_, right, right_mutability)) => {
@@ -252,6 +266,7 @@ impl RedundantWrapper {
         }
     }
 
+    /// Allows only documentation and lint-level attributes that do not change execution.
     fn has_only_nonsemantic_attributes(cx: &LateContext<'_>, hir_id: HirId) -> bool {
         cx.tcx.hir_attrs(hir_id).iter().all(|attribute| {
             attribute.is_doc_comment().is_some()
@@ -280,7 +295,8 @@ impl RedundantWrapper {
         }
     }
 
-    fn returned_expression<'hir>(
+    /// Extracts the value from a single explicit `return` statement.
+    const fn returned_expression<'hir>(
         statement: &'hir rustc_hir::Stmt<'hir>,
     ) -> Option<&'hir Expr<'hir>> {
         let rustc_hir::StmtKind::Semi(expression) = statement.kind else {
@@ -292,6 +308,7 @@ impl RedundantWrapper {
         Some(expression)
     }
 
+    /// Resolves a direct path call to a local function and its authored arguments.
     fn direct_function_call<'hir>(
         cx: &LateContext<'_>,
         callee: &Expr<'_>,
@@ -311,6 +328,7 @@ impl RedundantWrapper {
         })
     }
 
+    /// Resolves a method call and prepends its receiver to the forwarded arguments.
     fn direct_method_call<'hir>(
         cx: &LateContext<'_>,
         owner: LocalDefId,
@@ -335,6 +353,7 @@ impl RedundantWrapper {
         })
     }
 
+    /// Recognizes a direct local function or associated-function call.
     fn direct_call<'hir>(
         cx: &LateContext<'_>,
         owner: LocalDefId,
@@ -350,6 +369,7 @@ impl RedundantWrapper {
         matches!(cx.tcx.def_kind(call.target), DefKind::Fn | DefKind::AssocFn).then_some(call)
     }
 
+    /// Emits removal guidance relating the wrapper to its real implementation.
     fn emit(&self, cx: &LateContext<'_>) {
         let target_name = cx.tcx.def_path_str(self.target.to_def_id());
         let target_span = cx.tcx.def_span(self.target);
@@ -379,6 +399,7 @@ impl RedundantWrapper {
 // NeedlessFunctionWrappers: Lint pass
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that detects semantically empty forwarding functions.
 struct NeedlessFunctionWrappers;
 
 dylint_linting::impl_late_lint! {
@@ -457,6 +478,8 @@ impl<'tcx> LateLintPass<'tcx> for NeedlessFunctionWrappers {
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(parent) else {
             return;
         };
+
+        // Only analyze inherent methods that are not trait implementations.
         let ItemKind::Impl(implementation) = parent.kind else {
             return;
         };

@@ -18,16 +18,22 @@ use super::function_layout_comments::{FunctionLayoutEntryGap, FunctionLayoutFind
 
 /// Phase-comment findings separated by public lint identity.
 #[derive(Default)]
-pub(crate) struct FunctionLayoutAnalysis {
+pub struct FunctionLayoutAnalysis {
+    /// Oversized linear phases lacking sufficient semantic decomposition.
     pub(crate) missing: Vec<FunctionLayoutFinding>,
+    /// Authored phase comments that violate syntax or placement rules.
     pub(crate) malformed: Vec<FunctionLayoutFinding>,
 }
 
+/// Lightweight semantic boundary state preceding one function-body entry.
 struct FunctionLayoutBoundary {
+    /// Whether a canonical explanatory header begins at this boundary.
     has_header: bool,
+    /// Whether comments or blank space interrupt the surrounding linear run.
     has_run_boundary: bool,
 }
 
+/// Counts physical lines containing non-comment source tokens within `span`.
 pub(super) fn function_layout_code_line_count(cx: &LateContext<'_>, span: Span) -> usize {
     let span = span.source_callsite();
     let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
@@ -57,6 +63,7 @@ pub(super) fn function_layout_code_line_count(cx: &LateContext<'_>, span: Span) 
     code_lines.into_iter().filter(|has_code| *has_code).count()
 }
 
+/// Returns whether an expression carries structural meaning beyond a linear code phase.
 fn function_layout_is_control_boundary(expression: &Expr<'_>) -> bool {
     expression.span.desugaring_kind().is_some()
         || matches!(
@@ -70,12 +77,16 @@ fn function_layout_is_control_boundary(expression: &Expr<'_>) -> bool {
 }
 
 #[derive(Clone, Copy)]
+/// One statement or tail expression classified for linear-phase analysis.
 struct FunctionLayoutEntry {
+    /// Authored source range used for line counting and gap construction.
     span: Span,
+    /// Whether the entry belongs to a continuous linear code run.
     is_linear: bool,
 }
 
 impl FunctionLayoutEntry {
+    /// Classifies a statement and any initializer by its control-flow structure.
     fn from_statement(statement: &Stmt<'_>) -> Self {
         let is_linear = match statement.kind {
             StmtKind::Let(local) => local
@@ -92,6 +103,7 @@ impl FunctionLayoutEntry {
         }
     }
 
+    /// Classifies a block tail expression as a layout entry.
     fn from_expression(expression: &Expr<'_>) -> Self {
         Self {
             span: expression.span,
@@ -100,13 +112,18 @@ impl FunctionLayoutEntry {
     }
 }
 
+/// HIR visitor that validates phase comments and continuous linear code runs.
 pub(super) struct FunctionLayoutAnalyzer<'analysis, 'tcx> {
+    /// Compiler context used for source snippets and physical line mapping.
     cx: &'analysis LateContext<'tcx>,
+    /// Validated phase-comment syntax and size limits.
     config: &'analysis FunctionStructureConfig,
+    /// Findings accumulated during traversal.
     analysis: FunctionLayoutAnalysis,
 }
 
 impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
+    /// Starts an empty layout analysis for one named function.
     pub(super) fn new(
         cx: &'analysis LateContext<'tcx>,
         config: &'analysis FunctionStructureConfig,
@@ -118,11 +135,13 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         }
     }
 
+    /// Traverses the function expression and returns findings by lint identity.
     pub(super) fn analyze(mut self, expression: &'tcx Expr<'tcx>) -> FunctionLayoutAnalysis {
         self.visit_expr(expression);
         self.analysis
     }
 
+    /// Rejects phase comments stranded after the final entry in a block.
     fn analyze_trailing_gap(&mut self, block: &Block<'_>, entries: &[FunctionLayoutEntry]) {
         let last = entries.last().expect("entries are nonempty").span;
         let gap = block.span.with_lo(last.hi());
@@ -130,6 +149,7 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         self.analysis.malformed.extend(trailing.findings);
     }
 
+    /// Records one continuous phase that exceeds the configured line limit.
     fn record_oversized_phase(
         &mut self,
         phase: &[FunctionLayoutEntry],
@@ -158,6 +178,7 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         });
     }
 
+    /// Splits an uninterrupted linear run at semantic boundaries and measures each phase.
     fn analyze_linear_run(
         &mut self,
         entries: &[FunctionLayoutEntry],
@@ -188,6 +209,7 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         }
     }
 
+    /// Parses the source gap preceding one entry and merges malformed-comment findings.
     fn analyze_entry_gap(
         &mut self,
         block: &Block<'_>,
@@ -197,7 +219,7 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
     ) -> FunctionLayoutBoundary {
         // Resolve the source gap between this entry and its predecessor.
         let previous = index.checked_sub(1).map(|index| entries[index].span);
-        let lo = previous.map_or(block.span.lo(), Span::hi);
+        let lo = previous.map_or_else(|| block.span.lo(), Span::hi);
         let gap = block.span.with_lo(lo).with_hi(next.lo());
 
         // Preserve the comment parser's semantic and physical boundary decisions.
@@ -213,6 +235,7 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         boundary
     }
 
+    /// Classifies and analyzes all authored entries in one block.
     fn analyze_block(&mut self, block: &'tcx Block<'tcx>) {
         if block.span.from_expansion() {
             return;

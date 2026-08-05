@@ -12,10 +12,7 @@ use rustc_middle::ty::TyCtxt;
 use super::dependency_collector::DependencyCollector;
 
 /// Resolves references made by an item to declarations in the current crate.
-pub(crate) fn item_dependencies<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    item: &'tcx Item<'tcx>,
-) -> HashSet<LocalDefId> {
+pub fn item_dependencies<'tcx>(tcx: TyCtxt<'tcx>, item: &'tcx Item<'tcx>) -> HashSet<LocalDefId> {
     let mut collector = DependencyCollector::new(tcx);
     collector.visit_item(item);
     match item.kind {

@@ -11,11 +11,14 @@ use crate::utils::source_organization::SectionAnalyzer;
 // DuplicateSectionDividerPrefixes
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that rejects reused section family prefixes.
 struct DuplicateSectionDividerPrefixes {
+    /// Shared analyzer that parses and groups authored section dividers.
     analyzer: SectionAnalyzer,
 }
 
 impl DuplicateSectionDividerPrefixes {
+    /// Builds the pass from configured divider syntax.
     fn new() -> Self {
         Self {
             analyzer: SectionAnalyzer::from_config(),

@@ -20,36 +20,53 @@ use super::identifier_case::{
 // -----------------------------------------------------------------------------
 
 /// One source-level problem found by the shared analyzer.
-pub(crate) struct SectionFinding {
+pub struct SectionFinding {
+    /// Authored source range to underline or replace.
     pub(crate) span: Span,
+    /// Primary explanation of the organization problem.
     pub(crate) message: String,
+    /// Naming- or organization-first remediation guidance.
     pub(crate) help: String,
+    /// Canonical divider text when a safe replacement can be synthesized.
     pub(crate) replacement: Option<String>,
 }
 
 /// One distinct declaration covered by a valid section.
-pub(crate) struct SectionParticipant {
+pub struct SectionParticipant {
+    /// Local definition represented by this declaration or implementation.
     pub(crate) def_id: rustc_hir::def_id::LocalDefId,
+    /// Authored declaration name used for family inference and diagnostics.
     pub(crate) name: String,
+    /// Source range occupied by the declaration.
     pub(crate) span: Span,
+    /// Whether this participant defines a nominal type rather than supporting it.
     pub(crate) is_nominal: bool,
 }
 
 /// One valid authored section available to semantic companion lints.
-pub(crate) struct SectionGroup {
+pub struct SectionGroup {
+    /// One-based position of the section in its source module.
     pub(crate) ordinal: usize,
+    /// `PascalCase` family prefix declared by the divider.
     pub(crate) prefix: String,
+    /// Complete source range of the divider template.
     pub(crate) span: Span,
+    /// Distinct declarations governed by the divider.
     pub(crate) participants: Vec<SectionParticipant>,
 }
 
 /// Findings split by lint identity so each rule remains independently configurable.
 #[derive(Default)]
-pub(crate) struct SectionAnalysis {
+pub struct SectionAnalysis {
+    /// Declaration groups that have no preceding divider.
     pub(crate) missing: Vec<SectionFinding>,
+    /// Dividers whose syntax, width, or placement is invalid.
     pub(crate) malformed: Vec<SectionFinding>,
+    /// Repeated section family prefixes within one module.
     pub(crate) duplicates: Vec<SectionFinding>,
+    /// Dividers whose prefix disagrees with the declarations they contain.
     pub(crate) mismatches: Vec<SectionFinding>,
+    /// Valid sections available to companion semantic lints.
     pub(crate) sections: Vec<SectionGroup>,
 }
 
@@ -70,8 +87,10 @@ impl SectionAnalysis {
 // -----------------------------------------------------------------------------
 
 /// Parses configured divider blocks and relates them to module-level declaration groups.
-pub(crate) struct SectionAnalyzer {
+pub struct SectionAnalyzer {
+    /// Parsed divider template used for both recognition and rendering.
     template: Template,
+    /// Maximum permitted width of every rendered divider line.
     max_line_length: usize,
 }
 
@@ -90,6 +109,7 @@ impl SectionAnalyzer {
         }
     }
 
+    /// Converts a snippet-relative template match into an absolute source event.
     fn divider_from_match(span: Span, matched: TemplateMatch) -> SectionEventDivider {
         let start = u32::try_from(matched.start).expect("source span offset should fit in BytePos");
         let end = u32::try_from(matched.end).expect("source span offset should fit in BytePos");
@@ -117,6 +137,7 @@ impl SectionAnalyzer {
         ModuleAnalysis::analyze(self, cx, module, hir_id)
     }
 
+    /// Finds divider templates in an item-free source range.
     fn dividers_in_span(&self, cx: &LateContext<'_>, span: Span) -> Vec<SectionEventDivider> {
         let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
             return Vec::new();
@@ -130,6 +151,7 @@ impl SectionAnalyzer {
             .collect()
     }
 
+    /// Returns whether rendering `content` stays within the configured line width.
     fn rendered_lines_fit(&self, content: &str) -> bool {
         self.template
             .render(content)
@@ -137,6 +159,7 @@ impl SectionAnalyzer {
             .all(|line| line.chars().count() <= self.max_line_length)
     }
 
+    /// Renders an indented canonical divider when it satisfies the width policy.
     fn render_replacement(&self, content: &str, indentation: &str) -> Option<String> {
         self.rendered_lines_fit(content).then(|| {
             let rendered = self.template.render(content);
@@ -152,9 +175,11 @@ impl SectionAnalyzer {
 // ModuleAnalysis: Complete module analysis
 // -----------------------------------------------------------------------------
 
+/// Builds and validates the ordered section event stream for one source module.
 struct ModuleAnalysis;
 
 impl ModuleAnalysis {
+    /// Appends every divider found in `span` to the module event stream.
     fn append_dividers(
         analyzer: &SectionAnalyzer,
         cx: &LateContext<'_>,
@@ -165,6 +190,7 @@ impl ModuleAnalysis {
         events.extend(dividers.into_iter().map(SectionEvent::Divider));
     }
 
+    /// Collects authored items and dividers, then analyzes them in source order.
     fn analyze(
         analyzer: &SectionAnalyzer,
         cx: &LateContext<'_>,
@@ -212,6 +238,7 @@ impl ModuleAnalysis {
         Self::analyze_events(analyzer, events)
     }
 
+    /// Reduces a complete event stream into independently reportable findings.
     fn analyze_events(analyzer: &SectionAnalyzer, events: Vec<SectionEvent>) -> SectionAnalysis {
         let mut state = SectionEventAnalysisState::default();
 
@@ -222,6 +249,7 @@ impl ModuleAnalysis {
         state.finish(analyzer)
     }
 
+    /// Finds the physical source extent in which module-level dividers may appear.
     fn source_span(cx: &LateContext<'_>, module: &Mod<'_>, hir_id: HirId) -> Span {
         let inner = module.spans.inner_span;
         let containing_nodes = [cx.tcx.hir_node(hir_id), cx.tcx.parent_hir_node(hir_id)];
@@ -247,17 +275,18 @@ impl ModuleAnalysis {
         let opening_offset = opening_brace
             .and_then(|offset| u32::try_from(offset + 1).ok())
             .map(BytePos);
-        let lo = opening_offset.map_or(inner.lo(), |offset| item.span.lo() + offset);
+        let lo = opening_offset.map_or_else(|| inner.lo(), |offset| item.span.lo() + offset);
 
         let closing_source = source_map.span_to_snippet(item.span.with_lo(inner.hi()));
         let closing_brace = closing_source.ok().and_then(|source| source.find('}'));
         let closing_offset = closing_brace
             .and_then(|offset| u32::try_from(offset).ok())
             .map(BytePos);
-        let hi = closing_offset.map_or(inner.hi(), |offset| inner.hi() + offset);
+        let hi = closing_offset.map_or_else(|| inner.hi(), |offset| inner.hi() + offset);
         inner.with_lo(lo).with_hi(hi)
     }
 
+    /// Records placement, syntax, and width failures for one authored divider.
     fn record_malformed_section(
         analyzer: &SectionAnalyzer,
         section: &SectionEventGroup,
@@ -302,6 +331,7 @@ impl ModuleAnalysis {
         }
     }
 
+    /// Publishes a syntactically valid, nonempty section for companion analyses.
     fn record_valid_section(
         analyzer: &SectionAnalyzer,
         section: &SectionEventGroup,
@@ -323,6 +353,7 @@ impl ModuleAnalysis {
         });
     }
 
+    /// Records a finding when `prefix` has already appeared in the module.
     fn record_duplicate_section(
         section: &SectionEventGroup,
         prefix: &str,
@@ -343,6 +374,7 @@ impl ModuleAnalysis {
         });
     }
 
+    /// Builds a finding for a valid prefix that differs from the inferred family name.
     fn wrong_prefix_finding(
         section: &SectionEventGroup,
         prefix: &str,
@@ -358,6 +390,7 @@ impl ModuleAnalysis {
         }
     }
 
+    /// Builds naming-first guidance for declarations that share no `PascalCase` prefix.
     fn unrelated_names_finding(section: &SectionEventGroup, prefix: &str) -> SectionFinding {
         SectionFinding {
             span: section.divider.span,
@@ -372,6 +405,7 @@ impl ModuleAnalysis {
         }
     }
 
+    /// Compares an authored prefix with the names grouped beneath it.
     fn mismatch_finding(section: &SectionEventGroup, prefix: &str) -> Option<SectionFinding> {
         if section.participants.is_empty() {
             return None;
@@ -386,12 +420,14 @@ impl ModuleAnalysis {
         }
     }
 
+    /// Runs every section-level check when a divider group closes.
     fn finish_section(
         analyzer: &SectionAnalyzer,
         section: &SectionEventGroup,
         seen_prefixes: &mut HashMap<String, Span>,
         analysis: &mut SectionAnalysis,
     ) {
+        // Parse the divider content to validate its syntax and extract the authored prefix.
         let parsed = ParsedContent::parse(&section.divider.raw_content);
         Self::record_malformed_section(analyzer, section, &parsed, analysis);
         let Some(prefix) = parsed.prefix.as_deref() else {
@@ -412,20 +448,30 @@ impl ModuleAnalysis {
 // SectionEvent: Section events and participants
 // -----------------------------------------------------------------------------
 
+/// Authored divider data carried through section event analysis.
 struct SectionEventDivider {
+    /// Complete source range occupied by the divider template.
     span: Span,
+    /// Unparsed content captured from the template placeholder.
     raw_content: String,
+    /// Whitespace that prefixes each rendered divider line.
     indentation: String,
 }
 
+/// Module declaration that may participate in the current section.
 struct SectionEventCandidate {
+    /// Local definition represented by the declaration.
     def_id: rustc_hir::def_id::LocalDefId,
+    /// Authored declaration name used for family inference.
     name: String,
+    /// Complete declaration source range.
     span: Span,
+    /// Whether this candidate introduces a nominal type.
     is_nominal_declaration: bool,
 }
 
 impl SectionEventCandidate {
+    /// Converts a direct inherent implementation into a candidate for its self type.
     fn from_impl(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         let self_type = cx.tcx.type_of(item.owner_id).instantiate_identity();
         let ty::Adt(definition, _) = self_type.kind() else {
@@ -440,6 +486,7 @@ impl SectionEventCandidate {
         })
     }
 
+    /// Converts a section-relevant module item into a source candidate.
     fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         if item.span.from_expansion() {
             return None;
@@ -468,12 +515,22 @@ impl SectionEventCandidate {
     }
 }
 
+/// One divider or declaration in the module's source-ordered event stream.
 enum SectionEvent {
-    Divider(SectionEventDivider),
-    Candidate(SectionEventCandidate),
+    /// A recognized divider template starts a new section.
+    Divider(
+        /// Divider source and captured content that open the section.
+        SectionEventDivider,
+    ),
+    /// A declaration belongs to the nearest preceding divider, if any.
+    Candidate(
+        /// Authored declaration associated with the active section.
+        SectionEventCandidate,
+    ),
 }
 
 impl SectionEvent {
+    /// Returns the event's source position for stable ordering.
     fn position(&self) -> BytePos {
         match self {
             Self::Divider(divider) => divider.span.lo(),
@@ -483,9 +540,14 @@ impl SectionEvent {
 }
 
 #[derive(Default)]
-struct SectionEventCandidates(Vec<SectionEventCandidate>);
+/// Declarations accumulated before the next divider boundary.
+struct SectionEventCandidates(
+    /// Authored candidates retained in source order.
+    Vec<SectionEventCandidate>,
+);
 
 impl SectionEventCandidates {
+    /// Collapses a declaration and its impls into one nominal participant.
     fn record_distinct_declaration(
         positions: &mut HashMap<rustc_hir::def_id::LocalDefId, usize>,
         declarations: &mut Vec<SectionParticipant>,
@@ -502,18 +564,22 @@ impl SectionEventCandidates {
         declarations[index] = candidate;
     }
 
+    /// Removes all accumulated declarations after their group has been handled.
     fn clear(&mut self) {
         self.0.clear();
     }
 
-    fn is_empty(&self) -> bool {
+    /// Returns whether the group contains no declarations.
+    const fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
+    /// Appends one declaration in source order.
     fn push(&mut self, participant: SectionEventCandidate) {
         self.0.push(participant);
     }
 
+    /// Returns whether the accumulated declarations require an authored section.
     fn requires_divider(&self) -> bool {
         self.0.len() > 1
             || self
@@ -522,6 +588,7 @@ impl SectionEventCandidates {
                 .any(|participant| participant.is_nominal_declaration)
     }
 
+    /// Returns candidate names in their authored order.
     fn names(&self) -> Vec<&str> {
         self.0
             .iter()
@@ -529,6 +596,7 @@ impl SectionEventCandidates {
             .collect()
     }
 
+    /// Formats a stable, deduplicated set of candidate names for diagnostics.
     fn formatted_names(&self) -> String {
         let mut names = self.names();
         names.sort_unstable();
@@ -542,6 +610,7 @@ impl SectionEventCandidates {
         quoted_names.join(", ")
     }
 
+    /// Collapses supporting impls and returns distinct declarations in source order.
     fn distinct_declarations(&self) -> Vec<SectionParticipant> {
         let mut positions = HashMap::<rustc_hir::def_id::LocalDefId, usize>::new();
         let mut declarations = Vec::<SectionParticipant>::new();
@@ -560,6 +629,7 @@ impl SectionEventCandidates {
         declarations
     }
 
+    /// Produces naming-first guidance for a declaration group without a divider.
     fn missing_guidance(&self) -> String {
         let names = self.names();
 
@@ -575,6 +645,7 @@ impl SectionEventCandidates {
         )
     }
 
+    /// Builds the missing-divider finding for this nonempty declaration group.
     fn missing_finding(&self) -> SectionFinding {
         // Prefer an inferred family prefix while keeping naming guidance actionable.
         let guidance = self.missing_guidance();
@@ -587,20 +658,29 @@ impl SectionEventCandidates {
     }
 }
 
+/// Divider and declarations accumulated beneath it.
 struct SectionEventGroup {
+    /// Divider that opened the section.
     divider: SectionEventDivider,
+    /// Declarations governed by the divider.
     participants: SectionEventCandidates,
 }
 
 #[derive(Default)]
+/// Mutable reducer state for a module's section event stream.
 struct SectionEventAnalysisState {
+    /// Findings and valid sections accumulated so far.
     analysis: SectionAnalysis,
+    /// Declarations encountered before any active divider.
     uncovered: SectionEventCandidates,
+    /// Divider group currently accepting declarations.
     current: Option<SectionEventGroup>,
+    /// First source span associated with each previously used prefix.
     seen_prefixes: HashMap<String, Span>,
 }
 
 impl SectionEventAnalysisState {
+    /// Routes a declaration into the active section or the uncovered group.
     fn record_candidate(&mut self, participant: SectionEventCandidate) {
         let Some(section) = &mut self.current else {
             self.uncovered.push(participant);
@@ -609,6 +689,7 @@ impl SectionEventAnalysisState {
         section.participants.push(participant);
     }
 
+    /// Reports and clears declarations accumulated outside a section.
     fn record_uncovered(&mut self) {
         if self.uncovered.requires_divider() {
             self.analysis.missing.push(self.uncovered.missing_finding());
@@ -616,6 +697,7 @@ impl SectionEventAnalysisState {
         self.uncovered.clear();
     }
 
+    /// Closes preceding groups and starts the section introduced by `divider`.
     fn start_section(&mut self, analyzer: &SectionAnalyzer, divider: SectionEventDivider) {
         self.record_uncovered();
 
@@ -634,6 +716,7 @@ impl SectionEventAnalysisState {
         });
     }
 
+    /// Applies one source-ordered event to the reducer state.
     fn apply(&mut self, analyzer: &SectionAnalyzer, event: SectionEvent) {
         match event {
             SectionEvent::Candidate(participant) => self.record_candidate(participant),
@@ -641,6 +724,7 @@ impl SectionEventAnalysisState {
         }
     }
 
+    /// Closes the final groups and returns the completed analysis.
     fn finish(mut self, analyzer: &SectionAnalyzer) -> SectionAnalysis {
         self.record_uncovered();
         let Some(section) = self.current.take() else {
@@ -662,13 +746,18 @@ impl SectionEventAnalysisState {
 // ParsedContent: Parsed divider content
 // -----------------------------------------------------------------------------
 
+/// Canonical interpretation of the text captured by a divider template.
 struct ParsedContent {
+    /// Valid `PascalCase` prefix, if the authored prefix can be used semantically.
     prefix: Option<String>,
+    /// Canonical content suitable for a safe replacement.
     normalized: Option<String>,
+    /// First syntax or casing failure found in the authored content.
     error: Option<String>,
 }
 
 impl ParsedContent {
+    /// Parses divider content and computes its canonical representation.
     fn parse(content: &str) -> Self {
         let trimmed = content.trim();
         let (raw_prefix, raw_description) = trimmed
@@ -699,6 +788,7 @@ impl ParsedContent {
         }
     }
 
+    /// Joins a valid prefix and optional description using canonical spacing.
     fn normalized_content(prefix: Option<&str>, description: Option<&str>) -> Option<String> {
         match (prefix, description) {
             (Some(prefix), Some(description)) if !description.is_empty() => {
@@ -709,6 +799,7 @@ impl ParsedContent {
         }
     }
 
+    /// Returns the first reason authored content differs from its canonical form.
     fn content_error(
         content: &str,
         prefix: Option<&String>,
@@ -734,25 +825,38 @@ impl ParsedContent {
 // Template: Configured template matching and rendering
 // -----------------------------------------------------------------------------
 
+/// Static fragments surrounding an optional placeholder on one template line.
 struct TemplateLine {
+    /// Text that must appear before the captured content.
     before: String,
+    /// Text after the placeholder, or `None` for a fully static line.
     after: Option<String>,
 }
 
+/// One complete divider template recognized in a source snippet.
 struct TemplateMatch {
+    /// Byte offset at which non-indentation template text begins.
     start: usize,
+    /// Byte offset immediately after the final template line.
     end: usize,
+    /// Text captured from the template placeholder.
     content: String,
+    /// Whitespace shared by every matched template line.
     indentation: String,
 }
 
+/// Source line split into its byte position, indentation, and content.
 struct TemplateSourceLine<'source> {
+    /// Byte offset at which the line begins in the complete snippet.
     start: usize,
+    /// Leading spaces or tabs before the comment text.
     indentation: &'source str,
+    /// Non-indentation line content without its trailing newline.
     content: &'source str,
 }
 
 impl<'source> TemplateSourceLine<'source> {
+    /// Splits an entire source snippet into position-aware lines.
     fn parse_all(source: &'source str) -> Vec<Self> {
         let mut start = 0;
         let source_lines = source.split_inclusive('\n').map(|line| {
@@ -763,6 +867,7 @@ impl<'source> TemplateSourceLine<'source> {
         source_lines.collect()
     }
 
+    /// Parses one newline-terminated or final source line.
     fn parse(line: &'source str, start: usize) -> Self {
         let body = line.strip_suffix('\n').unwrap_or(line);
         let indentation_end = Self::indentation_end(body);
@@ -773,6 +878,7 @@ impl<'source> TemplateSourceLine<'source> {
         }
     }
 
+    /// Returns the byte position of the first non-indentation character.
     fn indentation_end(body: &str) -> usize {
         body.char_indices()
             .find_map(|(index, character)| (!matches!(character, ' ' | '\t')).then_some(index))
@@ -780,14 +886,19 @@ impl<'source> TemplateSourceLine<'source> {
     }
 }
 
+/// Required placeholder through which a divider template captures section content.
 const TEMPLATE_CONTENT_PLACEHOLDER: &str = "{content}";
 
+/// Validated multiline divider template used for matching and rendering.
 struct Template {
+    /// Original template source retained for exact rendering.
     source: String,
+    /// Parsed static fragments for each template line.
     lines: Vec<TemplateLine>,
 }
 
 impl Template {
+    /// Validates and parses a configured divider template.
     fn parse(source: &str, max_line_length: usize) -> Result<Self, String> {
         if source.starts_with('\n') || source.ends_with('\n') || source.contains('\r') {
             return Err(
@@ -810,6 +921,7 @@ impl Template {
         })
     }
 
+    /// Validates one ordinary-comment template line and splits its placeholder.
     fn parse_line(line: &str, max_line_length: usize) -> Result<TemplateLine, String> {
         if !line.starts_with("//") || line.starts_with("///") || line.starts_with("//!") {
             return Err("every template line must be a normal `//` comment".to_owned());
@@ -827,6 +939,7 @@ impl Template {
         Ok(TemplateLine { before, after })
     }
 
+    /// Matches one source line and returns any placeholder content it captures.
     fn line_content<'source>(
         template: &TemplateLine,
         line: &TemplateSourceLine<'source>,
@@ -839,10 +952,12 @@ impl Template {
         Ok(Some(content))
     }
 
+    /// Renders the template with `content` substituted exactly once.
     fn render(&self, content: &str) -> String {
         self.source.replace(TEMPLATE_CONTENT_PLACEHOLDER, content)
     }
 
+    /// Attempts to match a complete consistently indented template at `index`.
     fn match_at(&self, lines: &[TemplateSourceLine<'_>], index: usize) -> Option<TemplateMatch> {
         let indentation = lines[index].indentation;
         let mut content = None;
@@ -872,6 +987,7 @@ impl Template {
         })
     }
 
+    /// Finds non-overlapping divider templates in a source snippet.
     fn find_matches(&self, source: &str) -> Vec<TemplateMatch> {
         let lines = TemplateSourceLine::parse_all(source);
         let mut matches = Vec::new();

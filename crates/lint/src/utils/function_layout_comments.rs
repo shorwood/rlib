@@ -15,23 +15,33 @@ use super::identifier_case::sentence_case;
 // -----------------------------------------------------------------------------
 
 /// One function-layout problem found in authored source.
-pub(crate) struct FunctionLayoutFinding {
+pub struct FunctionLayoutFinding {
+    /// Source range occupied by the malformed comment or oversized phase.
     pub(crate) span: Span,
+    /// Primary explanation of the layout problem.
     pub(crate) message: String,
+    /// Guidance describing the configured canonical phase-comment form.
     pub(crate) help: String,
+    /// Safe canonical replacement for a repairable comment header.
     pub(crate) replacement: Option<String>,
 }
 
+/// Authored ordinary line comment with source position metadata.
 struct FunctionLayoutRawComment {
+    /// Exact source range of the comment token.
     span: Span,
+    /// One-based physical source line containing the comment.
     line: usize,
+    /// Complete comment token text, including its marker.
     text: String,
 }
 
+/// Maps a byte position to its one-based physical source line.
 fn function_layout_source_line(cx: &LateContext<'_>, position: BytePos) -> usize {
     cx.sess().source_map().lookup_char_pos(position).line
 }
 
+/// Converts lexer offsets into a source-mapped ordinary line comment.
 fn function_layout_raw_comment(
     cx: &LateContext<'_>,
     source: &str,
@@ -54,6 +64,7 @@ fn function_layout_raw_comment(
     }
 }
 
+/// Lexes all authored ordinary line comments from a source gap.
 fn function_layout_raw_comments(cx: &LateContext<'_>, span: Span) -> Vec<FunctionLayoutRawComment> {
     if span.is_empty() || span.from_expansion() {
         return Vec::new();
@@ -76,6 +87,7 @@ fn function_layout_raw_comments(cx: &LateContext<'_>, span: Span) -> Vec<Functio
     comments
 }
 
+/// Accepts populated conventional labels whose uppercase spelling is intentional.
 fn function_layout_is_known_label(content: &str) -> bool {
     ["SAFETY:", "TODO:", "FIXME:", "NOTE:"].iter().any(|label| {
         content
@@ -84,6 +96,7 @@ fn function_layout_is_known_label(content: &str) -> bool {
     })
 }
 
+/// Detects multiword all-uppercase prose rather than identifiers or acronyms.
 fn function_layout_is_shouting(content: &str, words: &[&str]) -> bool {
     words.len() > 1
         && content
@@ -94,6 +107,7 @@ fn function_layout_is_shouting(content: &str, words: &[&str]) -> bool {
             .any(|character| character.is_ascii_lowercase())
 }
 
+/// Returns whether casing normalization could corrupt code or a proper technical term.
 fn function_layout_is_protected_word(word: &str) -> bool {
     let bare = word.trim_matches(|character: char| !character.is_ascii_alphanumeric());
     word.contains('`')
@@ -102,6 +116,7 @@ fn function_layout_is_protected_word(word: &str) -> bool {
         || bare.chars().skip(1).any(char::is_uppercase)
 }
 
+/// Normalizes one prose word while preserving protected authored spelling.
 fn function_layout_normalize_word(word: &str, starts_sentence: bool) -> String {
     if function_layout_is_protected_word(word) {
         word.to_owned()
@@ -112,6 +127,7 @@ fn function_layout_normalize_word(word: &str, starts_sentence: bool) -> String {
     }
 }
 
+/// Returns whether an automatic whole-sentence case repair would be unsafe.
 fn function_layout_has_protected_content(words: &[&str]) -> bool {
     words.iter().any(|word| {
         let bare = word.trim_matches(|character: char| !character.is_ascii_alphanumeric());
@@ -120,6 +136,7 @@ fn function_layout_has_protected_content(words: &[&str]) -> bool {
     })
 }
 
+/// Validates natural sentence casing through protected word-by-word normalization.
 fn function_layout_is_sentence_style(content: &str) -> bool {
     if function_layout_is_known_label(content) {
         return true;
@@ -145,6 +162,7 @@ fn function_layout_is_sentence_style(content: &str) -> bool {
     normalized == content
 }
 
+/// Produces a sentence-case repair only when no authored technical spelling is at risk.
 fn function_layout_safe_sentence_replacement(content: &str) -> Option<String> {
     let words = content.split_whitespace().collect::<Vec<_>>();
     let is_shouting = function_layout_is_shouting(content, &words);
@@ -152,12 +170,14 @@ fn function_layout_safe_sentence_replacement(content: &str) -> Option<String> {
     (!has_protected_content).then(|| sentence_case(content))
 }
 
+/// Validates presence, spacing, and sentence style of phase-comment prose.
 fn function_layout_content_is_canonical(content: Option<&str>) -> bool {
     content.is_some_and(|content| {
         content == content.trim() && function_layout_is_sentence_style(content)
     })
 }
 
+/// Builds a canonical first-line replacement for safely repairable prose.
 fn function_layout_comment_replacement(content: Option<&str>, prefix: &str) -> Option<String> {
     let repairable = content.map(str::trim).filter(|content| !content.is_empty());
     repairable
@@ -165,16 +185,24 @@ fn function_layout_comment_replacement(content: Option<&str>, prefix: &str) -> O
         .map(|content| format!("{prefix} {content}"))
 }
 
+/// Consecutive line comments headed by the configured phase prefix.
 struct FunctionLayoutCommentBlock {
+    /// Complete span from the first header through the final continuation.
     span: Span,
+    /// Independently replaceable first-line span.
     first_span: Span,
+    /// Physical line containing the header.
     first_line: usize,
+    /// Physical line containing the final continuation.
     last_line: usize,
+    /// Whether header prose and continuations use canonical syntax.
     is_canonical: bool,
+    /// Safe repair for the first line, when available.
     replacement: Option<String>,
 }
 
 impl FunctionLayoutCommentBlock {
+    /// Constructs a parsed block from its boundary comments and validation results.
     fn from_parts(
         first: &FunctionLayoutRawComment,
         last: &FunctionLayoutRawComment,
@@ -191,6 +219,7 @@ impl FunctionLayoutCommentBlock {
         }
     }
 
+    /// Parses a consecutive comment group when its first line uses `prefix`.
     fn parse(comments: &[FunctionLayoutRawComment], prefix: &str) -> Option<Self> {
         // Locate the configured prefix at the start of the comment block.
         let first = comments.first()?;
@@ -210,6 +239,7 @@ impl FunctionLayoutCommentBlock {
         Some(Self::from_parts(first, last, is_canonical, replacement))
     }
 
+    /// Validates nonempty natural continuation lines after a phase header.
     fn continuations_are_canonical(comments: &[FunctionLayoutRawComment]) -> bool {
         comments.iter().all(|comment| {
             comment
@@ -220,6 +250,7 @@ impl FunctionLayoutCommentBlock {
     }
 }
 
+/// Groups adjacent comments and parses blocks headed by the configured prefix.
 fn function_layout_comment_blocks(
     cx: &LateContext<'_>,
     span: Span,
@@ -243,6 +274,7 @@ fn function_layout_comment_blocks(
     blocks
 }
 
+/// Returns whether a comment header is separated from preceding code by a blank line.
 fn function_layout_previous_line_is_blank(cx: &LateContext<'_>, gap: Span, comment: Span) -> bool {
     let before = gap.with_hi(comment.lo());
     let source_map = cx.sess().source_map();
@@ -253,6 +285,7 @@ fn function_layout_previous_line_is_blank(cx: &LateContext<'_>, gap: Span, comme
     previous_line.is_some_and(|line| line.trim().is_empty())
 }
 
+/// Returns whether a source gap contains a blank physical line.
 fn function_layout_gap_has_blank_line(cx: &LateContext<'_>, gap: Span) -> bool {
     let source_map = cx.sess().source_map();
     let Ok(source) = source_map.span_to_snippet(gap) else {
@@ -261,13 +294,18 @@ fn function_layout_gap_has_blank_line(cx: &LateContext<'_>, gap: Span) -> bool {
     source.bytes().filter(|byte| *byte == b'\n').count() >= 2
 }
 
+/// Parsed comment and boundary state between two function-body entries.
 pub(super) struct FunctionLayoutEntryGap {
+    /// Whether the gap contains a canonical header attached to the next entry.
     pub(super) has_valid_header: bool,
+    /// Whether comments or whitespace divide otherwise continuous linear code.
     pub(super) has_run_boundary: bool,
+    /// Malformed phase-comment findings discovered in the gap.
     pub(super) findings: Vec<FunctionLayoutFinding>,
 }
 
 impl FunctionLayoutEntryGap {
+    /// Analyzes comments and physical separation in one source gap.
     pub(super) fn analyze(
         cx: &LateContext<'_>,
         config: &FunctionStructureConfig,

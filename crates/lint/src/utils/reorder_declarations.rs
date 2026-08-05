@@ -10,12 +10,16 @@ use super::declaration_node::DeclarationNode;
 // DeclarationOrder: Atomic declaration reordering
 // -----------------------------------------------------------------------------
 
-pub(crate) struct DeclarationOrderEdit {
+/// One source replacement in an atomic declaration permutation.
+pub struct DeclarationOrderEdit {
+    /// Existing declaration span that receives reordered source text.
     pub(crate) span: Span,
+    /// Complete declaration snippet moved into `span`.
     pub(crate) replacement: String,
 }
 
-pub(crate) struct DeclarationOrder;
+/// Builder for conservative whole-declaration reorder suggestions.
+pub struct DeclarationOrder;
 
 impl DeclarationOrder {
     /// Builds an atomic permutation suggestion when every declaration has plainly owned source.

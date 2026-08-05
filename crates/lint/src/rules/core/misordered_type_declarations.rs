@@ -14,11 +14,14 @@ use crate::utils::source_organization::SectionAnalyzer;
 // MisorderedTypeDeclarations
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that dependency-orders nominal types within authored sections.
 struct MisorderedTypeDeclarations {
+    /// Shared source-section analyzer used to preserve authored boundaries.
     sections: SectionAnalyzer,
 }
 
 impl MisorderedTypeDeclarations {
+    /// Builds the pass from the configured section-divider policy.
     fn new() -> Self {
         Self {
             sections: SectionAnalyzer::from_config(),
@@ -58,7 +61,8 @@ dylint_linting::impl_late_lint! {
 }
 
 impl MisorderedTypeDeclarations {
-    fn is_type(item: &Item<'_>) -> bool {
+    /// Returns whether an item is a nominal type declaration.
+    const fn is_type(item: &Item<'_>) -> bool {
         matches!(
             item.kind,
             ItemKind::Struct(..)
@@ -70,6 +74,7 @@ impl MisorderedTypeDeclarations {
         )
     }
 
+    /// Returns whether an item directly implements the expected local type.
     fn is_direct_impl_of(
         cx: &LateContext<'_>,
         item: &Item<'_>,
@@ -83,6 +88,7 @@ impl MisorderedTypeDeclarations {
             .is_some_and(|definition| definition.did().as_local() == Some(expected))
     }
 
+    /// Compares source and dependency order, then emits an atomic reorder when safe.
     fn emit_if_needed(cx: &LateContext<'_>, nodes: &DeclarationNodeList, hir_id: HirId) {
         let ordering = nodes.declaration_order();
         let source = (0..nodes.len()).collect::<Vec<_>>();

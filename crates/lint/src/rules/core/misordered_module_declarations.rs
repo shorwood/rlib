@@ -17,11 +17,14 @@ use crate::utils::source_organization::SectionAnalyzer;
 // MisorderedModuleDeclarations
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that applies dependency-first ordering within authored sections.
 struct MisorderedModuleDeclarations {
+    /// Shared source-section analyzer used to preserve authored boundaries.
     sections: SectionAnalyzer,
 }
 
 impl MisorderedModuleDeclarations {
+    /// Builds the pass from the configured section-divider policy.
     fn new() -> Self {
         Self {
             sections: SectionAnalyzer::from_config(),
@@ -61,7 +64,8 @@ dylint_linting::impl_late_lint! {
 }
 
 impl MisorderedModuleDeclarations {
-    fn is_type(item: &Item<'_>) -> bool {
+    /// Returns whether an item is a nominal type declaration.
+    const fn is_type(item: &Item<'_>) -> bool {
         matches!(
             item.kind,
             ItemKind::Struct(..)
@@ -73,6 +77,7 @@ impl MisorderedModuleDeclarations {
         )
     }
 
+    /// Returns whether an item directly implements the expected local nominal type.
     fn is_direct_impl_of(cx: &LateContext<'_>, item: &Item<'_>, expected: LocalDefId) -> bool {
         if !matches!(item.kind, ItemKind::Impl(_)) {
             return false;
@@ -83,6 +88,7 @@ impl MisorderedModuleDeclarations {
             .is_some_and(|definition| definition.did().as_local() == Some(expected))
     }
 
+    /// Extends a nominal declaration node through its adjacent direct impl blocks.
     fn extend_direct_impl_group<'tcx>(
         cx: &LateContext<'tcx>,
         items: &[&'tcx Item<'tcx>],
@@ -100,6 +106,7 @@ impl MisorderedModuleDeclarations {
         }
     }
 
+    /// Collects definitions whose identities move with a declaration node.
     fn contained_definitions(cx: &LateContext<'_>, item: &Item<'_>) -> HashSet<LocalDefId> {
         let mut definitions = HashSet::from([item.owner_id.def_id]);
         match item.kind {
@@ -122,6 +129,7 @@ impl MisorderedModuleDeclarations {
         definitions
     }
 
+    /// Produces a stable human-readable name for diagnostic ordering output.
     fn canonical_name(cx: &LateContext<'_>, item: &Item<'_>) -> String {
         match item.kind {
             ItemKind::ForeignMod { .. } => "extern block".to_owned(),
@@ -136,7 +144,8 @@ impl MisorderedModuleDeclarations {
         }
     }
 
-    fn category(item: &Item<'_>) -> u8 {
+    /// Assigns the declaration-kind tie-break rank used after dependencies.
+    const fn category(item: &Item<'_>) -> u8 {
         match item.kind {
             ItemKind::Const(..) | ItemKind::Static(..) => 1,
             ItemKind::Fn { .. } => 2,
@@ -144,6 +153,7 @@ impl MisorderedModuleDeclarations {
         }
     }
 
+    /// Returns whether a value-level declaration is visible outside its module.
     fn is_outward_visible_value(item: &Item<'_>) -> bool {
         matches!(
             item.kind,
@@ -151,6 +161,7 @@ impl MisorderedModuleDeclarations {
         ) && !item.vis_span.is_empty()
     }
 
+    /// Compares source and dependency order, then emits an atomic reorder when safe.
     fn emit_if_needed(cx: &LateContext<'_>, hir_id: HirId, nodes: &DeclarationNodeList) {
         let ordering = nodes.declaration_order();
         if ordering.iter().copied().eq(0..nodes.len()) {

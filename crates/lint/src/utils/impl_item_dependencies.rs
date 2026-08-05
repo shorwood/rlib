@@ -11,7 +11,7 @@ use rustc_middle::ty::TyCtxt;
 use super::dependency_collector::DependencyCollector;
 
 /// Resolves references made by an associated impl item to declarations in the current crate.
-pub(crate) fn impl_item_dependencies<'tcx>(
+pub fn impl_item_dependencies<'tcx>(
     tcx: TyCtxt<'tcx>,
     item: &'tcx ImplItem<'tcx>,
 ) -> HashSet<LocalDefId> {

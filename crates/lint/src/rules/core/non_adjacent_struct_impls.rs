@@ -18,15 +18,21 @@ use crate::utils::direct_impl_struct::direct_impl_struct;
 /// An item paired with its position after uneditable external macro output has been removed.
 #[derive(Clone, Copy)]
 struct ImplGroupItem<'hir> {
+    /// Position in the filtered module-item sequence.
     index: usize,
+    /// Authored implementation item at that position.
     item: &'hir Item<'hir>,
 }
 
 /// One struct and every direct impl block for it in the same module.
 struct ImplGroup<'hir> {
+    /// Position of the struct in the filtered module-item sequence.
     struct_index: usize,
+    /// Struct declaration that owns the implementation group.
     struct_item: &'hir Item<'hir>,
+    /// Struct name shown in diagnostic guidance.
     struct_name: Symbol,
+    /// Direct inherent implementations in source order.
     impls: Vec<ImplGroupItem<'hir>>,
 }
 
@@ -56,22 +62,28 @@ impl ImplGroup<'_> {
 // Migration: Conservative automatic migration
 // -----------------------------------------------------------------------------
 
+/// One deletion or insertion in an atomic implementation-group move.
 struct MigrationEdit {
+    /// Source range replaced by the edit.
     span: Span,
+    /// Replacement text, empty for deletion edits.
     replacement: String,
 }
 
 /// Builds a source move for an entire impl group when comments, macros, and file boundaries are
 /// known not to change its meaning.
 struct Migration<'lint, 'hir> {
+    /// Compiler context used to inspect source ownership and snippets.
     cx: &'lint LateContext<'hir>,
+    /// Authored module items after external macro output is removed.
     items: &'lint [&'hir Item<'hir>],
+    /// Misplaced struct and implementation group being migrated.
     group: &'lint ImplGroup<'hir>,
 }
 
 impl<'lint, 'hir> Migration<'lint, 'hir> {
     /// Starts a possible migration for one misplaced impl group.
-    fn new(
+    const fn new(
         cx: &'lint LateContext<'hir>,
         items: &'lint [&'hir Item<'hir>],
         group: &'lint ImplGroup<'hir>,
@@ -135,6 +147,7 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
         Some(())
     }
 
+    /// Returns whether moving an impl would cross a textually scoped macro definition.
     fn crosses_macro_definition(&self, impl_: ImplGroupItem<'_>) -> bool {
         let target = self.group.struct_index;
         let start = target.min(impl_.index);
@@ -196,6 +209,7 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
 // NonAdjacentStructImpls: Lint pass
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that keeps direct inherent impl groups beside their struct.
 struct NonAdjacentStructImpls;
 
 dylint_linting::impl_late_lint! {

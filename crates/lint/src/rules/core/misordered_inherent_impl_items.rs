@@ -13,6 +13,7 @@ use crate::utils::reorder_declarations::DeclarationOrder;
 // MisorderedInherentImplItems
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that dependency-orders items inside direct inherent impls.
 struct MisorderedInherentImplItems;
 
 dylint_linting::impl_late_lint! {
@@ -55,6 +56,7 @@ dylint_linting::impl_late_lint! {
 }
 
 impl MisorderedInherentImplItems {
+    /// Returns whether authored return syntax explicitly names `Self`.
     fn return_mentions_self(cx: &LateContext<'_>, output: rustc_hir::FnRetTy<'_>) -> bool {
         let rustc_hir::FnRetTy::Return(ty) = output else {
             return false;
@@ -70,6 +72,7 @@ impl MisorderedInherentImplItems {
             .any(|word| word == "Self")
     }
 
+    /// Assigns the associated-item tie-break rank used after dependencies.
     fn category(cx: &LateContext<'_>, item: &ImplItem<'_>) -> u8 {
         match item.kind {
             ImplItemKind::Type(_) => 0,
@@ -86,6 +89,7 @@ impl MisorderedInherentImplItems {
         }
     }
 
+    /// Compares source and dependency order, then emits an atomic reorder when safe.
     fn emit_if_needed(
         cx: &LateContext<'_>,
         implementation: &Item<'_>,

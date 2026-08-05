@@ -15,11 +15,14 @@ use crate::utils::function_structure::FunctionStructureAnalyzer;
 // MalformedCodePhaseComments
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that validates authored code-phase comment syntax and placement.
 struct MalformedCodePhaseComments {
+    /// Shared named-function analyzer configured for this lint family.
     analyzer: FunctionStructureAnalyzer,
 }
 
 impl MalformedCodePhaseComments {
+    /// Builds the pass from validated function-structure configuration.
     fn new() -> Self {
         Self {
             analyzer: FunctionStructureAnalyzer::from_config(),

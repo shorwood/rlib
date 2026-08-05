@@ -11,13 +11,18 @@ use rustc_middle::ty::TyCtxt;
 // DependencyCollector
 // -----------------------------------------------------------------------------
 
+/// HIR visitor that records local definitions referenced by one declaration.
 pub(super) struct DependencyCollector<'tcx> {
+    /// Type context used to resolve type-dependent method calls.
     tcx: TyCtxt<'tcx>,
+    /// Unique local definitions encountered during traversal.
     definitions: HashSet<LocalDefId>,
+    /// Owner whose type-checking results apply to the body currently being visited.
     body_owner: Option<LocalDefId>,
 }
 
 impl<'tcx> DependencyCollector<'tcx> {
+    /// Starts an empty dependency traversal backed by `tcx`.
     pub(super) fn new(tcx: TyCtxt<'tcx>) -> Self {
         Self {
             tcx,
@@ -26,6 +31,7 @@ impl<'tcx> DependencyCollector<'tcx> {
         }
     }
 
+    /// Returns all unique local definitions collected by the traversal.
     pub(super) fn finish(self) -> HashSet<LocalDefId> {
         self.definitions
     }

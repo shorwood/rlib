@@ -5,14 +5,14 @@ use convert_case::{Case, Casing};
 // -----------------------------------------------------------------------------
 
 /// Splits a Rust-style `PascalCase` identifier into normalized `PascalCase` words.
-pub(crate) fn identifier_pascal_words(value: &str) -> Vec<String> {
+pub fn identifier_pascal_words(value: &str) -> Vec<String> {
     let words = Case::Pascal.split(&value);
     let populated = words.into_iter().filter(|word| !word.is_empty());
     populated.map(|word| word.to_case(Case::Pascal)).collect()
 }
 
 /// Converts a Rust identifier from its authored convention to `PascalCase` words.
-pub(crate) fn identifier_words(value: &str) -> Vec<String> {
+pub fn identifier_words(value: &str) -> Vec<String> {
     let source = if value.contains('_') {
         Case::Snake
     } else {
@@ -24,17 +24,17 @@ pub(crate) fn identifier_words(value: &str) -> Vec<String> {
 }
 
 /// Normalizes a Rust identifier to canonical `PascalCase`.
-pub(crate) fn identifier_pascal_case(value: &str) -> String {
+pub fn identifier_pascal_case(value: &str) -> String {
     value.to_case(Case::Pascal)
 }
 
 /// Returns whether a string is already canonical `PascalCase`.
-pub(crate) fn identifier_is_pascal_case(value: &str) -> bool {
+pub fn identifier_is_pascal_case(value: &str) -> bool {
     !value.is_empty() && identifier_pascal_case(value) == value
 }
 
 /// Returns the longest canonical `PascalCase` word prefix shared by the identifiers.
-pub(crate) fn identifier_longest_pascal_prefix(names: &[&str]) -> Option<String> {
+pub fn identifier_longest_pascal_prefix(names: &[&str]) -> Option<String> {
     let first = identifier_words(names.first()?);
 
     // Prefer the longest prefix that remains visible in every authored name.
@@ -52,7 +52,7 @@ pub(crate) fn identifier_longest_pascal_prefix(names: &[&str]) -> Option<String>
 // -----------------------------------------------------------------------------
 
 /// Normalizes free text to canonical sentence case.
-pub(crate) fn sentence_case(value: &str) -> String {
+pub fn sentence_case(value: &str) -> String {
     value.to_case(Case::Sentence)
 }
 

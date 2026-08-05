@@ -11,6 +11,7 @@ use crate::utils::tuple_types::{ExplicitTupleKind, ExplicitTupleType};
 // NestedTupleTypes
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that rejects tuple-shaped components hidden inside explicit types.
 struct NestedTupleTypes;
 
 dylint_linting::impl_late_lint! {

@@ -19,7 +19,9 @@ use super::section_analysis::{SectionAnalyzer, SectionGroup, SectionParticipant}
 // Threshold: Inference reporting thresholds
 // -----------------------------------------------------------------------------
 
+/// Minimum confidence score at which the analyzer reports an incoherent family.
 const THRESHOLD_REPORT: i32 = 7;
+/// Minimum confidence score at which exact replacement names are trustworthy.
 const THRESHOLD_SUGGESTION: i32 = 9;
 
 // -----------------------------------------------------------------------------
@@ -27,31 +29,40 @@ const THRESHOLD_SUGGESTION: i32 = 9;
 // -----------------------------------------------------------------------------
 
 /// One supporting source label attached to a naming-family diagnostic.
-pub(crate) struct FamilyNameLabel {
+pub struct FamilyNameLabel {
+    /// Declaration source range annotated by the supporting label.
     pub(crate) span: Span,
+    /// Explanation of the inferred role obscured by the declaration name.
     pub(crate) message: String,
 }
 
 /// One naming-family diagnostic with all supporting source labels.
-pub(crate) struct FamilyNameFinding {
+pub struct FamilyNameFinding {
+    /// Section divider source range used as the primary diagnostic site.
     pub(crate) span: Span,
+    /// Summary of the naming-family problem.
     pub(crate) message: String,
+    /// Confidence-aware remediation and evidence.
     pub(crate) help: String,
+    /// Declaration-specific explanations for proposed renames.
     pub(crate) labels: Vec<FamilyNameLabel>,
 }
 
 /// Finds naming families whose shared prefix reflects source organization instead of concepts.
-pub(crate) struct FamilyNameAnalyzer {
+pub struct FamilyNameAnalyzer {
+    /// Shared section parser that supplies authored declaration families.
     sections: SectionAnalyzer,
 }
 
 impl FamilyNameAnalyzer {
+    /// Builds a family analyzer from the configured section-divider policy.
     pub(crate) fn from_config() -> Self {
         Self {
             sections: SectionAnalyzer::from_config(),
         }
     }
 
+    /// Infers incoherent family names in one source module.
     pub(crate) fn analyze(
         &self,
         cx: &LateContext<'_>,
@@ -116,19 +127,28 @@ impl FamilyNameAnalyzer {
 // FamilyInference: Confidence scored family inference
 // -----------------------------------------------------------------------------
 
+/// Proposed concept-first name for one section participant.
 struct FamilyInferenceRename<'section> {
+    /// Declaration whose name should change.
     participant: &'section SectionParticipant,
+    /// Inferred replacement without redundant organizational context.
     replacement: String,
 }
 
+/// Scored evidence and proposed renames for one declaration family.
 struct FamilyInference<'section> {
+    /// Sum of fixed confidence weights gathered during inference.
     score: i32,
+    /// Authored section from which the family was inferred.
     section: &'section SectionGroup,
+    /// Declarations for which concept-first replacements were inferred.
     renames: Vec<FamilyInferenceRename<'section>>,
+    /// Human-readable evidence contributing to the score.
     evidence: Vec<String>,
 }
 
 impl FamilyInference<'_> {
+    /// Converts sufficiently strong, actionable inference into a diagnostic.
     fn into_finding(self, occupied_names: &HashSet<String>) -> Option<FamilyNameFinding> {
         if self.score < THRESHOLD_REPORT || self.renames.is_empty() {
             return None;
@@ -189,36 +209,54 @@ impl FamilyInference<'_> {
 // -----------------------------------------------------------------------------
 
 #[derive(Clone, Copy)]
+/// Fixed evidence categories used by family-name confidence scoring.
 enum ConfidenceSignal {
+    /// The section prefix repeats the containing module's words.
     ContextMatch,
+    /// Compiler-resolved dependencies connect two family members.
     DependencyPair,
+    /// A declaration already uses the exact section prefix.
     ExactRoot,
+    /// More than one declaration is affected by prefix removal.
     MultipleAffected,
+    /// At least one affected name retains one complete role token.
     LosslessSingleToken,
+    /// A broader owner depends on a shorter type with the same role suffix.
     ReverseOwner,
+    /// Affected declarations are adjacent in source order.
     Contiguous,
+    /// Constructing a coherent name would discard authored vocabulary.
     DiscardedToken,
+    /// Multiple dependency owners imply incompatible family stems.
     CompetingStem,
 }
 
 #[derive(Default)]
-struct ConfidenceEvidence(Vec<ConfidenceSignal>);
+/// Ordered confidence signals collected while evaluating one family.
+struct ConfidenceEvidence(
+    /// Signals retained individually so repeated penalties remain meaningful.
+    Vec<ConfidenceSignal>,
+);
 
 impl ConfidenceEvidence {
-    fn allows_exact_names(score: i32, has_collision: bool) -> bool {
+    /// Returns whether confidence and namespace occupancy permit exact rename advice.
+    const fn allows_exact_names(score: i32, has_collision: bool) -> bool {
         score >= THRESHOLD_SUGGESTION && !has_collision
     }
 
+    /// Records one confidence signal.
     fn add(&mut self, signal: ConfidenceSignal) {
         self.0.push(signal);
     }
 
+    /// Penalizes each role token an inferred replacement would discard.
     fn discard_tokens(&mut self, count: usize) {
         for _ in 0..count {
             self.add(ConfidenceSignal::DiscardedToken);
         }
     }
 
+    /// Sums the fixed weights of all collected signals.
     fn score(&self) -> i32 {
         self.0
             .iter()
@@ -240,24 +278,35 @@ impl ConfidenceEvidence {
 // FamilyCandidate: Declarations considered by family inference
 // -----------------------------------------------------------------------------
 
+/// Nominal declaration whose redundant section prefix can be removed.
 struct FamilyCandidate<'section> {
+    /// Authored declaration represented by this candidate.
     participant: &'section SectionParticipant,
+    /// Role-bearing name tokens left after removing the section prefix.
     name: NameTokens,
 }
 
 #[derive(Clone, Copy)]
+/// Directed dependency relationship between two affected candidates.
 struct FamilyCandidateRelationship {
+    /// Index of the declaration that owns or refers to the child.
     owner_index: usize,
+    /// Index of the referenced child declaration.
     child_index: usize,
 }
 
+/// Candidate declarations and semantic evidence for one authored section.
 struct FamilyCandidateSet<'section, 'analysis> {
+    /// Section whose nominal declarations are being evaluated.
     section: &'section SectionGroup,
+    /// Declarations retaining a nonempty role after prefix removal.
     affected: Vec<FamilyCandidate<'section>>,
+    /// Compiler-resolved dependencies keyed by local declaration.
     dependencies: &'analysis HashMap<LocalDefId, HashSet<LocalDefId>>,
 }
 
 impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
+    /// Collects prefixed nominal declarations and strips their organizational prefix.
     fn collect(
         section: &'section SectionGroup,
         dependencies: &'analysis HashMap<LocalDefId, HashSet<LocalDefId>>,
@@ -285,6 +334,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         }
     }
 
+    /// Detects a lone helper whose relationship to an exact root justifies its prefix.
     fn single_participant_is_semantically_rooted(&self, root: Option<&SectionParticipant>) -> bool {
         self.affected.len() == 1
             && root.is_some_and(|root| {
@@ -299,6 +349,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
             })
     }
 
+    /// Finds the first compiler-resolved dependency between affected candidates.
     fn dependency_relationship(&self) -> Option<FamilyCandidateRelationship> {
         self.affected
             .iter()
@@ -321,6 +372,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
             })
     }
 
+    /// Returns whether `owner` refers to another affected family member.
     fn has_dependent_family_member(&self, owner: &FamilyCandidate<'_>) -> bool {
         owner.name.len() > 1
             && self.affected.iter().any(|child| {
@@ -332,6 +384,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
             })
     }
 
+    /// Returns distinct multi-token stems offered by dependency-owning candidates.
     fn dependency_stems(&self) -> HashSet<String> {
         let owners = self
             .affected
@@ -342,6 +395,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
             .collect()
     }
 
+    /// Finds a broad owner qualified as though it were its shorter dependency.
     fn reverse_owner_relationship(&self) -> Option<FamilyCandidateRelationship> {
         self.affected
             .iter()
@@ -366,6 +420,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
             })
     }
 
+    /// Returns whether all affected declarations are adjacent in the full section.
     fn declarations_are_contiguous(&self) -> bool {
         // Locate affected declarations in the section's complete source order.
         let positions = self.affected.iter().filter_map(|affected| {
@@ -380,6 +435,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         indices.windows(2).all(|window| window[1] == window[0] + 1)
     }
 
+    /// Builds coherent replacements from an owner-child dependency relationship.
     fn dependency_renames(
         &self,
         relationship: FamilyCandidateRelationship,
@@ -410,6 +466,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         Some(renames)
     }
 
+    /// Selects relationship-aware replacements, falling back to prefix removal.
     fn renames(
         &mut self,
         reverse_owner: Option<FamilyCandidateRelationship>,
@@ -445,6 +502,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         renames
     }
 
+    /// Scores semantic evidence and returns a finding when the inference is actionable.
     fn infer(
         mut self,
         context: Option<&str>,
@@ -532,45 +590,55 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
 // -----------------------------------------------------------------------------
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// Identifier split into normalized `PascalCase` word tokens.
 struct NameTokens {
+    /// Ordered semantic words extracted from the identifier.
     words: Vec<String>,
 }
 
 impl NameTokens {
+    /// Tokenizes a `PascalCase` declaration or section name.
     fn pascal(value: &str) -> Self {
         Self {
             words: identifier_pascal_words(value),
         }
     }
 
+    /// Tokenizes an enclosing module name in its native identifier case.
     fn context(value: &str) -> Self {
         Self {
             words: identifier_words(value),
         }
     }
 
-    fn is_empty(&self) -> bool {
+    /// Returns whether tokenization produced no semantic words.
+    const fn is_empty(&self) -> bool {
         self.words.is_empty()
     }
 
-    fn len(&self) -> usize {
+    /// Returns the number of semantic words in the name.
+    const fn len(&self) -> usize {
         self.words.len()
     }
 
+    /// Returns the final role-bearing word, if present.
     fn last(&self) -> Option<&str> {
         self.words.last().map(String::as_str)
     }
 
+    /// Reconstructs the normalized `PascalCase` identifier.
     fn join(&self) -> String {
         self.words.concat()
     }
 
+    /// Removes an exact leading word sequence from this name.
     fn strip_prefix(&self, prefix: &Self) -> Option<Self> {
         self.words.starts_with(&prefix.words).then(|| Self {
             words: self.words[prefix.len()..].to_vec(),
         })
     }
 
+    /// Compares context words while permitting singular/plural variation at the end.
     fn matches_context(&self, context: &Self) -> bool {
         if self.words.len() != context.words.len() {
             return false;
@@ -593,14 +661,20 @@ impl NameTokens {
 // ModuleNamingAnalysis: Module level semantic context
 // -----------------------------------------------------------------------------
 
+/// Module-wide naming context and semantic relationships used by family inference.
 struct ModuleNamingAnalysis {
+    /// Enclosing inline-module identifier or file stem.
     context: Option<String>,
+    /// Local declaration dependencies resolved from HIR.
     dependencies: HashMap<LocalDefId, HashSet<LocalDefId>>,
+    /// Authored nominal declarations eligible for family analysis.
     participants: Vec<SectionParticipant>,
+    /// Existing nominal names that proposed replacements must not collide with.
     occupied_names: HashSet<String>,
 }
 
 impl ModuleNamingAnalysis {
+    /// Collects naming context, declarations, dependencies, and occupied names.
     fn collect(cx: &LateContext<'_>, module: &Mod<'_>, hir_id: HirId) -> Self {
         let resolved = module
             .item_ids
@@ -639,6 +713,7 @@ impl ModuleNamingAnalysis {
         }
     }
 
+    /// Resolves the inline-module identifier or file stem that supplies context words.
     fn context(cx: &LateContext<'_>, module: &Mod<'_>, hir_id: HirId) -> Option<String> {
         for node in [cx.tcx.hir_node(hir_id), cx.tcx.parent_hir_node(hir_id)] {
             let Node::Item(item) = node else { continue };
@@ -655,6 +730,7 @@ impl ModuleNamingAnalysis {
         })
     }
 
+    /// Resolves a direct inherent implementation to its local nominal self type.
     fn impl_dependency_owner(cx: &LateContext<'_>, item: &Item<'_>) -> Option<LocalDefId> {
         let self_type = cx.tcx.type_of(item.owner_id).instantiate_identity();
         let ty::Adt(definition, _) = self_type.kind() else {
@@ -663,6 +739,7 @@ impl ModuleNamingAnalysis {
         definition.did().as_local()
     }
 
+    /// Collects definition dependencies for nominal declarations and their direct impls.
     fn dependencies(
         cx: &LateContext<'_>,
         module: &Mod<'_>,
@@ -697,6 +774,7 @@ impl ModuleNamingAnalysis {
         dependencies
     }
 
+    /// Returns the name of a nominal declaration kind, excluding value-level items.
     fn nominal_name(
         cx: &LateContext<'_>,
         kind: ItemKind<'_>,

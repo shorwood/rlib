@@ -15,7 +15,8 @@ use super::function_layout_analysis::{FunctionLayoutAnalysis, FunctionLayoutAnal
 // -----------------------------------------------------------------------------
 
 /// Runs the source-layout and semantic-control-flow analyzers with one configuration.
-pub(crate) struct FunctionStructureAnalyzer {
+pub struct FunctionStructureAnalyzer {
+    /// Validated limits and comment syntax shared by all sub-analyses.
     config: FunctionStructureConfig,
 }
 

@@ -54,7 +54,7 @@ impl Violation {
     }
 
     /// Explains why the particular item conflicts with the role of a barrel file.
-    fn message(self) -> &'static str {
+    const fn message(self) -> &'static str {
         match self {
             Self::InlineModule => "an inline module hides implementation code inside a barrel file",
             Self::PrivateImport => "a private import does not expose anything from this barrel",
@@ -64,7 +64,7 @@ impl Violation {
     }
 
     /// Describes the intended source organization in plain language.
-    fn help(self) -> &'static str {
+    const fn help(self) -> &'static str {
         match self {
             Self::InlineModule => {
                 "move the module body to child.rs or child/mod.rs and leave only `mod child;` here"
@@ -92,6 +92,7 @@ impl Violation {
 /// The inline module itself is the single actionable mistake: moving its body fixes all children.
 #[derive(Default)]
 struct InvalidBarrelFileItems {
+    /// Number of nested inline modules whose children should not be reported separately.
     ignored_inline_depth: usize,
 }
 
@@ -173,7 +174,7 @@ impl EarlyLintPass for InvalidBarrelFileItems {
 
 impl InvalidBarrelFileItems {
     /// Returns whether an item is an inline `mod child { ... }` definition.
-    fn is_inline_module(item: &Item) -> bool {
+    const fn is_inline_module(item: &Item) -> bool {
         matches!(
             item.kind,
             ItemKind::Mod(_, _, ModKind::Loaded(_, Inline::Yes, _))
@@ -205,7 +206,7 @@ impl InvalidBarrelFileItems {
     }
 
     /// Records entry into an inline module so its contents do not receive duplicate warnings.
-    fn enter_inline_module(&mut self, item: &Item) {
+    const fn enter_inline_module(&mut self, item: &Item) {
         if !Self::is_inline_module(item) {
             return;
         }

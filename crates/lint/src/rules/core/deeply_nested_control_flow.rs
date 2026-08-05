@@ -16,11 +16,14 @@ use crate::utils::function_structure::FunctionStructureAnalyzer;
 // DeeplyNestedControlFlow
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that reports the first control-flow construct crossing the depth limit.
 struct DeeplyNestedControlFlow {
+    /// Shared named-function analyzer configured for this lint family.
     analyzer: FunctionStructureAnalyzer,
 }
 
 impl DeeplyNestedControlFlow {
+    /// Builds the pass from validated function-structure configuration.
     fn new() -> Self {
         Self {
             analyzer: FunctionStructureAnalyzer::from_config(),

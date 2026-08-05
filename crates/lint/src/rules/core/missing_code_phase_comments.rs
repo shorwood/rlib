@@ -15,11 +15,14 @@ use crate::utils::function_structure::FunctionStructureAnalyzer;
 // MissingCodePhaseComments
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that requires explanations for oversized linear code phases.
 struct MissingCodePhaseComments {
+    /// Shared named-function analyzer configured for this lint family.
     analyzer: FunctionStructureAnalyzer,
 }
 
 impl MissingCodePhaseComments {
+    /// Builds the pass from validated function-structure configuration.
     fn new() -> Self {
         Self {
             analyzer: FunctionStructureAnalyzer::from_config(),

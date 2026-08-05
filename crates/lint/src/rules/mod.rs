@@ -1,2 +1,2 @@
-pub(crate) mod core;
-pub(crate) mod leptos;
+pub mod core;
+pub mod leptos;

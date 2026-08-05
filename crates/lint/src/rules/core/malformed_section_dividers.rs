@@ -11,11 +11,14 @@ use crate::utils::source_organization::SectionAnalyzer;
 // MalformedSectionDividers
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that validates configured section-divider syntax and width.
 struct MalformedSectionDividers {
+    /// Shared analyzer that parses and groups authored section dividers.
     analyzer: SectionAnalyzer,
 }
 
 impl MalformedSectionDividers {
+    /// Builds the pass from configured divider syntax.
     fn new() -> Self {
         Self {
             analyzer: SectionAnalyzer::from_config(),

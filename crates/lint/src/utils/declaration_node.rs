@@ -17,16 +17,24 @@ use rustc_span::Span;
 
 /// Finds strongly connected components in a declaration dependency graph.
 struct Tarjan<'graph> {
+    /// Outgoing dependency edges indexed by declaration position.
     edges: &'graph [HashSet<usize>],
+    /// Depth-first discovery index assigned to the next unvisited vertex.
     next_index: usize,
+    /// Discovery index assigned to each visited vertex.
     indices: Vec<Option<usize>>,
+    /// Earliest discovery index reachable from each vertex.
     lowlinks: Vec<usize>,
+    /// Active depth-first traversal path.
     stack: Vec<usize>,
+    /// Whether each vertex is currently present on `stack`.
     on_stack: Vec<bool>,
+    /// Strongly connected components found so far.
     components: Vec<Vec<usize>>,
 }
 
 impl<'graph> Tarjan<'graph> {
+    /// Initializes a traversal over `edges`.
     fn new(edges: &'graph [HashSet<usize>]) -> Self {
         Self {
             edges,
@@ -39,6 +47,7 @@ impl<'graph> Tarjan<'graph> {
         }
     }
 
+    /// Visits `vertex` and emits its component once the component root is complete.
     fn visit(&mut self, vertex: usize) {
         // Mark the vertex as active in this depth-first traversal.
         let index = self.next_index;
@@ -80,6 +89,7 @@ impl<'graph> Tarjan<'graph> {
         self.components.push(component);
     }
 
+    /// Finds every component and returns both components and members in source order.
     fn run(mut self) -> Vec<Vec<usize>> {
         for vertex in 0..self.edges.len() {
             if self.indices[vertex].is_some() {
@@ -102,24 +112,32 @@ impl<'graph> Tarjan<'graph> {
 // -----------------------------------------------------------------------------
 
 /// A movable declaration or an inseparable declaration group.
-pub(crate) struct DeclarationNode {
+pub struct DeclarationNode {
+    /// Definitions that must move together as one declaration unit.
     pub(crate) defs: Vec<LocalDefId>,
+    /// Human-readable declaration name used in diagnostics.
     pub(crate) name: String,
+    /// Complete source span moved when this node is reordered.
     pub(crate) span: Span,
     /// Zero for unsectioned declarations, otherwise the authored section's source ordinal.
     pub(crate) section: usize,
+    /// Declaration-kind rank used to break otherwise independent ordering ties.
     pub(crate) category: u8,
+    /// Whether the declaration is visible outside its containing module.
     pub(crate) is_outward_visible: bool,
+    /// Local definitions referenced by this declaration unit.
     pub(crate) dependencies: HashSet<LocalDefId>,
 }
 
 /// A collection of declarations that can compute its stable dependency-first order.
-pub(crate) struct DeclarationNodeList {
+pub struct DeclarationNodeList {
+    /// Declaration units in their original source order.
     items: Vec<DeclarationNode>,
 }
 
 impl DeclarationNodeList {
-    pub(crate) fn new(items: Vec<DeclarationNode>) -> Self {
+    /// Wraps declaration nodes in their original source order.
+    pub(crate) const fn new(items: Vec<DeclarationNode>) -> Self {
         Self { items }
     }
 
@@ -131,6 +149,7 @@ impl DeclarationNodeList {
             .expect("different orders have a mismatch")
     }
 
+    /// Adds an edge between two collapsed components when it is not a self-edge.
     fn add_component_dependency(
         dependencies: &mut [HashSet<usize>],
         component_of: &[usize],
@@ -164,6 +183,7 @@ impl DeclarationNodeList {
         })
     }
 
+    /// Resolves one node's definition dependencies to nodes in the same authored section.
     fn node_dependencies(
         &self,
         index: usize,

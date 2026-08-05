@@ -4,13 +4,16 @@ use serde::Deserialize;
 // LibraryConfig: Complete lint library configuration
 // -----------------------------------------------------------------------------
 
+/// Environment key under which Dylint provides this library's configuration table.
 const LIBRARY_CONFIG_KEY: &str = env!("CARGO_PKG_NAME");
 
 /// Every configurable policy exposed through the `rlib-lint` Dylint table.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub(crate) struct LibraryConfig {
+pub struct LibraryConfig {
+    /// Limits and syntax used by the function-structure lint family.
     pub(crate) function_structure: FunctionStructureConfig,
+    /// Rendering and width policy used by section-divider lints.
     pub(crate) section_dividers: SectionDividerConfig,
 }
 
@@ -28,11 +31,16 @@ impl LibraryConfig {
 /// Limits shared by the function-structure lint family.
 #[derive(Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub(crate) struct FunctionStructureConfig {
+pub struct FunctionStructureConfig {
+    /// Maximum number of source lines permitted in one unnamed function phase.
     pub(crate) max_phase_lines: usize,
+    /// Ordinary line-comment prefix that introduces a named phase.
     pub(crate) phase_comment_prefix: String,
+    /// Maximum permitted nesting depth for control-flow expressions.
     pub(crate) max_control_flow_depth: usize,
+    /// Maximum source-line span permitted for one match arm body.
     pub(crate) max_match_arm_lines: usize,
+    /// Maximum number of calls permitted in one method-call chain.
     pub(crate) max_method_chain_calls: usize,
 }
 
@@ -90,8 +98,10 @@ impl FunctionStructureConfig {
 /// Shared configuration for the section-divider lint family.
 #[derive(Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub(crate) struct SectionDividerConfig {
+pub struct SectionDividerConfig {
+    /// Divider template containing the required `{content}` placeholder.
     pub(crate) template: String,
+    /// Maximum rendered divider width, including the section content.
     pub(crate) max_line_length: usize,
 }
 

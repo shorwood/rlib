@@ -9,6 +9,10 @@ dylint_linting::dylint_library!();
 /// Registers every project lint with the compiler process that loaded this library.
 ///
 /// Keeping this wiring outside `lib.rs` lets the crate root remain a readable map of the library.
+#[expect(
+    unsafe_code,
+    reason = "Dylint locates the registration entry point by its unmangled symbol name"
+)]
 #[unsafe(no_mangle)]
 pub extern "Rust" fn register_lints(
     sess: &rustc_session::Session,
@@ -52,5 +56,6 @@ pub extern "Rust" fn register_lints(
     // Register aggregate representation and statement-expression policies.
     rules::core::positional_aggregate_fields::register_lints(sess, lint_store);
     rules::core::repeated_identical_statements::register_lints(sess, lint_store);
+    rules::core::undocumented_items::register_lints(sess, lint_store);
     rules::core::unparenthesized_mixed_boolean_operators::register_lints(sess, lint_store);
 }

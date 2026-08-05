@@ -14,12 +14,16 @@ use crate::utils::direct_impl_struct::direct_impl_struct;
 
 /// One direct struct impl whose physical source can be compared with its struct definition.
 struct ImplPlacement<'hir> {
+    /// Authored direct inherent implementation being checked.
     implementation: &'hir Item<'hir>,
+    /// Implemented struct name shown in diagnostics.
     struct_name: rustc_span::Symbol,
+    /// Struct definition span used to compare physical files.
     struct_span: rustc_span::Span,
 }
 
 impl<'hir> ImplPlacement<'hir> {
+    /// Recognizes an authored direct impl whose local struct can be resolved.
     fn discover(cx: &LateContext<'hir>, item: &'hir Item<'hir>) -> Option<Self> {
         if !matches!(item.kind, ItemKind::Impl(_))
             || item.span.in_external_macro(cx.sess().source_map())
@@ -40,12 +44,14 @@ impl<'hir> ImplPlacement<'hir> {
         })
     }
 
+    /// Returns whether implementation and struct definition share a physical file.
     fn is_colocated(&self, cx: &LateContext<'_>) -> bool {
         let source_map = cx.sess().source_map();
         source_map.span_to_filename(self.implementation.span)
             == source_map.span_to_filename(self.struct_span)
     }
 
+    /// Emits a diagnostic connecting both physical source locations.
     fn emit(&self, cx: &LateContext<'_>) {
         // Resolve compact filenames for both ends of the misplaced relationship.
         let source_map = cx.sess().source_map();
@@ -85,6 +91,7 @@ impl<'hir> ImplPlacement<'hir> {
 // CrossFileStructImpls: Lint pass
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that keeps direct impls in their struct's physical file.
 struct CrossFileStructImpls;
 
 dylint_linting::impl_late_lint! {

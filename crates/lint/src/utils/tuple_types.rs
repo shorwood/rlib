@@ -12,18 +12,26 @@ use rustc_span::Span;
 // -----------------------------------------------------------------------------
 
 #[derive(Clone, Copy, Eq, PartialEq)]
-pub(crate) enum ExplicitTupleKind {
+/// Relationship between a reported tuple and its explicit root type.
+pub enum ExplicitTupleKind {
+    /// The explicit root annotation is itself a non-unit tuple.
     Bare,
+    /// A non-unit tuple appears beneath another explicit type constructor.
     Nested,
 }
 
-pub(crate) struct ExplicitTupleType {
+/// First reportable tuple found in one authored root type annotation.
+pub struct ExplicitTupleType {
+    /// Complete explicit root type used for diagnostic context.
     pub(crate) root_span: Span,
+    /// Exact non-unit tuple span that violates the selected rule.
     pub(crate) tuple_span: Span,
+    /// Whether the tuple is the root or nested beneath it.
     pub(crate) kind: ExplicitTupleKind,
 }
 
 impl ExplicitTupleType {
+    /// Classifies an authored root type and locates its first non-unit tuple.
     pub(crate) fn classify(cx: &LateContext<'_>, ty: &Ty<'_, AmbigArg>) -> Option<Self> {
         if ty.span.from_expansion() || matches!(cx.tcx.parent_hir_node(ty.hir_id), Node::Ty(_)) {
             return None;
@@ -45,7 +53,8 @@ impl ExplicitTupleType {
         })
     }
 
-    fn is_non_unit_tuple(ty: &Ty<'_, AmbigArg>) -> bool {
+    /// Returns whether a HIR type is a tuple with at least one element.
+    const fn is_non_unit_tuple(ty: &Ty<'_, AmbigArg>) -> bool {
         matches!(ty.kind, TyKind::Tup(elements) if !elements.is_empty())
     }
 }
@@ -55,7 +64,9 @@ impl ExplicitTupleType {
 // -----------------------------------------------------------------------------
 
 #[derive(Default)]
+/// HIR visitor that records the first tuple beneath an explicit root type.
 struct NestedTupleFinder {
+    /// Exact span of the first nested non-unit tuple.
     tuple_span: Option<Span>,
 }
 

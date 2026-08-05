@@ -11,11 +11,14 @@ use crate::utils::source_organization::SectionAnalyzer;
 // MissingSectionDividers
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that requires authored dividers for declaration families.
 struct MissingSectionDividers {
+    /// Shared analyzer that parses and groups authored section dividers.
     analyzer: SectionAnalyzer,
 }
 
 impl MissingSectionDividers {
+    /// Builds the pass from configured divider syntax.
     fn new() -> Self {
         Self {
             analyzer: SectionAnalyzer::from_config(),

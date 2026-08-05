@@ -1,4 +1,6 @@
-const CROSS_CUTTING_LINT_ALLOWS: [&str; 36] = [
+//! UI regression tests for every default-configuration lint fixture.
+
+const CROSS_CUTTING_LINT_ALLOWS: [&str; 38] = [
     "-A",
     "bare_tuple_types",
     "-A",
@@ -33,6 +35,8 @@ const CROSS_CUTTING_LINT_ALLOWS: [&str; 36] = [
     "positional_aggregate_fields",
     "-A",
     "repeated_identical_statements",
+    "-A",
+    "undocumented_items",
     "-A",
     "unparenthesized_mixed_boolean_operators",
 ];

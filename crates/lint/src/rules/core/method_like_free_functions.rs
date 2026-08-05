@@ -25,8 +25,13 @@ use rustc_span::{Pos, Span, Symbol};
 /// The form of `self` that preserves how the first parameter is passed.
 #[derive(Clone, Copy)]
 enum ReceiverKind {
+    /// Receiver owns the original first-parameter value.
     Value,
-    Ref(Mutability),
+    /// Receiver borrows the value with the parameter's original mutability.
+    Ref(
+        /// Borrow mutability preserved by the generated receiver.
+        Mutability,
+    ),
 }
 
 impl ReceiverKind {
@@ -34,7 +39,7 @@ impl ReceiverKind {
     ///
     /// For example, `item: Item`, `item: &Item`, and `item: &mut Item` become `self`, `&self`, and
     /// `&mut self`, respectively.
-    fn description(self) -> &'static str {
+    const fn description(self) -> &'static str {
         match self {
             Self::Value => "`self`",
             Self::Ref(Mutability::Not) => "`&self`",
@@ -43,13 +48,19 @@ impl ReceiverKind {
     }
 }
 
+/// Semantic first-parameter type resolved independently of its source spelling.
 struct ReceiverSemantics {
+    /// Method receiver form preserving ownership and mutability.
     kind: ReceiverKind,
+    /// Local struct definition received by the free function.
     struct_def_id: LocalDefId,
 }
 
+/// Source-level receiver type and whether it can be migrated verbatim.
 struct ReceiverSyntax {
+    /// Span of the nominal type used to form the inherent impl header.
     span: Span,
+    /// Whether source syntax names the struct directly rather than through an alias.
     is_direct: bool,
 }
 
@@ -57,31 +68,51 @@ struct ReceiverSyntax {
 // Candidate: Candidate discovery and collected state
 // -----------------------------------------------------------------------------
 
+/// Simple binding extracted from a candidate function's first parameter.
 struct CandidateBinding {
+    /// HIR identity used to find every body reference to the binding.
     id: Option<HirId>,
+    /// Source symbol replaced by `self` during migration.
     name: Option<Symbol>,
 }
 
+/// Function generics that may safely move to a generated impl header.
 struct CandidateGenerics {
+    /// Complete generic-parameter span to move, when present.
     span: Option<Span>,
+    /// Whether generic syntax permits a mechanical migration.
     is_safe: bool,
 }
 
 /// A free function that belongs on a struct according to the rule.
 struct Candidate {
+    /// Local definition identity of the free function.
     def_id: LocalDefId,
+    /// HIR node on which the diagnostic is emitted.
     hir_id: HirId,
+    /// Function name reused as the proposed method name.
     name: Symbol,
+    /// Identifier span used as the primary diagnostic location.
     name_span: Span,
+    /// Complete function span replaced by the generated impl.
     item_span: Span,
+    /// First-parameter span replaced by receiver syntax.
     parameter_span: Span,
+    /// Nominal receiver type span reused in the impl header.
     receiver_type_span: Span,
+    /// Generic parameter span moved from the function to the impl.
     impl_generics_span: Option<Span>,
+    /// HIR identity of a mechanically replaceable first-parameter binding.
     binding_id: Option<HirId>,
+    /// Name of the mechanically replaceable first-parameter binding.
     binding_name: Option<Symbol>,
+    /// Ownership and mutability preserved by the method receiver.
     receiver_kind: ReceiverKind,
+    /// Local struct definition that should own the method.
     struct_def_id: LocalDefId,
+    /// Struct name shown in user-facing guidance.
     struct_name: Symbol,
+    /// Whether all candidate-local syntax is safe to migrate.
     is_suggestible: bool,
 }
 
@@ -245,7 +276,7 @@ impl Candidate {
     ///
     /// `plain` can be rewritten mechanically. `destructured` still receives a warning, but moving
     /// its pattern into a method body requires a decision from the author.
-    fn simple_binding(parameter: &Param<'_>) -> CandidateBinding {
+    const fn simple_binding(parameter: &Param<'_>) -> CandidateBinding {
         match parameter.pat.kind {
             PatKind::Binding(_, binding_id, binding, None) => CandidateBinding {
                 id: Some(binding_id),
@@ -378,6 +409,7 @@ impl Candidate {
         }
     }
 
+    /// Returns whether an implicit or non-type parameter prevents safe generic movement.
     fn is_unsupported_implicit_parameter(param: &rustc_hir::GenericParam<'_>) -> bool {
         !matches!(
             param.kind,
@@ -422,7 +454,9 @@ impl Candidate {
 /// One place where the first parameter's name is used inside the function body.
 #[derive(Clone, Copy)]
 struct CandidateBindingUse {
+    /// Source span occupied by this reference to the parameter binding.
     span: Span,
+    /// Field name preserved when the reference appears as struct shorthand.
     shorthand_field: Option<Symbol>,
 }
 
@@ -432,13 +466,18 @@ struct CandidateBindingUse {
 
 /// One replacement made inside a larger source range.
 struct MigrationEdit {
+    /// Source range replaced by this edit.
     span: Span,
+    /// Complete replacement text for `span`.
     replacement: String,
 }
 
 /// A group of replacements made inside one larger source range.
 #[derive(Default)]
-struct MigrationEdits(Vec<MigrationEdit>);
+struct MigrationEdits(
+    /// Source replacements accumulated before offset-stable application.
+    Vec<MigrationEdit>,
+);
 
 impl MigrationEdits {
     /// Adds one source replacement to the group.
@@ -464,13 +503,21 @@ impl MigrationEdits {
 
 /// Builds all edits needed to move one free function without leaving broken references behind.
 struct MigrationBuilder<'rule, 'cx, 'tcx> {
+    /// Compiler context used for snippets, paths, and source ownership.
     cx: &'cx LateContext<'tcx>,
+    /// Candidate currently being migrated.
     candidate: &'rule Candidate,
+    /// All candidates, used to prevent overlapping simultaneous migrations.
     candidates: &'rule [Candidate],
+    /// Body references keyed by first-parameter binding identity.
     binding_uses: &'rule HashMap<HirId, Vec<CandidateBindingUse>>,
+    /// Resolved references keyed by free-function definition.
     function_uses: &'rule HashMap<LocalDefId, Vec<Span>>,
+    /// Functions whose imported aliases make automatic migration incomplete.
     imported_functions: &'rule HashSet<LocalDefId>,
+    /// Replacements applied inside the candidate's whole-item edit.
     internal_edits: MigrationEdits,
+    /// Call-site replacements outside the candidate function.
     external_edits: Vec<MigrationEdit>,
 }
 
@@ -496,6 +543,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
         }
     }
 
+    /// Returns whether migrating `other` would overlap this candidate's whole-item edit.
     fn overlaps_candidate_migration(&self, other: &Candidate) -> bool {
         other.def_id != self.candidate.def_id
             && self
@@ -539,6 +587,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
         source_map.span_to_snippet(span).ok()
     }
 
+    /// Preserves explicit reference syntax while replacing its binding with `self`.
     fn rewrite_reference_receiver(&self, parameter: &str) -> Option<String> {
         let inner = self.snippet(self.candidate.receiver_type_span)?;
         let offset = parameter.rfind(&inner)?;
@@ -695,9 +744,13 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
 /// Collects the information needed to find misplaced functions and safely move them.
 #[derive(Default)]
 struct MethodLikeFreeFunctions {
+    /// Free functions whose first parameter identifies a same-module struct.
     candidates: Vec<Candidate>,
+    /// Local parameter references that a receiver migration must rewrite.
     binding_uses: HashMap<HirId, Vec<CandidateBindingUse>>,
+    /// Resolved free-function references that must become qualified method paths.
     function_uses: HashMap<LocalDefId, Vec<Span>>,
+    /// Imported functions for which moving the definition would strand an alias.
     imported_functions: HashSet<LocalDefId>,
 }
 
@@ -789,6 +842,7 @@ impl LateLintPass<'_> for MethodLikeFreeFunctions {
 }
 
 impl MethodLikeFreeFunctions {
+    /// Returns the field name when `expr` is used as struct-literal shorthand.
     fn shorthand_field(cx: &LateContext<'_>, expr: &Expr<'_>) -> Option<Symbol> {
         cx.tcx
             .hir_parent_iter(expr.hir_id)
@@ -799,6 +853,7 @@ impl MethodLikeFreeFunctions {
             })
     }
 
+    /// Records one source reference to a candidate's first-parameter binding.
     fn record_binding_use(&mut self, cx: &LateContext<'_>, expr: &Expr<'_>, binding_id: HirId) {
         let shorthand_field = Self::shorthand_field(cx, expr);
         let binding_use = CandidateBindingUse {
@@ -834,6 +889,7 @@ impl MethodLikeFreeFunctions {
 }
 
 impl MethodLikeFreeFunctions {
+    /// Builds an atomic migration unless a collision or unsafe edit prevents it.
     fn candidate_migration(
         &self,
         cx: &LateContext<'_>,

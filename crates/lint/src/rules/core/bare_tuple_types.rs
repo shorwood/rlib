@@ -11,6 +11,7 @@ use crate::utils::tuple_types::{ExplicitTupleKind, ExplicitTupleType};
 // BareTupleTypes
 // -----------------------------------------------------------------------------
 
+/// Late lint pass that rejects explicit root tuple types without semantic field names.
 struct BareTupleTypes;
 
 dylint_linting::impl_late_lint! {

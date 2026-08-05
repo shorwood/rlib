@@ -73,12 +73,12 @@ impl EarlyLintPass for UnparenthesizedMixedBooleanOperators {
 
 impl UnparenthesizedMixedBooleanOperators {
     /// Returns whether an operator participates in boolean short-circuiting.
-    fn is_boolean(operator: BinOpKind) -> bool {
+    const fn is_boolean(operator: BinOpKind) -> bool {
         matches!(operator, BinOpKind::And | BinOpKind::Or)
     }
 
     /// Returns whether a direct operand uses the other boolean operator.
-    fn has_opposite_operator(expression: &Expr, parent: BinOpKind) -> bool {
+    const fn has_opposite_operator(expression: &Expr, parent: BinOpKind) -> bool {
         matches!(
             expression.kind,
             ExprKind::Binary(operator, ..)

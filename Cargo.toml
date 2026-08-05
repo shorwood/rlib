@@ -7,9 +7,17 @@ members = [
 [workspace.package]
 edition = "2024"
 
-[workspace.lints.rust.unexpected_cfgs]
-level = "warn"
-check-cfg = ["cfg(dylint_lib, values(any()))"]
+[workspace.lints.rust]
+future_incompatible = { level = "warn", priority = -1 }
+rust_2018_idioms = { level = "warn", priority = -1 }
+unsafe_code = "deny"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(dylint_lib, values(any()))"] }
 
 [workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
+
+# Dylint's transitive graph currently needs proc-macro consumers on both syn major versions.
+multiple-crate-versions = { level = "allow", priority = 1 }
