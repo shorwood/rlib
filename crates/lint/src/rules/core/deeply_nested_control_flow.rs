@@ -80,6 +80,7 @@ impl<'tcx> LateLintPass<'tcx> for DeeplyNestedControlFlow {
             .analyze_control_flow(cx, body, unit)
             .deep_nesting
         {
+            // Defer guardable cases to the more specific needless-nesting lint.
             let needless_level = cx
                 .tcx
                 .lint_level_at_node(
@@ -87,9 +88,13 @@ impl<'tcx> LateLintPass<'tcx> for DeeplyNestedControlFlow {
                     finding.hir_id,
                 )
                 .level;
+
+            // Skip depth guidance when the enabled guard-clause lint is more specific.
             if finding.has_guard_clause_alternative && needless_level != Level::Allow {
                 continue;
             }
+
+            // Report excessive depth when no enabled guard-clause diagnostic supersedes it.
             cx.emit_span_lint(
                 DEEPLY_NESTED_CONTROL_FLOW,
                 finding.span,

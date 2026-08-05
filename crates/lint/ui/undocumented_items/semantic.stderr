@@ -76,3 +76,4 @@ LL |     fn missing_method(&self) {}
    = help: document its purpose, contract, or semantic role
 
 warning: 9 warnings emitted
+

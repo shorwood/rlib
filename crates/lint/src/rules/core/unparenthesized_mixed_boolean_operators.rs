@@ -47,6 +47,7 @@ dylint_linting::impl_early_lint! {
 
 impl EarlyLintPass for UnparenthesizedMixedBooleanOperators {
     fn check_expr(&mut self, cx: &EarlyContext<'_>, expression: &Expr) {
+        // Retain authored binary expressions whose direct operand mixes boolean operators.
         if expression.span.from_expansion() {
             return;
         }
@@ -60,6 +61,8 @@ impl EarlyLintPass for UnparenthesizedMixedBooleanOperators {
         {
             return;
         }
+
+        // Report the complete ambiguous expression with explicit grouping guidance.
         cx.emit_span_lint(
             UNPARENTHESIZED_MIXED_BOOLEAN_OPERATORS,
             expression.span,
@@ -79,13 +82,12 @@ impl UnparenthesizedMixedBooleanOperators {
 
     /// Returns whether a direct operand uses the other boolean operator.
     const fn has_opposite_operator(expression: &Expr, parent: BinOpKind) -> bool {
+        let ExprKind::Binary(operator, ..) = expression.kind else {
+            return false;
+        };
         matches!(
-            expression.kind,
-            ExprKind::Binary(operator, ..)
-                if matches!(
-                    (parent, operator.node),
-                    (BinOpKind::And, BinOpKind::Or) | (BinOpKind::Or, BinOpKind::And)
-                )
+            (parent, operator.node),
+            (BinOpKind::And, BinOpKind::Or) | (BinOpKind::Or, BinOpKind::And)
         )
     }
 }

@@ -51,10 +51,13 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for RepeatedIdenticalStatements {
     fn check_block(&mut self, cx: &LateContext<'_>, block: &Block<'_>) {
         for pair in block.stmts.windows(2) {
+            // Retain adjacent authored statements only.
             let [first, repeated] = pair else { continue };
             if first.span.from_expansion() || repeated.span.from_expansion() {
                 continue;
             }
+
+            // Compare normalized source only when both snippets are available.
             let source_map = cx.sess().source_map();
             let (Ok(first_source), Ok(repeated_source)) = (
                 source_map.span_to_snippet(first.span),
@@ -65,6 +68,8 @@ impl LateLintPass<'_> for RepeatedIdenticalStatements {
             if first_source.trim().is_empty() || first_source.trim() != repeated_source.trim() {
                 continue;
             }
+
+            // Report the later statement while identifying its first occurrence.
             cx.emit_span_lint(
                 REPEATED_IDENTICAL_STATEMENTS,
                 repeated.span,

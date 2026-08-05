@@ -172,10 +172,12 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
     /// Returns all deletions and the matching insertion, or declines if any source ownership is
     /// uncertain.
     fn build(&self) -> Option<Vec<MigrationEdit>> {
+        // Validate source ownership, comments, and textual macro scope before editing.
         self.check_plain_same_file_source()?;
         self.check_comments_are_unattached()?;
         self.check_no_macro_definition_is_crossed()?;
 
+        // Capture every misplaced implementation in its authored module order.
         let source_map = self.cx.sess().source_map();
         let snippets = self
             .group
@@ -183,6 +185,8 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
             .iter()
             .map(|impl_| source_map.span_to_snippet(impl_.item.span).ok())
             .collect::<Option<Vec<_>>>()?;
+
+        // Join the authored implementations for one insertion after the struct.
         let insertion = format!("\n\n{}", snippets.join("\n\n"));
 
         // Delete every old impl location before inserting their combined source.
@@ -256,6 +260,7 @@ impl NonAdjacentStructImpls {
         cx: &LateContext<'tcx>,
         module: &'tcx Mod<'tcx>,
     ) -> Vec<&'tcx Item<'tcx>> {
+        // Resolve direct module items under the current source map.
         let source_map = cx.sess().source_map();
         let resolved = module
             .item_ids
@@ -320,9 +325,12 @@ impl NonAdjacentStructImpls {
         items: &[&'tcx Item<'tcx>],
         group: &ImplGroup<'tcx>,
     ) {
+        // Resolve the first misplaced block and any complete atomic move.
         let first_misplaced = group.first_misplaced();
         let suggestion = Migration::new(cx, items, group).build();
         let impl_count = group.impls.len();
+
+        // Tailor movement guidance to one implementation or the complete group.
         let move_message = if impl_count == 1 {
             format!(
                 "move this impl block immediately after `{}`",
@@ -335,6 +343,7 @@ impl NonAdjacentStructImpls {
             )
         };
 
+        // Report the group and attach the atomic move only when every edit is safe.
         cx.tcx.emit_node_span_lint(
             NON_ADJACENT_STRUCT_IMPLS,
             group.struct_item.hir_id(),

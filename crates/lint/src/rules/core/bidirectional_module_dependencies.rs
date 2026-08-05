@@ -107,12 +107,15 @@ impl LateLintPass<'_> for BidirectionalModuleDependencies {
             .into_iter()
             .flatten()
         {
+            // Resolve one imported namespace to a local definition.
             let Some(target_definition) = resolution
                 .opt_def_id()
                 .and_then(rustc_span::def_id::DefId::as_local)
             else {
                 continue;
             };
+
+            // Normalize imported items to the module that owns them.
             let target = if matches!(resolution, Res::Def(rustc_hir::def::DefKind::Mod, _)) {
                 target_definition
             } else {
@@ -120,6 +123,8 @@ impl LateLintPass<'_> for BidirectionalModuleDependencies {
                     .parent_module_from_def_id(target_definition)
                     .to_local_def_id()
             };
+
+            // Retain only dependencies between distinct modules under one parent.
             let source_parent = cx.tcx.parent_module_from_def_id(source).to_local_def_id();
             let target_parent = cx.tcx.parent_module_from_def_id(target).to_local_def_id();
             if source == target
@@ -129,6 +134,8 @@ impl LateLintPass<'_> for BidirectionalModuleDependencies {
             {
                 continue;
             }
+
+            // Record the first relevant namespace dependency for this import.
             self.record_dependency(cx, source, target, item.span);
             break;
         }

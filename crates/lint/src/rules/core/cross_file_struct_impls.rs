@@ -25,18 +25,21 @@ struct ImplPlacement<'hir> {
 impl<'hir> ImplPlacement<'hir> {
     /// Recognizes an authored direct impl whose local struct can be resolved.
     fn discover(cx: &LateContext<'hir>, item: &'hir Item<'hir>) -> Option<Self> {
+        // Require an authored direct implementation item.
         if !matches!(item.kind, ItemKind::Impl(_))
             || item.span.in_external_macro(cx.sess().source_map())
         {
             return None;
         }
 
+        // Resolve an authored local struct definition from the implementation.
         let struct_def_id = direct_impl_struct(cx, item)?;
         let struct_span = cx.tcx.def_span(struct_def_id);
         if struct_span.in_external_macro(cx.sess().source_map()) {
             return None;
         }
 
+        // Retain the source facts needed to compare implementation placement.
         Some(Self {
             implementation: item,
             struct_name: cx.tcx.item_name(struct_def_id.to_def_id()),

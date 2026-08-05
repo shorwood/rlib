@@ -7,108 +7,157 @@ use rustc_hir::intravisit::{self, Visitor};
 use rustc_hir::{Block, Expr, ExprKind, Stmt, StmtKind};
 use rustc_lexer::{FrontmatterAllowed, TokenKind, tokenize};
 use rustc_lint::{LateContext, LintContext};
-use rustc_span::Span;
+use rustc_span::{BytePos, Span};
 
 use super::config::FunctionStructureConfig;
 use super::function_layout_comments::{FunctionLayoutEntryGap, FunctionLayoutFinding};
 
 // -----------------------------------------------------------------------------
-// FunctionLayout: Analyze linear code phases
+// FunctionLayout: Analyze direct code phases
 // -----------------------------------------------------------------------------
 
 /// Phase-comment findings separated by public lint identity.
 #[derive(Default)]
 pub struct FunctionLayoutAnalysis {
-    /// Oversized linear phases lacking sufficient semantic decomposition.
+    /// Oversized direct phases lacking sufficient semantic decomposition.
     pub(crate) missing: Vec<FunctionLayoutFinding>,
     /// Authored phase comments that violate syntax or placement rules.
     pub(crate) malformed: Vec<FunctionLayoutFinding>,
 }
 
-/// Lightweight semantic boundary state preceding one function-body entry.
-struct FunctionLayoutBoundary {
-    /// Whether a canonical explanatory header begins at this boundary.
-    has_header: bool,
-    /// Whether comments or blank space interrupt the surrounding linear run.
-    has_run_boundary: bool,
+/// Finds immediate nested bodies whose code belongs to a child layout scope.
+struct FunctionLayoutNestedSpanCollector<'analysis, 'tcx> {
+    /// Compiler context used to resolve closure bodies.
+    cx: &'analysis LateContext<'tcx>,
+    /// Outermost nested spans found inside one direct entry.
+    spans: Vec<Span>,
 }
 
-/// Counts physical lines containing non-comment source tokens within `span`.
-pub(super) fn function_layout_code_line_count(cx: &LateContext<'_>, span: Span) -> usize {
-    let span = span.source_callsite();
-    let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
-        return 0;
-    };
-    let mut code_lines = vec![false; source.lines().count().max(1)];
-
-    // Mark every physical line touched by a non-comment source token.
-    let mut offset = 0;
-    for token in tokenize(&source, FrontmatterAllowed::No) {
-        let length = usize::try_from(token.len).expect("token length should fit usize");
-        let end = offset + length;
-        if !matches!(
-            token.kind,
-            TokenKind::Whitespace | TokenKind::LineComment { .. } | TokenKind::BlockComment { .. }
-        ) {
-            let start_line = source[..offset]
-                .bytes()
-                .filter(|byte| *byte == b'\n')
-                .count();
-            let end_line = source[..end].bytes().filter(|byte| *byte == b'\n').count();
-            let end_line = end_line.min(code_lines.len() - 1);
-            code_lines[start_line..=end_line].fill(true);
-        }
-        offset = end;
+impl<'analysis, 'tcx> FunctionLayoutNestedSpanCollector<'analysis, 'tcx> {
+    /// Collects nested bodies owned by one statement.
+    fn collect_statement(
+        cx: &'analysis LateContext<'tcx>,
+        statement: &'tcx Stmt<'tcx>,
+    ) -> Vec<Span> {
+        let mut collector = Self {
+            cx,
+            spans: Vec::new(),
+        };
+        intravisit::walk_stmt(&mut collector, statement);
+        collector.spans
     }
-    code_lines.into_iter().filter(|has_code| *has_code).count()
-}
 
-/// Returns whether an expression carries structural meaning beyond a linear code phase.
-fn function_layout_is_control_boundary(expression: &Expr<'_>) -> bool {
-    expression.span.desugaring_kind().is_some()
-        || matches!(
-            expression.kind,
-            ExprKind::If(..)
-                | ExprKind::Loop(..)
-                | ExprKind::Match(..)
-                | ExprKind::Block(..)
-                | ExprKind::Closure(..)
+    /// Collects nested bodies owned by one expression.
+    fn collect_expression(
+        cx: &'analysis LateContext<'tcx>,
+        expression: &'tcx Expr<'tcx>,
+    ) -> Vec<Span> {
+        let mut collector = Self {
+            cx,
+            spans: Vec::new(),
+        };
+        intravisit::walk_expr(&mut collector, expression);
+        collector.spans
+    }
+
+    /// Returns whether a lexer token contributes authored code to a physical line.
+    const fn is_code_token(kind: TokenKind) -> bool {
+        !matches!(
+            kind,
+            TokenKind::Whitespace | TokenKind::LineComment { .. } | TokenKind::BlockComment { .. }
         )
+    }
+
+    /// Counts source lines after masking code owned by independently analyzed child bodies.
+    fn filtered_line_count(cx: &LateContext<'_>, span: Span, nested_spans: &[Span]) -> usize {
+        // Load the authored source and initialize its per-line token mask.
+        let span = span.source_callsite();
+        let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
+            return 0;
+        };
+        let mut code_lines = vec![false; source.lines().count().max(1)];
+
+        // Traverse the source tokens in byte order.
+        let mut offset = 0;
+        for token in tokenize(&source, FrontmatterAllowed::No) {
+            // Classify the token by its absolute source range and owning layout scope.
+            let length = usize::try_from(token.len).expect("token length should fit usize");
+            let end = offset + length;
+            let token_lo = span.lo() + BytePos(u32::try_from(offset).expect("offset should fit"));
+            let token_hi = span.lo() + BytePos(u32::try_from(end).expect("offset should fit"));
+
+            // Determine whether an independently analyzed child body owns this token.
+            let is_nested = nested_spans
+                .iter()
+                .map(|nested| nested.source_callsite())
+                .any(|nested| nested.lo() <= token_lo && token_hi <= nested.hi());
+
+            // Mark physical lines touched by direct, non-comment source tokens.
+            if !is_nested && Self::is_code_token(token.kind) {
+                let start_line = source[..offset]
+                    .bytes()
+                    .filter(|byte| *byte == b'\n')
+                    .count();
+                let end_line = source[..end].bytes().filter(|byte| *byte == b'\n').count();
+                let end_line = end_line.min(code_lines.len() - 1);
+                code_lines[start_line..=end_line].fill(true);
+            }
+            offset = end;
+        }
+        code_lines.into_iter().filter(|has_code| *has_code).count()
+    }
 }
 
-#[derive(Clone, Copy)]
-/// One statement or tail expression classified for linear-phase analysis.
+impl<'tcx> Visitor<'tcx> for FunctionLayoutNestedSpanCollector<'_, 'tcx> {
+    fn visit_block(&mut self, block: &'tcx Block<'tcx>) {
+        self.spans.push(block.span.source_callsite());
+    }
+
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if let ExprKind::Closure(closure) = expression.kind {
+            let body = self.cx.tcx.hir_body(closure.body);
+            self.spans.push(body.value.span.source_callsite());
+            return;
+        }
+        intravisit::walk_expr(self, expression);
+    }
+}
+
+/// One statement or tail expression participating in direct-phase analysis.
 struct FunctionLayoutEntry {
     /// Authored source range used for line counting and gap construction.
     span: Span,
-    /// Whether the entry belongs to a continuous linear code run.
-    is_linear: bool,
+    /// Nested authored bodies excluded from the containing block's line count.
+    nested_spans: Vec<Span>,
 }
 
 impl FunctionLayoutEntry {
-    /// Classifies a statement and any initializer by its control-flow structure.
-    fn from_statement(statement: &Stmt<'_>) -> Self {
-        let is_linear = match statement.kind {
-            StmtKind::Let(local) => local
-                .init
-                .is_none_or(|expression| !function_layout_is_control_boundary(expression)),
-            StmtKind::Expr(expression) | StmtKind::Semi(expression) => {
-                !function_layout_is_control_boundary(expression)
-            }
-            StmtKind::Item(_) => false,
+    /// Collects nested bodies from a statement without descending into those bodies.
+    fn from_statement<'tcx>(cx: &LateContext<'tcx>, statement: &'tcx Stmt<'tcx>) -> Self {
+        // Treat nested items as entirely independent; otherwise collect child bodies.
+        let nested_spans = match statement.kind {
+            StmtKind::Item(_) => vec![statement.span.source_callsite()],
+            _ => FunctionLayoutNestedSpanCollector::collect_statement(cx, statement),
         };
+
+        // Retain the complete entry span for comments and surface line counting.
         Self {
             span: statement.span,
-            is_linear,
+            nested_spans,
         }
     }
 
-    /// Classifies a block tail expression as a layout entry.
-    fn from_expression(expression: &Expr<'_>) -> Self {
+    /// Collects nested bodies from a block tail expression.
+    fn from_expression<'tcx>(cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) -> Self {
         Self {
             span: expression.span,
-            is_linear: !function_layout_is_control_boundary(expression),
+            nested_spans: FunctionLayoutNestedSpanCollector::collect_expression(cx, expression),
         }
+    }
+
+    /// Counts authored code on the containing block's surface.
+    fn direct_line_count(&self, cx: &LateContext<'_>) -> usize {
+        FunctionLayoutNestedSpanCollector::filtered_line_count(cx, self.span, &self.nested_spans)
     }
 }
 
@@ -149,16 +198,19 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         self.analysis.malformed.extend(trailing.findings);
     }
 
-    /// Records one continuous phase that exceeds the configured line limit.
+    /// Records one direct phase that lacks a header or exceeds the configured line limit.
     fn record_oversized_phase(
         &mut self,
         phase: &[FunctionLayoutEntry],
         lines: usize,
         has_header: bool,
     ) {
+        // Locate the complete source phase receiving the diagnostic.
         let first = phase[0].span.source_callsite();
         let last = phase[phase.len() - 1].span.source_callsite();
         let span = Span::with_root_ctxt(first.lo(), last.hi());
+
+        // Distinguish missing names from named phases that still contain too much work.
         let message = if has_header {
             format!(
                 "this code phase contains {lines} lines, exceeding the configured maximum of {}",
@@ -167,27 +219,34 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         } else {
             format!("this {lines}-line code phase has no explanatory comment")
         };
+
+        // Select guidance that matches the phase's missing name or excessive size.
+        let help = if has_header {
+            format!(
+                "split this phase with `{}` explanatory comments or extract named operations",
+                self.config.phase_comment_prefix
+            )
+        } else {
+            format!(
+                "name this phase with a `{}` explanatory comment or extract a named operation",
+                self.config.phase_comment_prefix
+            )
+        };
+
+        // Record the phase with its tailored remedy.
         self.analysis.missing.push(FunctionLayoutFinding {
             span,
             message,
-            help: format!(
-                "divide the work with `{}` explanatory comments or extract named operations",
-                self.config.phase_comment_prefix
-            ),
+            help,
             replacement: None,
         });
     }
 
-    /// Splits an uninterrupted linear run at semantic boundaries and measures each phase.
-    fn analyze_linear_run(
-        &mut self,
-        entries: &[FunctionLayoutEntry],
-        headers: &[bool],
-        boundaries: &[bool],
-    ) {
+    /// Splits direct code at canonical headers and measures every semantic phase.
+    fn analyze_phases(&mut self, entries: &[FunctionLayoutEntry], headers: &[bool]) {
         let line_counts = entries
             .iter()
-            .map(|entry| function_layout_code_line_count(self.cx, entry.span))
+            .map(|entry| entry.direct_line_count(self.cx))
             .collect::<Vec<_>>();
         if line_counts.iter().sum::<usize>() <= self.config.max_phase_lines {
             return;
@@ -196,13 +255,13 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         // Treat every valid explanation as the start of a distinct semantic phase.
         let mut phase_start = 0;
         for index in 1..=entries.len() {
-            if index < entries.len() && !boundaries[index] {
+            if index < entries.len() && !headers[index] {
                 continue;
             }
             let lines = line_counts[phase_start..index].iter().sum::<usize>();
             let has_header = headers[phase_start];
             let phase = &entries[phase_start..index];
-            if phase.len() > 1 && lines > self.config.max_phase_lines {
+            if !has_header || lines > self.config.max_phase_lines {
                 self.record_oversized_phase(phase, lines, has_header);
             }
             phase_start = index;
@@ -216,37 +275,37 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         entries: &[FunctionLayoutEntry],
         index: usize,
         next: Span,
-    ) -> FunctionLayoutBoundary {
+    ) -> bool {
         // Resolve the source gap between this entry and its predecessor.
         let previous = index.checked_sub(1).map(|index| entries[index].span);
         let lo = previous.map_or_else(|| block.span.lo(), Span::hi);
         let gap = block.span.with_lo(lo).with_hi(next.lo());
 
-        // Preserve the comment parser's semantic and physical boundary decisions.
+        // Preserve the comment parser's semantic boundary decision.
         let analyzed =
             FunctionLayoutEntryGap::analyze(self.cx, self.config, gap, previous, Some(next));
-        let boundary = FunctionLayoutBoundary {
-            has_header: analyzed.has_valid_header,
-            has_run_boundary: analyzed.has_run_boundary,
-        };
+        let has_header = analyzed.has_valid_header;
 
         // Merge malformed comments before returning the lightweight boundary state.
         self.analysis.malformed.extend(analyzed.findings);
-        boundary
+        has_header
     }
 
     /// Classifies and analyzes all authored entries in one block.
     fn analyze_block(&mut self, block: &'tcx Block<'tcx>) {
+        // Collect authored direct entries while excluding generated blocks.
         if block.span.from_expansion() {
             return;
         }
+
+        // Convert statements and any tail expression into one direct entry sequence.
         let mut entries = block
             .stmts
             .iter()
-            .map(FunctionLayoutEntry::from_statement)
+            .map(|statement| FunctionLayoutEntry::from_statement(self.cx, statement))
             .collect::<Vec<_>>();
         if let Some(expression) = block.expr {
-            entries.push(FunctionLayoutEntry::from_expression(expression));
+            entries.push(FunctionLayoutEntry::from_expression(self.cx, expression));
         }
         if entries.is_empty() {
             return;
@@ -254,32 +313,13 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
 
         // Validate each entry's leading gap while recording valid phase boundaries.
         let mut headers = Vec::with_capacity(entries.len());
-        let mut boundaries = Vec::with_capacity(entries.len());
         for (index, entry) in entries.iter().enumerate() {
-            let boundary = self.analyze_entry_gap(block, &entries, index, entry.span);
-            headers.push(boundary.has_header);
-            boundaries.push(boundary.has_run_boundary);
+            headers.push(self.analyze_entry_gap(block, &entries, index, entry.span));
         }
         self.analyze_trailing_gap(block, &entries);
 
-        // Analyze only uninterrupted linear statements; control flow carries its own structure.
-        let mut start = 0;
-        while start < entries.len() {
-            if !entries[start].is_linear {
-                start += 1;
-                continue;
-            }
-            let mut end = start + 1;
-            while end < entries.len() && entries[end].is_linear {
-                end += 1;
-            }
-            self.analyze_linear_run(
-                &entries[start..end],
-                &headers[start..end],
-                &boundaries[start..end],
-            );
-            start = end;
-        }
+        // Nested bodies are excluded here and visited as independent layout scopes.
+        self.analyze_phases(&entries, &headers);
     }
 }
 
@@ -295,4 +335,9 @@ impl<'tcx> Visitor<'tcx> for FunctionLayoutAnalyzer<'_, 'tcx> {
         }
         intravisit::walk_expr(self, expression);
     }
+}
+
+/// Counts physical lines containing non-comment source tokens within `span`.
+pub(super) fn function_layout_code_line_count(cx: &LateContext<'_>, span: Span) -> usize {
+    FunctionLayoutNestedSpanCollector::filtered_line_count(cx, span, &[])
 }

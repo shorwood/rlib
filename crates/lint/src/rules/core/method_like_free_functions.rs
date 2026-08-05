@@ -49,6 +49,7 @@ impl ReceiverKind {
 }
 
 /// Semantic first-parameter type resolved independently of its source spelling.
+#[derive(Clone, Copy)]
 struct ReceiverSemantics {
     /// Method receiver form preserving ownership and mutability.
     kind: ReceiverKind,
@@ -84,8 +85,8 @@ struct CandidateGenerics {
     is_safe: bool,
 }
 
-/// A free function that belongs on a struct according to the rule.
-struct Candidate {
+/// Source identity and spans of a candidate free function.
+struct CandidateFunction {
     /// Local definition identity of the free function.
     def_id: LocalDefId,
     /// HIR node on which the diagnostic is emitted.
@@ -96,24 +97,38 @@ struct Candidate {
     name_span: Span,
     /// Complete function span replaced by the generated impl.
     item_span: Span,
+}
+
+/// Semantic receiver identity and syntax of a candidate free function.
+struct CandidateReceiver {
     /// First-parameter span replaced by receiver syntax.
     parameter_span: Span,
     /// Nominal receiver type span reused in the impl header.
     receiver_type_span: Span,
-    /// Generic parameter span moved from the function to the impl.
-    impl_generics_span: Option<Span>,
-    /// HIR identity of a mechanically replaceable first-parameter binding.
-    binding_id: Option<HirId>,
-    /// Name of the mechanically replaceable first-parameter binding.
-    binding_name: Option<Symbol>,
-    /// Ownership and mutability preserved by the method receiver.
-    receiver_kind: ReceiverKind,
-    /// Local struct definition that should own the method.
-    struct_def_id: LocalDefId,
+    /// Ownership form and local struct that should own the method.
+    semantics: ReceiverSemantics,
     /// Struct name shown in user-facing guidance.
     struct_name: Symbol,
+}
+
+/// Syntax-safety facts governing a candidate's automatic migration.
+struct CandidateMigration {
+    /// Generic parameter span moved from the function to the impl.
+    impl_generics_span: Option<Span>,
+    /// Mechanically replaceable first-parameter binding.
+    binding: CandidateBinding,
     /// Whether all candidate-local syntax is safe to migrate.
     is_suggestible: bool,
+}
+
+/// A free function that belongs on a struct according to the rule.
+struct Candidate {
+    /// Free-function identity and complete source span.
+    function: CandidateFunction,
+    /// Receiver syntax and owning struct identity.
+    receiver: CandidateReceiver,
+    /// Syntax-safety facts governing automatic migration.
+    migration: CandidateMigration,
 }
 
 impl Candidate {
@@ -129,15 +144,20 @@ impl Candidate {
     /// fn inspect(item: &Item) {}
     /// ```
     fn discover(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
-        let ItemKind::Fn {
-            sig,
-            ident,
-            generics,
-            body,
-            has_body: true,
-        } = item.kind
-        else {
+        // Require an authored free function body before extracting its syntax.
+        if !matches!(item.kind, ItemKind::Fn { has_body: true, .. }) {
             return None;
+        }
+
+        // Extract the signature and body from the validated function.
+        let ItemKind::Fn { sig, body, .. } = item.kind else {
+            return None;
+        };
+        let ident = item.kind.ident()?;
+
+        // Extract generic syntax independently for impl-migration analysis.
+        let ItemKind::Fn { generics, .. } = item.kind else {
+            unreachable!();
         };
 
         // Associated items, nested functions, and foreign ABIs cannot become the inherent method
@@ -154,55 +174,75 @@ impl Candidate {
             return None;
         }
 
+        // Resolve the semantic receiver and require its struct to share the module.
         let semantic_receiver = Self::semantic_receiver(cx, def_id)?;
         if !Self::shares_module_with_struct(cx, def_id, semantic_receiver.struct_def_id) {
             return None;
         }
 
+        // Resolve the first parameter's binding and direct receiver syntax.
         let body = cx.tcx.hir_body(body);
         let parameter = body.params.first()?;
         let binding = Self::simple_binding(parameter);
-        let receiver_syntax = Self::direct_receiver_type(
-            cx,
-            &sig.decl.inputs[0],
-            semantic_receiver.kind,
-            semantic_receiver.struct_def_id,
-        );
+        let declared_receiver = &sig.decl.inputs[0];
+        let receiver_syntax = Self::direct_receiver_type(cx, declared_receiver, semantic_receiver);
 
         // Separate impl-level generics from syntax that must remain on the method.
         let candidate_generics = Self::movable_generics(cx, generics, receiver_syntax.span);
 
         // Warnings use semantic types and are intentionally broad. Suggestions require editable,
         // private source whose syntax can be moved without guessing about an API contract.
-        let is_suggestible = item.vis_span.is_empty()
+        let source_is_editable = item.vis_span.is_empty()
             && cx.tcx.hir_attrs(item.hir_id()).is_empty()
             && binding.id.is_some()
             && !item.span.from_expansion()
-            && !parameter.span.from_expansion()
-            && !cx
-                .tcx
-                .def_span(semantic_receiver.struct_def_id)
-                .from_expansion()
-            && receiver_syntax.is_direct
-            && candidate_generics.is_safe;
+            && !parameter.span.from_expansion();
 
-        Some(Self {
+        // Require direct authored receiver syntax and a source-controlled struct.
+        let receiver_is_editable = !cx
+            .tcx
+            .def_span(semantic_receiver.struct_def_id)
+            .from_expansion()
+            && receiver_syntax.is_direct;
+
+        // Combine local source safety with generic-movement safety.
+        let is_suggestible =
+            source_is_editable && receiver_is_editable && candidate_generics.is_safe;
+
+        // Group the free function's identity and complete replacement span.
+        let function = CandidateFunction {
             def_id,
             hir_id: item.hir_id(),
             name: ident.name,
             name_span: ident.span,
             item_span: item.span,
+        };
+
+        // Group receiver syntax with the struct that should own the method.
+        let struct_name = cx
+            .tcx
+            .item_name(semantic_receiver.struct_def_id.to_def_id());
+
+        // Retain direct receiver syntax and its semantic owning struct.
+        let receiver = CandidateReceiver {
             parameter_span: parameter.span,
             receiver_type_span: receiver_syntax.span,
+            semantics: semantic_receiver,
+            struct_name,
+        };
+
+        // Retain only the syntax-safety facts needed by automatic migration.
+        let migration = CandidateMigration {
             impl_generics_span: candidate_generics.span,
-            binding_id: binding.id,
-            binding_name: binding.name,
-            receiver_kind: semantic_receiver.kind,
-            struct_def_id: semantic_receiver.struct_def_id,
-            struct_name: cx
-                .tcx
-                .item_name(semantic_receiver.struct_def_id.to_def_id()),
+            binding,
             is_suggestible,
+        };
+
+        // Assemble the candidate from its three independently meaningful concerns.
+        Some(Self {
+            function,
+            receiver,
+            migration,
         })
     }
 
@@ -231,6 +271,7 @@ impl Candidate {
             _ => return None,
         };
 
+        // Require the resolved receiver target to be a local struct.
         let ty::Adt(adt, _) = receiver_type.kind() else {
             return None;
         };
@@ -277,17 +318,14 @@ impl Candidate {
     /// `plain` can be rewritten mechanically. `destructured` still receives a warning, but moving
     /// its pattern into a method body requires a decision from the author.
     const fn simple_binding(parameter: &Param<'_>) -> CandidateBinding {
-        match parameter.pat.kind {
-            PatKind::Binding(_, binding_id, binding, None) => CandidateBinding {
-                id: Some(binding_id),
-                name: Some(binding.name),
-            },
+        let (id, name) = match parameter.pat.kind {
+            PatKind::Binding(_, binding_id, binding, None) => {
+                (Some(binding_id), Some(binding.name))
+            }
             // Destructuring has no single name that can be replaced by `self` throughout the body.
-            _ => CandidateBinding {
-                id: None,
-                name: None,
-            },
-        }
+            _ => (None, None),
+        };
+        CandidateBinding { id, name }
     }
 
     /// Finds the exact source text that would become the type in an `impl` block.
@@ -305,10 +343,10 @@ impl Candidate {
     fn direct_receiver_type(
         cx: &LateContext<'_>,
         declared_type: &HirTy<'_>,
-        receiver_kind: ReceiverKind,
-        struct_def_id: LocalDefId,
+        semantics: ReceiverSemantics,
     ) -> ReceiverSyntax {
-        let receiver_type = match (receiver_kind, declared_type.kind) {
+        // Separate direct receiver syntax from aliases that hide reference semantics.
+        let receiver_type = match (semantics.kind, declared_type.kind) {
             (ReceiverKind::Value, _) => declared_type,
             (ReceiverKind::Ref(_), TyKind::Ref(_, mut_ty)) => mut_ty.ty,
             // An alias can hide a reference and its lifetime contract. It remains lintable, but
@@ -320,14 +358,15 @@ impl Candidate {
                 };
             }
         };
-        let is_direct_struct = matches!(
-            receiver_type.kind,
-            TyKind::Path(qpath)
-                if matches!(
-                    cx.qpath_res(&qpath, receiver_type.hir_id),
-                    Res::Def(DefKind::Struct, def_id) if def_id == struct_def_id.to_def_id()
-                )
-        );
+
+        // Confirm that the authored receiver syntax directly names the semantic struct.
+        let direct_definition = match receiver_type.kind {
+            TyKind::Path(qpath) => cx.qpath_res(&qpath, receiver_type.hir_id).opt_def_id(),
+            _ => None,
+        };
+        let is_direct_struct = direct_definition == Some(semantics.struct_def_id.to_def_id());
+
+        // Retain the direct type span and whether it names the semantic struct.
         ReceiverSyntax {
             span: receiver_type.span,
             is_direct: is_direct_struct,
@@ -353,6 +392,7 @@ impl Candidate {
         generics: &Generics<'_>,
         receiver_type_span: Span,
     ) -> CandidateGenerics {
+        // Collect explicit authored type parameters that could move to the impl.
         let explicit_type_params = generics
             .params
             .iter()
@@ -368,6 +408,7 @@ impl Candidate {
             .collect::<Vec<_>>();
 
         if explicit_type_params.is_empty() {
+            // Reject implicit parameters that cannot move to an impl unchanged.
             let has_unsupported_parameter = generics
                 .params
                 .iter()
@@ -389,19 +430,24 @@ impl Candidate {
         });
 
         // Move only one unbounded parameter that visibly occurs in the receiver type.
-        let can_move = explicit_type_params.len() == 1
-            && generics.predicates.is_empty()
-            && generics.params.iter().all(|param| {
-                param.span.is_empty()
-                    || matches!(
-                        param.kind,
-                        GenericParamKind::Type {
-                            default: None,
-                            synthetic: false
-                        }
-                    )
-            })
-            && receiver_mentions_parameter;
+        let has_one_unbounded_parameter =
+            explicit_type_params.len() == 1 && generics.predicates.is_empty();
+
+        // Reject defaults and authored parameters that cannot move to an impl unchanged.
+        let parameters_are_movable = generics.params.iter().all(|param| {
+            param.span.is_empty()
+                || matches!(
+                    param.kind,
+                    GenericParamKind::Type {
+                        default: None,
+                        synthetic: false
+                    }
+                )
+        });
+
+        // Combine syntax, arity, and semantic receiver-use requirements.
+        let can_move =
+            has_one_unbounded_parameter && parameters_are_movable && receiver_mentions_parameter;
 
         CandidateGenerics {
             span: can_move.then_some(generics.span),
@@ -411,19 +457,25 @@ impl Candidate {
 
     /// Returns whether an implicit or non-type parameter prevents safe generic movement.
     fn is_unsupported_implicit_parameter(param: &rustc_hir::GenericParam<'_>) -> bool {
-        !matches!(
+        // Accept implicit lifetime parameters.
+        let is_lifetime = matches!(param.kind, GenericParamKind::Lifetime { .. });
+
+        // Accept compiler-synthesized type parameters.
+        let is_synthetic_type = matches!(
             param.kind,
-            GenericParamKind::Lifetime { .. }
-                | GenericParamKind::Type {
-                    synthetic: true,
-                    ..
-                }
-        ) && !param.span.is_empty()
+            GenericParamKind::Type {
+                synthetic: true,
+                ..
+            }
+        );
+
+        // Reject any remaining authored generic parameter kind.
+        !(is_lifetime || is_synthetic_type || param.span.is_empty())
     }
 
     /// Returns whether a source range is part of this function.
     fn contains(&self, span: Span) -> bool {
-        self.item_span.lo() <= span.lo() && span.hi() <= self.item_span.hi()
+        self.function.item_span.lo() <= span.lo() && span.hi() <= self.function.item_span.hi()
     }
 
     /// Checks whether the struct already has an item with the proposed method name.
@@ -431,10 +483,18 @@ impl Candidate {
     /// A collision needs a naming decision from the author and therefore cannot be fixed
     /// automatically.
     fn has_method_collision(&self, cx: &LateContext<'_>) -> bool {
-        let impls = cx.tcx.inherent_impls(self.struct_def_id).iter();
+        // Resolve every inherent implementation for the candidate's receiver struct.
+        let impls = cx
+            .tcx
+            .inherent_impls(self.receiver.semantics.struct_def_id)
+            .iter();
+
+        // Compare every associated item with the proposed method name.
         let associated =
             impls.flat_map(|impl_id| cx.tcx.associated_items(*impl_id).in_definition_order());
-        associated.into_iter().any(|item| item.name() == self.name)
+        associated
+            .into_iter()
+            .any(|item| item.name() == self.function.name)
     }
 
     /// Builds an unambiguous path such as `crate::module::Struct::method` for rewritten call sites.
@@ -442,12 +502,14 @@ impl Candidate {
     /// For example, a function value written as `let callback = inspect;` can become
     /// `let callback = crate::Item::inspect;` without depending on imports at that location.
     fn qualified_method_path(&self, cx: &LateContext<'_>) -> String {
-        let path = cx.tcx.def_path_str(self.struct_def_id.to_def_id());
+        let path = cx
+            .tcx
+            .def_path_str(self.receiver.semantics.struct_def_id.to_def_id());
         let struct_path = path.split_once("::").map_or_else(
             || format!("crate::{path}"),
             |(_, rest)| format!("crate::{rest}"),
         );
-        format!("{struct_path}::{}", self.name)
+        format!("{struct_path}::{}", self.function.name)
     }
 }
 
@@ -501,12 +563,8 @@ impl MigrationEdits {
     }
 }
 
-/// Builds all edits needed to move one free function without leaving broken references behind.
-struct MigrationBuilder<'rule, 'cx, 'tcx> {
-    /// Compiler context used for snippets, paths, and source ownership.
-    cx: &'cx LateContext<'tcx>,
-    /// Candidate currently being migrated.
-    candidate: &'rule Candidate,
+/// Cross-reference indexes consulted while constructing one candidate migration.
+struct MigrationReferences<'rule> {
     /// All candidates, used to prevent overlapping simultaneous migrations.
     candidates: &'rule [Candidate],
     /// Body references keyed by first-parameter binding identity.
@@ -515,6 +573,16 @@ struct MigrationBuilder<'rule, 'cx, 'tcx> {
     function_uses: &'rule HashMap<LocalDefId, Vec<Span>>,
     /// Functions whose imported aliases make automatic migration incomplete.
     imported_functions: &'rule HashSet<LocalDefId>,
+}
+
+/// Builds all edits needed to move one free function without leaving broken references behind.
+struct MigrationBuilder<'rule, 'cx, 'tcx> {
+    /// Compiler context used for snippets, paths, and source ownership.
+    cx: &'cx LateContext<'tcx>,
+    /// Candidate currently being migrated.
+    candidate: &'rule Candidate,
+    /// Cross-reference indexes needed to validate and rewrite the migration.
+    references: MigrationReferences<'rule>,
     /// Replacements applied inside the candidate's whole-item edit.
     internal_edits: MigrationEdits,
     /// Call-site replacements outside the candidate function.
@@ -531,13 +599,19 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
         function_uses: &'rule HashMap<LocalDefId, Vec<Span>>,
         imported_functions: &'rule HashSet<LocalDefId>,
     ) -> Self {
-        Self {
-            cx,
-            candidate,
+        // Group the shared reference indexes used by safety checks and rewrites.
+        let references = MigrationReferences {
             candidates,
             binding_uses,
             function_uses,
             imported_functions,
+        };
+
+        // Initialize candidate-local edits independently from external call-site edits.
+        Self {
+            cx,
+            candidate,
+            references,
             internal_edits: MigrationEdits::default(),
             external_edits: Vec::new(),
         }
@@ -545,10 +619,11 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
 
     /// Returns whether migrating `other` would overlap this candidate's whole-item edit.
     fn overlaps_candidate_migration(&self, other: &Candidate) -> bool {
-        other.def_id != self.candidate.def_id
+        other.function.def_id != self.candidate.function.def_id
             && self
+                .references
                 .function_uses
-                .get(&other.def_id)
+                .get(&other.function.def_id)
                 .is_some_and(|uses| uses.iter().any(|span| self.candidate.contains(*span)))
     }
 
@@ -557,16 +632,23 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
     /// This covers imports, generic call syntax, and interactions with other candidates that
     /// Rustfix would otherwise try to edit at the same time.
     fn check_whole_migration_is_safe(&self) -> Option<()> {
-        if !self.candidate.is_suggestible
-            || self.imported_functions.contains(&self.candidate.def_id)
+        // Require editable local syntax with no imported alias contract.
+        if !self.candidate.migration.is_suggestible
+            || self
+                .references
+                .imported_functions
+                .contains(&self.candidate.function.def_id)
         {
             return None;
         }
 
         // Generic call paths may carry turbofish arguments. Rewriting those correctly needs more
         // than replacing the resolved function path, so generic migrations currently stay local.
-        if self.candidate.impl_generics_span.is_some()
-            && self.function_uses.contains_key(&self.candidate.def_id)
+        if self.candidate.migration.impl_generics_span.is_some()
+            && self
+                .references
+                .function_uses
+                .contains_key(&self.candidate.function.def_id)
         {
             return None;
         }
@@ -575,6 +657,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
         // candidate, moving both would produce overlapping whole-item edits. Keep the caller as a
         // warning-only case and let the callee safely rewrite the reference inside it.
         let overlaps_another_migration = self
+            .references
             .candidates
             .iter()
             .any(|other| self.overlaps_candidate_migration(other));
@@ -589,7 +672,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
 
     /// Preserves explicit reference syntax while replacing its binding with `self`.
     fn rewrite_reference_receiver(&self, parameter: &str) -> Option<String> {
-        let inner = self.snippet(self.candidate.receiver_type_span)?;
+        let inner = self.snippet(self.candidate.receiver.receiver_type_span)?;
         let offset = parameter.rfind(&inner)?;
         format!(
             "{}self{}",
@@ -605,8 +688,9 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
     /// It also moves a simple generic parameter to the `impl` and preserves explicit lifetimes and
     /// mutability where their meaning is clear.
     fn rewrite_receiver(&mut self) -> Option<String> {
-        let binding_name = self.candidate.binding_name?;
-        let parameter = self.snippet(self.candidate.parameter_span)?;
+        // Resolve a plain binding and its complete first-parameter source.
+        let binding_name = self.candidate.migration.binding.name?;
+        let parameter = self.snippet(self.candidate.receiver.parameter_span)?;
         let pattern = parameter.split_once(':')?.0.trim();
         if pattern != binding_name.as_str() && pattern != format!("mut {binding_name}") {
             return None;
@@ -614,21 +698,23 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
 
         // `mut binding: &T` permits reassigning the reference itself. `&mut self` only permits
         // mutating the referent, so that spelling cannot be migrated without semantic analysis.
-        if matches!(self.candidate.receiver_kind, ReceiverKind::Ref(_))
+        if matches!(self.candidate.receiver.semantics.kind, ReceiverKind::Ref(_))
             && pattern.starts_with("mut ")
         {
             return None;
         }
 
-        let receiver = match self.candidate.receiver_kind {
+        // Preserve ownership and mutability in the replacement receiver spelling.
+        let receiver = match self.candidate.receiver.semantics.kind {
             ReceiverKind::Value if pattern.starts_with("mut ") => "mut self".to_owned(),
             ReceiverKind::Value => "self".to_owned(),
             ReceiverKind::Ref(_) => self.rewrite_reference_receiver(&parameter)?,
         };
         self.internal_edits
-            .push(self.candidate.parameter_span, receiver);
+            .push(self.candidate.receiver.parameter_span, receiver);
 
-        self.candidate.impl_generics_span.map_or_else(
+        // Move safe generic syntax from the function to its new impl header.
+        self.candidate.migration.impl_generics_span.map_or_else(
             || Some(String::new()),
             |span| {
                 let generics = self.snippet(span)?;
@@ -640,14 +726,16 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
 
     /// Applies the edits inside the function, wraps it in an `impl`, and adds call-site edits.
     fn finish(mut self, impl_generics: &str) -> Option<Vec<MigrationEdit>> {
-        let mut function = self.snippet(self.candidate.item_span)?;
+        // Apply candidate-local rewrites before wrapping the function in its impl.
+        let mut function = self.snippet(self.candidate.function.item_span)?;
         self.internal_edits
-            .apply_to(&mut function, self.candidate.item_span)?;
-        let self_type = self.snippet(self.candidate.receiver_type_span)?;
+            .apply_to(&mut function, self.candidate.function.item_span)?;
+        let self_type = self.snippet(self.candidate.receiver.receiver_type_span)?;
         let moved = format!("impl{impl_generics} {self_type} {{\n{function}\n}}");
 
+        // Combine the whole-item replacement with every external reference rewrite.
         let mut edits = vec![MigrationEdit {
-            span: self.candidate.item_span,
+            span: self.candidate.function.item_span,
             replacement: moved,
         }];
         edits.append(&mut self.external_edits);
@@ -662,7 +750,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
         let source_map = self.cx.sess().source_map();
         !span.from_expansion()
             && source_map.span_to_filename(span)
-                == source_map.span_to_filename(self.candidate.item_span)
+                == source_map.span_to_filename(self.candidate.function.item_span)
     }
 
     /// Replaces uses of the old parameter name with `self` inside the function body.
@@ -681,8 +769,14 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
     /// }
     /// ```
     fn rewrite_binding_uses(&mut self) -> Option<()> {
-        let binding_id = self.candidate.binding_id?;
-        for use_ in self.binding_uses.get(&binding_id).into_iter().flatten() {
+        let binding_id = self.candidate.migration.binding.id?;
+        for use_ in self
+            .references
+            .binding_uses
+            .get(&binding_id)
+            .into_iter()
+            .flatten()
+        {
             if !self.candidate.contains(use_.span) || !self.is_editable_in_candidate_file(use_.span)
             {
                 return None;
@@ -705,8 +799,9 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
     fn rewrite_function_uses(&mut self) -> Option<()> {
         let qualified_method = self.candidate.qualified_method_path(self.cx);
         for span in self
+            .references
             .function_uses
-            .get(&self.candidate.def_id)
+            .get(&self.candidate.function.def_id)
             .into_iter()
             .flatten()
         {
@@ -855,6 +950,7 @@ impl MethodLikeFreeFunctions {
 
     /// Records one source reference to a candidate's first-parameter binding.
     fn record_binding_use(&mut self, cx: &LateContext<'_>, expr: &Expr<'_>, binding_id: HirId) {
+        // Preserve struct-shorthand context alongside the binding reference span.
         let shorthand_field = Self::shorthand_field(cx, expr);
         let binding_use = CandidateBindingUse {
             span: expr.span,
@@ -916,18 +1012,19 @@ impl MethodLikeFreeFunctions {
     /// When no automatic migration is available, the help still explains the intended method form
     /// or the naming collision that requires a manual choice.
     fn emit_candidate(&self, cx: &LateContext<'_>, candidate: &Candidate) {
+        // Resolve name collisions and the complete safe migration before reporting.
         let has_collision = candidate.has_method_collision(cx);
         let migration = self.candidate_migration(cx, candidate, has_collision);
 
         // Explain the preferred method location and attach the complete safe migration.
         cx.tcx.emit_node_span_lint(
             METHOD_LIKE_FREE_FUNCTIONS,
-            candidate.hir_id,
-            candidate.name_span,
+            candidate.function.hir_id,
+            candidate.function.name_span,
             DiagDecorator(|diag| {
                 diag.primary_message(format!(
                     "free function `{}` should be an inherent method on `{}`",
-                    candidate.name, candidate.struct_name
+                    candidate.function.name, candidate.receiver.struct_name
                 ));
                 if let Some(edits) = migration {
                     diag.multipart_suggestion(
@@ -941,14 +1038,14 @@ impl MethodLikeFreeFunctions {
                 } else if has_collision {
                     diag.help(format!(
                         "remove this wrapper or choose a name other than the existing `{}` method",
-                        candidate.name
+                        candidate.function.name
                     ));
                 } else {
                     diag.help(format!(
                         "move `{}` into an `impl {}` block and replace its first parameter with {}",
-                        candidate.name,
-                        candidate.struct_name,
-                        candidate.receiver_kind.description()
+                        candidate.function.name,
+                        candidate.receiver.struct_name,
+                        candidate.receiver.semantics.kind.description()
                     ));
                 }
             }),

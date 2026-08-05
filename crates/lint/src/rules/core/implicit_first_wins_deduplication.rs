@@ -59,6 +59,7 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for ImplicitFirstWinsDeduplication {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        // Recognize an authored iterator filter call.
         if expression.span.from_expansion() {
             return;
         }
@@ -68,6 +69,8 @@ impl LateLintPass<'_> for ImplicitFirstWinsDeduplication {
         if filter.ident.name.as_str() != "filter" {
             return;
         }
+
+        // Inspect the filter closure for a direct set insertion predicate.
         let ExprKind::Closure(closure) = predicate.kind else {
             return;
         };
@@ -78,6 +81,8 @@ impl LateLintPass<'_> for ImplicitFirstWinsDeduplication {
         if insert.ident.name.as_str() != "insert" || !Self::is_hash_set(cx, receiver) {
             return;
         }
+
+        // Explain the implicit collision policy at the insertion predicate.
         cx.emit_span_lint(
             IMPLICIT_FIRST_WINS_DEDUPLICATION,
             body.span,

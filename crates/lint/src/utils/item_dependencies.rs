@@ -13,8 +13,11 @@ use super::dependency_collector::DependencyCollector;
 
 /// Resolves references made by an item to declarations in the current crate.
 pub fn item_dependencies<'tcx>(tcx: TyCtxt<'tcx>, item: &'tcx Item<'tcx>) -> HashSet<LocalDefId> {
+    // Collect references from the declaration and all owned associated items.
     let mut collector = DependencyCollector::new(tcx);
     collector.visit_item(item);
+
+    // Traverse associated declarations owned by the item's outer HIR node.
     match item.kind {
         ItemKind::Trait(.., items) => {
             for id in items {
@@ -38,5 +41,7 @@ pub fn item_dependencies<'tcx>(tcx: TyCtxt<'tcx>, item: &'tcx Item<'tcx>) -> Has
         }
         _ => {}
     }
+
+    // Return the identities accumulated across the complete declaration group.
     collector.finish()
 }

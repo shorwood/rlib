@@ -5,7 +5,9 @@ use rustc_errors::{Applicability, DiagDecorator};
 use rustc_hir::{HirId, Item, ItemKind, Mod};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 
-use crate::utils::declaration_node::{DeclarationNode, DeclarationNodeList};
+use crate::utils::declaration_node::{
+    DeclarationConstraints, DeclarationNode, DeclarationNodeList, DeclarationSource,
+};
 use crate::utils::item_dependencies::item_dependencies;
 use crate::utils::reorder_declarations::DeclarationOrder;
 use crate::utils::source_organization::SectionAnalyzer;
@@ -63,15 +65,18 @@ dylint_linting::impl_late_lint! {
 impl MisorderedTypeDeclarations {
     /// Returns whether an item is a nominal type declaration.
     const fn is_type(item: &Item<'_>) -> bool {
-        matches!(
+        // Classify concrete nominal declarations.
+        let is_concrete = matches!(
             item.kind,
-            ItemKind::Struct(..)
-                | ItemKind::Enum(..)
-                | ItemKind::Union(..)
-                | ItemKind::TyAlias(..)
-                | ItemKind::Trait(..)
-                | ItemKind::TraitAlias(..)
-        )
+            ItemKind::Struct(..) | ItemKind::Enum(..) | ItemKind::Union(..)
+        );
+
+        // Classify abstract nominal declarations before combining both groups.
+        let is_abstract = matches!(
+            item.kind,
+            ItemKind::TyAlias(..) | ItemKind::Trait(..) | ItemKind::TraitAlias(..)
+        );
+        is_concrete || is_abstract
     }
 
     /// Returns whether an item directly implements the expected local type.
@@ -90,6 +95,7 @@ impl MisorderedTypeDeclarations {
 
     /// Compares source and dependency order, then emits an atomic reorder when safe.
     fn emit_if_needed(cx: &LateContext<'_>, nodes: &DeclarationNodeList, hir_id: HirId) {
+        // Stop when the authored order already matches dependency order.
         let ordering = nodes.declaration_order();
         let source = (0..nodes.len()).collect::<Vec<_>>();
         if ordering == source {
@@ -110,11 +116,11 @@ impl MisorderedTypeDeclarations {
         cx.tcx.emit_node_span_lint(
             MISORDERED_TYPE_DECLARATIONS,
             hir_id,
-            nodes[mismatch].span,
+            nodes[mismatch].source.span,
             DiagDecorator(|diag| {
                 diag.primary_message("local types should be declared before their use");
                 diag.span_label(
-                    nodes[mismatch].span,
+                    nodes[mismatch].source.span,
                     "this declaration is the first out of order",
                 );
                 diag.note(format!("expected declaration order: {expected_names}"));
@@ -150,11 +156,14 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedTypeDeclarations {
         // Treat each type and its directly following impls as one movable declaration.
         let mut nodes = Vec::new();
         for (index, item) in items.iter().enumerate() {
+            // Retain nominal declarations and initialize their movable source group.
             if !Self::is_type(item) {
                 continue;
             }
             let mut span = item.span;
             let mut defs = vec![item.owner_id.def_id];
+
+            // Extend the group through directly following inherent implementations.
             let following_impls = items[index + 1..].iter().take_while(|following| {
                 Self::is_direct_impl_of(cx, following, item.owner_id.def_id)
             });
@@ -162,15 +171,27 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedTypeDeclarations {
                 span = span.with_hi(following.span.hi());
                 defs.push(following.owner_id.def_id);
             }
-            nodes.push(DeclarationNode {
+
+            // Materialize one dependency node for the complete type declaration group.
+            let source = DeclarationSource {
                 defs,
                 name: cx.tcx.item_name(item.owner_id.to_def_id()).to_string(),
                 span,
                 section: sections.section_ordinal_for_span(item.span).unwrap_or(0),
+            };
+
+            // Attach neutral tie-breaks and semantic dependencies to the source identity.
+            let constraints = DeclarationConstraints {
                 category: 0,
                 // Visibility is intentionally neutral: independent types retain authored order.
                 is_outward_visible: false,
                 dependencies: item_dependencies(cx.tcx, item),
+            };
+
+            // Combine the source identity and ordering constraints as one movable node.
+            nodes.push(DeclarationNode {
+                source,
+                constraints,
             });
         }
         Self::emit_if_needed(cx, &DeclarationNodeList::new(nodes), hir_id);

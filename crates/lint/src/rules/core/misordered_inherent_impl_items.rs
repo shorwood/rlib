@@ -5,7 +5,9 @@ use rustc_errors::{Applicability, DiagDecorator};
 use rustc_hir::{ImplItem, ImplItemKind, Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 
-use crate::utils::declaration_node::{DeclarationNode, DeclarationNodeList};
+use crate::utils::declaration_node::{
+    DeclarationConstraints, DeclarationNode, DeclarationNodeList, DeclarationSource,
+};
 use crate::utils::impl_item_dependencies::impl_item_dependencies;
 use crate::utils::reorder_declarations::DeclarationOrder;
 
@@ -58,6 +60,7 @@ dylint_linting::impl_late_lint! {
 impl MisorderedInherentImplItems {
     /// Returns whether authored return syntax explicitly names `Self`.
     fn return_mentions_self(cx: &LateContext<'_>, output: rustc_hir::FnRetTy<'_>) -> bool {
+        // Require an explicit authored return type before inspecting its source.
         let rustc_hir::FnRetTy::Return(ty) = output else {
             return false;
         };
@@ -95,6 +98,7 @@ impl MisorderedInherentImplItems {
         implementation: &Item<'_>,
         nodes: &DeclarationNodeList,
     ) {
+        // Stop when the authored order already matches dependency order.
         let ordering = nodes.declaration_order();
         if ordering.iter().copied().eq(0..nodes.len()) {
             return;
@@ -115,10 +119,10 @@ impl MisorderedInherentImplItems {
         cx.tcx.emit_node_span_lint(
             MISORDERED_INHERENT_IMPL_ITEMS,
             implementation.hir_id(),
-            nodes[mismatch].span,
+            nodes[mismatch].source.span,
             DiagDecorator(|diag| {
                 diag.primary_message("inherent impl items are not in dependency-first order");
-                diag.span_label(nodes[mismatch].span, "first item out of order");
+                diag.span_label(nodes[mismatch].source.span, "first item out of order");
                 diag.note(format!("expected item order: {expected_names}"));
                 if let Some(edits) = edits {
                     diag.multipart_suggestion(
@@ -141,6 +145,7 @@ impl MisorderedInherentImplItems {
 
 impl<'tcx> LateLintPass<'tcx> for MisorderedInherentImplItems {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        // Retain authored inherent implementation blocks only.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
@@ -148,6 +153,8 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedInherentImplItems {
         {
             return;
         }
+
+        // Resolve associated items that remain under direct source control.
         let resolved = implementation
             .items
             .iter()
@@ -160,13 +167,17 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedInherentImplItems {
         let nodes = items
             .iter()
             .map(|item| DeclarationNode {
-                defs: vec![item.owner_id.def_id],
-                name: item.ident.name.to_string(),
-                span: item.span,
-                section: 0,
-                category: Self::category(cx, item),
-                is_outward_visible: item.vis_span().is_some_and(|span| !span.is_empty()),
-                dependencies: impl_item_dependencies(cx.tcx, item),
+                source: DeclarationSource {
+                    defs: vec![item.owner_id.def_id],
+                    name: item.ident.name.to_string(),
+                    span: item.span,
+                    section: 0,
+                },
+                constraints: DeclarationConstraints {
+                    category: Self::category(cx, item),
+                    is_outward_visible: item.vis_span().is_some_and(|span| !span.is_empty()),
+                    dependencies: impl_item_dependencies(cx.tcx, item),
+                },
             })
             .collect::<Vec<_>>();
 

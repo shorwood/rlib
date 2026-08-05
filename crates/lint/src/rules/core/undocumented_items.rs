@@ -80,9 +80,12 @@ impl UndocumentedItems {
 
     /// Emits one declaration-focused documentation diagnostic.
     fn emit(cx: &LateContext<'_>, hir_id: HirId, span: Span, kind: &str) {
+        // Ignore documented declarations and source controlled by external expansions.
         if Self::has_documentation(cx, hir_id) || !Self::is_authored(cx, span) {
             return;
         }
+
+        // Request semantic documentation at the declaration's identifier.
         cx.tcx.emit_node_span_lint(
             UNDOCUMENTED_ITEMS,
             hir_id,
@@ -95,17 +98,41 @@ impl UndocumentedItems {
     }
 
     /// Classifies module-level declarations governed by this rule.
-    const fn item_kind(item: &Item<'_>) -> Option<&'static str> {
+    fn item_kind(item: &Item<'_>) -> Option<&'static str> {
+        Self::type_item_kind(item).or_else(|| Self::value_item_kind(item))
+    }
+
+    /// Classifies documented nominal type declarations.
+    fn type_item_kind(item: &Item<'_>) -> Option<&'static str> {
+        Self::concrete_type_item_kind(item).or_else(|| Self::abstract_type_item_kind(item))
+    }
+
+    /// Classifies concrete nominal declarations.
+    const fn concrete_type_item_kind(item: &Item<'_>) -> Option<&'static str> {
         match item.kind {
-            ItemKind::Const(..) => Some("constant"),
             ItemKind::Enum(..) => Some("enum"),
-            ItemKind::Fn { .. } => Some("function"),
-            ItemKind::Static(..) => Some("static"),
             ItemKind::Struct(..) => Some("struct"),
+            ItemKind::Union(..) => Some("union"),
+            _ => None,
+        }
+    }
+
+    /// Classifies abstract nominal declarations.
+    const fn abstract_type_item_kind(item: &Item<'_>) -> Option<&'static str> {
+        match item.kind {
             ItemKind::Trait(..) => Some("trait"),
             ItemKind::TraitAlias(..) => Some("trait alias"),
             ItemKind::TyAlias(..) => Some("type alias"),
-            ItemKind::Union(..) => Some("union"),
+            _ => None,
+        }
+    }
+
+    /// Classifies documented value-level declarations.
+    const fn value_item_kind(item: &Item<'_>) -> Option<&'static str> {
+        match item.kind {
+            ItemKind::Const(..) => Some("constant"),
+            ItemKind::Fn { .. } => Some("function"),
+            ItemKind::Static(..) => Some("static"),
             _ => None,
         }
     }
@@ -119,14 +146,20 @@ impl UndocumentedItems {
 
     /// Returns whether an associated item belongs to a trait implementation.
     fn is_trait_implementation_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
+        // Resolve the associated item's owning HIR declaration.
         let parent = cx.tcx.local_parent(item.owner_id.def_id);
-        matches!(
-            cx.tcx.hir_node_by_def_id(parent),
-            Node::Item(Item {
-                kind: ItemKind::Impl(implementation),
-                ..
-            }) if implementation.of_trait.is_some()
-        )
+        let parent_node = cx.tcx.hir_node_by_def_id(parent);
+
+        // Resolve the enclosing item and its implementation declaration.
+        let Node::Item(parent_item) = parent_node else {
+            return false;
+        };
+        let ItemKind::Impl(implementation) = parent_item.kind else {
+            return false;
+        };
+
+        // Exclude associated items implementing an external trait contract.
+        implementation.of_trait.is_some()
     }
 }
 

@@ -28,40 +28,49 @@ impl DeclarationOrder {
         nodes: &[DeclarationNode],
         order: &[usize],
     ) -> Option<Vec<DeclarationOrderEdit>> {
-        if nodes.len() != order.len() || nodes.iter().any(|node| node.span.from_expansion()) {
+        // Reject incomplete, expanded, or cross-file declaration groups.
+        if nodes.len() != order.len() || nodes.iter().any(|node| node.source.span.from_expansion())
+        {
             return None;
         }
         let source_map = cx.sess().source_map();
-        let file = source_map.span_to_filename(nodes.first()?.span);
+        let file = source_map.span_to_filename(nodes.first()?.source.span);
         if nodes
             .iter()
-            .any(|node| source_map.span_to_filename(node.span) != file)
+            .any(|node| source_map.span_to_filename(node.source.span) != file)
         {
             return None;
         }
 
+        // Preserve comments and macro definitions that sit between declarations.
         let mut by_source = (0..nodes.len()).collect::<Vec<_>>();
-        by_source.sort_by_key(|index| nodes[*index].span.lo());
+        by_source.sort_by_key(|index| nodes[*index].source.span.lo());
         for pair in by_source.windows(2) {
+            // Inspect the exact authored gap between adjacent source declarations.
             let gap = source_map
                 .span_to_snippet(Span::with_root_ctxt(
-                    nodes[pair[0]].span.hi(),
-                    nodes[pair[1]].span.lo(),
+                    nodes[pair[0]].source.span.hi(),
+                    nodes[pair[1]].source.span.lo(),
                 ))
                 .ok()?;
+
+            // Reject gaps containing authored comments or macro definitions.
             if !gap.contains("//") && !gap.contains("/*") && !gap.contains("macro_rules!") {
                 continue;
             }
             return None;
         }
 
+        // Pair reordered snippets with the original source-ordered target spans.
         let snippets = order
             .iter()
-            .map(|index| source_map.span_to_snippet(nodes[*index].span).ok())
+            .map(|index| source_map.span_to_snippet(nodes[*index].source.span).ok())
             .collect::<Option<Vec<_>>>()?;
+
+        // Construct one replacement for each original source position.
         let targets = by_source.iter().zip(snippets);
         let edits = targets.map(|(target, replacement)| DeclarationOrderEdit {
-            span: nodes[*target].span,
+            span: nodes[*target].source.span,
             replacement,
         });
         Some(edits.collect())

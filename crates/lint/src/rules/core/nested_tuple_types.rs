@@ -54,12 +54,15 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for NestedTupleTypes {
     fn check_ty(&mut self, cx: &LateContext<'_>, ty: &Ty<'_, AmbigArg>) {
+        // Retain only explicit structural types containing a nested tuple.
         let Some(tuple) = ExplicitTupleType::classify(cx, ty) else {
             return;
         };
         if tuple.kind != ExplicitTupleKind::Nested {
             return;
         }
+
+        // Explain both the outer structural type and its unnamed nested shape.
         cx.emit_span_lint(
             NESTED_TUPLE_TYPES,
             tuple.root_span,

@@ -43,6 +43,7 @@ impl CollectionReceiver {
         input: Ty<'tcx>,
         mutable_binding: bool,
     ) -> Option<CollectionReceiverType<'tcx>> {
+        // Prefer an owned vector receiver while preserving binding mutability.
         if let Some(element) = Self::vec_element_type(cx, input) {
             let receiver = if mutable_binding {
                 Self::MutOwned
@@ -52,6 +53,7 @@ impl CollectionReceiver {
             return Some(CollectionReceiverType { receiver, element });
         }
 
+        // Resolve borrowed vectors and slices to their direct element type.
         let ty::Ref(_, collection, mutability) = input.kind() else {
             return None;
         };
@@ -61,6 +63,8 @@ impl CollectionReceiver {
             };
             Some(*element)
         })?;
+
+        // Preserve the reference mutability in the eventual method receiver.
         let receiver = match mutability {
             Mutability::Not => Self::Shared,
             Mutability::Mut => Self::Mutable,
@@ -103,24 +107,36 @@ enum CandidateWrapperState {
     Conflicting,
 }
 
-/// One free function whose first parameter represents a collection that needs a domain wrapper.
-struct Candidate {
+/// Free-function identity and source locations retained for wrapper guidance.
+struct CandidateFunction {
     /// Function HIR node on which the diagnostic is emitted.
     hir_id: HirId,
     /// Free-function name proposed for the wrapper method.
-    function_name: Symbol,
+    name: Symbol,
     /// Identifier span used as the primary diagnostic location.
-    function_name_span: Span,
+    name_span: Span,
     /// First-parameter span describing the collection contract.
     parameter_span: Span,
+}
+
+/// Local collection element identity and display names retained for wrapper guidance.
+struct CandidateElement {
     /// Local definition of the collection element struct.
-    element_def_id: LocalDefId,
+    def_id: LocalDefId,
     /// Whether the element type requires generic wrapper design decisions.
-    has_element_parameters: bool,
+    has_parameters: bool,
     /// Displayable semantic element type including generic arguments.
-    element_type: String,
+    ty: String,
     /// Element struct name shown in diagnostics.
-    element_name: Symbol,
+    name: Symbol,
+}
+
+/// One free function whose first parameter represents a collection that needs a domain wrapper.
+struct Candidate {
+    /// Free-function identity and source locations.
+    function: CandidateFunction,
+    /// Local collection element identity and display names.
+    element: CandidateElement,
     /// Canonical `<Element>List` wrapper name.
     wrapper_name: Symbol,
     /// Method receiver preserving collection ownership and mutability.
@@ -133,32 +149,37 @@ impl Candidate {
     /// The compiler's understanding of the type is used here, so aliases such as `type Items =
     /// Vec<Item>` are treated the same as spelling `Vec<Item>` directly.
     fn discover(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
-        let ItemKind::Fn {
-            sig,
-            ident,
-            body,
-            has_body: true,
-            ..
-        } = item.kind
-        else {
+        // Require an authored free function body before extracting its syntax.
+        if !matches!(item.kind, ItemKind::Fn { has_body: true, .. }) {
+            return None;
+        }
+
+        // Extract the signature and body from the validated function.
+        let ItemKind::Fn { sig, body, .. } = item.kind else {
             return None;
         };
+        let ident = item.kind.ident()?;
 
+        // Require the ordinary Rust ABI before inspecting parameter semantics.
         if sig.header.abi != ExternAbi::Rust {
             return None;
         }
 
+        // Resolve the first parameter's collection receiver and element semantics.
         let function_def_id = item.owner_id.def_id;
         let signature = cx.tcx.fn_sig(function_def_id).instantiate_identity();
         let first_type = *signature.inputs().skip_binder().first()?;
         let body = cx.tcx.hir_body(body);
         let parameter = body.params.first()?;
+
+        // Preserve mutable owned bindings when classifying the receiver contract.
         let mutable_binding = matches!(
             parameter.pat.kind,
             PatKind::Binding(BindingMode(_, Mutability::Mut), ..)
         );
         let receiver_type = CollectionReceiver::discover(cx, first_type, mutable_binding)?;
 
+        // Require a directly stored local struct element under source control.
         let ty::Adt(element, _) = receiver_type.element.kind() else {
             return None;
         };
@@ -166,6 +187,8 @@ impl Candidate {
             .is_struct()
             .then(|| element.did().as_local())
             .flatten()?;
+
+        // Reject element definitions generated outside the linted crate's source.
         if cx
             .tcx
             .def_span(element_def_id)
@@ -174,19 +197,30 @@ impl Candidate {
             return None;
         }
 
+        // Derive canonical element and wrapper names for concrete guidance.
         let element_name = cx.tcx.item_name(element_def_id.to_def_id());
         let wrapper_name = Symbol::intern(&format!("{element_name}List"));
 
-        // Retain the semantic receiver and names needed for later wrapper guidance.
-        Some(Self {
+        // Group the function identity independently from the element type identity.
+        let function = CandidateFunction {
             hir_id: item.hir_id(),
-            function_name: ident.name,
-            function_name_span: ident.span,
+            name: ident.name,
+            name_span: ident.span,
             parameter_span: parameter.span,
-            element_def_id,
-            has_element_parameters: !cx.tcx.generics_of(element_def_id).own_params.is_empty(),
-            element_type: receiver_type.element.to_string(),
-            element_name,
+        };
+
+        // Retain element facts needed for wrapper discovery and diagnostic recipes.
+        let element = CandidateElement {
+            def_id: element_def_id,
+            has_parameters: !cx.tcx.generics_of(element_def_id).own_params.is_empty(),
+            ty: receiver_type.element.to_string(),
+            name: element_name,
+        };
+
+        // Combine the grouped facts with the canonical wrapper receiver.
+        Some(Self {
+            function,
+            element,
             wrapper_name,
             receiver: receiver_type.receiver,
         })
@@ -194,12 +228,15 @@ impl Candidate {
 
     /// Returns the local struct stored directly in a `Vec`, ignoring its generic arguments.
     fn vector_element(cx: &LateContext<'_>, vector: Ty<'_>) -> Option<LocalDefId> {
+        // Require the standard vector diagnostic item.
         let ty::Adt(vector_def, arguments) = vector.kind() else {
             return None;
         };
         if !cx.tcx.is_diagnostic_item(sym::Vec, vector_def.did()) {
             return None;
         }
+
+        // Resolve a directly stored local struct element.
         let ty::Adt(element, _) = arguments.type_at(0).kind() else {
             return None;
         };
@@ -214,6 +251,7 @@ impl Candidate {
     /// Functions and values may legally share this spelling with a struct, so they must not be
     /// mistaken for wrapper conflicts.
     fn occupies_wrapper_name(&self, item: &Item<'_>) -> bool {
+        // Require an item with the canonical wrapper spelling.
         if item
             .kind
             .ident()
@@ -222,18 +260,25 @@ impl Candidate {
             return false;
         }
 
-        match item.kind {
+        // Classify concrete declarations occupying the type namespace.
+        let is_concrete = matches!(
+            item.kind,
+            ItemKind::Mod(..) | ItemKind::Enum(..) | ItemKind::Struct(..) | ItemKind::Union(..)
+        );
+
+        // Classify abstract declarations and imports occupying the type namespace.
+        let is_abstract = matches!(
+            item.kind,
             ItemKind::ExternCrate(..)
-            | ItemKind::Mod(..)
-            | ItemKind::TyAlias(..)
-            | ItemKind::Enum(..)
-            | ItemKind::Struct(..)
-            | ItemKind::Union(..)
-            | ItemKind::Trait(..)
-            | ItemKind::TraitAlias(..) => true,
-            ItemKind::Use(path, _) => path.res.type_ns.is_some(),
-            _ => false,
-        }
+                | ItemKind::TyAlias(..)
+                | ItemKind::Trait(..)
+                | ItemKind::TraitAlias(..)
+        );
+
+        // Include imports that resolve a name in the type namespace.
+        let is_type_import =
+            matches!(item.kind, ItemKind::Use(path, _) if path.res.type_ns.is_some());
+        is_concrete || is_abstract || is_type_import
     }
 
     /// Determines whether the canonical wrapper is absent, usable, or occupied by another type.
@@ -242,6 +287,7 @@ impl Candidate {
         cx: &LateContext<'tcx>,
         module_items: &[&'tcx Item<'tcx>],
     ) -> CandidateWrapperState {
+        // Resolve any declaration occupying the canonical wrapper name.
         let Some(item) = module_items
             .iter()
             .find(|item| self.occupies_wrapper_name(item))
@@ -258,7 +304,7 @@ impl Candidate {
         let has_expected_field = fields.fields().iter().any(|field| {
             field.ident.name == items
                 && Self::vector_element(cx, cx.tcx.type_of(field.def_id).instantiate_identity())
-                    .is_some_and(|element| element == self.element_def_id)
+                    .is_some_and(|element| element == self.element.def_id)
         });
         if has_expected_field {
             CandidateWrapperState::Compatible
@@ -269,8 +315,9 @@ impl Candidate {
 
     /// Returns editable items from the element struct's module, where its wrapper must live.
     fn element_module_items<'tcx>(&self, cx: &LateContext<'tcx>) -> Vec<&'tcx Item<'tcx>> {
+        // Resolve the element's owning module and its complete direct item set.
         let source_map = cx.sess().source_map();
-        let module = cx.tcx.parent_module_from_def_id(self.element_def_id);
+        let module = cx.tcx.parent_module_from_def_id(self.element.def_id);
         let module_items = cx.tcx.hir_module_items(module);
 
         // Resolve free items and discard code produced by external macros.
@@ -289,54 +336,54 @@ impl Candidate {
         let module_items = self.element_module_items(cx);
         let wrapper = self.wrapper_state(cx, &module_items);
         let source_map = cx.sess().source_map();
-        let element_file = source_map.span_to_filename(cx.tcx.def_span(self.element_def_id));
+        let element_file = source_map.span_to_filename(cx.tcx.def_span(self.element.def_id));
         let element_file = element_file.short();
 
         // Tailor one wrapper recipe to the namespace state discovered above.
         cx.tcx.emit_node_span_lint(
             COLLECTION_METHOD_LIKE_FREE_FUNCTIONS,
-            self.hir_id,
-            self.function_name_span,
+            self.function.hir_id,
+            self.function.name_span,
             DiagDecorator(|diag| {
                 diag.primary_message(format!(
                     "free function `{}` should be a method on `{}`",
-                    self.function_name, self.wrapper_name
+                    self.function.name, self.wrapper_name
                 ));
                 diag.span_label(
-                    self.parameter_span,
-                    format!("this collection of `{}` needs a named wrapper", self.element_name),
+                    self.function.parameter_span,
+                    format!("this collection of `{}` needs a named wrapper", self.element.name),
                 );
 
                 match wrapper {
-                    CandidateWrapperState::Missing if self.has_element_parameters => diag.help(format!(
+                    CandidateWrapperState::Missing if self.element.has_parameters => diag.help(format!(
                         "beside `{}` in `{element_file}`, define a generic `{}` wrapper that preserves its parameters and stores `Vec<{}>` in `items`, then implement `{}` there with {}",
-                        self.element_name,
+                        self.element.name,
                         self.wrapper_name,
-                        self.element_type,
-                        self.function_name,
+                        self.element.ty,
+                        self.function.name,
                         self.receiver.description()
                     )),
                     CandidateWrapperState::Missing => diag.help(format!(
                         "beside `{}` in `{element_file}`, define `struct {} {{ items: Vec<{}> }}` and implement `{}` there with {}",
-                        self.element_name,
+                        self.element.name,
                         self.wrapper_name,
-                        self.element_type,
-                        self.function_name,
+                        self.element.ty,
+                        self.function.name,
                         self.receiver.description()
                     )),
                     CandidateWrapperState::Compatible => diag.help(format!(
                         "move `{}` into the existing `impl {}` block beside `{}` in `{element_file}` and use {}",
-                        self.function_name,
+                        self.function.name,
                         self.wrapper_name,
-                        self.element_name,
+                        self.element.name,
                         self.receiver.description()
                     )),
                     CandidateWrapperState::Conflicting => diag.help(format!(
                         "`{}` already names another type beside `{}` in `{element_file}`; choose a dedicated wrapper there with an `items: Vec<{}>` field and implement `{}` with {}",
                         self.wrapper_name,
-                        self.element_name,
-                        self.element_name,
-                        self.function_name,
+                        self.element.name,
+                        self.element.name,
+                        self.function.name,
                         self.receiver.description()
                     )),
                 };
@@ -392,6 +439,7 @@ dylint_linting::impl_late_lint! {
 impl<'tcx> LateLintPass<'tcx> for CollectionMethodLikeFreeFunctions {
     /// Checks complete modules so wrapper discovery and function discovery see the same namespace.
     fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, _: HirId) {
+        // Resolve the source map used to exclude externally generated declarations.
         let source_map = cx.sess().source_map();
 
         // Resolve authored items once so every candidate sees the same namespace.

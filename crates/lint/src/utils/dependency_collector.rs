@@ -56,6 +56,7 @@ impl<'tcx> intravisit::Visitor<'tcx> for DependencyCollector<'tcx> {
     }
 
     fn visit_expr(&mut self, expression: &'tcx rustc_hir::Expr<'tcx>) {
+        // Resolve type-dependent method calls against the current body owner.
         if matches!(expression.kind, rustc_hir::ExprKind::MethodCall(..))
             && let Some(owner) = self.body_owner
             && let Some(definition) = self
@@ -66,6 +67,8 @@ impl<'tcx> intravisit::Visitor<'tcx> for DependencyCollector<'tcx> {
         {
             self.definitions.insert(definition);
         }
+
+        // Continue collecting references from the expression's descendants.
         intravisit::walk_expr(self, expression);
     }
 }

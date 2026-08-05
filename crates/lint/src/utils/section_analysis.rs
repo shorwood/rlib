@@ -97,6 +97,7 @@ pub struct SectionAnalyzer {
 impl SectionAnalyzer {
     /// Loads and validates the shared library configuration.
     pub(crate) fn from_config() -> Self {
+        // Load the divider-specific project configuration.
         let config = LibraryConfig::load().section_dividers;
 
         // Fail during lint construction when the project template is invalid.
@@ -111,6 +112,7 @@ impl SectionAnalyzer {
 
     /// Converts a snippet-relative template match into an absolute source event.
     fn divider_from_match(span: Span, matched: TemplateMatch) -> SectionEventDivider {
+        // Convert snippet offsets into source-map byte positions.
         let start = u32::try_from(matched.start).expect("source span offset should fit in BytePos");
         let end = u32::try_from(matched.end).expect("source span offset should fit in BytePos");
 
@@ -197,6 +199,7 @@ impl ModuleAnalysis {
         module: &Mod<'_>,
         hir_id: HirId,
     ) -> SectionAnalysis {
+        // Identify the physical source file represented by this HIR module.
         let source_map = cx.sess().source_map();
         let module_span = Self::source_span(cx, module, hir_id);
         let module_file = source_map.span_to_filename(module_span);
@@ -251,6 +254,7 @@ impl ModuleAnalysis {
 
     /// Finds the physical source extent in which module-level dividers may appear.
     fn source_span(cx: &LateContext<'_>, module: &Mod<'_>, hir_id: HirId) -> Span {
+        // Resolve the inline module item surrounding the HIR module body.
         let inner = module.spans.inner_span;
         let containing_nodes = [cx.tcx.hir_node(hir_id), cx.tcx.parent_hir_node(hir_id)];
         let item = containing_nodes.into_iter().find_map(|node| match node {
@@ -277,6 +281,7 @@ impl ModuleAnalysis {
             .map(BytePos);
         let lo = opening_offset.map_or_else(|| inner.lo(), |offset| item.span.lo() + offset);
 
+        // Extend through the authored closing brace when its source is available.
         let closing_source = source_map.span_to_snippet(item.span.with_lo(inner.hi()));
         let closing_brace = closing_source.ok().and_then(|source| source.find('}'));
         let closing_offset = closing_brace
@@ -305,6 +310,7 @@ impl ModuleAnalysis {
 
         // Prefer a safe canonical replacement for syntactic content errors.
         if let Some(message) = &parsed.error {
+            // Render the normalized content only when the template can represent it safely.
             let replacement = parsed.normalized.as_ref().and_then(|content| {
                 analyzer.render_replacement(content, &section.divider.indentation)
             });
@@ -318,14 +324,19 @@ impl ModuleAnalysis {
                 replacement,
             });
         } else if !analyzer.rendered_lines_fit(&section.divider.raw_content) {
+            // Describe the configured width failure independently from syntax errors.
+            let message = format!(
+                "section divider exceeds the configured {}-character line limit",
+                analyzer.max_line_length
+            );
+            let help =
+                "shorten the optional description or choose a more compact template".to_owned();
+
+            // Record the width failure without proposing an unsafe content rewrite.
             analysis.malformed.push(SectionFinding {
                 span: section.divider.span,
-                message: format!(
-                    "section divider exceeds the configured {}-character line limit",
-                    analyzer.max_line_length
-                ),
-                help: "shorten the optional description or choose a more compact template"
-                    .to_owned(),
+                message,
+                help,
                 replacement: None,
             });
         }
@@ -339,12 +350,15 @@ impl ModuleAnalysis {
         prefix: &str,
         analysis: &mut SectionAnalysis,
     ) {
+        // Require canonical syntax, width, and at least one declaration participant.
         let is_valid = parsed.error.is_none()
             && analyzer.rendered_lines_fit(&section.divider.raw_content)
             && !section.participants.is_empty();
         if !is_valid {
             return;
         }
+
+        // Publish the stable semantic section used by companion naming analyses.
         analysis.sections.push(SectionGroup {
             ordinal: analysis.sections.len() + 1,
             prefix: prefix.to_owned(),
@@ -360,12 +374,15 @@ impl ModuleAnalysis {
         seen_prefixes: &mut HashMap<String, Span>,
         analysis: &mut SectionAnalysis,
     ) {
+        // Register this prefix and stop when it has not appeared before.
         if seen_prefixes
             .insert(prefix.to_owned(), section.divider.span)
             .is_none()
         {
             return;
         }
+
+        // Report the later occurrence while naming the family it should rejoin.
         analysis.duplicates.push(SectionFinding {
             span: section.divider.span,
             message: format!("section prefix `{prefix}` is used more than once in this module"),
@@ -380,27 +397,36 @@ impl ModuleAnalysis {
         prefix: &str,
         expected: &str,
     ) -> SectionFinding {
+        // Explain the mismatch and the inferred declaration-family prefix.
+        let message = format!("section prefix `{prefix}` does not match its declaration family");
+        let help = format!(
+            "rename the declarations into one coherent family first; their longest shared PascalCase prefix is `{expected}`, and a new section is appropriate only for an independent concept"
+        );
+
+        // Attach the naming-first guidance to the authored divider.
         SectionFinding {
             span: section.divider.span,
-            message: format!("section prefix `{prefix}` does not match its declaration family"),
-            help: format!(
-                "rename the declarations into one coherent family first; their longest shared PascalCase prefix is `{expected}`, and a new section is appropriate only for an independent concept"
-            ),
+            message,
+            help,
             replacement: None,
         }
     }
 
     /// Builds naming-first guidance for declarations that share no `PascalCase` prefix.
     fn unrelated_names_finding(section: &SectionEventGroup, prefix: &str) -> SectionFinding {
+        // Explain both the absent shared prefix and the declarations that need renaming.
+        let message =
+            format!("section `{prefix}` contains declarations without a shared PascalCase prefix");
+        let help = format!(
+            "reconsider the names {} so closely related declarations share a visible prefix; split the section only when they represent independent concepts",
+            section.participants.formatted_names()
+        );
+
+        // Attach naming-first guidance to the authored divider.
         SectionFinding {
             span: section.divider.span,
-            message: format!(
-                "section `{prefix}` contains declarations without a shared PascalCase prefix"
-            ),
-            help: format!(
-                "reconsider the names {} so closely related declarations share a visible prefix; split the section only when they represent independent concepts",
-                section.participants.formatted_names()
-            ),
+            message,
+            help,
             replacement: None,
         }
     }
@@ -471,13 +497,26 @@ struct SectionEventCandidate {
 }
 
 impl SectionEventCandidate {
+    /// Builds a candidate from an item whose definition and name are direct.
+    fn from_named_item(cx: &LateContext<'_>, item: &Item<'_>, is_nominal: bool) -> Self {
+        Self {
+            def_id: item.owner_id.def_id,
+            name: cx.tcx.item_name(item.owner_id.to_def_id()).to_string(),
+            span: item.span,
+            is_nominal_declaration: is_nominal,
+        }
+    }
+
     /// Converts a direct inherent implementation into a candidate for its self type.
     fn from_impl(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+        // Resolve the implementation's nominal self type and local definition.
         let self_type = cx.tcx.type_of(item.owner_id).instantiate_identity();
         let ty::Adt(definition, _) = self_type.kind() else {
             return None;
         };
         let definition = definition.did().as_local()?;
+
+        // Represent the supporting implementation under its nominal type's family name.
         Some(Self {
             def_id: definition,
             name: cx.tcx.item_name(definition.to_def_id()).to_string(),
@@ -488,27 +527,32 @@ impl SectionEventCandidate {
 
     /// Converts a section-relevant module item into a source candidate.
     fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+        // Ignore declarations whose source was synthesized by expansion.
         if item.span.from_expansion() {
             return None;
         }
+
+        // Classify concrete nominal declarations directly.
+        if matches!(
+            item.kind,
+            ItemKind::Struct(..) | ItemKind::Enum(..) | ItemKind::Union(..)
+        ) {
+            return Some(Self::from_named_item(cx, item, true));
+        }
+
+        // Classify abstract nominal declarations directly.
+        if matches!(
+            item.kind,
+            ItemKind::TyAlias(..) | ItemKind::Trait(..) | ItemKind::TraitAlias(..)
+        ) {
+            return Some(Self::from_named_item(cx, item, true));
+        }
+
+        // Classify value declarations and supporting inherent implementations.
         match item.kind {
-            ItemKind::Struct(..)
-            | ItemKind::Enum(..)
-            | ItemKind::Union(..)
-            | ItemKind::TyAlias(..)
-            | ItemKind::Trait(..)
-            | ItemKind::TraitAlias(..) => Some(Self {
-                def_id: item.owner_id.def_id,
-                name: cx.tcx.item_name(item.owner_id.to_def_id()).to_string(),
-                span: item.span,
-                is_nominal_declaration: true,
-            }),
-            ItemKind::Const(..) | ItemKind::Static(..) | ItemKind::Fn { .. } => Some(Self {
-                def_id: item.owner_id.def_id,
-                name: cx.tcx.item_name(item.owner_id.to_def_id()).to_string(),
-                span: item.span,
-                is_nominal_declaration: false,
-            }),
+            ItemKind::Const(..) | ItemKind::Static(..) | ItemKind::Fn { .. } => {
+                Some(Self::from_named_item(cx, item, false))
+            }
             ItemKind::Impl(_) => Self::from_impl(cx, item),
             _ => None,
         }
@@ -598,6 +642,7 @@ impl SectionEventCandidates {
 
     /// Formats a stable, deduplicated set of candidate names for diagnostics.
     fn formatted_names(&self) -> String {
+        // Stabilize and deduplicate authored participant names.
         let mut names = self.names();
         names.sort_unstable();
         names.dedup();
@@ -726,6 +771,7 @@ impl SectionEventAnalysisState {
 
     /// Closes the final groups and returns the completed analysis.
     fn finish(mut self, analyzer: &SectionAnalyzer) -> SectionAnalysis {
+        // Preserve declarations that appeared outside any authored section.
         self.record_uncovered();
         let Some(section) = self.current.take() else {
             return self.analysis;
@@ -759,6 +805,7 @@ struct ParsedContent {
 impl ParsedContent {
     /// Parses divider content and computes its canonical representation.
     fn parse(content: &str) -> Self {
+        // Split and trim the authored prefix and optional description.
         let trimmed = content.trim();
         let (raw_prefix, raw_description) = trimmed
             .split_once(':')
@@ -781,6 +828,7 @@ impl ParsedContent {
             normalized.as_deref(),
         );
 
+        // Retain both semantic content and the safest canonical repair.
         Self {
             prefix,
             normalized,
@@ -900,6 +948,7 @@ struct Template {
 impl Template {
     /// Validates and parses a configured divider template.
     fn parse(source: &str, max_line_length: usize) -> Result<Self, String> {
+        // Reject invalid source framing and unusable configured widths.
         if source.starts_with('\n') || source.ends_with('\n') || source.contains('\r') {
             return Err(
                 "template must not have leading, trailing, or carriage-return newlines".to_owned(),
@@ -908,13 +957,19 @@ impl Template {
         if max_line_length == 0 {
             return Err("max_line_length must be greater than zero".to_owned());
         }
+
+        // Require exactly one semantic content capture across all template lines.
         if source.matches(TEMPLATE_CONTENT_PLACEHOLDER).count() != 1 {
             return Err("template must contain exactly one `{content}` placeholder".to_owned());
         }
+
+        // Parse every static template line under the configured width.
         let lines = source
             .split('\n')
             .map(|line| Self::parse_line(line, max_line_length))
             .collect::<Result<Vec<_>, _>>()?;
+
+        // Retain the original template alongside its parsed line representation.
         Ok(Self {
             source: source.to_owned(),
             lines,
@@ -923,6 +978,7 @@ impl Template {
 
     /// Validates one ordinary-comment template line and splits its placeholder.
     fn parse_line(line: &str, max_line_length: usize) -> Result<TemplateLine, String> {
+        // Require ordinary comments whose static portion fits the configured width.
         if !line.starts_with("//") || line.starts_with("///") || line.starts_with("//!") {
             return Err("every template line must be a normal `//` comment".to_owned());
         }
@@ -959,6 +1015,7 @@ impl Template {
 
     /// Attempts to match a complete consistently indented template at `index`.
     fn match_at(&self, lines: &[TemplateSourceLine<'_>], index: usize) -> Option<TemplateMatch> {
+        // Match every configured line under one indentation and content capture.
         let indentation = lines[index].indentation;
         let mut content = None;
         for (offset, template) in self.lines.iter().enumerate() {
@@ -977,12 +1034,15 @@ impl Template {
         let last = &lines[index + self.lines.len() - 1];
 
         // Capture both the semantic content and its complete authored span.
+        let content = content
+            .expect("validated template has one placeholder")
+            .to_owned();
+
+        // Retain the complete source extent and captured semantic content.
         Some(TemplateMatch {
             start: first.start + indentation.len(),
             end: last.start + last.indentation.len() + last.content.len(),
-            content: content
-                .expect("validated template has one placeholder")
-                .to_owned(),
+            content,
             indentation: indentation.to_owned(),
         })
     }

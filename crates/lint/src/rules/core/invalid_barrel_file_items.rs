@@ -28,16 +28,21 @@ impl Violation {
     /// Classifies a top-level item, returning `None` for valid barrel entries.
     fn from_item(item: &Item) -> Option<Self> {
         match &item.kind {
-            ItemKind::Mod(_, _, ModKind::Unloaded | ModKind::Loaded(_, Inline::No { .. }, _)) => {
-                None
-            }
-            ItemKind::Mod(_, _, ModKind::Loaded(_, Inline::Yes, _)) => Some(Self::InlineModule),
+            ItemKind::Mod(_, _, kind) => Self::from_module(kind),
             ItemKind::Use(_) if Self::is_outward_reexport(&item.vis.kind) => None,
             ItemKind::Use(_) => Some(Self::PrivateImport),
             ItemKind::MacCall(_) | ItemKind::MacroDef(..) | ItemKind::DelegationMac(_) => {
                 Some(Self::Macro)
             }
             _ => Some(Self::Implementation),
+        }
+    }
+
+    /// Classifies file and inline module declarations within a barrel file.
+    const fn from_module(kind: &ModKind) -> Option<Self> {
+        match kind {
+            ModKind::Unloaded | ModKind::Loaded(_, Inline::No { .. }, _) => None,
+            ModKind::Loaded(_, Inline::Yes, _) => Some(Self::InlineModule),
         }
     }
 

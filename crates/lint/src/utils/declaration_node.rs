@@ -16,9 +16,7 @@ use rustc_span::Span;
 // -----------------------------------------------------------------------------
 
 /// Finds strongly connected components in a declaration dependency graph.
-struct Tarjan<'graph> {
-    /// Outgoing dependency edges indexed by declaration position.
-    edges: &'graph [HashSet<usize>],
+struct TarjanState {
     /// Depth-first discovery index assigned to the next unvisited vertex.
     next_index: usize,
     /// Discovery index assigned to each visited vertex.
@@ -29,6 +27,14 @@ struct Tarjan<'graph> {
     stack: Vec<usize>,
     /// Whether each vertex is currently present on `stack`.
     on_stack: Vec<bool>,
+}
+
+/// Finds strongly connected components in a declaration dependency graph.
+struct Tarjan<'graph> {
+    /// Outgoing dependency edges indexed by declaration position.
+    edges: &'graph [HashSet<usize>],
+    /// Mutable depth-first traversal state.
+    state: TarjanState,
     /// Strongly connected components found so far.
     components: Vec<Vec<usize>>,
 }
@@ -36,13 +42,19 @@ struct Tarjan<'graph> {
 impl<'graph> Tarjan<'graph> {
     /// Initializes a traversal over `edges`.
     fn new(edges: &'graph [HashSet<usize>]) -> Self {
-        Self {
-            edges,
+        // Initialize depth-first state for every graph vertex.
+        let state = TarjanState {
             next_index: 0,
             indices: vec![None; edges.len()],
             lowlinks: vec![0; edges.len()],
             stack: Vec::new(),
             on_stack: vec![false; edges.len()],
+        };
+
+        // Combine immutable graph edges with mutable traversal output.
+        Self {
+            edges,
+            state,
             components: Vec::new(),
         }
     }
@@ -50,37 +62,43 @@ impl<'graph> Tarjan<'graph> {
     /// Visits `vertex` and emits its component once the component root is complete.
     fn visit(&mut self, vertex: usize) {
         // Mark the vertex as active in this depth-first traversal.
-        let index = self.next_index;
-        self.next_index += 1;
-        self.indices[vertex] = Some(index);
-        self.lowlinks[vertex] = index;
-        self.stack.push(vertex);
-        self.on_stack[vertex] = true;
+        let index = self.state.next_index;
+        self.state.next_index += 1;
+        self.state.indices[vertex] = Some(index);
+        self.state.lowlinks[vertex] = index;
+        self.state.stack.push(vertex);
+        self.state.on_stack[vertex] = true;
 
         // Propagate the earliest reachable index through every outgoing edge.
         for neighbour in &self.edges[vertex] {
-            if self.indices[*neighbour].is_none() {
+            if self.state.indices[*neighbour].is_none() {
                 self.visit(*neighbour);
-                self.lowlinks[vertex] = self.lowlinks[vertex].min(self.lowlinks[*neighbour]);
-            } else if self.on_stack[*neighbour] {
-                self.lowlinks[vertex] = self.lowlinks[vertex]
-                    .min(self.indices[*neighbour].expect("visited stack member has an index"));
+                self.state.lowlinks[vertex] =
+                    self.state.lowlinks[vertex].min(self.state.lowlinks[*neighbour]);
+            } else if self.state.on_stack[*neighbour] {
+                self.state.lowlinks[vertex] = self.state.lowlinks[vertex].min(
+                    self.state.indices[*neighbour].expect("visited stack member has an index"),
+                );
             }
         }
 
-        if self.lowlinks[vertex] != index {
+        if self.state.lowlinks[vertex] != index {
             return;
         }
 
         // Pop the complete strongly connected component rooted at this vertex.
         let mut component = Vec::new();
         loop {
+            // Remove the next member from the active traversal path.
             let member = self
+                .state
                 .stack
                 .pop()
                 .expect("root is present on its Tarjan stack");
-            self.on_stack[member] = false;
+            self.state.on_stack[member] = false;
             component.push(member);
+
+            // Stop after consuming the component root.
             if member != vertex {
                 continue;
             }
@@ -92,7 +110,7 @@ impl<'graph> Tarjan<'graph> {
     /// Finds every component and returns both components and members in source order.
     fn run(mut self) -> Vec<Vec<usize>> {
         for vertex in 0..self.edges.len() {
-            if self.indices[vertex].is_some() {
+            if self.state.indices[vertex].is_some() {
                 continue;
             }
             self.visit(vertex);
@@ -108,11 +126,11 @@ impl<'graph> Tarjan<'graph> {
 }
 
 // -----------------------------------------------------------------------------
-// DeclarationNode: Dependency graph declarations
+// Declaration: Dependency graph declarations
 // -----------------------------------------------------------------------------
 
-/// A movable declaration or an inseparable declaration group.
-pub struct DeclarationNode {
+/// Source identity and authored placement of one movable declaration group.
+pub struct DeclarationSource {
     /// Definitions that must move together as one declaration unit.
     pub(crate) defs: Vec<LocalDefId>,
     /// Human-readable declaration name used in diagnostics.
@@ -121,12 +139,24 @@ pub struct DeclarationNode {
     pub(crate) span: Span,
     /// Zero for unsectioned declarations, otherwise the authored section's source ordinal.
     pub(crate) section: usize,
+}
+
+/// Dependency and tie-break constraints of one movable declaration group.
+pub struct DeclarationConstraints {
     /// Declaration-kind rank used to break otherwise independent ordering ties.
     pub(crate) category: u8,
     /// Whether the declaration is visible outside its containing module.
     pub(crate) is_outward_visible: bool,
     /// Local definitions referenced by this declaration unit.
     pub(crate) dependencies: HashSet<LocalDefId>,
+}
+
+/// A movable declaration or an inseparable declaration group.
+pub struct DeclarationNode {
+    /// Source identity and authored placement.
+    pub(crate) source: DeclarationSource,
+    /// Dependency and tie-break constraints.
+    pub(crate) constraints: DeclarationConstraints,
 }
 
 /// A collection of declarations that can compute its stable dependency-first order.
@@ -168,14 +198,14 @@ impl DeclarationNodeList {
     pub(crate) fn formatted_names(&self, ordering: &[usize]) -> String {
         let names = ordering
             .iter()
-            .map(|index| format!("`{}`", self[*index].name));
+            .map(|index| format!("`{}`", self[*index].source.name));
         names.collect::<Vec<_>>().join(", ")
     }
 
     /// Returns whether every grouped declaration can participate in an atomic source edit.
     pub(crate) fn has_only_unattributed_definitions(&self, cx: &LateContext<'_>) -> bool {
         self.iter().all(|node| {
-            node.defs.iter().all(|definition| {
+            node.source.defs.iter().all(|definition| {
                 cx.tcx
                     .hir_attrs(rustc_hir::HirId::make_owner(*definition))
                     .is_empty()
@@ -190,7 +220,9 @@ impl DeclarationNodeList {
         node: &DeclarationNode,
         owner: &HashMap<LocalDefId, usize>,
     ) -> HashSet<usize> {
+        // Resolve definition identities to their owning source nodes.
         let resolved = node
+            .constraints
             .dependencies
             .iter()
             .filter_map(|dependency| owner.get(dependency).copied());
@@ -198,7 +230,8 @@ impl DeclarationNodeList {
         // Keep only meaningful edges within the declaration's authored section.
         resolved
             .filter(|dependency| {
-                *dependency != index && self[*dependency].section == self[index].section
+                *dependency != index
+                    && self[*dependency].source.section == self[index].source.section
             })
             .collect()
     }
@@ -212,7 +245,7 @@ impl DeclarationNodeList {
         // Map every declaration identity back to its inseparable source node.
         let indexed = self.iter().enumerate();
         let owners =
-            indexed.flat_map(|(index, node)| node.defs.iter().map(move |def| (*def, index)));
+            indexed.flat_map(|(index, node)| node.source.defs.iter().map(move |def| (*def, index)));
         let owner = owners.collect::<HashMap<_, _>>();
 
         // Build dependency edges that remain within each authored section.
@@ -252,9 +285,9 @@ impl DeclarationNodeList {
                 .min_by_key(|component| {
                     let first = components[*component][0];
                     (
-                        self[first].section,
-                        self[first].category,
-                        !self[first].is_outward_visible,
+                        self[first].source.section,
+                        self[first].constraints.category,
+                        !self[first].constraints.is_outward_visible,
                         first,
                     )
                 });

@@ -100,16 +100,21 @@ impl FamilyNameAnalyzer {
         let unsectioned = unsectioned_participants
             .filter(|participant| !covered.contains(&participant.def_id))
             .collect::<Vec<_>>();
+
+        // Infer a contextual synthetic section only when unsectioned declarations remain.
         if !unsectioned.is_empty()
             && let Some(prefix) = module_analysis.context.as_deref().map(NameTokens::context)
             && !prefix.is_empty()
         {
+            // Represent the unsectioned declarations under their enclosing context.
             let section = SectionGroup {
                 ordinal: 0,
                 prefix: prefix.join(),
                 span: module.spans.inner_span,
                 participants: unsectioned,
             };
+
+            // Append a finding only when the synthetic family has actionable evidence.
             if let Some(finding) =
                 FamilyCandidateSet::collect(&section, &module_analysis.dependencies).infer(
                     module_analysis.context.as_deref(),
@@ -150,6 +155,7 @@ struct FamilyInference<'section> {
 impl FamilyInference<'_> {
     /// Converts sufficiently strong, actionable inference into a diagnostic.
     fn into_finding(self, occupied_names: &HashSet<String>) -> Option<FamilyNameFinding> {
+        // Reject weak or non-actionable inferences before rendering diagnostic details.
         if self.score < THRESHOLD_REPORT || self.renames.is_empty() {
             return None;
         }
@@ -192,12 +198,16 @@ impl FamilyInference<'_> {
         // Materialize labels after their messages have captured every inferred role.
         let labels = rename_labels.collect();
 
+        // Describe the affected family once before assembling the final finding.
+        let message = format!(
+            "type names in the `{}` section repeat organizational context",
+            self.section.prefix
+        );
+
+        // Assemble the family-level diagnostic from its rendered evidence.
         Some(FamilyNameFinding {
             span: self.section.span,
-            message: format!(
-                "type names in the `{}` section repeat organizational context",
-                self.section.prefix
-            ),
+            message,
             help: format!("{help} ({evidence})"),
             labels,
         })
@@ -311,6 +321,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         section: &'section SectionGroup,
         dependencies: &'analysis HashMap<LocalDefId, HashSet<LocalDefId>>,
     ) -> Self {
+        // Tokenize the authored family prefix and retain only nominal participants.
         let prefix = NameTokens::pascal(&section.prefix);
         let nominal = section
             .participants
@@ -448,6 +459,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         let stem = &owner_name.words[..owner_name.len() - 1];
         let mut renames = Vec::new();
         for (index, affected) in self.affected.iter().enumerate() {
+            // Derive each role from its owner-child position in the dependency family.
             let replacement = if index == relationship.owner_index {
                 affected.name.join()
             } else if index == relationship.child_index {
@@ -458,6 +470,8 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
             } else {
                 affected.name.join()
             };
+
+            // Associate the inferred concept-first role with its declaration.
             renames.push(FamilyInferenceRename {
                 participant: affected.participant,
                 replacement,
@@ -508,6 +522,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         context: Option<&str>,
         occupied_names: &HashSet<String>,
     ) -> Option<FamilyNameFinding> {
+        // Require affected declarations and contextual or ownership evidence.
         if self.affected.is_empty() {
             return None;
         }
@@ -516,11 +531,14 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
             && context
                 .map(NameTokens::context)
                 .is_some_and(|context| prefix.matches_context(&context));
+
+        // Combine contextual evidence with any reverse owner-child relationship.
         let reverse_owner = self.reverse_owner_relationship();
         if !context_matches && reverse_owner.is_none() {
             return None;
         }
 
+        // Detect an exact family root and reject already coherent single-item families.
         let root = self
             .section
             .participants
@@ -530,10 +548,14 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         if self.single_participant_is_semantically_rooted(root) {
             return None;
         }
+
+        // Gather dependency structure and initialize confidence scoring.
         let dependency_relationship = self.dependency_relationship();
         let competing_stems = self.dependency_stems().len() > 1;
         let mut confidence = ConfidenceEvidence::default();
         let mut evidence = Vec::new();
+
+        // Score the strongest contextual and dependency evidence first.
         if context_matches {
             confidence.add(ConfidenceSignal::ContextMatch);
             evidence.push("the divider prefix repeats the enclosing module".to_owned());
@@ -546,6 +568,8 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
             confidence.add(ConfidenceSignal::ExactRoot);
             evidence.push("an exact root declaration already carries the context name".to_owned());
         }
+
+        // Add structural confidence from the affected declaration set.
         if self.affected.len() >= 2 {
             confidence.add(ConfidenceSignal::MultipleAffected);
         }
@@ -564,6 +588,8 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
                 "the broader owner is qualified as though it were the nested type".to_owned(),
             );
         }
+
+        // Account for source locality and ambiguous competing dependency stems.
         if self.declarations_are_contiguous() {
             confidence.add(ConfidenceSignal::Contiguous);
         }
@@ -676,6 +702,7 @@ struct ModuleNamingAnalysis {
 impl ModuleNamingAnalysis {
     /// Collects naming context, declarations, dependencies, and occupied names.
     fn collect(cx: &LateContext<'_>, module: &Mod<'_>, hir_id: HirId) -> Self {
+        // Resolve direct module declarations before filtering authored nominal types.
         let resolved = module
             .item_ids
             .iter()
@@ -746,30 +773,29 @@ impl ModuleNamingAnalysis {
     ) -> HashMap<LocalDefId, HashSet<LocalDefId>> {
         let mut dependencies = HashMap::<LocalDefId, HashSet<LocalDefId>>::new();
         for item_id in module.item_ids {
+            // Resolve one direct item and merge nominal declaration dependencies.
             let item = cx.tcx.hir_item(*item_id);
-            match item.kind {
-                ItemKind::Struct(..)
-                | ItemKind::Enum(..)
-                | ItemKind::Union(..)
-                | ItemKind::TyAlias(..)
-                | ItemKind::Trait(..)
-                | ItemKind::TraitAlias(..) => {
-                    dependencies
-                        .entry(item.owner_id.def_id)
-                        .or_default()
-                        .extend(item_dependencies(cx.tcx, item));
-                }
-                ItemKind::Impl(_) => {
-                    let Some(definition) = Self::impl_dependency_owner(cx, item) else {
-                        continue;
-                    };
-                    dependencies
-                        .entry(definition)
-                        .or_default()
-                        .extend(item_dependencies(cx.tcx, item));
-                }
-                _ => {}
+            if Self::nominal_name(cx, item.kind, item.owner_id.def_id).is_some() {
+                dependencies
+                    .entry(item.owner_id.def_id)
+                    .or_default()
+                    .extend(item_dependencies(cx.tcx, item));
+                continue;
             }
+
+            // Merge direct implementation dependencies under their nominal owner.
+            let ItemKind::Impl(_) = item.kind else {
+                continue;
+            };
+            let Some(definition) = Self::impl_dependency_owner(cx, item) else {
+                continue;
+            };
+
+            // Merge implementation references under the resolved nominal owner.
+            dependencies
+                .entry(definition)
+                .or_default()
+                .extend(item_dependencies(cx.tcx, item));
         }
         dependencies
     }
@@ -780,16 +806,18 @@ impl ModuleNamingAnalysis {
         kind: ItemKind<'_>,
         def_id: LocalDefId,
     ) -> Option<String> {
-        matches!(
+        // Classify concrete nominal declarations.
+        let is_concrete = matches!(
             kind,
-            ItemKind::Struct(..)
-                | ItemKind::Enum(..)
-                | ItemKind::Union(..)
-                | ItemKind::TyAlias(..)
-                | ItemKind::Trait(..)
-                | ItemKind::TraitAlias(..)
-        )
-        .then(|| cx.tcx.item_name(def_id.to_def_id()).to_string())
+            ItemKind::Struct(..) | ItemKind::Enum(..) | ItemKind::Union(..)
+        );
+
+        // Classify abstract nominal declarations before resolving their name.
+        let is_abstract = matches!(
+            kind,
+            ItemKind::TyAlias(..) | ItemKind::Trait(..) | ItemKind::TraitAlias(..)
+        );
+        (is_concrete || is_abstract).then(|| cx.tcx.item_name(def_id.to_def_id()).to_string())
     }
 }
 

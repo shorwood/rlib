@@ -62,6 +62,17 @@ enum ControlFlowGuardExit {
     Continue,
 }
 
+/// Mutable traversal state shared by the control-flow readability analyses.
+#[derive(Default)]
+struct ControlFlowState {
+    /// Current semantic nesting depth.
+    depth: usize,
+    /// Whether an ancestor has already been reported for excessive depth.
+    is_inside_excessive_depth: bool,
+    /// Spans already recognized as having a guard-clause alternative.
+    guardable_spans: Vec<Span>,
+}
+
 /// Returns the trailing expression of a block, including semicolon statements.
 fn control_flow_block_last_expression<'hir>(block: &'hir Block<'hir>) -> Option<&'hir Expr<'hir>> {
     block.expr.or_else(|| {
@@ -124,6 +135,21 @@ fn control_flow_loop_ends_with_block(
     block_end == loop_end
 }
 
+/// Classifies expression parents that establish a block's relationship to a loop.
+fn control_flow_expression_parent_loop_relation(
+    cx: &LateContext<'_>,
+    expression: &Expr<'_>,
+    block: &Block<'_>,
+) -> Option<bool> {
+    match expression.kind {
+        ExprKind::Loop(..) => Some(control_flow_loop_ends_with_block(cx, expression, block)),
+        ExprKind::Closure(..)
+        | ExprKind::If(..)
+        | ExprKind::Match(_, _, MatchSource::Normal | MatchSource::Postfix) => Some(false),
+        _ => None,
+    }
+}
+
 /// Classifies whether a parent proves or disproves that `block` is a direct loop body.
 fn control_flow_parent_loop_relation(
     cx: &LateContext<'_>,
@@ -131,13 +157,9 @@ fn control_flow_parent_loop_relation(
     block: &Block<'_>,
 ) -> Option<bool> {
     match cx.tcx.hir_node(parent) {
-        Node::Expr(expression) => match expression.kind {
-            ExprKind::Loop(..) => Some(control_flow_loop_ends_with_block(cx, expression, block)),
-            ExprKind::Closure(..)
-            | ExprKind::If(..)
-            | ExprKind::Match(_, _, MatchSource::Normal | MatchSource::Postfix) => Some(false),
-            _ => None,
-        },
+        Node::Expr(expression) => {
+            control_flow_expression_parent_loop_relation(cx, expression, block)
+        }
         Node::Item(_) | Node::TraitItem(_) | Node::ImplItem(_) | Node::Crate(_) => Some(false),
         _ => None,
     }
@@ -151,16 +173,21 @@ fn control_flow_deep_finding(
     depth: usize,
     has_guard_clause_alternative: bool,
 ) -> ControlFlowDeepFinding {
+    // Describe the exact construct and configured depth excess.
+    let message = format!(
+        "this {kind} reaches control-flow depth {}, exceeding the configured maximum of {}",
+        depth, config.max_control_flow_depth
+    );
+    let help = "extract a named helper or flatten guardable branches before adding more nesting"
+        .to_owned();
+
+    // Preserve the semantic facts consumed by both depth-related diagnostics.
     ControlFlowDeepFinding {
         span: expression.span,
         hir_id: expression.hir_id,
         has_guard_clause_alternative,
-        message: format!(
-            "this {kind} reaches control-flow depth {}, exceeding the configured maximum of {}",
-            depth, config.max_control_flow_depth
-        ),
-        help: "extract a named helper or flatten guardable branches before adding more nesting"
-            .to_owned(),
+        message,
+        help,
     }
 }
 
@@ -187,12 +214,8 @@ pub(super) struct ControlFlowAnalyzer<'analysis, 'tcx> {
     config: &'analysis FunctionStructureConfig,
     /// Findings accumulated during traversal.
     analysis: ControlFlowAnalysis,
-    /// Current semantic nesting depth.
-    control_depth: usize,
-    /// Whether an ancestor has already been reported for excessive depth.
-    is_inside_excessive_depth: bool,
-    /// Spans already recognized as having a guard-clause alternative.
-    guardable_spans: Vec<Span>,
+    /// Depth and guard-clause state maintained during traversal.
+    state: ControlFlowState,
     /// Whether the outer function permits a bare early `return`.
     is_function_returning_unit: bool,
 }
@@ -208,31 +231,30 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
             cx,
             config,
             analysis: ControlFlowAnalysis::default(),
-            control_depth: 0,
-            is_inside_excessive_depth: false,
-            guardable_spans: Vec::new(),
+            state: ControlFlowState::default(),
             is_function_returning_unit,
         }
     }
 
     /// Returns whether `span` has already received guard-clause guidance.
     fn is_guardable(&self, span: Span) -> bool {
-        self.guardable_spans
+        self.state
+            .guardable_spans
             .iter()
             .any(|guardable| guardable.lo() == span.lo() && guardable.hi() == span.hi())
     }
 
     /// Records only the outermost construct that crosses the nesting limit.
     fn record_excessive_depth(&mut self, expression: &Expr<'_>, kind: &str) {
-        if self.control_depth <= self.config.max_control_flow_depth
-            || self.is_inside_excessive_depth
+        if self.state.depth <= self.config.max_control_flow_depth
+            || self.state.is_inside_excessive_depth
         {
             return;
         }
-        self.is_inside_excessive_depth = true;
+        self.state.is_inside_excessive_depth = true;
         let has_guard = self.is_guardable(expression.span);
         let finding =
-            control_flow_deep_finding(self.config, expression, kind, self.control_depth, has_guard);
+            control_flow_deep_finding(self.config, expression, kind, self.state.depth, has_guard);
         self.analysis.deep_nesting.push(finding);
     }
 
@@ -245,31 +267,35 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
     ) {
         // Visit the scrutinee before entering the match's control-flow level.
         self.visit_expr(scrutinee);
-        let previous_depth = self.control_depth;
-        let previous_excessive = self.is_inside_excessive_depth;
-        self.control_depth += 1;
+        let previous_depth = self.state.depth;
+        let previous_excessive = self.state.is_inside_excessive_depth;
+        self.state.depth += 1;
         self.record_excessive_depth(expression, "match expression");
 
         // Measure each authored arm while traversing its nested expressions.
         for arm in arms {
             let lines = control_flow_match_arm_line_count(self.cx, arm);
             if lines > self.config.max_match_arm_lines && !arm.span.from_expansion() {
-                self.analysis
-                    .oversized_match_arms
-                    .push(ControlFlowFinding {
-                        span: arm.body.span,
-                        message: format!(
-                            "this match arm contains {lines} lines, exceeding the configured maximum of {}",
-                            self.config.max_match_arm_lines
-                        ),
-                        help: "extract the arm's work into a named helper or meaningful intermediary values"
-                            .to_owned(),
-                    });
+                // Describe the oversized arm using its measured and configured limits.
+                let message = format!(
+                    "this match arm contains {lines} lines, exceeding the configured maximum of {}",
+                    self.config.max_match_arm_lines
+                );
+                let help =
+                    "extract the arm's work into a named helper or meaningful intermediary values"
+                        .to_owned();
+
+                // Record one actionable finding for the authored arm body.
+                self.analysis.oversized_match_arms.push(ControlFlowFinding {
+                    span: arm.body.span,
+                    message,
+                    help,
+                });
             }
             intravisit::walk_arm(self, arm);
         }
-        self.control_depth = previous_depth;
-        self.is_inside_excessive_depth = previous_excessive;
+        self.state.depth = previous_depth;
+        self.state.is_inside_excessive_depth = previous_excessive;
     }
 
     /// Records one unique guard-clause opportunity.
@@ -277,7 +303,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         if self.is_guardable(span) {
             return;
         }
-        self.guardable_spans.push(span);
+        self.state.guardable_spans.push(span);
         self.analysis.needless_nesting.push(ControlFlowFinding {
             span,
             message: message.to_owned(),
@@ -292,11 +318,14 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
             && matches!(expression.kind, ExprKind::If(_, _, None))
             && !matches!(exit, ControlFlowGuardExit::None)
         {
+            // Name the guard exit that can replace the trailing branch.
             let exit_name = match exit {
                 ControlFlowGuardExit::Return => "an early `return`",
                 ControlFlowGuardExit::Continue => "an early `continue`",
                 ControlFlowGuardExit::None => unreachable!(),
             };
+
+            // Record the branch inversion with its concrete early-exit form.
             self.push_needless(
                 expression.span,
                 "this trailing condition needlessly wraps the remaining work",
@@ -323,13 +352,13 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
 
     /// Traverses a loop while preserving depth state for its siblings.
     fn visit_loop(&mut self, expression: &'tcx Expr<'tcx>, block: &'tcx Block<'tcx>) {
-        let previous_depth = self.control_depth;
-        let previous_excessive = self.is_inside_excessive_depth;
-        self.control_depth += 1;
+        let previous_depth = self.state.depth;
+        let previous_excessive = self.state.is_inside_excessive_depth;
+        self.state.depth += 1;
         self.record_excessive_depth(expression, "loop");
         self.visit_block_with_exit(block, ControlFlowGuardExit::Continue);
-        self.control_depth = previous_depth;
-        self.is_inside_excessive_depth = previous_excessive;
+        self.state.depth = previous_depth;
+        self.state.is_inside_excessive_depth = previous_excessive;
     }
 
     /// Returns whether an expression exits its current control-flow path.
@@ -368,26 +397,29 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         }
 
         // Traverse both branches at the same conditional depth.
-        let previous_depth = self.control_depth;
-        let previous_excessive = self.is_inside_excessive_depth;
-        self.control_depth = depth;
+        let previous_depth = self.state.depth;
+        let previous_excessive = self.state.is_inside_excessive_depth;
+        self.state.depth = depth;
         self.record_excessive_depth(expression, "conditional");
+
+        // Traverse each branch while preserving one shared conditional depth.
         self.visit_expr(then);
         if let Some(otherwise) = otherwise {
             if let ExprKind::If(condition, then, nested_otherwise) = otherwise.kind {
-                self.control_depth = previous_depth;
-                self.is_inside_excessive_depth = previous_excessive;
+                self.state.depth = previous_depth;
+                self.state.is_inside_excessive_depth = previous_excessive;
                 self.visit_if_at_depth(otherwise, condition, then, nested_otherwise, depth);
             } else {
                 self.visit_expr(otherwise);
             }
         }
-        self.control_depth = previous_depth;
-        self.is_inside_excessive_depth = previous_excessive;
+        self.state.depth = previous_depth;
+        self.state.is_inside_excessive_depth = previous_excessive;
     }
 
     /// Reports an outermost method chain when its call count exceeds the limit.
     fn record_method_chain(&mut self, expression: &Expr<'_>) {
+        // Ignore generated and nested receiver calls before measuring the chain.
         if expression.span.from_expansion()
             || control_flow_method_receiver_of_parent(self.cx, expression)
         {
@@ -399,17 +431,19 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         }
 
         // Report only the outermost call so one chain produces one diagnostic.
-        self.analysis
-            .long_method_chains
-            .push(ControlFlowFinding {
-                span: expression.span,
-                message: format!(
-                    "this expression chains {calls} method calls, exceeding the configured maximum of {}",
-                    self.config.max_method_chain_calls
-                ),
-                help: "introduce meaningful intermediary bindings or extract a named operation"
-                    .to_owned(),
-            });
+        let message = format!(
+            "this expression chains {calls} method calls, exceeding the configured maximum of {}",
+            self.config.max_method_chain_calls
+        );
+        let help =
+            "introduce meaningful intermediary bindings or extract a named operation".to_owned();
+
+        // Record the measured outermost chain and its extraction guidance.
+        self.analysis.long_method_chains.push(ControlFlowFinding {
+            span: expression.span,
+            message,
+            help,
+        });
     }
 }
 
@@ -424,6 +458,7 @@ impl<'tcx> Visitor<'tcx> for ControlFlowAnalyzer<'_, 'tcx> {
     }
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Traverse authored desugarings while ignoring opaque macro expansions.
         if expression.span.from_expansion() {
             if expression.span.desugaring_kind().is_none() {
                 return;
@@ -435,15 +470,18 @@ impl<'tcx> Visitor<'tcx> for ControlFlowAnalyzer<'_, 'tcx> {
             }
             return;
         }
+
+        // Dispatch closures and conditionals before the remaining control-flow forms.
+        if matches!(expression.kind, ExprKind::Closure(..)) {
+            return;
+        }
+        if let ExprKind::If(condition, then, otherwise) = expression.kind {
+            self.visit_if_at_depth(expression, condition, then, otherwise, self.state.depth + 1);
+            return;
+        }
+
+        // Dispatch remaining authored control flow through its specialized handling.
         match expression.kind {
-            ExprKind::Closure(..) => {}
-            ExprKind::If(condition, then, otherwise) => self.visit_if_at_depth(
-                expression,
-                condition,
-                then,
-                otherwise,
-                self.control_depth + 1,
-            ),
             ExprKind::Loop(block, ..) => self.visit_loop(expression, block),
             ExprKind::Match(scrutinee, arms, MatchSource::Normal | MatchSource::Postfix) => {
                 self.visit_match(expression, scrutinee, arms);

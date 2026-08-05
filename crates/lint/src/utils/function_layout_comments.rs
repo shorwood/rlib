@@ -6,6 +6,7 @@ use convert_case::{Case, Casing};
 use rustc_lexer::{FrontmatterAllowed, TokenKind, tokenize};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::{BytePos, Span};
+use std::ops::RangeInclusive;
 
 use super::config::FunctionStructureConfig;
 use super::identifier_case::sentence_case;
@@ -138,6 +139,7 @@ fn function_layout_has_protected_content(words: &[&str]) -> bool {
 
 /// Validates natural sentence casing through protected word-by-word normalization.
 fn function_layout_is_sentence_style(content: &str) -> bool {
+    // Accept conventional labels before normalizing ordinary prose.
     if function_layout_is_known_label(content) {
         return true;
     }
@@ -191,10 +193,8 @@ struct FunctionLayoutCommentBlock {
     span: Span,
     /// Independently replaceable first-line span.
     first_span: Span,
-    /// Physical line containing the header.
-    first_line: usize,
-    /// Physical line containing the final continuation.
-    last_line: usize,
+    /// Inclusive physical line range occupied by the comment block.
+    lines: RangeInclusive<usize>,
     /// Whether header prose and continuations use canonical syntax.
     is_canonical: bool,
     /// Safe repair for the first line, when available.
@@ -212,8 +212,7 @@ impl FunctionLayoutCommentBlock {
         Self {
             span: first.span.with_hi(last.span.hi()),
             first_span: first.span,
-            first_line: first.line,
-            last_line: last.line,
+            lines: first.line..=last.line,
             is_canonical,
             replacement,
         }
@@ -285,27 +284,16 @@ fn function_layout_previous_line_is_blank(cx: &LateContext<'_>, gap: Span, comme
     previous_line.is_some_and(|line| line.trim().is_empty())
 }
 
-/// Returns whether a source gap contains a blank physical line.
-fn function_layout_gap_has_blank_line(cx: &LateContext<'_>, gap: Span) -> bool {
-    let source_map = cx.sess().source_map();
-    let Ok(source) = source_map.span_to_snippet(gap) else {
-        return false;
-    };
-    source.bytes().filter(|byte| *byte == b'\n').count() >= 2
-}
-
-/// Parsed comment and boundary state between two function-body entries.
+/// Parsed comment state between two function-body entries.
 pub(super) struct FunctionLayoutEntryGap {
     /// Whether the gap contains a canonical header attached to the next entry.
     pub(super) has_valid_header: bool,
-    /// Whether comments or whitespace divide otherwise continuous linear code.
-    pub(super) has_run_boundary: bool,
     /// Malformed phase-comment findings discovered in the gap.
     pub(super) findings: Vec<FunctionLayoutFinding>,
 }
 
 impl FunctionLayoutEntryGap {
-    /// Analyzes comments and physical separation in one source gap.
+    /// Analyzes comments in one source gap.
     pub(super) fn analyze(
         cx: &LateContext<'_>,
         config: &FunctionStructureConfig,
@@ -313,8 +301,8 @@ impl FunctionLayoutEntryGap {
         previous: Option<Span>,
         next: Option<Span>,
     ) -> Self {
+        // Resolve source positions needed to validate every candidate header.
         let blocks = function_layout_comment_blocks(cx, span, &config.phase_comment_prefix);
-        let has_run_boundary = !blocks.is_empty() || function_layout_gap_has_blank_line(cx, span);
         let next_line = next.map(|span| function_layout_source_line(cx, span.lo()));
         let previous_line = previous.map(|span| function_layout_source_line(cx, span.hi()));
         let mut has_valid_header = false;
@@ -322,17 +310,19 @@ impl FunctionLayoutEntryGap {
 
         // A canonical block must attach to the next phase and separate it from earlier code.
         for block in blocks {
+            // Check that the header is visually separated and attached to its phase.
             let has_required_blank = previous.is_none_or(|_| {
-                previous_line.is_some_and(|line| block.first_line > line + 1)
+                previous_line.is_some_and(|line| block.lines.start() > &(line + 1))
                     && function_layout_previous_line_is_blank(cx, span, block.first_span)
             });
-            let immediately_precedes_code = next_line == Some(block.last_line + 1);
+            let immediately_precedes_code = next_line == Some(block.lines.end() + 1);
             let is_layout_valid = has_required_blank && immediately_precedes_code;
             if block.is_canonical && is_layout_valid {
                 has_valid_header = true;
                 continue;
             }
 
+            // Select the most actionable syntax or placement failure.
             let (message, replacement) = if !block.is_canonical {
                 (
                     "this code phase comment is not canonical",
@@ -349,23 +339,28 @@ impl FunctionLayoutEntryGap {
                     None,
                 )
             };
+
+            // Record a safe first-line repair only when placement is already valid.
+            let finding_span = if replacement.is_some() {
+                block.first_span
+            } else {
+                block.span
+            };
+            let help = format!(
+                "use `{}` followed by concise sentence-style prose immediately before the phase",
+                config.phase_comment_prefix
+            );
+
+            // Preserve the malformed block and its safest available repair.
             findings.push(FunctionLayoutFinding {
-                span: if replacement.is_some() {
-                    block.first_span
-                } else {
-                    block.span
-                },
+                span: finding_span,
                 message: message.to_owned(),
-                help: format!(
-                    "use `{}` followed by concise sentence-style prose immediately before the phase",
-                    config.phase_comment_prefix
-                ),
+                help,
                 replacement: replacement.filter(|_| is_layout_valid),
             });
         }
         Self {
             has_valid_header,
-            has_run_boundary,
             findings,
         }
     }
