@@ -145,7 +145,7 @@ impl Default for SectionDividerConfig {
         // Bound each conceptual family independently from its rendered syntax.
         Self {
             max_line_length: 80,
-            max_declarations_per_section: 8,
+            max_declarations_per_section: 5,
             template,
         }
     }
@@ -253,10 +253,10 @@ mod tests {
     }
 
     #[test]
-    fn uses_eight_declarations_per_section_by_default() {
+    fn uses_five_declarations_per_section_by_default() {
         assert_eq!(
             SectionDividerConfig::default().max_declarations_per_section,
-            8
+            5
         );
     }
 

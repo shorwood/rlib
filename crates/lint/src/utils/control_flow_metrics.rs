@@ -4,7 +4,7 @@ extern crate rustc_lint;
 use rustc_hir::{Arm, Expr, ExprKind, Node};
 use rustc_lint::LateContext;
 
-use super::function_layout_analysis::FunctionLayoutSpanExt;
+use super::function_layout_analysis::FunctionLayoutAnalyzerSpanExt;
 
 // -----------------------------------------------------------------------------
 // ControlFlowMetrics: Match arm and method chain measurements

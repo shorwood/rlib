@@ -11,7 +11,7 @@ use super::function_layout_prose::FunctionLayoutProse;
 use super::function_layout_source::{Comment, SourcePositionExt, SourceSpanExt};
 
 // -----------------------------------------------------------------------------
-// FunctionLayout: Parse and validate explanatory comments
+// FunctionLayoutFinding: Layout diagnostic
 // -----------------------------------------------------------------------------
 
 /// One function-layout problem found in authored source.
@@ -26,30 +26,12 @@ pub struct FunctionLayoutFinding {
     pub(crate) replacement: Option<String>,
 }
 
-/// Validation outcome for a parsed phase-comment block.
-#[derive(Clone, Copy)]
-enum FunctionLayoutCommentSyntax {
-    /// Header and continuation lines follow the configured syntax.
-    Canonical,
-    /// At least one line requires an authored repair.
-    Malformed,
-}
-
-impl FunctionLayoutCommentSyntax {
-    /// Classifies the authored header and its continuation lines together.
-    fn from_comments(content: Option<&str>, continuations: &[Comment]) -> Self {
-        if FunctionLayoutProse::is_canonical(content)
-            && FunctionLayoutCommentBlock::continuations_are_canonical(continuations)
-        {
-            Self::Canonical
-        } else {
-            Self::Malformed
-        }
-    }
-}
+// -----------------------------------------------------------------------------
+// Block: Parsed phase comment block
+// -----------------------------------------------------------------------------
 
 /// Consecutive line comments headed by the configured phase prefix.
-struct FunctionLayoutCommentBlock {
+struct Block {
     /// Complete span from the first header through the final continuation.
     span: Span,
     /// Independently replaceable first-line span.
@@ -62,23 +44,7 @@ struct FunctionLayoutCommentBlock {
     replacement: Option<String>,
 }
 
-impl FunctionLayoutCommentBlock {
-    /// Constructs a parsed block from its boundary comments and validation results.
-    fn from_parts(
-        first: &Comment,
-        last: &Comment,
-        syntax: FunctionLayoutCommentSyntax,
-        replacement: Option<String>,
-    ) -> Self {
-        Self {
-            span: first.span.with_hi(last.span.hi()),
-            first_span: first.span,
-            lines: first.line..=last.line,
-            is_canonical: matches!(syntax, FunctionLayoutCommentSyntax::Canonical),
-            replacement,
-        }
-    }
-
+impl Block {
     /// Parses a consecutive comment group when its first line uses `prefix`.
     fn parse(comments: &[Comment], prefix: &str) -> Option<Self> {
         // Locate the configured prefix at the start of the comment block.
@@ -87,14 +53,41 @@ impl FunctionLayoutCommentBlock {
 
         // Validate the header content and every natural continuation line.
         let content = remainder.strip_prefix(' ');
-        let syntax = FunctionLayoutCommentSyntax::from_comments(content, &comments[1..]);
+        let is_canonical = FunctionLayoutProse::is_canonical(content)
+            && Self::continuations_are_canonical(&comments[1..]);
 
         // Suggest only transformations that cannot damage protected authored terms.
         let replacement = FunctionLayoutProse::replacement(content, prefix);
         let last = comments.last().expect("comment blocks are nonempty");
 
         // Retain both the complete block and its independently repairable first line.
-        Some(Self::from_parts(first, last, syntax, replacement))
+        Some(Self {
+            span: first.span.with_hi(last.span.hi()),
+            first_span: first.span,
+            lines: first.line..=last.line,
+            is_canonical,
+            replacement,
+        })
+    }
+
+    /// Groups adjacent comments and parses blocks headed by the configured prefix.
+    fn collect(cx: &LateContext<'_>, span: Span, prefix: &str) -> Vec<Self> {
+        let comments = span.comments(cx);
+        let mut blocks = Vec::new();
+        let mut index = 0;
+        while index < comments.len() {
+            let mut end = index + 1;
+            while end < comments.len() && comments[end].line == comments[end - 1].line + 1 {
+                end += 1;
+            }
+
+            // A configured prefix marks only the first line; following `//` lines wrap its prose.
+            if let Some(block) = Self::parse(&comments[index..end], prefix) {
+                blocks.push(block);
+            }
+            index = end;
+        }
+        blocks
     }
 
     /// Validates nonempty natural continuation lines after a phase header.
@@ -106,42 +99,22 @@ impl FunctionLayoutCommentBlock {
                 .is_some_and(|content| !content.trim().is_empty())
         })
     }
-}
 
-/// Groups adjacent comments and parses blocks headed by the configured prefix.
-fn function_layout_comment_blocks(
-    cx: &LateContext<'_>,
-    span: Span,
-    prefix: &str,
-) -> Vec<FunctionLayoutCommentBlock> {
-    let comments = span.comments(cx);
-    let mut blocks = Vec::new();
-    let mut index = 0;
-    while index < comments.len() {
-        let mut end = index + 1;
-        while end < comments.len() && comments[end].line == comments[end - 1].line + 1 {
-            end += 1;
-        }
-
-        // A configured prefix marks only the first line; following `//` lines wrap its prose.
-        if let Some(block) = FunctionLayoutCommentBlock::parse(&comments[index..end], prefix) {
-            blocks.push(block);
-        }
-        index = end;
+    /// Returns whether a comment header is separated from preceding code by a blank line.
+    fn previous_line_is_blank(cx: &LateContext<'_>, gap: Span, comment: Span) -> bool {
+        let before = gap.with_hi(comment.lo());
+        let source_map = cx.sess().source_map();
+        let snippet = source_map.span_to_snippet(before).ok();
+        let previous_line = snippet
+            .as_deref()
+            .and_then(|source| source.lines().rev().nth(1));
+        previous_line.is_some_and(|line| line.trim().is_empty())
     }
-    blocks
 }
 
-/// Returns whether a comment header is separated from preceding code by a blank line.
-fn function_layout_previous_line_is_blank(cx: &LateContext<'_>, gap: Span, comment: Span) -> bool {
-    let before = gap.with_hi(comment.lo());
-    let source_map = cx.sess().source_map();
-    let snippet = source_map.span_to_snippet(before).ok();
-    let previous_line = snippet
-        .as_deref()
-        .and_then(|source| source.lines().rev().nth(1));
-    previous_line.is_some_and(|line| line.trim().is_empty())
-}
+// -----------------------------------------------------------------------------
+// FunctionLayoutEntryGap: Comments between direct entries
+// -----------------------------------------------------------------------------
 
 /// Parsed comment state between two function-body entries.
 pub(super) struct FunctionLayoutEntryGap {
@@ -161,7 +134,7 @@ impl FunctionLayoutEntryGap {
         next: Option<Span>,
     ) -> Self {
         // Resolve source positions needed to validate every candidate header.
-        let blocks = function_layout_comment_blocks(cx, span, &config.phase_comment_prefix);
+        let blocks = Block::collect(cx, span, &config.phase_comment_prefix);
         let next_line = next.map(|span| span.lo().source_line(cx));
         let previous_line = previous.map(|span| span.hi().source_line(cx));
         let mut has_valid_header = false;
@@ -172,7 +145,7 @@ impl FunctionLayoutEntryGap {
             // Check that the header is visually separated and attached to its phase.
             let has_required_blank = previous.is_none_or(|_| {
                 previous_line.is_some_and(|line| block.lines.start() > &(line + 1))
-                    && function_layout_previous_line_is_blank(cx, span, block.first_span)
+                    && Block::previous_line_is_blank(cx, span, block.first_span)
             });
             let immediately_precedes_code = next_line == Some(block.lines.end() + 1);
             let is_layout_valid = has_required_blank && immediately_precedes_code;

@@ -69,11 +69,11 @@ struct ReceiverSyntax {
 }
 
 // -----------------------------------------------------------------------------
-// Candidate: Candidate discovery and collected state
+// CandidateComponent: Candidate syntax and migration inputs
 // -----------------------------------------------------------------------------
 
 /// Simple binding extracted from a candidate function's first parameter.
-struct CandidateBinding {
+struct CandidateComponentBinding {
     /// HIR identity used to find every body reference to the binding.
     id: Option<HirId>,
     /// Source symbol replaced by `self` during migration.
@@ -81,7 +81,7 @@ struct CandidateBinding {
 }
 
 /// Function generics that may safely move to a generated impl header.
-struct CandidateGenerics {
+struct CandidateComponentGenerics {
     /// Complete generic-parameter span to move, when present.
     span: Option<Span>,
     /// Whether generic syntax permits a mechanical migration.
@@ -89,7 +89,7 @@ struct CandidateGenerics {
 }
 
 /// Source identity and spans of a candidate free function.
-struct CandidateFunction {
+struct CandidateComponentFunction {
     /// Local definition identity of the free function.
     def_id: LocalDefId,
     /// HIR node on which the diagnostic is emitted.
@@ -103,7 +103,7 @@ struct CandidateFunction {
 }
 
 /// Semantic receiver identity and syntax of a candidate free function.
-struct CandidateReceiver {
+struct CandidateComponentReceiver {
     /// First-parameter span replaced by receiver syntax.
     parameter_span: Span,
     /// Nominal receiver type span reused in the impl header.
@@ -115,23 +115,27 @@ struct CandidateReceiver {
 }
 
 /// Syntax-safety facts governing a candidate's automatic migration.
-struct CandidateMigration {
+struct CandidateComponentMigration {
     /// Generic parameter span moved from the function to the impl.
     impl_generics_span: Option<Span>,
     /// Mechanically replaceable first-parameter binding.
-    binding: CandidateBinding,
+    binding: CandidateComponentBinding,
     /// Whether all candidate-local syntax is safe to migrate.
     is_suggestible: bool,
 }
 
+// -----------------------------------------------------------------------------
+// Candidate: Discovered method relocation
+// -----------------------------------------------------------------------------
+
 /// A free function that belongs on a struct according to the rule.
 struct Candidate {
     /// Free-function identity and complete source span.
-    function: CandidateFunction,
+    function: CandidateComponentFunction,
     /// Receiver syntax and owning struct identity.
-    receiver: CandidateReceiver,
+    receiver: CandidateComponentReceiver,
     /// Syntax-safety facts governing automatic migration.
-    migration: CandidateMigration,
+    migration: CandidateComponentMigration,
 }
 
 impl Candidate {
@@ -213,7 +217,7 @@ impl Candidate {
             source_is_editable && receiver_is_editable && candidate_generics.is_safe;
 
         // Group the free function's identity and complete replacement span.
-        let function = CandidateFunction {
+        let function = CandidateComponentFunction {
             def_id,
             hir_id: item.hir_id(),
             name: ident.name,
@@ -227,7 +231,7 @@ impl Candidate {
             .item_name(semantic_receiver.struct_def_id.to_def_id());
 
         // Retain direct receiver syntax and its semantic owning struct.
-        let receiver = CandidateReceiver {
+        let receiver = CandidateComponentReceiver {
             parameter_span: parameter.span,
             receiver_type_span: receiver_syntax.span,
             semantics: semantic_receiver,
@@ -235,7 +239,7 @@ impl Candidate {
         };
 
         // Retain only the syntax-safety facts needed by automatic migration.
-        let migration = CandidateMigration {
+        let migration = CandidateComponentMigration {
             impl_generics_span: candidate_generics.span,
             binding,
             is_suggestible,
@@ -320,7 +324,7 @@ impl Candidate {
     ///
     /// `plain` can be rewritten mechanically. `destructured` still receives a warning, but moving
     /// its pattern into a method body requires a decision from the author.
-    const fn simple_binding(parameter: &Param<'_>) -> CandidateBinding {
+    const fn simple_binding(parameter: &Param<'_>) -> CandidateComponentBinding {
         let (id, name) = match parameter.pat.kind {
             PatKind::Binding(_, binding_id, binding, None) => {
                 (Some(binding_id), Some(binding.name))
@@ -328,7 +332,7 @@ impl Candidate {
             // Destructuring has no single name that can be replaced by `self` throughout the body.
             _ => (None, None),
         };
-        CandidateBinding { id, name }
+        CandidateComponentBinding { id, name }
     }
 
     /// Finds the exact source text that would become the type in an `impl` block.
@@ -394,7 +398,7 @@ impl Candidate {
         cx: &LateContext<'_>,
         generics: &Generics<'_>,
         receiver_type_span: Span,
-    ) -> CandidateGenerics {
+    ) -> CandidateComponentGenerics {
         // Collect explicit authored type parameters that could move to the impl.
         let explicit_type_params = generics
             .params
@@ -418,7 +422,7 @@ impl Candidate {
                 .any(Self::is_unsupported_implicit_parameter);
 
             // Preserve warnings while withholding unsafe generic source movement.
-            return CandidateGenerics {
+            return CandidateComponentGenerics {
                 span: None,
                 is_safe: !has_unsupported_parameter,
             };
@@ -452,7 +456,7 @@ impl Candidate {
         let can_move =
             has_one_unbounded_parameter && parameters_are_movable && receiver_mentions_parameter;
 
-        CandidateGenerics {
+        CandidateComponentGenerics {
             span: can_move.then_some(generics.span),
             is_safe: can_move,
         }

@@ -79,7 +79,7 @@ dylint_linting::impl_late_lint! {
     /// Rejects a valid section divider when it governs more distinct declarations than the
     /// configured maximum. A nominal type and all of its implementation blocks count as one
     /// declaration, while separate types, free functions, constants, and statics count
-    /// independently. The default maximum is eight declarations per section.
+    /// independently. The default maximum is five declarations per section.
     ///
     /// ### Why is this bad?
     ///
@@ -98,11 +98,8 @@ dylint_linting::impl_late_lint! {
     /// struct Request;
     /// struct RequestBuilder;
     /// struct RequestHeaders;
-    /// struct RequestBody;
     /// struct Response;
     /// struct ResponseBuilder;
-    /// struct ResponseHeaders;
-    /// struct ResponseBody;
     /// struct TransportError;
     /// ```
     ///

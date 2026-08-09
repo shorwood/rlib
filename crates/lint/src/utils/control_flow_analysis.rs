@@ -54,9 +54,13 @@ pub struct ControlFlowAnalysis {
     pub(crate) long_method_chains: Vec<ControlFlowFinding>,
 }
 
+// -----------------------------------------------------------------------------
+// ControlFlowAnalyzer: Traversal state and semantic analysis
+// -----------------------------------------------------------------------------
+
 #[derive(Clone, Copy)]
 /// Early-exit form available when flattening a trailing conditional.
-enum ControlFlowGuardExit {
+enum ControlFlowAnalyzerGuardExit {
     /// The surrounding block cannot be flattened with a direct early exit.
     None,
     /// A function body can invert the condition and return early.
@@ -67,14 +71,14 @@ enum ControlFlowGuardExit {
 
 /// Return behavior of the outer function under analysis.
 #[derive(Clone, Copy)]
-pub(super) enum ControlFlowFunctionReturn {
+pub(super) enum ControlFlowAnalyzerFunctionReturn {
     /// A bare return can exit the outer function.
     Unit,
     /// An early return must provide a value.
     Value,
 }
 
-impl ControlFlowFunctionReturn {
+impl ControlFlowAnalyzerFunctionReturn {
     /// Classifies the early-return contract from the authored function output type.
     pub(super) fn from_output(output: Ty<'_>) -> Self {
         if output.is_unit() {
@@ -87,7 +91,7 @@ impl ControlFlowFunctionReturn {
 
 /// Mutable traversal state shared by the control-flow readability analyses.
 #[derive(Default)]
-struct ControlFlowState {
+struct ControlFlowAnalyzerState {
     /// Current semantic nesting depth.
     depth: usize,
     /// Whether an ancestor has already been reported for excessive depth.
@@ -96,7 +100,7 @@ struct ControlFlowState {
     guardable_spans: Vec<Span>,
 }
 
-impl ControlFlowState {
+impl ControlFlowAnalyzerState {
     /// Returns whether a span already has a recorded guard-clause alternative.
     fn contains_guardable_span(&self, span: Span) -> bool {
         self.guardable_spans
@@ -107,16 +111,16 @@ impl ControlFlowState {
 
 /// More specific remediation available for an excessive-depth finding.
 #[derive(Clone, Copy)]
-enum ControlFlowDepthRemedy {
+enum ControlFlowAnalyzerDepthRemedy {
     /// Guard-clause guidance supersedes generic depth guidance.
     GuardClause,
     /// Only generic extraction or flattening guidance is available.
     General,
 }
 
-impl ControlFlowDepthRemedy {
+impl ControlFlowAnalyzerDepthRemedy {
     /// Selects the most specific remedy available for one expression.
-    fn for_expression(state: &ControlFlowState, span: Span) -> Self {
+    fn for_expression(state: &ControlFlowAnalyzerState, span: Span) -> Self {
         if state.contains_guardable_span(span) {
             Self::GuardClause
         } else {
@@ -134,9 +138,9 @@ pub(super) struct ControlFlowAnalyzer<'analysis, 'tcx> {
     /// Findings accumulated during traversal.
     analysis: ControlFlowAnalysis,
     /// Depth and guard-clause state maintained during traversal.
-    state: ControlFlowState,
+    state: ControlFlowAnalyzerState,
     /// Whether the outer function permits a bare early `return`.
-    function_return: ControlFlowFunctionReturn,
+    function_return: ControlFlowAnalyzerFunctionReturn,
 }
 
 impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
@@ -144,13 +148,13 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
     pub(super) fn new(
         cx: &'analysis LateContext<'tcx>,
         config: &'analysis FunctionStructureConfig,
-        function_return: ControlFlowFunctionReturn,
+        function_return: ControlFlowAnalyzerFunctionReturn,
     ) -> Self {
         Self {
             cx,
             config,
             analysis: ControlFlowAnalysis::default(),
-            state: ControlFlowState::default(),
+            state: ControlFlowAnalyzerState::default(),
             function_return,
         }
     }
@@ -174,7 +178,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         expression: &Expr<'_>,
         kind: &str,
         depth: usize,
-        remedy: ControlFlowDepthRemedy,
+        remedy: ControlFlowAnalyzerDepthRemedy,
     ) -> ControlFlowDeepFinding {
         // Describe the exact construct and configured depth excess.
         let message = format!(
@@ -185,11 +189,15 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
             "extract a named helper or flatten guardable branches before adding more nesting"
                 .to_owned();
 
+        // Resolve the finding's overlap with the more specific guard-clause diagnostic.
+        let has_guard_clause_alternative =
+            matches!(remedy, ControlFlowAnalyzerDepthRemedy::GuardClause);
+
         // Preserve the semantic facts consumed by both depth-related diagnostics.
         ControlFlowDeepFinding {
             span: expression.span,
             hir_id: expression.hir_id,
-            has_guard_clause_alternative: matches!(remedy, ControlFlowDepthRemedy::GuardClause),
+            has_guard_clause_alternative,
             message,
             help,
         }
@@ -206,7 +214,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         self.state.is_inside_excessive_depth = true;
 
         // Preserve whether more specific guard-clause guidance can supersede this finding.
-        let remedy = ControlFlowDepthRemedy::for_expression(&self.state, expression.span);
+        let remedy = ControlFlowAnalyzerDepthRemedy::for_expression(&self.state, expression.span);
         let finding = Self::deep_finding(self.config, expression, kind, self.state.depth, remedy);
         self.analysis.deep_nesting.push(finding);
     }
@@ -261,17 +269,21 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
     }
 
     /// Checks a block's trailing conditional before walking its contents.
-    fn visit_block_with_exit(&mut self, block: &'tcx Block<'tcx>, exit: ControlFlowGuardExit) {
+    fn visit_block_with_exit(
+        &mut self,
+        block: &'tcx Block<'tcx>,
+        exit: ControlFlowAnalyzerGuardExit,
+    ) {
         if !block.span.from_expansion()
             && let Some(expression) = Self::block_last_expression(block)
             && matches!(expression.kind, ExprKind::If(_, _, None))
-            && !matches!(exit, ControlFlowGuardExit::None)
+            && !matches!(exit, ControlFlowAnalyzerGuardExit::None)
         {
             // Name the guard exit that can replace the trailing branch.
             let exit_name = match exit {
-                ControlFlowGuardExit::Return => "an early `return`",
-                ControlFlowGuardExit::Continue => "an early `continue`",
-                ControlFlowGuardExit::None => unreachable!(),
+                ControlFlowAnalyzerGuardExit::Return => "an early `return`",
+                ControlFlowAnalyzerGuardExit::Continue => "an early `continue`",
+                ControlFlowAnalyzerGuardExit::None => unreachable!(),
             };
 
             // Record the branch inversion with its concrete early-exit form.
@@ -287,10 +299,13 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
     /// Traverses the function expression and returns findings grouped by lint identity.
     pub(super) fn analyze(mut self, expression: &'tcx Expr<'tcx>) -> ControlFlowAnalysis {
         if let ExprKind::Block(block, _) = expression.kind {
-            let exit = if matches!(self.function_return, ControlFlowFunctionReturn::Unit) {
-                ControlFlowGuardExit::Return
+            let exit = if matches!(
+                self.function_return,
+                ControlFlowAnalyzerFunctionReturn::Unit
+            ) {
+                ControlFlowAnalyzerGuardExit::Return
             } else {
-                ControlFlowGuardExit::None
+                ControlFlowAnalyzerGuardExit::None
             };
             self.visit_block_with_exit(block, exit);
         } else {
@@ -305,7 +320,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         let previous_excessive = self.state.is_inside_excessive_depth;
         self.state.depth += 1;
         self.record_excessive_depth(expression, "loop");
-        self.visit_block_with_exit(block, ControlFlowGuardExit::Continue);
+        self.visit_block_with_exit(block, ControlFlowAnalyzerGuardExit::Continue);
         self.state.depth = previous_depth;
         self.state.is_inside_excessive_depth = previous_excessive;
     }
@@ -397,9 +412,9 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
 impl<'tcx> Visitor<'tcx> for ControlFlowAnalyzer<'_, 'tcx> {
     fn visit_block(&mut self, block: &'tcx Block<'tcx>) {
         let exit = if block.is_direct_loop_body(self.cx) {
-            ControlFlowGuardExit::Continue
+            ControlFlowAnalyzerGuardExit::Continue
         } else {
-            ControlFlowGuardExit::None
+            ControlFlowAnalyzerGuardExit::None
         };
         self.visit_block_with_exit(block, exit);
     }

@@ -10,9 +10,6 @@ struct AcceptedBuilder;
 struct AcceptedConfig;
 struct AcceptedError;
 struct AcceptedInput;
-struct AcceptedOutput;
-struct AcceptedParser;
-struct AcceptedPolicy;
 
 // -----------------------------------------------------------------------------
 // Overloaded
@@ -24,9 +21,6 @@ struct OverloadedConfig;
 struct OverloadedError;
 struct OverloadedInput;
 struct OverloadedOutput;
-struct OverloadedParser;
-struct OverloadedPolicy;
-struct OverloadedState;
 
 mod module_namespace {
     // -----------------------------------------------------------------------------
@@ -39,9 +33,6 @@ mod module_namespace {
     fn fourth() {}
     fn fifth() {}
     fn sixth() {}
-    fn seventh() {}
-    fn eighth() {}
-    fn ninth() {}
 }
 
 // -----------------------------------------------------------------------------

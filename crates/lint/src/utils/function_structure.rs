@@ -8,7 +8,7 @@ use rustc_span::def_id::LocalDefId;
 
 use super::config::{FunctionStructureConfig, LibraryConfig};
 use super::control_flow_analysis::{
-    ControlFlowAnalysis, ControlFlowAnalyzer, ControlFlowFunctionReturn,
+    ControlFlowAnalysis, ControlFlowAnalyzer, ControlFlowAnalyzerFunctionReturn,
 };
 use super::function_layout_analysis::{FunctionLayoutAnalysis, FunctionLayoutAnalyzer};
 
@@ -59,7 +59,7 @@ impl FunctionStructureAnalyzer {
     ) -> ControlFlowAnalysis {
         let signature = cx.tcx.fn_sig(def_id).instantiate_identity();
         let output = signature.output().skip_binder();
-        let function_return = ControlFlowFunctionReturn::from_output(output);
+        let function_return = ControlFlowAnalyzerFunctionReturn::from_output(output);
         ControlFlowAnalyzer::new(cx, &self.config, function_return)
             .analyze(Self::authored_body(cx, body))
     }

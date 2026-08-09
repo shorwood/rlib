@@ -1,6 +1,22 @@
 use convert_case::{Case, Casing};
 
 // -----------------------------------------------------------------------------
+// IdentifierWords: Canonical identifier words
+// -----------------------------------------------------------------------------
+
+/// Normalized identifier word operations shared by public casing helpers.
+struct IdentifierWords;
+
+impl IdentifierWords {
+    /// Splits and normalizes identifier text according to its source convention.
+    fn from_case(value: &str, source: Case<'_>) -> Vec<String> {
+        let words = source.split(&value);
+        let populated = words.into_iter().filter(|word| !word.is_empty());
+        populated.map(|word| word.to_case(Case::Pascal)).collect()
+    }
+}
+
+// -----------------------------------------------------------------------------
 // IdentifierCase: Rust identifier casing
 // -----------------------------------------------------------------------------
 
@@ -14,13 +30,6 @@ pub fn is_pascal(value: &str) -> bool {
     !value.is_empty() && to_pascal(value) == value
 }
 
-/// Splits and normalizes identifier text according to its source convention.
-fn normalized_words(value: &str, source: Case<'_>) -> Vec<String> {
-    let words = source.split(&value);
-    let populated = words.into_iter().filter(|word| !word.is_empty());
-    populated.map(|word| word.to_case(Case::Pascal)).collect()
-}
-
 /// Splits an authored Rust identifier into canonical `PascalCase` words.
 pub fn words(value: &str) -> Vec<String> {
     let source = if value.contains('_') {
@@ -28,12 +37,12 @@ pub fn words(value: &str) -> Vec<String> {
     } else {
         Case::Pascal
     };
-    normalized_words(value, source)
+    IdentifierWords::from_case(value, source)
 }
 
 /// Splits a known `PascalCase` identifier into canonical words.
 pub fn pascal_words(value: &str) -> Vec<String> {
-    normalized_words(value, Case::Pascal)
+    IdentifierWords::from_case(value, Case::Pascal)
 }
 
 /// Finds the longest shared canonical `PascalCase` word prefix.

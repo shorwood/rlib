@@ -45,6 +45,10 @@ impl FunctionLayoutPhaseHeader {
     }
 }
 
+// -----------------------------------------------------------------------------
+// FunctionLayoutNestedSpanCollector: Nested body collection
+// -----------------------------------------------------------------------------
+
 /// Finds immediate nested bodies whose code belongs to a child layout scope.
 struct FunctionLayoutNestedSpanCollector<'analysis, 'tcx> {
     /// Compiler context used to resolve closure bodies.
@@ -143,6 +147,10 @@ impl<'tcx> Visitor<'tcx> for FunctionLayoutNestedSpanCollector<'_, 'tcx> {
     }
 }
 
+// -----------------------------------------------------------------------------
+// FunctionLayoutEntry: Direct phase entry
+// -----------------------------------------------------------------------------
+
 /// One statement or tail expression participating in direct-phase analysis.
 struct FunctionLayoutEntry {
     /// Authored source range used for line counting and gap construction.
@@ -216,6 +224,10 @@ impl FunctionLayoutEntry {
         FunctionLayoutNestedSpanCollector::filtered_line_count(cx, self.span, &self.nested_spans)
     }
 }
+
+// -----------------------------------------------------------------------------
+// FunctionLayoutAnalyzer: Phase analysis
+// -----------------------------------------------------------------------------
 
 /// HIR visitor that validates phase comments and continuous linear code runs.
 pub(super) struct FunctionLayoutAnalyzer<'analysis, 'tcx> {
@@ -401,12 +413,12 @@ impl<'tcx> Visitor<'tcx> for FunctionLayoutAnalyzer<'_, 'tcx> {
 }
 
 /// Function-layout measurements colocated with compiler spans.
-pub(super) trait FunctionLayoutSpanExt {
+pub(super) trait FunctionLayoutAnalyzerSpanExt {
     /// Counts physical lines containing non-comment source tokens within this span.
     fn code_line_count(self, cx: &LateContext<'_>) -> usize;
 }
 
-impl FunctionLayoutSpanExt for Span {
+impl FunctionLayoutAnalyzerSpanExt for Span {
     fn code_line_count(self, cx: &LateContext<'_>) -> usize {
         FunctionLayoutNestedSpanCollector::filtered_line_count(cx, self, &[])
     }

@@ -226,10 +226,10 @@ impl ModuleAnalysis {
         analyzer: &SectionAnalyzer,
         cx: &LateContext<'_>,
         span: Span,
-        events: &mut Vec<SectionEvent>,
+        events: &mut Vec<SectionEventStreamEntry>,
     ) {
         let dividers = analyzer.dividers_in_span(cx, span);
-        events.extend(dividers.into_iter().map(SectionEvent::Divider));
+        events.extend(dividers.into_iter().map(SectionEventStreamEntry::Divider));
     }
 
     /// Collects authored items and dividers, then analyzes them in source order.
@@ -269,7 +269,7 @@ impl ModuleAnalysis {
                 Self::append_dividers(analyzer, cx, gap, &mut events);
             }
             if let Some(participant) = SectionEventCandidate::from_item(cx, item) {
-                events.push(SectionEvent::Candidate(participant));
+                events.push(SectionEventStreamEntry::Candidate(participant));
             }
             previous = previous.max(item.span.hi());
         }
@@ -277,7 +277,7 @@ impl ModuleAnalysis {
             let gap = module_span.with_lo(previous).with_hi(module_span.hi());
             Self::append_dividers(analyzer, cx, gap, &mut events);
         }
-        events.sort_unstable_by_key(SectionEvent::position);
+        events.sort_unstable_by_key(SectionEventStreamEntry::position);
         let namespace = Self::namespace(cx, hir_id);
         Self::analyze_events(analyzer, events, namespace)
     }
@@ -285,12 +285,12 @@ impl ModuleAnalysis {
     /// Reduces a complete event stream into independently reportable findings.
     fn analyze_events(
         analyzer: &SectionAnalyzer,
-        events: Vec<SectionEvent>,
+        events: Vec<SectionEventStreamEntry>,
         namespace: Option<ModuleNamespace>,
     ) -> SectionAnalysis {
-        let mut state = SectionEventAnalysisState {
+        let mut state = SectionEventStreamState {
             namespace,
-            ..SectionEventAnalysisState::default()
+            ..SectionEventStreamState::default()
         };
 
         // Close each group when the following divider starts a new one.
@@ -355,7 +355,7 @@ impl ModuleAnalysis {
     /// Records placement, syntax, and width failures for one authored divider.
     fn record_malformed_section(
         analyzer: &SectionAnalyzer,
-        section: &SectionEventGroup,
+        section: &SectionEventStreamGroup,
         parsed: &ParsedContent,
         analysis: &mut SectionAnalysis,
     ) {
@@ -409,7 +409,7 @@ impl ModuleAnalysis {
     /// Publishes a syntactically valid, nonempty section for companion analyses.
     fn record_valid_section(
         analyzer: &SectionAnalyzer,
-        section: &SectionEventGroup,
+        section: &SectionEventStreamGroup,
         parsed: &ParsedContent,
         prefix: ModuleSectionPrefix<'_>,
         analysis: &mut SectionAnalysis,
@@ -454,7 +454,7 @@ impl ModuleAnalysis {
 
     /// Records a finding when `prefix` has already appeared in the module.
     fn record_duplicate_section(
-        section: &SectionEventGroup,
+        section: &SectionEventStreamGroup,
         prefix: ModuleSectionPrefix<'_>,
         seen_prefixes: &mut HashMap<String, Span>,
         analysis: &mut SectionAnalysis,
@@ -488,7 +488,7 @@ impl ModuleAnalysis {
 
     /// Builds a finding for a valid prefix that differs from the inferred family name.
     fn wrong_prefix_finding(
-        section: &SectionEventGroup,
+        section: &SectionEventStreamGroup,
         mismatch: ModulePrefixMismatch<'_>,
     ) -> SectionFinding {
         // Explain the mismatch and the inferred declaration-family prefix.
@@ -512,7 +512,7 @@ impl ModuleAnalysis {
 
     /// Builds naming-first guidance for declarations that share no `PascalCase` prefix.
     fn unrelated_names_finding(
-        section: &SectionEventGroup,
+        section: &SectionEventStreamGroup,
         prefix: ModuleSectionPrefix<'_>,
     ) -> SectionFinding {
         // Explain both the absent shared prefix and the declarations that need renaming.
@@ -536,7 +536,7 @@ impl ModuleAnalysis {
 
     /// Compares an authored prefix with the names grouped beneath it.
     fn mismatch_finding(
-        section: &SectionEventGroup,
+        section: &SectionEventStreamGroup,
         prefix: ModuleSectionPrefix<'_>,
         namespace: Option<&ModuleNamespace>,
     ) -> Option<SectionFinding> {
@@ -570,7 +570,7 @@ impl ModuleAnalysis {
     /// Runs every section-level check when a divider group closes.
     fn finish_section(
         analyzer: &SectionAnalyzer,
-        section: &SectionEventGroup,
+        section: &SectionEventStreamGroup,
         namespace: Option<&ModuleNamespace>,
         seen_prefixes: &mut HashMap<String, Span>,
         analysis: &mut SectionAnalysis,
@@ -703,8 +703,12 @@ impl SectionEventCandidate {
     }
 }
 
+// -----------------------------------------------------------------------------
+// SectionEventStream: Ordered section reduction
+// -----------------------------------------------------------------------------
+
 /// One divider or declaration in the module's source-ordered event stream.
-enum SectionEvent {
+enum SectionEventStreamEntry {
     /// A recognized divider template starts a new section.
     Divider(
         /// Divider source and captured content that open the section.
@@ -717,7 +721,7 @@ enum SectionEvent {
     ),
 }
 
-impl SectionEvent {
+impl SectionEventStreamEntry {
     /// Returns the event's source position for stable ordering.
     fn position(&self) -> BytePos {
         match self {
@@ -729,12 +733,12 @@ impl SectionEvent {
 
 #[derive(Default)]
 /// Declarations accumulated before the next divider boundary.
-struct SectionEventCandidates(
+struct SectionEventStreamCandidates(
     /// Authored candidates retained in source order.
     Vec<SectionEventCandidate>,
 );
 
-impl SectionEventCandidates {
+impl SectionEventStreamCandidates {
     /// Collapses a declaration and its impls into one nominal participant.
     fn record_distinct_declaration(
         positions: &mut HashMap<rustc_hir::def_id::LocalDefId, usize>,
@@ -848,29 +852,29 @@ impl SectionEventCandidates {
 }
 
 /// Divider and declarations accumulated beneath it.
-struct SectionEventGroup {
+struct SectionEventStreamGroup {
     /// Divider that opened the section.
     divider: SectionEventDivider,
     /// Declarations governed by the divider.
-    participants: SectionEventCandidates,
+    participants: SectionEventStreamCandidates,
 }
 
 #[derive(Default)]
 /// Mutable reducer state for a module's section event stream.
-struct SectionEventAnalysisState {
+struct SectionEventStreamState {
     /// Findings and valid sections accumulated so far.
     analysis: SectionAnalysis,
     /// Declarations encountered before any active divider.
-    uncovered: SectionEventCandidates,
+    uncovered: SectionEventStreamCandidates,
     /// Divider group currently accepting declarations.
-    current: Option<SectionEventGroup>,
+    current: Option<SectionEventStreamGroup>,
     /// First source span associated with each previously used prefix.
     seen_prefixes: HashMap<String, Span>,
     /// Semantic namespace inherited from the containing module.
     namespace: Option<ModuleNamespace>,
 }
 
-impl SectionEventAnalysisState {
+impl SectionEventStreamState {
     /// Routes a declaration into the active section or the uncovered group.
     fn record_candidate(&mut self, participant: SectionEventCandidate) {
         let Some(section) = &mut self.current else {
@@ -902,17 +906,17 @@ impl SectionEventAnalysisState {
                 &mut self.analysis,
             );
         }
-        self.current = Some(SectionEventGroup {
+        self.current = Some(SectionEventStreamGroup {
             divider,
-            participants: SectionEventCandidates::default(),
+            participants: SectionEventStreamCandidates::default(),
         });
     }
 
     /// Applies one source-ordered event to the reducer state.
-    fn apply(&mut self, analyzer: &SectionAnalyzer, event: SectionEvent) {
+    fn apply(&mut self, analyzer: &SectionAnalyzer, event: SectionEventStreamEntry) {
         match event {
-            SectionEvent::Candidate(participant) => self.record_candidate(participant),
-            SectionEvent::Divider(divider) => self.start_section(analyzer, divider),
+            SectionEventStreamEntry::Candidate(participant) => self.record_candidate(participant),
+            SectionEventStreamEntry::Divider(divider) => self.start_section(analyzer, divider),
         }
     }
 

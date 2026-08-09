@@ -101,9 +101,13 @@ struct DomainEvidenceType {
     name: Symbol,
 }
 
+// -----------------------------------------------------------------------------
+// DomainEvidenceRevalidation: Raw string invariant checks
+// -----------------------------------------------------------------------------
+
 /// Identity and module placement of one raw-string consumer.
 #[derive(Clone)]
-struct DomainEvidenceConsumer {
+struct DomainEvidenceRevalidationConsumer {
     /// Consumer definition identity.
     def_id: LocalDefId,
     /// Containing source module.
@@ -116,7 +120,7 @@ struct DomainEvidenceConsumer {
 #[derive(Clone)]
 struct DomainEvidenceRevalidation {
     /// Identity and placement of the consuming function.
-    consumer: DomainEvidenceConsumer,
+    consumer: DomainEvidenceRevalidationConsumer,
     /// Parameter name span.
     span: Span,
     /// Authored parameter name.
@@ -134,7 +138,7 @@ impl DomainEvidenceRevalidation {
     ) -> Option<Self> {
         // Resolve the domain and preserve the consuming function as one semantic identity.
         let domain = parameter.name.parameter_domain()?;
-        let consumer = DomainEvidenceConsumer {
+        let consumer = DomainEvidenceRevalidationConsumer {
             def_id: signature.def_id,
             module,
             name: signature.name,

@@ -75,8 +75,12 @@ pub struct ExtensionTraitPlacementFinding {
     pub name: Symbol,
 }
 
+// -----------------------------------------------------------------------------
+// ExtensionTraitAnalyzer: Semantic model
+// -----------------------------------------------------------------------------
+
 /// One authored module item used to test declaration adjacency.
-struct ExtensionTraitModuleItem {
+struct ExtensionTraitAnalyzerModuleItem {
     /// Definition identity distinguishing traits and impl blocks from intervening items.
     def_id: LocalDefId,
     /// Owning module identity.
@@ -86,7 +90,7 @@ struct ExtensionTraitModuleItem {
 }
 
 /// One local trait declaration and the subjects used by its methods.
-struct ExtensionTraitDefinition {
+struct ExtensionTraitAnalyzerDefinition {
     /// Trait name span.
     span: Span,
     /// Trait name.
@@ -100,7 +104,7 @@ struct ExtensionTraitDefinition {
 }
 
 /// One authored impl that makes a local trait an extension trait.
-struct ExtensionTraitImpl {
+struct ExtensionTraitAnalyzerImpl {
     /// Impl definition identity.
     def_id: LocalDefId,
     /// Extended local trait identity.
@@ -115,11 +119,11 @@ struct ExtensionTraitImpl {
 #[derive(Default)]
 pub struct ExtensionTraitAnalyzer {
     /// Local trait declarations indexed by definition identity.
-    traits: HashMap<LocalDefId, ExtensionTraitDefinition>,
+    traits: HashMap<LocalDefId, ExtensionTraitAnalyzerDefinition>,
     /// Authored foreign-target and blanket impls.
-    extension_impls: Vec<ExtensionTraitImpl>,
+    extension_impls: Vec<ExtensionTraitAnalyzerImpl>,
     /// Every authored module item, including declarations that interrupt a group.
-    module_items: Vec<ExtensionTraitModuleItem>,
+    module_items: Vec<ExtensionTraitAnalyzerModuleItem>,
 }
 
 impl ExtensionTraitAnalyzer {
@@ -138,7 +142,7 @@ impl ExtensionTraitAnalyzer {
 
         // Record the declaration's module and physical position before classifying its kind.
         let module = parent;
-        self.module_items.push(ExtensionTraitModuleItem {
+        self.module_items.push(ExtensionTraitAnalyzerModuleItem {
             def_id,
             module,
             span: item.span,
@@ -152,7 +156,7 @@ impl ExtensionTraitAnalyzer {
             };
 
             // Seed the trait record before its associated items are visited.
-            let definition = ExtensionTraitDefinition {
+            let definition = ExtensionTraitAnalyzerDefinition {
                 span: ident.span,
                 name: ident.name,
                 module,
@@ -191,7 +195,7 @@ impl ExtensionTraitAnalyzer {
         }
 
         // Retain the authored impl for coherence and physical-placement analysis.
-        self.extension_impls.push(ExtensionTraitImpl {
+        self.extension_impls.push(ExtensionTraitAnalyzerImpl {
             def_id,
             trait_def_id,
             module,
@@ -277,7 +281,8 @@ impl ExtensionTraitAnalyzer {
     /// Returns traits whose declaration and extension impls are cross-module or interrupted.
     pub fn placement_findings(&self) -> Vec<ExtensionTraitPlacementFinding> {
         // Restore source order independently inside each authored module.
-        let mut items_by_module = HashMap::<LocalDefId, Vec<&ExtensionTraitModuleItem>>::new();
+        let mut items_by_module =
+            HashMap::<LocalDefId, Vec<&ExtensionTraitAnalyzerModuleItem>>::new();
         for item in &self.module_items {
             items_by_module.entry(item.module).or_default().push(item);
         }
