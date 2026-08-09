@@ -75,10 +75,9 @@ impl<'tcx> LateLintPass<'tcx> for LongMethodChains {
         if matches!(kind, FnKind::Closure) {
             return;
         }
-        let unit = FunctionStructureAnalyzer::function_returns_unit(cx, def_id);
         for finding in self
             .analyzer
-            .analyze_control_flow(cx, body, unit)
+            .analyze_control_flow(cx, body, def_id)
             .long_method_chains
         {
             cx.emit_span_lint(

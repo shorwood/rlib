@@ -37,6 +37,24 @@ struct FunctionLayoutRawComment {
     text: String,
 }
 
+/// Grammatical position used when normalizing one prose word.
+#[derive(Clone, Copy)]
+enum FunctionLayoutWordPosition {
+    /// The word starts a sentence and receives sentence casing.
+    SentenceStart,
+    /// The word continues a sentence and receives lowercase casing.
+    Continuation,
+}
+
+/// Validation outcome for a parsed phase-comment block.
+#[derive(Clone, Copy)]
+enum FunctionLayoutCommentSyntax {
+    /// Header and continuation lines follow the configured syntax.
+    Canonical,
+    /// At least one line requires an authored repair.
+    Malformed,
+}
+
 /// Maps a byte position to its one-based physical source line.
 fn function_layout_source_line(cx: &LateContext<'_>, position: BytePos) -> usize {
     cx.sess().source_map().lookup_char_pos(position).line
@@ -118,10 +136,10 @@ fn function_layout_is_protected_word(word: &str) -> bool {
 }
 
 /// Normalizes one prose word while preserving protected authored spelling.
-fn function_layout_normalize_word(word: &str, starts_sentence: bool) -> String {
+fn function_layout_normalize_word(word: &str, position: FunctionLayoutWordPosition) -> String {
     if function_layout_is_protected_word(word) {
         word.to_owned()
-    } else if starts_sentence {
+    } else if matches!(position, FunctionLayoutWordPosition::SentenceStart) {
         word.to_case(Case::Sentence)
     } else {
         word.to_case(Case::Lower)
@@ -154,7 +172,12 @@ fn function_layout_is_sentence_style(content: &str) -> bool {
     // Normalize prose with the casing crate while preserving code and established proper terms.
     let mut starts_sentence = true;
     let normalized_words = words.iter().map(|word| {
-        let normalized = function_layout_normalize_word(word, starts_sentence);
+        let position = if starts_sentence {
+            FunctionLayoutWordPosition::SentenceStart
+        } else {
+            FunctionLayoutWordPosition::Continuation
+        };
+        let normalized = function_layout_normalize_word(word, position);
         starts_sentence = word.ends_with(['.', '!', '?']);
         normalized
     });
@@ -206,14 +229,14 @@ impl FunctionLayoutCommentBlock {
     fn from_parts(
         first: &FunctionLayoutRawComment,
         last: &FunctionLayoutRawComment,
-        is_canonical: bool,
+        syntax: FunctionLayoutCommentSyntax,
         replacement: Option<String>,
     ) -> Self {
         Self {
             span: first.span.with_hi(last.span.hi()),
             first_span: first.span,
             lines: first.line..=last.line,
-            is_canonical,
+            is_canonical: matches!(syntax, FunctionLayoutCommentSyntax::Canonical),
             replacement,
         }
     }
@@ -232,10 +255,14 @@ impl FunctionLayoutCommentBlock {
         // Suggest only transformations that cannot damage protected authored terms.
         let replacement = function_layout_comment_replacement(content, prefix);
         let last = comments.last().expect("comment blocks are nonempty");
-        let is_canonical = content_is_canonical && continuation_is_canonical;
+        let syntax = if content_is_canonical && continuation_is_canonical {
+            FunctionLayoutCommentSyntax::Canonical
+        } else {
+            FunctionLayoutCommentSyntax::Malformed
+        };
 
         // Retain both the complete block and its independently repairable first line.
-        Some(Self::from_parts(first, last, is_canonical, replacement))
+        Some(Self::from_parts(first, last, syntax, replacement))
     }
 
     /// Validates nonempty natural continuation lines after a phase header.

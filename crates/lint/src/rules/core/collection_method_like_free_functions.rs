@@ -12,7 +12,7 @@ use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol, sym};
 
 // -----------------------------------------------------------------------------
-// CollectionReceiver: Collection receiver forms
+// Collection: Collection receiver forms
 // -----------------------------------------------------------------------------
 
 /// The method receiver that preserves how the original collection was passed.
@@ -25,6 +25,15 @@ enum CollectionReceiver {
     /// Collection is shared through an immutable reference.
     Shared,
     /// Collection is borrowed through a mutable reference.
+    Mutable,
+}
+
+/// Mutability of an owned collection's parameter binding.
+#[derive(Clone, Copy)]
+enum CollectionBindingMutability {
+    /// The binding is immutable.
+    Immutable,
+    /// The binding is explicitly mutable.
     Mutable,
 }
 
@@ -41,11 +50,11 @@ impl CollectionReceiver {
     fn discover<'tcx>(
         cx: &LateContext<'tcx>,
         input: Ty<'tcx>,
-        mutable_binding: bool,
+        binding_mutability: CollectionBindingMutability,
     ) -> Option<CollectionReceiverType<'tcx>> {
         // Prefer an owned vector receiver while preserving binding mutability.
         if let Some(element) = Self::vec_element_type(cx, input) {
-            let receiver = if mutable_binding {
+            let receiver = if matches!(binding_mutability, CollectionBindingMutability::Mutable) {
                 Self::MutOwned
             } else {
                 Self::Owned
@@ -173,11 +182,13 @@ impl Candidate {
         let parameter = body.params.first()?;
 
         // Preserve mutable owned bindings when classifying the receiver contract.
-        let mutable_binding = matches!(
-            parameter.pat.kind,
-            PatKind::Binding(BindingMode(_, Mutability::Mut), ..)
-        );
-        let receiver_type = CollectionReceiver::discover(cx, first_type, mutable_binding)?;
+        let binding_mutability = match parameter.pat.kind {
+            PatKind::Binding(BindingMode(_, Mutability::Mut), ..) => {
+                CollectionBindingMutability::Mutable
+            }
+            _ => CollectionBindingMutability::Immutable,
+        };
+        let receiver_type = CollectionReceiver::discover(cx, first_type, binding_mutability)?;
 
         // Require a directly stored local struct element under source control.
         let ty::Adt(element, _) = receiver_type.element.kind() else {

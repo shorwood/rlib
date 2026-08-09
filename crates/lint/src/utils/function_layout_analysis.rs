@@ -25,6 +25,15 @@ pub struct FunctionLayoutAnalysis {
     pub(crate) malformed: Vec<FunctionLayoutFinding>,
 }
 
+/// Whether a measured code phase already has an explanatory header.
+#[derive(Clone, Copy)]
+enum FunctionLayoutPhaseHeader {
+    /// A canonical phase comment precedes the code.
+    Present,
+    /// The phase is currently unnamed.
+    Missing,
+}
+
 /// Finds immediate nested bodies whose code belongs to a child layout scope.
 struct FunctionLayoutNestedSpanCollector<'analysis, 'tcx> {
     /// Compiler context used to resolve closure bodies.
@@ -203,7 +212,7 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         &mut self,
         phase: &[FunctionLayoutEntry],
         lines: usize,
-        has_header: bool,
+        header: FunctionLayoutPhaseHeader,
     ) {
         // Locate the complete source phase receiving the diagnostic.
         let first = phase[0].span.source_callsite();
@@ -211,7 +220,7 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         let span = Span::with_root_ctxt(first.lo(), last.hi());
 
         // Distinguish missing names from named phases that still contain too much work.
-        let message = if has_header {
+        let message = if matches!(header, FunctionLayoutPhaseHeader::Present) {
             format!(
                 "this code phase contains {lines} lines, exceeding the configured maximum of {}",
                 self.config.max_phase_lines
@@ -221,7 +230,7 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         };
 
         // Select guidance that matches the phase's missing name or excessive size.
-        let help = if has_header {
+        let help = if matches!(header, FunctionLayoutPhaseHeader::Present) {
             format!(
                 "split this phase with `{}` explanatory comments or extract named operations",
                 self.config.phase_comment_prefix
@@ -243,7 +252,11 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
     }
 
     /// Splits direct code at canonical headers and measures every semantic phase.
-    fn analyze_phases(&mut self, entries: &[FunctionLayoutEntry], headers: &[bool]) {
+    fn analyze_phases(
+        &mut self,
+        entries: &[FunctionLayoutEntry],
+        headers: &[FunctionLayoutPhaseHeader],
+    ) {
         let line_counts = entries
             .iter()
             .map(|entry| entry.direct_line_count(self.cx))
@@ -255,14 +268,17 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         // Treat every valid explanation as the start of a distinct semantic phase.
         let mut phase_start = 0;
         for index in 1..=entries.len() {
-            if index < entries.len() && !headers[index] {
+            if index < entries.len() && matches!(headers[index], FunctionLayoutPhaseHeader::Missing)
+            {
                 continue;
             }
             let lines = line_counts[phase_start..index].iter().sum::<usize>();
-            let has_header = headers[phase_start];
+            let header = headers[phase_start];
             let phase = &entries[phase_start..index];
-            if !has_header || lines > self.config.max_phase_lines {
-                self.record_oversized_phase(phase, lines, has_header);
+            if matches!(header, FunctionLayoutPhaseHeader::Missing)
+                || lines > self.config.max_phase_lines
+            {
+                self.record_oversized_phase(phase, lines, header);
             }
             phase_start = index;
         }
@@ -275,7 +291,7 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         entries: &[FunctionLayoutEntry],
         index: usize,
         next: Span,
-    ) -> bool {
+    ) -> FunctionLayoutPhaseHeader {
         // Resolve the source gap between this entry and its predecessor.
         let previous = index.checked_sub(1).map(|index| entries[index].span);
         let lo = previous.map_or_else(|| block.span.lo(), Span::hi);
@@ -284,11 +300,15 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         // Preserve the comment parser's semantic boundary decision.
         let analyzed =
             FunctionLayoutEntryGap::analyze(self.cx, self.config, gap, previous, Some(next));
-        let has_header = analyzed.has_valid_header;
+        let header = if analyzed.has_valid_header {
+            FunctionLayoutPhaseHeader::Present
+        } else {
+            FunctionLayoutPhaseHeader::Missing
+        };
 
         // Merge malformed comments before returning the lightweight boundary state.
         self.analysis.malformed.extend(analyzed.findings);
-        has_header
+        header
     }
 
     /// Classifies and analyzes all authored entries in one block.

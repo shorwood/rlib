@@ -86,6 +86,15 @@ impl SectionAnalysis {
 // SectionAnalyzer: Source analysis
 // -----------------------------------------------------------------------------
 
+/// Authored content and indentation used to render one divider replacement.
+#[derive(Clone, Copy)]
+struct SectionAnalyzerRenderRequest<'source> {
+    /// Canonical placeholder content.
+    content: &'source str,
+    /// Whitespace preceding the divider in its module.
+    indentation: &'source str,
+}
+
 /// Parses configured divider blocks and relates them to module-level declaration groups.
 pub struct SectionAnalyzer {
     /// Parsed divider template used for both recognition and rendering.
@@ -162,20 +171,36 @@ impl SectionAnalyzer {
     }
 
     /// Renders an indented canonical divider when it satisfies the width policy.
-    fn render_replacement(&self, content: &str, indentation: &str) -> Option<String> {
-        self.rendered_lines_fit(content).then(|| {
-            let rendered = self.template.render(content);
+    fn render_replacement(&self, request: SectionAnalyzerRenderRequest<'_>) -> Option<String> {
+        self.rendered_lines_fit(request.content).then(|| {
+            let rendered = self.template.render(request.content);
             rendered
                 .lines()
                 .collect::<Vec<_>>()
-                .join(&format!("\n{indentation}"))
+                .join(&format!("\n{}", request.indentation))
         })
     }
 }
 
 // -----------------------------------------------------------------------------
-// ModuleAnalysis: Complete module analysis
+// Module: Complete module analysis
 // -----------------------------------------------------------------------------
+
+/// Authored and inferred names involved in one section-prefix mismatch.
+#[derive(Clone, Copy)]
+struct ModulePrefixMismatch<'name> {
+    /// Prefix written in the divider.
+    authored: &'name str,
+    /// Shared prefix inferred from the declarations.
+    expected: &'name str,
+}
+
+/// Validated section prefix passed through module-level checks.
+#[derive(Clone, Copy)]
+struct ModuleSectionPrefix<'name> {
+    /// Authored `PascalCase` prefix.
+    text: &'name str,
+}
 
 /// Builds and validates the ordered section event stream for one source module.
 struct ModuleAnalysis;
@@ -312,7 +337,10 @@ impl ModuleAnalysis {
         if let Some(message) = &parsed.error {
             // Render the normalized content only when the template can represent it safely.
             let replacement = parsed.normalized.as_ref().and_then(|content| {
-                analyzer.render_replacement(content, &section.divider.indentation)
+                analyzer.render_replacement(SectionAnalyzerRenderRequest {
+                    content,
+                    indentation: &section.divider.indentation,
+                })
             });
 
             // Explain the canonical grammar alongside any machine-applicable fix.
@@ -347,7 +375,7 @@ impl ModuleAnalysis {
         analyzer: &SectionAnalyzer,
         section: &SectionEventGroup,
         parsed: &ParsedContent,
-        prefix: &str,
+        prefix: ModuleSectionPrefix<'_>,
         analysis: &mut SectionAnalysis,
     ) {
         // Require canonical syntax, width, and at least one declaration participant.
@@ -361,7 +389,7 @@ impl ModuleAnalysis {
         // Publish the stable semantic section used by companion naming analyses.
         analysis.sections.push(SectionGroup {
             ordinal: analysis.sections.len() + 1,
-            prefix: prefix.to_owned(),
+            prefix: prefix.text.to_owned(),
             span: section.divider.span,
             participants: section.participants.distinct_declarations(),
         });
@@ -370,23 +398,33 @@ impl ModuleAnalysis {
     /// Records a finding when `prefix` has already appeared in the module.
     fn record_duplicate_section(
         section: &SectionEventGroup,
-        prefix: &str,
+        prefix: ModuleSectionPrefix<'_>,
         seen_prefixes: &mut HashMap<String, Span>,
         analysis: &mut SectionAnalysis,
     ) {
         // Register this prefix and stop when it has not appeared before.
         if seen_prefixes
-            .insert(prefix.to_owned(), section.divider.span)
+            .insert(prefix.text.to_owned(), section.divider.span)
             .is_none()
         {
             return;
         }
 
         // Report the later occurrence while naming the family it should rejoin.
+        let message = format!(
+            "section prefix `{}` is used more than once in this module",
+            prefix.text
+        );
+        let help = format!(
+            "combine this family with the earlier `{}` section",
+            prefix.text
+        );
+
+        // Attach the prepared diagnostic text to the later divider occurrence.
         analysis.duplicates.push(SectionFinding {
             span: section.divider.span,
-            message: format!("section prefix `{prefix}` is used more than once in this module"),
-            help: format!("combine this family with the earlier `{prefix}` section"),
+            message,
+            help,
             replacement: None,
         });
     }
@@ -394,13 +432,16 @@ impl ModuleAnalysis {
     /// Builds a finding for a valid prefix that differs from the inferred family name.
     fn wrong_prefix_finding(
         section: &SectionEventGroup,
-        prefix: &str,
-        expected: &str,
+        mismatch: ModulePrefixMismatch<'_>,
     ) -> SectionFinding {
         // Explain the mismatch and the inferred declaration-family prefix.
-        let message = format!("section prefix `{prefix}` does not match its declaration family");
+        let message = format!(
+            "section prefix `{}` does not match its declaration family",
+            mismatch.authored
+        );
         let help = format!(
-            "rename the declarations into one coherent family first; their longest shared PascalCase prefix is `{expected}`, and a new section is appropriate only for an independent concept"
+            "rename the declarations into one coherent family first; their longest shared PascalCase prefix is `{}`, and a new section is appropriate only for an independent concept",
+            mismatch.expected
         );
 
         // Attach the naming-first guidance to the authored divider.
@@ -413,10 +454,15 @@ impl ModuleAnalysis {
     }
 
     /// Builds naming-first guidance for declarations that share no `PascalCase` prefix.
-    fn unrelated_names_finding(section: &SectionEventGroup, prefix: &str) -> SectionFinding {
+    fn unrelated_names_finding(
+        section: &SectionEventGroup,
+        prefix: ModuleSectionPrefix<'_>,
+    ) -> SectionFinding {
         // Explain both the absent shared prefix and the declarations that need renaming.
-        let message =
-            format!("section `{prefix}` contains declarations without a shared PascalCase prefix");
+        let message = format!(
+            "section `{}` contains declarations without a shared PascalCase prefix",
+            prefix.text
+        );
         let help = format!(
             "reconsider the names {} so closely related declarations share a visible prefix; split the section only when they represent independent concepts",
             section.participants.formatted_names()
@@ -432,18 +478,32 @@ impl ModuleAnalysis {
     }
 
     /// Compares an authored prefix with the names grouped beneath it.
-    fn mismatch_finding(section: &SectionEventGroup, prefix: &str) -> Option<SectionFinding> {
+    fn mismatch_finding(
+        section: &SectionEventGroup,
+        prefix: ModuleSectionPrefix<'_>,
+    ) -> Option<SectionFinding> {
+        // Infer a family only when the divider actually governs declarations.
         if section.participants.is_empty() {
             return None;
         }
         let names = section.participants.names();
-        match identifier_longest_pascal_prefix(&names) {
-            Some(expected) if expected != prefix => {
-                Some(Self::wrong_prefix_finding(section, prefix, &expected))
-            }
-            None => Some(Self::unrelated_names_finding(section, prefix)),
-            _ => None,
+
+        // Report declarations with no shared naming root directly.
+        let Some(expected) = identifier_longest_pascal_prefix(&names) else {
+            return Some(Self::unrelated_names_finding(section, prefix));
+        };
+        if expected == prefix.text {
+            return None;
         }
+
+        // Report a concrete mismatch using the inferred family prefix.
+        Some(Self::wrong_prefix_finding(
+            section,
+            ModulePrefixMismatch {
+                authored: prefix.text,
+                expected: &expected,
+            },
+        ))
     }
 
     /// Runs every section-level check when a divider group closes.
@@ -459,6 +519,7 @@ impl ModuleAnalysis {
         let Some(prefix) = parsed.prefix.as_deref() else {
             return;
         };
+        let prefix = ModuleSectionPrefix { text: prefix };
 
         // Record the section independently for each semantic companion lint.
         Self::record_valid_section(analyzer, section, &parsed, prefix, analysis);
@@ -484,6 +545,15 @@ struct SectionEventDivider {
     indentation: String,
 }
 
+/// Semantic role of a named declaration within a source section.
+#[derive(Clone, Copy)]
+enum SectionEventCandidateKind {
+    /// A type-like declaration that establishes a nominal concept.
+    Nominal,
+    /// A value declaration that supports a surrounding concept.
+    Supporting,
+}
+
 /// Module declaration that may participate in the current section.
 struct SectionEventCandidate {
     /// Local definition represented by the declaration.
@@ -498,12 +568,16 @@ struct SectionEventCandidate {
 
 impl SectionEventCandidate {
     /// Builds a candidate from an item whose definition and name are direct.
-    fn from_named_item(cx: &LateContext<'_>, item: &Item<'_>, is_nominal: bool) -> Self {
+    fn from_named_item(
+        cx: &LateContext<'_>,
+        item: &Item<'_>,
+        kind: SectionEventCandidateKind,
+    ) -> Self {
         Self {
             def_id: item.owner_id.def_id,
             name: cx.tcx.item_name(item.owner_id.to_def_id()).to_string(),
             span: item.span,
-            is_nominal_declaration: is_nominal,
+            is_nominal_declaration: matches!(kind, SectionEventCandidateKind::Nominal),
         }
     }
 
@@ -537,7 +611,11 @@ impl SectionEventCandidate {
             item.kind,
             ItemKind::Struct(..) | ItemKind::Enum(..) | ItemKind::Union(..)
         ) {
-            return Some(Self::from_named_item(cx, item, true));
+            return Some(Self::from_named_item(
+                cx,
+                item,
+                SectionEventCandidateKind::Nominal,
+            ));
         }
 
         // Classify abstract nominal declarations directly.
@@ -545,14 +623,18 @@ impl SectionEventCandidate {
             item.kind,
             ItemKind::TyAlias(..) | ItemKind::Trait(..) | ItemKind::TraitAlias(..)
         ) {
-            return Some(Self::from_named_item(cx, item, true));
+            return Some(Self::from_named_item(
+                cx,
+                item,
+                SectionEventCandidateKind::Nominal,
+            ));
         }
 
         // Classify value declarations and supporting inherent implementations.
         match item.kind {
-            ItemKind::Const(..) | ItemKind::Static(..) | ItemKind::Fn { .. } => {
-                Some(Self::from_named_item(cx, item, false))
-            }
+            ItemKind::Const(..) | ItemKind::Static(..) | ItemKind::Fn { .. } => Some(
+                Self::from_named_item(cx, item, SectionEventCandidateKind::Supporting),
+            ),
             ItemKind::Impl(_) => Self::from_impl(cx, item),
             _ => None,
         }

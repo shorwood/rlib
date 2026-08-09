@@ -62,6 +62,24 @@ enum ControlFlowGuardExit {
     Continue,
 }
 
+/// More specific remediation available for an excessive-depth finding.
+#[derive(Clone, Copy)]
+enum ControlFlowDepthRemedy {
+    /// Guard-clause guidance supersedes generic depth guidance.
+    GuardClause,
+    /// Only generic extraction or flattening guidance is available.
+    General,
+}
+
+/// Return behavior of the outer function under analysis.
+#[derive(Clone, Copy)]
+pub(super) enum ControlFlowFunctionReturn {
+    /// A bare return can exit the outer function.
+    Unit,
+    /// An early return must provide a value.
+    Value,
+}
+
 /// Mutable traversal state shared by the control-flow readability analyses.
 #[derive(Default)]
 struct ControlFlowState {
@@ -171,7 +189,7 @@ fn control_flow_deep_finding(
     expression: &Expr<'_>,
     kind: &str,
     depth: usize,
-    has_guard_clause_alternative: bool,
+    remedy: ControlFlowDepthRemedy,
 ) -> ControlFlowDeepFinding {
     // Describe the exact construct and configured depth excess.
     let message = format!(
@@ -185,7 +203,7 @@ fn control_flow_deep_finding(
     ControlFlowDeepFinding {
         span: expression.span,
         hir_id: expression.hir_id,
-        has_guard_clause_alternative,
+        has_guard_clause_alternative: matches!(remedy, ControlFlowDepthRemedy::GuardClause),
         message,
         help,
     }
@@ -217,7 +235,7 @@ pub(super) struct ControlFlowAnalyzer<'analysis, 'tcx> {
     /// Depth and guard-clause state maintained during traversal.
     state: ControlFlowState,
     /// Whether the outer function permits a bare early `return`.
-    is_function_returning_unit: bool,
+    function_return: ControlFlowFunctionReturn,
 }
 
 impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
@@ -225,14 +243,14 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
     pub(super) fn new(
         cx: &'analysis LateContext<'tcx>,
         config: &'analysis FunctionStructureConfig,
-        is_function_returning_unit: bool,
+        function_return: ControlFlowFunctionReturn,
     ) -> Self {
         Self {
             cx,
             config,
             analysis: ControlFlowAnalysis::default(),
             state: ControlFlowState::default(),
-            is_function_returning_unit,
+            function_return,
         }
     }
 
@@ -246,15 +264,22 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
 
     /// Records only the outermost construct that crosses the nesting limit.
     fn record_excessive_depth(&mut self, expression: &Expr<'_>, kind: &str) {
+        // Ignore permitted depth and descendants of an already reported construct.
         if self.state.depth <= self.config.max_control_flow_depth
             || self.state.is_inside_excessive_depth
         {
             return;
         }
         self.state.is_inside_excessive_depth = true;
-        let has_guard = self.is_guardable(expression.span);
+
+        // Preserve whether more specific guard-clause guidance can supersede this finding.
+        let remedy = if self.is_guardable(expression.span) {
+            ControlFlowDepthRemedy::GuardClause
+        } else {
+            ControlFlowDepthRemedy::General
+        };
         let finding =
-            control_flow_deep_finding(self.config, expression, kind, self.state.depth, has_guard);
+            control_flow_deep_finding(self.config, expression, kind, self.state.depth, remedy);
         self.analysis.deep_nesting.push(finding);
     }
 
@@ -299,16 +324,12 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
     }
 
     /// Records one unique guard-clause opportunity.
-    fn push_needless(&mut self, span: Span, message: &str, help: String) {
-        if self.is_guardable(span) {
+    fn push_needless(&mut self, finding: ControlFlowFinding) {
+        if self.is_guardable(finding.span) {
             return;
         }
-        self.state.guardable_spans.push(span);
-        self.analysis.needless_nesting.push(ControlFlowFinding {
-            span,
-            message: message.to_owned(),
-            help,
-        });
+        self.state.guardable_spans.push(finding.span);
+        self.analysis.needless_nesting.push(finding);
     }
 
     /// Checks a block's trailing conditional before walking its contents.
@@ -326,11 +347,11 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
             };
 
             // Record the branch inversion with its concrete early-exit form.
-            self.push_needless(
-                expression.span,
-                "this trailing condition needlessly wraps the remaining work",
-                format!("invert the condition and use {exit_name} before the unwrapped body"),
-            );
+            self.push_needless(ControlFlowFinding {
+                span: expression.span,
+                message: "this trailing condition needlessly wraps the remaining work".to_owned(),
+                help: format!("invert the condition and use {exit_name} before the unwrapped body"),
+            });
         }
         intravisit::walk_block(self, block);
     }
@@ -338,7 +359,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
     /// Traverses the function expression and returns findings grouped by lint identity.
     pub(super) fn analyze(mut self, expression: &'tcx Expr<'tcx>) -> ControlFlowAnalysis {
         if let ExprKind::Block(block, _) = expression.kind {
-            let exit = if self.is_function_returning_unit {
+            let exit = if matches!(self.function_return, ControlFlowFunctionReturn::Unit) {
                 ControlFlowGuardExit::Return
             } else {
                 ControlFlowGuardExit::None
@@ -388,11 +409,11 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
             let then_diverges = self.expression_diverges(then);
             let otherwise_diverges = self.expression_diverges(otherwise);
             if then_diverges ^ otherwise_diverges {
-                self.push_needless(
-                    expression.span,
-                    "this conditional keeps useful work inside a needless branch",
-                    "use the diverging branch as a guard and move the useful work into the surrounding block".to_owned(),
-                );
+                self.push_needless(ControlFlowFinding {
+                    span: expression.span,
+                    message: "this conditional keeps useful work inside a needless branch".to_owned(),
+                    help: "use the diverging branch as a guard and move the useful work into the surrounding block".to_owned(),
+                });
             }
         }
 

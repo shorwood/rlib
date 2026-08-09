@@ -159,6 +159,15 @@ pub struct DeclarationNode {
     pub(crate) constraints: DeclarationConstraints,
 }
 
+/// Directed dependency between two declaration-node indexes.
+#[derive(Clone, Copy)]
+struct DeclarationDependencyEdge {
+    /// Index of the declaration that consumes another declaration.
+    node: usize,
+    /// Index of the declaration that must precede the consumer.
+    dependency: usize,
+}
+
 /// A collection of declarations that can compute its stable dependency-first order.
 pub struct DeclarationNodeList {
     /// Declaration units in their original source order.
@@ -183,11 +192,10 @@ impl DeclarationNodeList {
     fn add_component_dependency(
         dependencies: &mut [HashSet<usize>],
         component_of: &[usize],
-        node: usize,
-        dependency: usize,
+        edge: DeclarationDependencyEdge,
     ) {
-        let from = component_of[node];
-        let to = component_of[dependency];
+        let from = component_of[edge.node];
+        let to = component_of[edge.dependency];
         if from == to {
             return;
         }
@@ -266,7 +274,11 @@ impl DeclarationNodeList {
         let mut dependencies = vec![HashSet::new(); components.len()];
         for (node, node_edges) in edges.iter().enumerate() {
             for dependency in node_edges {
-                Self::add_component_dependency(&mut dependencies, &component_of, node, *dependency);
+                let edge = DeclarationDependencyEdge {
+                    node,
+                    dependency: *dependency,
+                };
+                Self::add_component_dependency(&mut dependencies, &component_of, edge);
             }
         }
 

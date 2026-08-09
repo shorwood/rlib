@@ -7,7 +7,9 @@ use rustc_lint::LateContext;
 use rustc_span::def_id::LocalDefId;
 
 use super::config::{FunctionStructureConfig, LibraryConfig};
-use super::control_flow_analysis::{ControlFlowAnalysis, ControlFlowAnalyzer};
+use super::control_flow_analysis::{
+    ControlFlowAnalysis, ControlFlowAnalyzer, ControlFlowFunctionReturn,
+};
 use super::function_layout_analysis::{FunctionLayoutAnalysis, FunctionLayoutAnalyzer};
 
 // -----------------------------------------------------------------------------
@@ -59,9 +61,14 @@ impl FunctionStructureAnalyzer {
         &self,
         cx: &LateContext<'tcx>,
         body: &'tcx Body<'tcx>,
-        is_function_returning_unit: bool,
+        def_id: LocalDefId,
     ) -> ControlFlowAnalysis {
-        ControlFlowAnalyzer::new(cx, &self.config, is_function_returning_unit)
+        let function_return = if Self::function_returns_unit(cx, def_id) {
+            ControlFlowFunctionReturn::Unit
+        } else {
+            ControlFlowFunctionReturn::Value
+        };
+        ControlFlowAnalyzer::new(cx, &self.config, function_return)
             .analyze(Self::authored_body(cx, body))
     }
 }

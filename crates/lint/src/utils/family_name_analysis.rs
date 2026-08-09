@@ -173,7 +173,12 @@ impl FamilyInference<'_> {
         let replacements = rendered_renames.collect::<Vec<_>>().join(", ");
 
         // Tailor naming guidance to confidence and namespace collisions.
-        let help = if ConfidenceEvidence::allows_exact_names(self.score, has_collision) {
+        let availability = if has_collision {
+            ConfidenceNameAvailability::Occupied
+        } else {
+            ConfidenceNameAvailability::Available
+        };
+        let help = if ConfidenceEvidence::allows_exact_names(self.score, availability) {
             format!(
                 "prefer the concept-first names {replacements}; rename before creating additional sections"
             )
@@ -241,6 +246,15 @@ enum ConfidenceSignal {
     CompetingStem,
 }
 
+/// Namespace availability of an inferred exact replacement.
+#[derive(Clone, Copy)]
+enum ConfidenceNameAvailability {
+    /// Every inferred replacement is available.
+    Available,
+    /// At least one inferred replacement collides with an existing declaration.
+    Occupied,
+}
+
 #[derive(Default)]
 /// Ordered confidence signals collected while evaluating one family.
 struct ConfidenceEvidence(
@@ -250,8 +264,9 @@ struct ConfidenceEvidence(
 
 impl ConfidenceEvidence {
     /// Returns whether confidence and namespace occupancy permit exact rename advice.
-    const fn allows_exact_names(score: i32, has_collision: bool) -> bool {
-        score >= THRESHOLD_SUGGESTION && !has_collision
+    const fn allows_exact_names(score: i32, availability: ConfidenceNameAvailability) -> bool {
+        score >= THRESHOLD_SUGGESTION
+            && matches!(availability, ConfidenceNameAvailability::Available)
     }
 
     /// Records one confidence signal.
@@ -824,7 +839,8 @@ impl ModuleNamingAnalysis {
 #[cfg(test)]
 mod tests {
     use super::{
-        ConfidenceEvidence, ConfidenceSignal, NameTokens, THRESHOLD_REPORT, THRESHOLD_SUGGESTION,
+        ConfidenceEvidence, ConfidenceNameAvailability, ConfidenceSignal, NameTokens,
+        THRESHOLD_REPORT, THRESHOLD_SUGGESTION,
     };
     use crate::utils::identifier_case::identifier_pascal_words;
 
@@ -877,15 +893,15 @@ mod tests {
     fn suppresses_exact_names_when_a_candidate_collides() {
         assert!(ConfidenceEvidence::allows_exact_names(
             THRESHOLD_SUGGESTION,
-            false
+            ConfidenceNameAvailability::Available
         ));
         assert!(!ConfidenceEvidence::allows_exact_names(
             THRESHOLD_SUGGESTION,
-            true
+            ConfidenceNameAvailability::Occupied
         ));
         assert!(!ConfidenceEvidence::allows_exact_names(
             THRESHOLD_SUGGESTION - 1,
-            false
+            ConfidenceNameAvailability::Available
         ));
     }
 }

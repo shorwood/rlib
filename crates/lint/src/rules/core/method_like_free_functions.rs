@@ -833,8 +833,17 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
 }
 
 // -----------------------------------------------------------------------------
-// MethodLikeFreeFunctions: Lint pass and diagnostics
+// MethodLike: Lint pass and diagnostics
 // -----------------------------------------------------------------------------
+
+/// Whether a candidate can reuse its authored function name as a method.
+#[derive(Clone, Copy)]
+enum MethodLikeMigrationAvailability {
+    /// The destination method name is free.
+    Available,
+    /// An existing method already occupies the destination name.
+    NameCollision,
+}
 
 /// Collects the information needed to find misplaced functions and safely move them.
 #[derive(Default)]
@@ -990,9 +999,9 @@ impl MethodLikeFreeFunctions {
         &self,
         cx: &LateContext<'_>,
         candidate: &Candidate,
-        has_collision: bool,
+        availability: MethodLikeMigrationAvailability,
     ) -> Option<Vec<MigrationEdit>> {
-        (!has_collision)
+        matches!(availability, MethodLikeMigrationAvailability::Available)
             .then(|| {
                 MigrationBuilder::new(
                     cx,
@@ -1014,7 +1023,12 @@ impl MethodLikeFreeFunctions {
     fn emit_candidate(&self, cx: &LateContext<'_>, candidate: &Candidate) {
         // Resolve name collisions and the complete safe migration before reporting.
         let has_collision = candidate.has_method_collision(cx);
-        let migration = self.candidate_migration(cx, candidate, has_collision);
+        let availability = if has_collision {
+            MethodLikeMigrationAvailability::NameCollision
+        } else {
+            MethodLikeMigrationAvailability::Available
+        };
+        let migration = self.candidate_migration(cx, candidate, availability);
 
         // Explain the preferred method location and attach the complete safe migration.
         cx.tcx.emit_node_span_lint(
