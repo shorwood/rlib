@@ -30,14 +30,17 @@ impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.primary_message)
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "the broad section conceals smaller naming families and provides an easy bucket for unrelated declarations",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.remediation_message)
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         cx.emit_span_lint(
             OVERLOADED_DECLARATION_SECTIONS,

@@ -30,14 +30,17 @@ impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.primary_message)
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "reusing one prefix fragments a naming family and leaves new declarations without an unambiguous owning section",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.remediation_message)
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         cx.emit_span_lint(
             DUPLICATE_SECTION_DIVIDER_PREFIXES,

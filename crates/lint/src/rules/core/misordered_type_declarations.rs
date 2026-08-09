@@ -37,18 +37,21 @@ impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("local types should be declared before their use")
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "the first misplaced type requires forward navigation; the resolved dependency-first order is {}",
             self.expected_names
         ))
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "move declarations into this order: {}",
             self.expected_names
         ))
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         // Render the stable explanation before moving optional source edits.
         let rationale = self.rationale_message().into_owned();

@@ -1,0 +1,32 @@
+warning: associated items `Record` and `CAPACITY` are not separated by a blank line
+  --> $DIR/fix.rs:9:5
+   |
+LL |     const CAPACITY: usize;
+   |     ^^^^^^^^^^^^^^^^^^^^^^ this associated item needs visual separation
+   |
+   = note: visually separating associated items makes implementation and trait boundaries easier for readers and tools to scan
+note: the lint level is defined here
+  --> $DIR/fix.rs:5:9
+   |
+LL | #![warn(unseparated_associated_items)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: insert one blank line before `CAPACITY`
+   |
+LL |     type Record;
+   |                 +
+
+warning: associated items `new` and `capacity` are not separated by a blank line
+  --> $DIR/fix.rs:19:5
+   |
+LL | /     fn capacity(&self) -> usize {
+LL | |         16
+LL | |     }
+   | |_____^ this associated item needs visual separation
+   |
+   = note: visually separating associated items makes implementation and trait boundaries easier for readers and tools to scan
+help: insert one blank line before `capacity`
+   |
+LL |     }
+   |      +
+
+warning: 2 warnings emitted

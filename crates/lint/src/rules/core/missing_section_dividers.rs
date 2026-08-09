@@ -30,14 +30,17 @@ impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.primary_message)
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "without an explicit boundary, neighboring declarations do not reveal whether they intentionally form one naming family",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.remediation_message)
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         cx.emit_span_lint(
             MISSING_SECTION_DIVIDERS,

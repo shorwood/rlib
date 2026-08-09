@@ -41,6 +41,7 @@ impl ControlFlowArmExt for Arm<'_> {
 pub(super) trait ControlFlowExpressionExt {
     /// Counts consecutive method calls by following receiver expressions inward.
     fn method_chain_length(&self) -> usize;
+
     /// Returns whether this expression is the receiver of a surrounding method call.
     fn is_parent_method_receiver(&self, cx: &LateContext<'_>) -> bool;
 }

@@ -36,18 +36,21 @@ impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("inherent impl items are not in dependency-first order")
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "the first misplaced item forces readers to search forward; the resolved dependency-first order is {}",
             self.expected_names
         ))
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "move associated items into this order: {}",
             self.expected_names
         ))
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         // Render the stable explanation before moving optional source edits.
         let rationale = self.rationale_message().into_owned();

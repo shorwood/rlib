@@ -1,0 +1,24 @@
+// run-rustfix
+// rustfix-only-machine-applicable
+
+#![allow(dead_code)]
+#![warn(unseparated_associated_items)]
+
+trait Repository {
+    type Record;
+    const CAPACITY: usize;
+}
+
+struct MemoryRepository;
+
+impl MemoryRepository {
+    fn new() -> Self {
+        Self
+    }
+    #[must_use]
+    fn capacity(&self) -> usize {
+        16
+    }
+}
+
+fn main() {}

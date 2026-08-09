@@ -116,10 +116,13 @@ impl DomainWords {
 pub(super) trait StringDomainSymbolExt {
     /// Returns whether this identifier contains behavior owned by a domain type.
     fn has_domain_behavior(self) -> bool;
+
     /// Returns whether this identifier names an invariant-establishing operation.
     fn establishes_domain_invariant(self) -> bool;
+
     /// Infers a domain concept from this precise parameter or field name.
     fn parameter_domain(self) -> Option<String>;
+
     /// Connects this function name and textual parameters to domain candidates.
     fn function_domains(self, parameters: &[&Parameter]) -> HashSet<String>;
 }

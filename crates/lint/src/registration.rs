@@ -65,5 +65,6 @@ pub extern "Rust" fn register_lints(
     rules::core::revalidated_string_parameters::register_lints(sess, lint_store);
     rules::core::stringly_typed_domain_function_families::register_lints(sess, lint_store);
     rules::core::undocumented_items::register_lints(sess, lint_store);
+    rules::core::unseparated_associated_items::register_lints(sess, lint_store);
     rules::core::unparenthesized_mixed_boolean_operators::register_lints(sess, lint_store);
 }

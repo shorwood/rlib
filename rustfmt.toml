@@ -6,6 +6,7 @@ style_edition = "2024"
 max_width = 100
 newline_style = "Unix"
 use_small_heuristics = "Default"
+blank_lines_upper_bound = 1
 
 # Normalize imports while preserving dependency-aware module ordering.
 unstable_features = true

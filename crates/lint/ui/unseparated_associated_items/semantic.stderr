@@ -1,0 +1,27 @@
+warning: associated items `Input` and `evaluate` are not separated by a blank line
+  --> $DIR/semantic.rs:7:5
+   |
+LL |     fn evaluate(input: Self::Input);
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this associated item needs visual separation
+   |
+   = note: visually separating associated items makes implementation and trait boundaries easier for readers and tools to scan
+   = help: insert one blank line before `evaluate`
+note: the lint level is defined here
+  --> $DIR/semantic.rs:2:9
+   |
+LL | #![warn(unseparated_associated_items)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `first` and `second` are not separated by a blank line
+  --> $DIR/semantic.rs:14:5
+   |
+LL |     fn second(&self) {}
+   |     ^^^^^^^^^^^^^^^^^^^ this associated item needs visual separation
+   |
+   = note: visually separating associated items makes implementation and trait boundaries easier for readers and tools to scan
+help: insert one blank line before `second`
+   |
+LL |     fn first(&self) {}
+   |                       +
+
+warning: 2 warnings emitted

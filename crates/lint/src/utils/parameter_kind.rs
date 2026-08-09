@@ -110,6 +110,7 @@ impl ParameterKind {
 pub trait ParameterTypeExt {
     /// Classifies aliases and references by their interchangeable representation.
     fn interchangeable_kind(self, cx: &LateContext<'_>) -> Option<ParameterKind>;
+
     /// Returns whether this resolved type belongs to the textual family.
     fn is_textual(&self, cx: &LateContext<'_>) -> bool;
 }
