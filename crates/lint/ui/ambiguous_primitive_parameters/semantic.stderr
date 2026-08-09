@@ -6,6 +6,7 @@ LL | fn schedule(user: UserNumber, project: u64, delay: u64) {}
    |             |                 |
    |             role `user`       role `project`
    |
+   = note: the compiler cannot prevent callers from swapping `user`, `project`, `delay` because their domain roles exist only in parameter names
    = help: introduce role-specific newtypes, or group values belonging to one operation in a named struct
 note: the lint level is defined here
   --> $DIR/semantic.rs:3:9
@@ -22,6 +23,7 @@ LL | fn authenticate(user: &str, organization: String, token: Box<str>) {}
    |                 |           role `organization`
    |                 role `user`
    |
+   = note: the compiler cannot prevent callers from swapping `user`, `organization`, `token` because their domain roles exist only in parameter names
    = help: introduce domain-specific string types, or group operation-specific text in a named request
 
 warning: `u64` parameters `user`, `project` carry distinct roles but remain interchangeable
@@ -32,6 +34,7 @@ LL |     fn route(user: u64, project: u64);
    |              |
    |              role `user`
    |
+   = note: the compiler cannot prevent callers from swapping `user`, `project` because their domain roles exist only in parameter names
    = help: introduce role-specific newtypes, or group values belonging to one operation in a named struct
 
 warning: `u64` parameters `user`, `project` carry distinct roles but remain interchangeable
@@ -42,6 +45,7 @@ LL |     fn assign(&self, user: u64, project: u64) {}
    |                      |
    |                      role `user`
    |
+   = note: the compiler cannot prevent callers from swapping `user`, `project` because their domain roles exist only in parameter names
    = help: introduce role-specific newtypes, or group values belonging to one operation in a named struct
 
 warning: `u32` parameters `account`, `project` carry distinct roles but remain interchangeable
@@ -55,6 +59,7 @@ LL |         fn local_assign(account: u32, project: u32) {}
 LL | local_ambiguous_signature!();
    | ---------------------------- in this macro invocation
    |
+   = note: the compiler cannot prevent callers from swapping `account`, `project` because their domain roles exist only in parameter names
    = help: introduce role-specific newtypes, or group values belonging to one operation in a named struct
    = note: this warning originates in the macro `local_ambiguous_signature` (in Nightly builds, run with -Z macro-backtrace for more info)
 

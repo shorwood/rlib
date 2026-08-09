@@ -2,6 +2,8 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_errors::DiagDecorator;
 use rustc_hir::intravisit::FnKind;
 use rustc_hir::{Body, FnDecl};
@@ -9,7 +11,50 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
+use crate::utils::diagnostic::LateViolation;
 use crate::utils::function_structure::FunctionStructureAnalyzer;
+
+// -----------------------------------------------------------------------------
+// Violation: Missing code phase explanation diagnostic
+// -----------------------------------------------------------------------------
+
+/// Oversized direct statement phase without an authored explanation.
+struct Violation {
+    /// Continuous phase span used as the primary diagnostic location.
+    span: Span,
+    /// Analyzer-derived message containing the measured phase size.
+    primary_message: String,
+    /// Analyzer-derived comment guidance for this phase.
+    remediation_message: String,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.primary_message)
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "the uninterrupted statements conceal the purpose and boundary of this stage of the function",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.remediation_message)
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.emit_span_lint(
+            MISSING_CODE_PHASE_COMMENTS,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
 
 // -----------------------------------------------------------------------------
 // MissingCodePhaseComments
@@ -90,14 +135,12 @@ impl<'tcx> LateLintPass<'tcx> for MissingCodePhaseComments {
             return;
         }
         for finding in self.analyzer.analyze_layout(cx, body).missing {
-            cx.emit_span_lint(
-                MISSING_CODE_PHASE_COMMENTS,
-                finding.span,
-                DiagDecorator(|diag| {
-                    diag.primary_message(finding.message);
-                    diag.help(finding.help);
-                }),
-            );
+            Violation {
+                span: finding.span,
+                primary_message: finding.message,
+                remediation_message: finding.help,
+            }
+            .emit(cx);
         }
     }
 }

@@ -1,16 +1,84 @@
 extern crate rustc_errors;
 extern crate rustc_hir;
+extern crate rustc_span;
+
+use std::borrow::Cow;
 
 use rustc_errors::{Applicability, DiagDecorator};
 use rustc_hir::{HirId, Item, ItemKind, Mod};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_span::Span;
 
 use crate::utils::declaration_node::{
     DeclarationConstraints, DeclarationNode, DeclarationNodeList, DeclarationSource,
 };
+use crate::utils::diagnostic::LateViolation;
 use crate::utils::item_dependencies::DependenciesExt;
-use crate::utils::reorder_declarations::DeclarationOrder;
+use crate::utils::reorder_declarations::{DeclarationOrder, DeclarationOrderEdit};
 use crate::utils::source_organization::SectionAnalyzer;
+
+// -----------------------------------------------------------------------------
+// Violation: Misordered type declaration diagnostic
+// -----------------------------------------------------------------------------
+
+/// Type declarations with a resolved dependency-first permutation.
+struct Violation {
+    /// Module node used to anchor the lint level.
+    hir_id: HirId,
+    /// First type group that differs from dependency-first order.
+    span: Span,
+    /// Complete resolved type-group order.
+    expected_names: String,
+    /// Atomic reorder edits when all source ranges are safely owned.
+    edits: Option<Vec<DeclarationOrderEdit>>,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed("local types should be declared before their use")
+    }
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "the first misplaced type requires forward navigation; the resolved dependency-first order is {}",
+            self.expected_names
+        ))
+    }
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "move declarations into this order: {}",
+            self.expected_names
+        ))
+    }
+    fn emit(self, cx: &LateContext<'_>) {
+        // Render the stable explanation before moving optional source edits.
+        let rationale = self.rationale_message().into_owned();
+        let remediation = self.remediation_message().into_owned();
+
+        // Emit after resolving whether the exact order can be applied atomically.
+        cx.tcx.emit_node_span_lint(
+            MISORDERED_TYPE_DECLARATIONS,
+            self.hir_id,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.span_label(self.span, "this declaration is the first out of order");
+                diag.note(rationale);
+                if let Some(edits) = self.edits {
+                    diag.multipart_suggestion(
+                        remediation,
+                        edits
+                            .into_iter()
+                            .map(|edit| (edit.span, edit.replacement))
+                            .collect(),
+                        Applicability::MachineApplicable,
+                    );
+                } else {
+                    diag.help(remediation);
+                }
+            }),
+        );
+    }
+}
 
 // -----------------------------------------------------------------------------
 // MisorderedTypeDeclarations
@@ -113,33 +181,13 @@ impl MisorderedTypeDeclarations {
             .flatten();
 
         // Keep the diagnostic useful even when comments or macros block a safe rewrite.
-        cx.tcx.emit_node_span_lint(
-            MISORDERED_TYPE_DECLARATIONS,
+        Violation {
             hir_id,
-            nodes[mismatch].source.span,
-            DiagDecorator(|diag| {
-                diag.primary_message("local types should be declared before their use");
-                diag.span_label(
-                    nodes[mismatch].source.span,
-                    "this declaration is the first out of order",
-                );
-                diag.note(format!("expected declaration order: {expected_names}"));
-                if let Some(edits) = edits {
-                    diag.multipart_suggestion(
-                        "reorder these declarations",
-                        edits
-                            .into_iter()
-                            .map(|edit| (edit.span, edit.replacement))
-                            .collect(),
-                        Applicability::MachineApplicable,
-                    );
-                } else {
-                    diag.help(format!(
-                        "move declarations into this order: {expected_names}"
-                    ));
-                }
-            }),
-        );
+            span: nodes[mismatch].source.span,
+            expected_names,
+            edits,
+        }
+        .emit(cx);
     }
 }
 

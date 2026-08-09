@@ -2,6 +2,8 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_errors::{Applicability, DiagDecorator};
 use rustc_hir::intravisit::FnKind;
 use rustc_hir::{Body, FnDecl};
@@ -9,7 +11,71 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
+use crate::utils::diagnostic::LateViolation;
 use crate::utils::function_structure::FunctionStructureAnalyzer;
+
+// -----------------------------------------------------------------------------
+// Violation: Malformed code phase explanation diagnostic
+// -----------------------------------------------------------------------------
+
+/// Authored phase comment whose syntax or placement violates the configured form.
+struct Violation {
+    /// Comment span used for the diagnostic and optional replacement.
+    span: Span,
+    /// Analyzer-derived description of the malformed comment.
+    primary_message: String,
+    /// Analyzer-derived manual remediation when no safe replacement exists.
+    remediation_message: String,
+    /// Canonical replacement when the existing comment can be preserved safely.
+    replacement: Option<String>,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.primary_message)
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "inconsistent phase markers make workflow boundaries harder for readers and tools to recognize reliably",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        if self.replacement.is_some() {
+            Cow::Borrowed("render this phase comment canonically")
+        } else {
+            Cow::Borrowed(&self.remediation_message)
+        }
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        // Render the stable diagnostic layers before moving an optional replacement.
+        let primary_message = self.primary_message().into_owned();
+        let rationale_message = self.rationale_message().into_owned();
+        let remediation_message = self.remediation_message().into_owned();
+
+        // Emit after resolving whether remediation is a suggestion or manual help.
+        cx.emit_span_lint(
+            MALFORMED_CODE_PHASE_COMMENTS,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(primary_message);
+                diag.note(rationale_message);
+                if let Some(replacement) = self.replacement {
+                    diag.span_suggestion(
+                        self.span,
+                        remediation_message,
+                        replacement,
+                        Applicability::MachineApplicable,
+                    );
+                } else {
+                    diag.help(remediation_message);
+                }
+            }),
+        );
+    }
+}
 
 // -----------------------------------------------------------------------------
 // MalformedCodePhaseComments
@@ -82,23 +148,13 @@ impl<'tcx> LateLintPass<'tcx> for MalformedCodePhaseComments {
             return;
         }
         for finding in self.analyzer.analyze_layout(cx, body).malformed {
-            cx.emit_span_lint(
-                MALFORMED_CODE_PHASE_COMMENTS,
-                finding.span,
-                DiagDecorator(|diag| {
-                    diag.primary_message(finding.message);
-                    if let Some(replacement) = finding.replacement {
-                        diag.span_suggestion(
-                            finding.span,
-                            "render this phase comment canonically",
-                            replacement,
-                            Applicability::MachineApplicable,
-                        );
-                    } else {
-                        diag.help(finding.help);
-                    }
-                }),
-            );
+            Violation {
+                span: finding.span,
+                primary_message: finding.message,
+                remediation_message: finding.help,
+                replacement: finding.replacement,
+            }
+            .emit(cx);
         }
     }
 }

@@ -2,15 +2,125 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_errors::DiagDecorator;
 use rustc_hir::intravisit::FnKind;
-use rustc_hir::{Body, FieldDef, FnDecl, Item, TraitItem};
+use rustc_hir::{Body, FieldDef, FnDecl, HirId, Item, TraitItem};
 use rustc_lint::{LateContext, LateLintPass};
-use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
+use rustc_span::{Span, Symbol};
 
+use crate::utils::diagnostic::LateViolation;
 use crate::utils::parameter_analysis::{ParameterGroup, ParameterKind, ParameterSignature};
 use crate::utils::string_domain_analysis::DomainAnalyzer;
+
+// -----------------------------------------------------------------------------
+// Violation: Interchangeable primitive role diagnostic
+// -----------------------------------------------------------------------------
+
+/// One named parameter role retained as violation evidence.
+struct ViolationParameter {
+    /// Authored binding name.
+    name: Symbol,
+    /// Binding span used for a role-specific label.
+    span: Span,
+}
+
+/// One primitive representation carrying several distinct parameter roles.
+struct Violation {
+    /// Function or method node used to anchor the lint level.
+    hir_id: HirId,
+    /// First ambiguous parameter span used as the primary diagnostic location.
+    span: Span,
+    /// Shared primitive representation hidden behind distinct authored roles.
+    kind: ParameterKind,
+    /// Parameter names and spans that remain type-interchangeable.
+    parameters: Vec<ViolationParameter>,
+}
+
+impl Violation {
+    /// Captures the complete diagnostic evidence from a borrowed analysis group.
+    fn from_group(hir_id: HirId, group: &ParameterGroup<'_>) -> Self {
+        // Own every parameter role before the borrowed analysis group is discarded.
+        let parameters = group
+            .parameters
+            .iter()
+            .map(|parameter| ViolationParameter {
+                name: parameter.name,
+                span: parameter.span,
+            })
+            .collect();
+
+        // Preserve the shared representation beside its independently owned roles.
+        Self {
+            hir_id,
+            span: group.parameters[0].span,
+            kind: group.kind,
+            parameters,
+        }
+    }
+
+    /// Renders every authored role in the interchangeable parameter family.
+    fn parameter_names(&self) -> String {
+        let names = self
+            .parameters
+            .iter()
+            .map(|parameter| format!("`{}`", parameter.name));
+        names.collect::<Vec<_>>().join(", ")
+    }
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "{} parameters {} carry distinct roles but remain interchangeable",
+            self.kind.description(),
+            self.parameter_names()
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "the compiler cannot prevent callers from swapping {} because their domain roles exist only in parameter names",
+            self.parameter_names()
+        ))
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        if self.kind == ParameterKind::Text {
+            Cow::Borrowed(
+                "introduce domain-specific string types, or group operation-specific text in a named request",
+            )
+        } else {
+            Cow::Borrowed(
+                "introduce role-specific newtypes, or group values belonging to one operation in a named struct",
+            )
+        }
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        // Render the three stable diagnostic layers before moving label evidence.
+        let primary_message = self.primary_message().into_owned();
+        let rationale_message = self.rationale_message().into_owned();
+        let remediation_message = self.remediation_message().into_owned();
+
+        // Emit the summary before consuming the independently owned role labels.
+        cx.tcx.emit_node_span_lint(
+            AMBIGUOUS_PRIMITIVE_PARAMETERS,
+            self.hir_id,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(primary_message);
+                for parameter in self.parameters {
+                    diag.span_label(parameter.span, format!("role `{}`", parameter.name));
+                }
+                diag.note(rationale_message);
+                diag.help(remediation_message);
+            }),
+        );
+    }
+}
 
 // -----------------------------------------------------------------------------
 // AmbiguousPrimitiveParameters
@@ -65,52 +175,6 @@ dylint_linting::impl_late_lint! {
 }
 
 impl AmbiguousPrimitiveParameters {
-    /// Renders the authored roles in one interchangeable parameter family.
-    fn group_names(group: &ParameterGroup<'_>) -> String {
-        let names = group
-            .parameters
-            .iter()
-            .map(|parameter| format!("`{}`", parameter.name));
-        names.collect::<Vec<_>>().join(", ")
-    }
-
-    /// Emits one focused diagnostic for an interchangeable parameter family.
-    fn emit_group(
-        cx: &LateContext<'_>,
-        signature: &ParameterSignature,
-        group: &ParameterGroup<'_>,
-    ) {
-        // Name the shared representation and every role hidden behind it.
-        let names = Self::group_names(group);
-        let message = format!(
-            "{} parameters {names} carry distinct roles but remain interchangeable",
-            group.kind.description()
-        );
-
-        // Attach role-specific labels and remediation for the shared representation.
-        cx.tcx.emit_node_span_lint(
-            AMBIGUOUS_PRIMITIVE_PARAMETERS,
-            signature.hir_id,
-            group.parameters[0].span,
-            DiagDecorator(|diag| {
-                diag.primary_message(message);
-
-                // Make every interchangeable role visible at its authored binding.
-                for parameter in &group.parameters {
-                    diag.span_label(parameter.span, format!("role `{}`", parameter.name));
-                }
-
-                // Prefer domain types for text and role types for scalar representations.
-                let help = if group.kind == ParameterKind::Text {
-                    "introduce domain-specific string types, or group operation-specific text in a named request"
-                } else {
-                    "introduce role-specific newtypes, or group values belonging to one operation in a named struct"
-                };
-                diag.help(help);
-            }),
-        );
-    }
-
     /// Emits every nonsuperseded primitive finding for one signature.
     fn emit_signature(
         cx: &LateContext<'_>,
@@ -123,7 +187,7 @@ impl AmbiguousPrimitiveParameters {
             if is_superseded_text {
                 continue;
             }
-            Self::emit_group(cx, signature, &group);
+            Violation::from_group(signature.hir_id, &group).emit(cx);
         }
     }
 }

@@ -6,13 +6,13 @@ LL | |         self.prepare();
 LL | |     }
    | |_____^ first item out of order
    |
-   = note: expected item order: `Output`, `LIMIT`, `new`, `helper`, `prepare`, `render`
+   = note: the first misplaced item forces readers to search forward; the resolved dependency-first order is `Output`, `LIMIT`, `new`, `helper`, `prepare`, `render`
 note: the lint level is defined here
   --> $DIR/semantic.rs:7:9
    |
 LL | #![warn(misordered_inherent_impl_items)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-help: reorder these associated items
+help: move associated items into this order: `Output`, `LIMIT`, `new`, `helper`, `prepare`, `render`
    |
 LL ~     type Output = Self;
 LL |

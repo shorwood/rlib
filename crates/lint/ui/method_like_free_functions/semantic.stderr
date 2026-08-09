@@ -4,6 +4,7 @@ warning: free function `consume` should be an inherent method on `Item`
 LL | fn consume(item: Item<u8>) {}
    |    ^^^^^^^
    |
+   = note: `consume` behavior is hidden in the module namespace instead of being discoverable through `Item`
    = note: `#[warn(method_like_free_functions)]` on by default
 help: move the function into an inherent impl and update its uses
    |
@@ -18,6 +19,7 @@ warning: free function `inspect` should be an inherent method on `Item`
 LL | fn inspect(item: &Item<u8>) {}
    |    ^^^^^^^
    |
+   = note: `inspect` behavior is hidden in the module namespace instead of being discoverable through `Item`
 help: move the function into an inherent impl and update its uses
    |
 LL + impl Item<u8> {
@@ -31,6 +33,7 @@ warning: free function `mutate` should be an inherent method on `Item`
 LL | fn mutate(item: &mut ItemAlias<u8>) {}
    |    ^^^^^^
    |
+   = note: `mutate` behavior is hidden in the module namespace instead of being discoverable through `Item`
    = help: move `mutate` into an `impl Item` block and replace its first parameter with `&mut self`
 
 warning: free function `inspect_alias` should be an inherent method on `Item`
@@ -39,6 +42,7 @@ warning: free function `inspect_alias` should be an inherent method on `Item`
 LL | fn inspect_alias(item: ItemRef<'_>) {}
    |    ^^^^^^^^^^^^^
    |
+   = note: `inspect_alias` behavior is hidden in the module namespace instead of being discoverable through `Item`
    = help: move `inspect_alias` into an `impl Item` block and replace its first parameter with `&self`
 
 warning: free function `inspect_async` should be an inherent method on `Item`
@@ -47,6 +51,7 @@ warning: free function `inspect_async` should be an inherent method on `Item`
 LL | async fn inspect_async(item: &Item<u8>) {}
    |          ^^^^^^^^^^^^^
    |
+   = note: `inspect_async` behavior is hidden in the module namespace instead of being discoverable through `Item`
    = help: move `inspect_async` into an `impl Item` block and replace its first parameter with `&self`
 
 warning: free function `inspect_const` should be an inherent method on `Item`
@@ -55,6 +60,7 @@ warning: free function `inspect_const` should be an inherent method on `Item`
 LL | const fn inspect_const(item: &Item<u8>) {}
    |          ^^^^^^^^^^^^^
    |
+   = note: `inspect_const` behavior is hidden in the module namespace instead of being discoverable through `Item`
 help: move the function into an inherent impl and update its uses
    |
 LL + impl Item<u8> {
@@ -68,6 +74,7 @@ warning: free function `inspect_unsafe` should be an inherent method on `Item`
 LL | unsafe fn inspect_unsafe(item: &Item<u8>) {}
    |           ^^^^^^^^^^^^^^
    |
+   = note: `inspect_unsafe` behavior is hidden in the module namespace instead of being discoverable through `Item`
 help: move the function into an inherent impl and update its uses
    |
 LL + impl Item<u8> {
@@ -81,6 +88,7 @@ warning: free function `inspect_rust_abi` should be an inherent method on `Item`
 LL | extern "Rust" fn inspect_rust_abi(item: &Item<u8>) {}
    |                  ^^^^^^^^^^^^^^^^
    |
+   = note: `inspect_rust_abi` behavior is hidden in the module namespace instead of being discoverable through `Item`
 help: move the function into an inherent impl and update its uses
    |
 LL + impl Item<u8> {
@@ -94,6 +102,7 @@ warning: free function `inspect_tuple` should be an inherent method on `Tuple`
 LL | fn inspect_tuple(value: &Tuple) {}
    |    ^^^^^^^^^^^^^
    |
+   = note: `inspect_tuple` behavior is hidden in the module namespace instead of being discoverable through `Tuple`
 help: move the function into an inherent impl and update its uses
    |
 LL + impl Tuple {
@@ -107,6 +116,7 @@ warning: free function `inspect_unit` should be an inherent method on `Unit`
 LL | fn inspect_unit(value: &Unit) {}
    |    ^^^^^^^^^^^^
    |
+   = note: `inspect_unit` behavior is hidden in the module namespace instead of being discoverable through `Unit`
 help: move the function into an inherent impl and update its uses
    |
 LL + impl Unit {
@@ -120,6 +130,7 @@ warning: free function `execute` should be an inherent method on `Wrapper`
 LL | fn execute(value: &Wrapper) {
    |    ^^^^^^^
    |
+   = note: `execute` behavior is hidden in the module namespace instead of being discoverable through `Wrapper`
    = help: remove this wrapper or choose a name other than the existing `execute` method
 
 warning: free function `from_local_macro` should be an inherent method on `Unit`
@@ -131,6 +142,7 @@ LL |         fn from_local_macro(value: &Unit) {
 LL | local_function!();
    | ----------------- in this macro invocation
    |
+   = note: `from_local_macro` behavior is hidden in the module namespace instead of being discoverable through `Unit`
    = help: move `from_local_macro` into an `impl Unit` block and replace its first parameter with `&self`
    = note: this warning originates in the macro `local_function` (in Nightly builds, run with -Z macro-backtrace for more info)
 

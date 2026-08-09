@@ -6,6 +6,7 @@ LL |     record("ready");
 LL |     record("ready");
    |     ^^^^^^^^^^^^^^^^
    |
+   = note: adjacent identical statements resemble an accidental copy, while intentional multiplicity remains invisible
    = help: remove the duplicate or express intentional multiplicity explicitly
 note: the lint level is defined here
   --> $DIR/semantic.rs:1:9

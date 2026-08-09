@@ -13,6 +13,7 @@ LL | |     edits: MethodLikeFreeFunctionsSourceEdits,
 LL | | }
    | |_- `MethodLikeFreeFunctionsMigrationBuilder` obscures the inferred `MigrationBuilder` role
    |
+   = note: the repeated organizational prefix makes distinct roles harder to identify and encourages new names to mirror file structure instead of domain concepts
    = help: prefer the concept-first names `MethodLikeFreeFunctionsSourceEdits` → `MigrationEdits`, `MethodLikeFreeFunctionsMigrationBuilder` → `MigrationBuilder`; rename before creating additional sections (the divider prefix repeats the enclosing module; compiler-resolved dependencies connect the helpers; an exact root declaration already carries the context name)
 note: the lint level is defined here
   --> $DIR/method_like_free_functions.rs:2:9

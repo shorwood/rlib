@@ -1,4 +1,4 @@
-warning: these sibling modules depend on each other in both directions
+warning: modules `syntax` and `parser` depend on each other in both directions
   --> $DIR/semantic.rs:11:5
    |
 LL |     use super::syntax::Syntax;
@@ -7,7 +7,8 @@ LL |     use super::syntax::Syntax;
 LL |     use super::parser::Parser;
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = help: extract shared concepts or choose one direction for the module dependency
+   = note: neither `syntax` nor `parser` has a clear ownership direction, so changes to either module can require understanding both
+   = help: extract the shared concepts or choose one dependency direction between `syntax` and `parser`
 note: the lint level is defined here
   --> $DIR/semantic.rs:1:9
    |

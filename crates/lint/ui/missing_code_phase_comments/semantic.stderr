@@ -10,6 +10,7 @@ LL | |     let _seven = 7;
 LL | |     let _eight = 8;
    | |___________________^
    |
+   = note: the uninterrupted statements conceal the purpose and boundary of this stage of the function
    = help: name this phase with a `//` explanatory comment or extract a named operation
 note: the lint level is defined here
   --> $DIR/semantic.rs:1:9
@@ -29,6 +30,7 @@ LL | |     let _seven = 7;
 LL | |     let _eight = 8;
    | |___________________^
    |
+   = note: the uninterrupted statements conceal the purpose and boundary of this stage of the function
    = help: name this phase with a `//` explanatory comment or extract a named operation
 
 warning: this 8-line code phase has no explanatory comment
@@ -43,6 +45,7 @@ LL | |     let _seven = 7;
 LL | |     let _eight = 8;
    | |___________________^
    |
+   = note: the uninterrupted statements conceal the purpose and boundary of this stage of the function
    = help: name this phase with a `//` explanatory comment or extract a named operation
 
 warning: this 8-line code phase has no explanatory comment
@@ -57,6 +60,7 @@ LL | |     let _six = 6;
 LL | |     let _seven = 7;
    | |___________________^
    |
+   = note: the uninterrupted statements conceal the purpose and boundary of this stage of the function
    = help: name this phase with a `//` explanatory comment or extract a named operation
 
 warning: this 8-line code phase has no explanatory comment
@@ -71,6 +75,7 @@ LL | |         let _seven = 7;
 LL | |         let _eight = 8;
    | |_______________________^
    |
+   = note: the uninterrupted statements conceal the purpose and boundary of this stage of the function
    = help: name this phase with a `//` explanatory comment or extract a named operation
 
 warning: this 8-line code phase has no explanatory comment
@@ -85,6 +90,7 @@ LL | |         .map(|value| value + 1)
 LL | |         .map(|value| value + 1);
    | |________________________________^
    |
+   = note: the uninterrupted statements conceal the purpose and boundary of this stage of the function
    = help: name this phase with a `//` explanatory comment or extract a named operation
 
 warning: this code phase contains 8 lines, exceeding the configured maximum of 7
@@ -99,6 +105,7 @@ LL | |     let _seven = 7;
 LL | |     let _eight = 8;
    | |___________________^
    |
+   = note: the uninterrupted statements conceal the purpose and boundary of this stage of the function
    = help: split this phase with `//` explanatory comments or extract named operations
 
 warning: this 8-line code phase has no explanatory comment
@@ -113,6 +120,7 @@ LL | |         let _seven = 7;
 LL | |         let _eight = 8;
    | |_______________________^
    |
+   = note: the uninterrupted statements conceal the purpose and boundary of this stage of the function
    = help: name this phase with a `//` explanatory comment or extract a named operation
 
 warning: this 8-line code phase has no explanatory comment
@@ -127,7 +135,23 @@ LL | |         let _seven = 7;
 LL | |         let _eight = 8;
    | |_______________________^
    |
+   = note: the uninterrupted statements conceal the purpose and boundary of this stage of the function
    = help: name this phase with a `//` explanatory comment or extract a named operation
 
-warning: 9 warnings emitted
+warning: this 10-line code phase has no explanatory comment
+  --> $DIR/semantic.rs:213:5
+   |
+LL | /     match value {
+LL | |         0 if value.is_power_of_two() => "zero",
+LL | |         1 => "one",
+LL | |         2 => "two",
+...  |
+LL | |         _ => "many",
+LL | |     }
+   | |_____^
+   |
+   = note: the uninterrupted statements conceal the purpose and boundary of this stage of the function
+   = help: name this phase with a `//` explanatory comment or extract a named operation
+
+warning: 10 warnings emitted
 

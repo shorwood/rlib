@@ -4,6 +4,7 @@ warning: free function `public` should be an inherent method on `Unit`
 LL | pub fn public(item: Unit) {}
    |        ^^^^^^
    |
+   = note: `public` behavior is hidden in the module namespace instead of being discoverable through `Unit`
    = help: move `public` into an `impl Unit` block and replace its first parameter with `self`
    = note: `#[warn(method_like_free_functions)]` on by default
 
@@ -13,6 +14,7 @@ warning: free function `attributed` should be an inherent method on `Unit`
 LL | fn attributed(item: Unit) {}
    |    ^^^^^^^^^^
    |
+   = note: `attributed` behavior is hidden in the module namespace instead of being discoverable through `Unit`
    = help: move `attributed` into an `impl Unit` block and replace its first parameter with `self`
 
 warning: free function `destructured` should be an inherent method on `Item`
@@ -21,6 +23,7 @@ warning: free function `destructured` should be an inherent method on `Item`
 LL | fn destructured(Item(value): Item<u8>) {}
    |    ^^^^^^^^^^^^
    |
+   = note: `destructured` behavior is hidden in the module namespace instead of being discoverable through `Item`
    = help: move `destructured` into an `impl Item` block and replace its first parameter with `self`
 
 warning: free function `constrained` should be an inherent method on `Item`
@@ -29,6 +32,7 @@ warning: free function `constrained` should be an inherent method on `Item`
 LL | fn constrained<T: Clone>(item: Item<T>) {}
    |    ^^^^^^^^^^^
    |
+   = note: `constrained` behavior is hidden in the module namespace instead of being discoverable through `Item`
    = help: move `constrained` into an `impl Item` block and replace its first parameter with `self`
 
 warning: free function `alias_reference` should be an inherent method on `Unit`
@@ -37,6 +41,7 @@ warning: free function `alias_reference` should be an inherent method on `Unit`
 LL | fn alias_reference(item: UnitRef<'_>) {}
    |    ^^^^^^^^^^^^^^^
    |
+   = note: `alias_reference` behavior is hidden in the module namespace instead of being discoverable through `Unit`
    = help: move `alias_reference` into an `impl Unit` block and replace its first parameter with `&self`
 
 warning: free function `imported` should be an inherent method on `Unit`
@@ -45,6 +50,7 @@ warning: free function `imported` should be an inherent method on `Unit`
 LL | fn imported(item: Unit) {}
    |    ^^^^^^^^
    |
+   = note: `imported` behavior is hidden in the module namespace instead of being discoverable through `Unit`
    = help: move `imported` into an `impl Unit` block and replace its first parameter with `self`
 
 warning: free function `duplicate` should be an inherent method on `Unit`
@@ -53,6 +59,7 @@ warning: free function `duplicate` should be an inherent method on `Unit`
 LL | fn duplicate(item: &Unit) {
    |    ^^^^^^^^^
    |
+   = note: `duplicate` behavior is hidden in the module namespace instead of being discoverable through `Unit`
    = help: remove this wrapper or choose a name other than the existing `duplicate` method
 
 warning: 7 warnings emitted

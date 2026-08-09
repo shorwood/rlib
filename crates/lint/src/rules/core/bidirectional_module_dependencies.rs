@@ -2,6 +2,7 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_span;
 
+use std::borrow::Cow;
 use std::collections::HashSet;
 
 use rustc_errors::DiagDecorator;
@@ -10,6 +11,63 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
+
+use crate::utils::diagnostic::LateViolation;
+
+// -----------------------------------------------------------------------------
+// Violation: Bidirectional sibling dependency diagnostic
+// -----------------------------------------------------------------------------
+
+/// Pair of sibling modules connected by imports in both directions.
+struct Violation {
+    /// Import that completes the dependency cycle.
+    span: Span,
+    /// Previously authored import establishing the reverse direction.
+    reverse_span: Span,
+    /// Fully qualified source module path.
+    source_module: String,
+    /// Fully qualified target module path.
+    target_module: String,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "modules `{}` and `{}` depend on each other in both directions",
+            self.source_module, self.target_module
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "neither `{}` nor `{}` has a clear ownership direction, so changes to either module can require understanding both",
+            self.source_module, self.target_module
+        ))
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "extract the shared concepts or choose one dependency direction between `{}` and `{}`",
+            self.source_module, self.target_module
+        ))
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.emit_span_lint(
+            BIDIRECTIONAL_MODULE_DEPENDENCIES,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.span_label(
+                    self.reverse_span,
+                    "the reverse dependency is introduced here",
+                );
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
 
 // -----------------------------------------------------------------------------
 // Module: Dependency graph records
@@ -165,20 +223,14 @@ impl BidirectionalModuleDependencies {
         // Emit one diagnostic that connects both contributing imports.
         self.reported.insert(pair);
 
-        // Relate the two import sites and explain how to remove the cycle.
-        cx.emit_span_lint(
-            BIDIRECTIONAL_MODULE_DEPENDENCIES,
-            dependency.span,
-            DiagDecorator(|diag| {
-                diag.primary_message(
-                    "these sibling modules depend on each other in both directions",
-                );
-                diag.span_label(reverse.span, "the reverse dependency is introduced here");
-                diag.help(
-                    "extract shared concepts or choose one direction for the module dependency",
-                );
-            }),
-        );
+        // Resolve both module identities before crossing the diagnostic boundary.
+        Violation {
+            span: dependency.span,
+            reverse_span: reverse.span,
+            source_module: cx.tcx.def_path_str(dependency.source.to_def_id()),
+            target_module: cx.tcx.def_path_str(dependency.target.to_def_id()),
+        }
+        .emit(cx);
     }
 
     /// Records one resolved dependency and checks whether it closes a cycle.

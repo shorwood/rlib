@@ -2,6 +2,8 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_errors::DiagDecorator;
 use rustc_hir::intravisit::FnKind;
 use rustc_hir::{Body, FieldDef, FnDecl, Item};
@@ -9,8 +11,67 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
+use crate::utils::diagnostic::LateViolation;
 use crate::utils::parameter_analysis::ParameterSignature;
-use crate::utils::string_domain_analysis::DomainAnalyzer;
+use crate::utils::string_domain_analysis::{DomainAnalyzer, DomainFindingLabel};
+
+// -----------------------------------------------------------------------------
+// Violation: Repeated string invariant diagnostic
+// -----------------------------------------------------------------------------
+
+/// Raw string domain whose invariant is repeatedly established by consumers.
+struct Violation {
+    /// Primary parameter span for the repeated domain.
+    span: Span,
+    /// Inferred domain type name used in the remediation.
+    domain: String,
+    /// Consumer-specific evidence explaining each repeated validation site.
+    labels: Vec<DomainFindingLabel>,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "raw string consumers repeatedly establish `{}` invariants",
+            self.domain
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "the `{}` invariant can drift or be bypassed because validity is not represented by the accepted type",
+            self.domain
+        ))
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "introduce the domain type `{}` with private storage, establish its invariant during construction, and accept that type downstream",
+            self.domain
+        ))
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        // Render the stable diagnostic layers before moving consumer labels.
+        let primary_message = self.primary_message().into_owned();
+        let rationale_message = self.rationale_message().into_owned();
+        let remediation_message = self.remediation_message().into_owned();
+
+        // Emit the stable layers before consuming consumer-specific labels.
+        cx.emit_span_lint(
+            REVALIDATED_STRING_PARAMETERS,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(primary_message);
+                for label in self.labels {
+                    diag.span_label(label.span, label.message);
+                }
+                diag.note(rationale_message);
+                diag.help(remediation_message);
+            }),
+        );
+    }
+}
 
 // -----------------------------------------------------------------------------
 // RevalidatedStringParameters
@@ -91,23 +152,12 @@ impl<'tcx> LateLintPass<'tcx> for RevalidatedStringParameters {
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         for finding in self.analyzer.revalidation_findings() {
-            cx.emit_span_lint(
-                REVALIDATED_STRING_PARAMETERS,
-                finding.span,
-                DiagDecorator(|diag| {
-                    diag.primary_message(format!(
-                        "raw string consumers repeatedly establish `{}` invariants",
-                        finding.domain
-                    ));
-                    for label in finding.labels {
-                        diag.span_label(label.span, label.message);
-                    }
-                    diag.help(format!(
-                        "introduce the domain type `{}` with private storage, establish its invariant during construction, and accept that type downstream",
-                        finding.domain
-                    ));
-                }),
-            );
+            Violation {
+                span: finding.span,
+                domain: finding.domain,
+                labels: finding.labels,
+            }
+            .emit(cx);
         }
     }
 }

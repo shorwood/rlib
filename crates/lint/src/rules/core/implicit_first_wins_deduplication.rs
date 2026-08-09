@@ -3,14 +3,56 @@ extern crate rustc_hir;
 extern crate rustc_middle;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Expr, ExprKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
-use rustc_span::sym;
+use rustc_span::{Span, sym};
+
+use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
-// ImplicitFirstWinsDeduplication: Representative selection policy
+// Violation: Implicit representative selection
+// -----------------------------------------------------------------------------
+
+/// Set insertion predicate that silently chooses the first value for each key.
+struct Violation {
+    /// `HashSet::insert` call acting as the filter predicate.
+    span: Span,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed("this filter silently keeps the first value for each key")
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "later values are discarded without exposing whether they should replace, merge with, or conflict with the first value",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed("collect by key and make the collision or merge policy explicit")
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.emit_span_lint(
+            IMPLICIT_FIRST_WINS_DEDUPLICATION,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
+
+// -----------------------------------------------------------------------------
+// ImplicitFirstWinsDeduplication: Lint pass
 // -----------------------------------------------------------------------------
 
 /// Recognizes set insertion used directly as an iterator predicate.
@@ -90,15 +132,7 @@ impl LateLintPass<'_> for ImplicitFirstWinsDeduplication {
             return;
         }
 
-        // Explain the implicit collision policy at the insertion predicate.
-        cx.emit_span_lint(
-            IMPLICIT_FIRST_WINS_DEDUPLICATION,
-            body.span,
-            DiagDecorator(|diag| {
-                diag.primary_message("this filter silently keeps the first value for each key");
-                diag.help("collect by key and make the collision or merge policy explicit");
-            }),
-        );
+        Violation { span: body.span }.emit(cx);
     }
 }
 

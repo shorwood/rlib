@@ -8,6 +8,7 @@ LL | |         .cloned()
 LL | |         .collect()
    | |__________________^
    |
+   = note: the chain hides intermediate domain states and failure boundaries inside one dense expression
    = help: introduce meaningful intermediary bindings or extract a named operation
 note: the lint level is defined here
   --> $DIR/semantic.rs:1:9

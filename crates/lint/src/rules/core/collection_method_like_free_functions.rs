@@ -4,12 +4,16 @@ extern crate rustc_hir;
 extern crate rustc_middle;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_abi::ExternAbi;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{BindingMode, HirId, Item, ItemKind, Mod, Mutability, PatKind, def_id::LocalDefId};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol, sym};
+
+use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
 // Collection: Collection receiver forms
@@ -340,64 +344,155 @@ impl Candidate {
             .collect()
     }
 
-    /// Reports the violation and gives a concrete wrapper recipe without pretending it is a safe
-    /// automatic rewrite.
-    fn emit(&self, cx: &LateContext<'_>) {
+    /// Describes a new generic wrapper beside a parameterized element type.
+    fn generic_wrapper_remediation(&self, element_file: &str) -> String {
+        format!(
+            "beside `{}` in `{element_file}`, define a generic `{}` wrapper that preserves its parameters and stores `Vec<{}>` in `items`, then implement `{}` there with {}",
+            self.element.name,
+            self.wrapper_name,
+            self.element.ty,
+            self.function.name,
+            self.receiver.description()
+        )
+    }
+
+    /// Describes a new concrete wrapper beside a non-generic element type.
+    fn concrete_wrapper_remediation(&self, element_file: &str) -> String {
+        format!(
+            "beside `{}` in `{element_file}`, define `struct {} {{ items: Vec<{}> }}` and implement `{}` there with {}",
+            self.element.name,
+            self.wrapper_name,
+            self.element.ty,
+            self.function.name,
+            self.receiver.description()
+        )
+    }
+
+    /// Describes moving the operation onto an existing compatible wrapper.
+    fn compatible_wrapper_remediation(&self, element_file: &str) -> String {
+        format!(
+            "move `{}` into the existing `impl {}` block beside `{}` in `{element_file}` and use {}",
+            self.function.name,
+            self.wrapper_name,
+            self.element.name,
+            self.receiver.description()
+        )
+    }
+
+    /// Describes choosing another wrapper when the canonical name is occupied incompatibly.
+    fn conflicting_wrapper_remediation(&self, element_file: &str) -> String {
+        format!(
+            "`{}` already names another type beside `{}` in `{element_file}`; choose a dedicated wrapper there with an `items: Vec<{}>` field and implement `{}` with {}",
+            self.wrapper_name,
+            self.element.name,
+            self.element.name,
+            self.function.name,
+            self.receiver.description()
+        )
+    }
+
+    /// Resolves a complete wrapper recipe without pretending it is a safe automatic rewrite.
+    fn violation(&self, cx: &LateContext<'_>) -> Violation {
         // Resolve wrapper compatibility and the element's owning source file.
         let module_items = self.element_module_items(cx);
         let wrapper = self.wrapper_state(cx, &module_items);
         let source_map = cx.sess().source_map();
         let element_file = source_map.span_to_filename(cx.tcx.def_span(self.element.def_id));
-        let element_file = element_file.short();
+        let element_file = element_file.short().to_string();
 
         // Tailor one wrapper recipe to the namespace state discovered above.
+        let remediation_message = match wrapper {
+            CandidateWrapperState::Missing if self.element.has_parameters => {
+                self.generic_wrapper_remediation(&element_file)
+            }
+            CandidateWrapperState::Missing => self.concrete_wrapper_remediation(&element_file),
+            CandidateWrapperState::Compatible => self.compatible_wrapper_remediation(&element_file),
+            CandidateWrapperState::Conflicting => {
+                self.conflicting_wrapper_remediation(&element_file)
+            }
+        };
+
+        // Capture the three source anchors as one reusable location record.
+        let source = ViolationSource {
+            hir_id: self.function.hir_id,
+            span: self.function.name_span,
+            parameter_span: self.function.parameter_span,
+        };
+
+        // Combine the resolved source, domain names, and namespace-aware recipe.
+        Violation {
+            source,
+            function_name: self.function.name,
+            element_name: self.element.name,
+            wrapper_name: self.wrapper_name,
+            remediation_message,
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Violation: Missing collection wrapper diagnostic
+// -----------------------------------------------------------------------------
+
+/// Source anchors retained for one collection-wrapper diagnostic.
+struct ViolationSource {
+    /// Function HIR node on which the diagnostic is emitted.
+    hir_id: HirId,
+    /// Function identifier span used as the primary diagnostic location.
+    span: Span,
+    /// Collection parameter span shown as supporting evidence.
+    parameter_span: Span,
+}
+
+/// Complete collection-wrapper recommendation with resolved namespace and file context.
+struct Violation {
+    /// Source anchors required by the lint engine and supporting label.
+    source: ViolationSource,
+    /// Misplaced free-function name.
+    function_name: Symbol,
+    /// Local element struct name.
+    element_name: Symbol,
+    /// Canonical or proposed wrapper name.
+    wrapper_name: Symbol,
+    /// Namespace-aware wrapper construction or migration recipe.
+    remediation_message: String,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "free function `{}` should be a method on `{}`",
+            self.function_name, self.wrapper_name
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "the collection of `{}` has domain behavior but no named type through which callers can discover or constrain that behavior",
+            self.element_name
+        ))
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.remediation_message)
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
             COLLECTION_METHOD_LIKE_FREE_FUNCTIONS,
-            self.function.hir_id,
-            self.function.name_span,
+            self.source.hir_id,
+            self.source.span,
             DiagDecorator(|diag| {
-                diag.primary_message(format!(
-                    "free function `{}` should be a method on `{}`",
-                    self.function.name, self.wrapper_name
-                ));
+                diag.primary_message(self.primary_message().into_owned());
                 diag.span_label(
-                    self.function.parameter_span,
-                    format!("this collection of `{}` needs a named wrapper", self.element.name),
+                    self.source.parameter_span,
+                    format!(
+                        "this collection of `{}` needs a named wrapper",
+                        self.element_name
+                    ),
                 );
-
-                match wrapper {
-                    CandidateWrapperState::Missing if self.element.has_parameters => diag.help(format!(
-                        "beside `{}` in `{element_file}`, define a generic `{}` wrapper that preserves its parameters and stores `Vec<{}>` in `items`, then implement `{}` there with {}",
-                        self.element.name,
-                        self.wrapper_name,
-                        self.element.ty,
-                        self.function.name,
-                        self.receiver.description()
-                    )),
-                    CandidateWrapperState::Missing => diag.help(format!(
-                        "beside `{}` in `{element_file}`, define `struct {} {{ items: Vec<{}> }}` and implement `{}` there with {}",
-                        self.element.name,
-                        self.wrapper_name,
-                        self.element.ty,
-                        self.function.name,
-                        self.receiver.description()
-                    )),
-                    CandidateWrapperState::Compatible => diag.help(format!(
-                        "move `{}` into the existing `impl {}` block beside `{}` in `{element_file}` and use {}",
-                        self.function.name,
-                        self.wrapper_name,
-                        self.element.name,
-                        self.receiver.description()
-                    )),
-                    CandidateWrapperState::Conflicting => diag.help(format!(
-                        "`{}` already names another type beside `{}` in `{element_file}`; choose a dedicated wrapper there with an `items: Vec<{}>` field and implement `{}` with {}",
-                        self.wrapper_name,
-                        self.element.name,
-                        self.element.name,
-                        self.function.name,
-                        self.receiver.description()
-                    )),
-                };
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
             }),
         );
     }
@@ -466,7 +561,7 @@ impl<'tcx> LateLintPass<'tcx> for CollectionMethodLikeFreeFunctions {
             let Some(candidate) = Candidate::discover(cx, item) else {
                 continue;
             };
-            candidate.emit(cx);
+            candidate.violation(cx).emit(cx);
         }
     }
 }

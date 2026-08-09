@@ -3,28 +3,42 @@ extern crate rustc_hir;
 extern crate rustc_span;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{Item, ItemKind};
+use rustc_hir::{HirId, Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_span::{Span, Symbol};
 
+use std::borrow::Cow;
+
+use crate::utils::diagnostic::LateViolation;
 use crate::utils::impl_target::ImplTargetExt;
 
 // -----------------------------------------------------------------------------
-// ImplPlacement: Cross file placement model
+// Violation: Cross file implementation diagnostic
 // -----------------------------------------------------------------------------
 
-/// One direct struct impl whose physical source can be compared with its struct definition.
-struct ImplPlacement<'hir> {
-    /// Authored direct inherent implementation being checked.
-    implementation: &'hir Item<'hir>,
-    /// Implemented struct name shown in diagnostics.
-    struct_name: rustc_span::Symbol,
-    /// Struct definition span used to compare physical files.
-    struct_span: rustc_span::Span,
+/// One authored source location with its compact physical filename.
+struct ViolationLocation {
+    /// Source span shown in the diagnostic.
+    span: Span,
+    /// Compact physical filename used in labels and remediation.
+    file: String,
 }
 
-impl<'hir> ImplPlacement<'hir> {
-    /// Recognizes an authored direct impl whose local struct can be resolved.
-    fn discover(cx: &LateContext<'hir>, item: &'hir Item<'hir>) -> Option<Self> {
+/// Direct struct implementation separated from the definition it belongs to.
+struct Violation {
+    /// Implementation node used to anchor the lint level.
+    hir_id: HirId,
+    /// Authored implementation span shown as the primary location.
+    implementation: ViolationLocation,
+    /// Implemented struct name shown in diagnostics.
+    struct_name: Symbol,
+    /// Struct definition span shown as the related location.
+    definition: ViolationLocation,
+}
+
+impl Violation {
+    /// Classifies an authored direct implementation whose local struct is in another file.
+    fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         // Require an authored direct implementation item.
         if !matches!(item.kind, ItemKind::Impl(_))
             || item.span.in_external_macro(cx.sess().source_map())
@@ -39,52 +53,78 @@ impl<'hir> ImplPlacement<'hir> {
             return None;
         }
 
-        // Retain the source facts needed to compare implementation placement.
+        // Resolve both physical locations before crossing the diagnostic boundary.
+        let source_map = cx.sess().source_map();
+        let implementation_file = source_map.span_to_filename(item.span);
+        let struct_file = source_map.span_to_filename(struct_span);
+        if implementation_file == struct_file {
+            return None;
+        }
+
+        // Own both physical locations before crossing the diagnostic boundary.
+        let implementation = ViolationLocation {
+            span: item.span,
+            file: implementation_file.short().to_string(),
+        };
+
+        // Capture the definition independently because it is also the move target.
+        let definition = ViolationLocation {
+            span: struct_span,
+            file: struct_file.short().to_string(),
+        };
+
+        // Preserve the precise source facts needed to explain and repair the violation.
         Some(Self {
-            implementation: item,
+            hir_id: item.hir_id(),
             struct_name: cx.tcx.item_name(struct_def_id.to_def_id()),
-            struct_span,
+            implementation,
+            definition,
         })
     }
+}
 
-    /// Returns whether implementation and struct definition share a physical file.
-    fn is_colocated(&self, cx: &LateContext<'_>) -> bool {
-        let source_map = cx.sess().source_map();
-        source_map.span_to_filename(self.implementation.span)
-            == source_map.span_to_filename(self.struct_span)
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "impl block for `{}` is not colocated with its definition",
+            self.struct_name
+        ))
     }
 
-    /// Emits a diagnostic connecting both physical source locations.
-    fn emit(&self, cx: &LateContext<'_>) {
-        // Resolve compact filenames for both ends of the misplaced relationship.
-        let source_map = cx.sess().source_map();
-        let implementation_file = source_map.span_to_filename(self.implementation.span);
-        let struct_file = source_map.span_to_filename(self.struct_span);
-        let implementation_file = implementation_file.short();
-        let struct_file = struct_file.short();
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "understanding `{}` currently requires searching both `{}` and `{}` for its behavior",
+            self.struct_name, self.definition.file, self.implementation.file
+        ))
+    }
 
-        // Connect the implementation and definition in one actionable diagnostic.
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "move this complete impl block into `{}` beside `{}`",
+            self.definition.file, self.struct_name
+        ))
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
             CROSS_FILE_STRUCT_IMPLS,
-            self.implementation.hir_id(),
+            self.hir_id,
             self.implementation.span,
             DiagDecorator(|diag| {
-                diag.primary_message(format!(
-                    "impl block for `{}` is not colocated with its definition",
-                    self.struct_name
-                ));
+                diag.primary_message(self.primary_message().into_owned());
                 diag.span_label(
                     self.implementation.span,
-                    format!("this impl is defined in `{implementation_file}`"),
+                    format!("this impl is defined in `{}`", self.implementation.file),
                 );
                 diag.span_label(
-                    self.struct_span,
-                    format!("`{}` is defined in `{struct_file}`", self.struct_name),
+                    self.definition.span,
+                    format!(
+                        "`{}` is defined in `{}`",
+                        self.struct_name, self.definition.file
+                    ),
                 );
-                diag.help(format!(
-                    "move this complete impl block into `{struct_file}` beside `{}`",
-                    self.struct_name
-                ));
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
             }),
         );
     }
@@ -138,12 +178,9 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for CrossFileStructImpls {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
-        let Some(placement) = ImplPlacement::discover(cx, item) else {
+        let Some(violation) = Violation::from_item(cx, item) else {
             return;
         };
-        if placement.is_colocated(cx) {
-            return;
-        }
-        placement.emit(cx);
+        violation.emit(cx);
     }
 }

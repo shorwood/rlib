@@ -4,6 +4,8 @@ extern crate rustc_hir;
 extern crate rustc_middle;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_abi::ExternAbi;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{
@@ -15,6 +17,8 @@ use rustc_hir::{
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol, sym};
+
+use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
 // RedundantWrapper: Forwarding wrapper model
@@ -411,29 +415,75 @@ impl RedundantWrapper {
         };
         matches!(cx.tcx.def_kind(call.target), DefKind::Fn | DefKind::AssocFn).then_some(call)
     }
+}
 
-    /// Emits removal guidance relating the wrapper to its real implementation.
-    fn emit(&self, cx: &LateContext<'_>) {
-        // Resolve the forwarded implementation's user-facing path and source span.
-        let target_name = cx.tcx.def_path_str(self.target.to_def_id());
-        let target_span = cx.tcx.def_span(self.target);
+// -----------------------------------------------------------------------------
+// Violation: Redundant forwarding diagnostic
+// -----------------------------------------------------------------------------
 
-        // Relate the redundant wrapper to the implementation callers should use directly.
+/// Complete wrapper-removal diagnostic with its resolved target context.
+struct Violation {
+    /// Wrapper HIR node used for diagnostic ownership.
+    hir_id: HirId,
+    /// Wrapper name shown in remediation guidance.
+    name: Symbol,
+    /// Wrapper identifier span used as the primary diagnostic site.
+    name_span: Span,
+    /// Resolved forwarded implementation path.
+    target_name: String,
+    /// Forwarded implementation span shown as related evidence.
+    target_span: Span,
+}
+
+impl Violation {
+    /// Resolves the user-facing target facts required to remove one discovered wrapper.
+    fn from_wrapper(cx: &LateContext<'_>, wrapper: &RedundantWrapper) -> Self {
+        Self {
+            hir_id: wrapper.hir_id,
+            name: wrapper.name,
+            name_span: wrapper.name_span,
+            target_name: cx.tcx.def_path_str(wrapper.target.to_def_id()),
+            target_span: cx.tcx.def_span(wrapper.target),
+        }
+    }
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "function `{}` is a redundant forwarding wrapper",
+            self.name
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "`{}` adds an API and navigation layer without changing the behavior of `{}`",
+            self.name, self.target_name
+        ))
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "remove `{}` and update its callers to invoke `{}` directly; move its documentation or adjust the target's name and visibility if needed",
+            self.name, self.target_name
+        ))
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
             NEEDLESS_FUNCTION_WRAPPERS,
             self.hir_id,
             self.name_span,
             DiagDecorator(|diag| {
-                diag.primary_message(format!(
-                    "function `{}` is a redundant forwarding wrapper",
-                    self.name
-                ));
+                diag.primary_message(self.primary_message().into_owned());
                 diag.span_label(self.name_span, "delete this useless indirection");
-                diag.span_label(target_span, format!("forwarded implementation `{target_name}`"));
-                diag.help(format!(
-                    "remove `{}` and update its callers to invoke `{target_name}` directly; move its documentation or adjust the target's name and visibility if needed",
-                    self.name
-                ));
+                diag.span_label(
+                    self.target_span,
+                    format!("forwarded implementation `{}`", self.target_name),
+                );
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
             }),
         );
     }
@@ -512,7 +562,7 @@ impl<'tcx> LateLintPass<'tcx> for NeedlessFunctionWrappers {
         };
 
         // Report the complete redundant wrapper after semantic validation.
-        wrapper.emit(cx);
+        Violation::from_wrapper(cx, &wrapper).emit(cx);
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
@@ -553,6 +603,6 @@ impl<'tcx> LateLintPass<'tcx> for NeedlessFunctionWrappers {
         };
 
         // Report the complete redundant wrapper after semantic validation.
-        wrapper.emit(cx);
+        Violation::from_wrapper(cx, &wrapper).emit(cx);
     }
 }

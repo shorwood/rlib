@@ -4,6 +4,7 @@ warning: boolean struct field `active` should start with `is_` or `has_`
 LL |     active: bool,
    |     ^^^^^^
    |
+   = note: `active` otherwise reads like a value or command instead of a yes-or-no property
    = help: choose a predicate-style name that describes what the boolean means
    = note: `#[warn(bool_fields_without_predicate_prefix)]` on by default
 
@@ -13,6 +14,7 @@ warning: boolean struct field `visible` should start with `is_` or `has_`
 LL |     visible: Flag,
    |     ^^^^^^^
    |
+   = note: `visible` otherwise reads like a value or command instead of a yes-or-no property
    = help: choose a predicate-style name that describes what the boolean means
 
 warning: boolean struct field `enabled` should start with `is_` or `has_`
@@ -24,6 +26,7 @@ LL |             enabled: bool,
 LL | local_struct!();
    | --------------- in this macro invocation
    |
+   = note: `enabled` otherwise reads like a value or command instead of a yes-or-no property
    = help: choose a predicate-style name that describes what the boolean means
    = note: this warning originates in the macro `local_struct` (in Nightly builds, run with -Z macro-backtrace for more info)
 

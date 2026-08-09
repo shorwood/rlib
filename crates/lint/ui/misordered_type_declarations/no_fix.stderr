@@ -4,7 +4,7 @@ warning: local types should be declared before their use
 LL |     struct User(Dependency);
    |     ^^^^^^^^^^^^^^^^^^^^^^^^ this declaration is the first out of order
    |
-   = note: expected declaration order: `Dependency`, `User`
+   = note: the first misplaced type requires forward navigation; the resolved dependency-first order is `Dependency`, `User`
    = help: move declarations into this order: `Dependency`, `User`
 note: the lint level is defined here
   --> $DIR/no_fix.rs:4:9
@@ -18,7 +18,7 @@ warning: local types should be declared before their use
 LL |     struct User(Dependency);
    |     ^^^^^^^^^^^^^^^^^^^^^^^^ this declaration is the first out of order
    |
-   = note: expected declaration order: `Dependency`, `User`
+   = note: the first misplaced type requires forward navigation; the resolved dependency-first order is `Dependency`, `User`
    = help: move declarations into this order: `Dependency`, `User`
 
 warning: local types should be declared before their use
@@ -27,7 +27,7 @@ warning: local types should be declared before their use
 LL |     struct User(Dependency);
    |     ^^^^^^^^^^^^^^^^^^^^^^^^ this declaration is the first out of order
    |
-   = note: expected declaration order: `Dependency`, `User`
+   = note: the first misplaced type requires forward navigation; the resolved dependency-first order is `Dependency`, `User`
    = help: move declarations into this order: `Dependency`, `User`
 
 warning: local types should be declared before their use
@@ -39,7 +39,7 @@ LL |         struct Generated(GeneratedDependency);
 LL |     generated_type!();
    |     ----------------- in this macro invocation
    |
-   = note: expected declaration order: `GeneratedDependency`, `Generated`
+   = note: the first misplaced type requires forward navigation; the resolved dependency-first order is `GeneratedDependency`, `Generated`
    = help: move declarations into this order: `GeneratedDependency`, `Generated`
    = note: this warning originates in the macro `generated_type` (in Nightly builds, run with -Z macro-backtrace for more info)
 

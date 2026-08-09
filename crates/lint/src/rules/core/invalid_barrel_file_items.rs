@@ -2,18 +2,23 @@ extern crate rustc_ast;
 extern crate rustc_errors;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_ast::ast::{Inline, Item, ItemKind, ModKind, VisibilityKind};
 use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
+use rustc_span::Span;
 use rustc_span::symbol::kw;
+
+use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
 // Violation: Invalid barrel item classification
 // -----------------------------------------------------------------------------
 
-/// The four useful explanations for code that does not belong in a barrel file.
+/// The four useful classifications for code that does not belong in a barrel file.
 #[derive(Clone, Copy)]
-enum Violation {
+enum ViolationKind {
     /// An inline module hides implementation code inside a barrel file.
     InlineModule,
     /// A private import does not expose anything from this barrel.
@@ -24,7 +29,7 @@ enum Violation {
     Implementation,
 }
 
-impl Violation {
+impl ViolationKind {
     /// Classifies a top-level item, returning `None` for valid barrel entries.
     fn from_item(item: &Item) -> Option<Self> {
         match &item.kind {
@@ -84,6 +89,42 @@ impl Violation {
                 "move this code into a dedicated module and leave its declaration or reexport here"
             }
         }
+    }
+}
+
+/// Forbidden barrel-file item with its authored source location.
+struct Violation {
+    /// Complete top-level item span used as the diagnostic location.
+    span: Span,
+    /// Concrete reason this item violates the barrel boundary.
+    kind: ViolationKind,
+}
+
+impl EarlyViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(self.kind.message())
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(self.kind.help())
+    }
+
+    fn emit(self, cx: &EarlyContext<'_>) {
+        cx.emit_span_lint(
+            INVALID_BARREL_FILE_ITEMS,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
     }
 }
 
@@ -159,12 +200,16 @@ impl EarlyLintPass for InvalidBarrelFileItems {
         }
 
         // Classifies the item and returns a violation if it is not a valid barrel entry.
-        let Some(violation) = Violation::from_item(item) else {
+        let Some(kind) = ViolationKind::from_item(item) else {
             return;
         };
 
         // Emit a single warning for the item and enter any inline module to avoid duplicate warnings.
-        Self::emit(cx, item, violation);
+        Violation {
+            span: item.span,
+            kind,
+        }
+        .emit(cx);
         self.enter_inline_module(item);
     }
 
@@ -196,18 +241,6 @@ impl InvalidBarrelFileItems {
         let local_path = filename.into_local_path();
         let basename = local_path.and_then(|path| path.file_name().map(ToOwned::to_owned));
         basename.is_some_and(|name| name == "mod.rs" || name == "lib.rs")
-    }
-
-    /// Emits one focused explanation for the forbidden item without proposing a risky rewrite.
-    fn emit(cx: &EarlyContext<'_>, item: &Item, violation: Violation) {
-        cx.emit_span_lint(
-            INVALID_BARREL_FILE_ITEMS,
-            item.span,
-            DiagDecorator(|diag| {
-                diag.primary_message(violation.message());
-                diag.help(violation.help());
-            }),
-        );
     }
 
     /// Records entry into an inline module so its contents do not receive duplicate warnings.

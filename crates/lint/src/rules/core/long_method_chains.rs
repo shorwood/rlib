@@ -2,6 +2,8 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_errors::DiagDecorator;
 use rustc_hir::intravisit::FnKind;
 use rustc_hir::{Body, FnDecl};
@@ -9,7 +11,50 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
+use crate::utils::diagnostic::LateViolation;
 use crate::utils::function_structure::FunctionStructureAnalyzer;
+
+// -----------------------------------------------------------------------------
+// Violation: Long method chain diagnostic
+// -----------------------------------------------------------------------------
+
+/// Fluent expression whose resolved call count exceeds the configured limit.
+struct Violation {
+    /// Complete chain span used as the primary diagnostic location.
+    span: Span,
+    /// Analyzer-derived message containing the measured call count.
+    primary_message: String,
+    /// Analyzer-derived extraction guidance.
+    remediation_message: String,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.primary_message)
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "the chain hides intermediate domain states and failure boundaries inside one dense expression",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.remediation_message)
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.emit_span_lint(
+            LONG_METHOD_CHAINS,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
 
 // -----------------------------------------------------------------------------
 // LongMethodChains
@@ -80,14 +125,12 @@ impl<'tcx> LateLintPass<'tcx> for LongMethodChains {
             .analyze_control_flow(cx, body, def_id)
             .long_method_chains
         {
-            cx.emit_span_lint(
-                LONG_METHOD_CHAINS,
-                finding.span,
-                DiagDecorator(|diag| {
-                    diag.primary_message(finding.message);
-                    diag.help(finding.help);
-                }),
-            );
+            Violation {
+                span: finding.span,
+                primary_message: finding.message,
+                remediation_message: finding.help,
+            }
+            .emit(cx);
         }
     }
 }

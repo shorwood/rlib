@@ -9,6 +9,7 @@ LL | |                     break;
 LL | |             },
    | |_____________^
    |
+   = note: each additional nesting level increases the branch state a reader must retain before reaching this operation
    = help: extract a named helper or flatten guardable branches before adding more nesting
 note: the lint level is defined here
   --> $DIR/semantic.rs:1:9
@@ -22,6 +23,7 @@ warning: this conditional reaches control-flow depth 3, exceeding the configured
 LL |             if third {}
    |             ^^^^^^^^^^^
    |
+   = note: each additional nesting level increases the branch state a reader must retain before reaching this operation
    = help: extract a named helper or flatten guardable branches before adding more nesting
 
 warning: 2 warnings emitted

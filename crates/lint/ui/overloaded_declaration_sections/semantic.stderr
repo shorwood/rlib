@@ -6,6 +6,7 @@ LL | | // Overloaded
 LL | | // -----------------------------------------------------------------------------
    | |________________________________________________________________________________^
    |
+   = note: the broad section conceals smaller naming families and provides an easy bucket for unrelated declarations
    = help: reconsider whether these declarations express smaller coherent concepts and rename them around those concepts; add another divider only for a genuinely independent family
 note: the lint level is defined here
   --> $DIR/semantic.rs:2:9
@@ -21,6 +22,7 @@ LL | |     // ModuleNamespace
 LL | |     // -----------------------------------------------------------------------------
    | |____________________________________________________________________________________^
    |
+   = note: the broad section conceals smaller naming families and provides an easy bucket for unrelated declarations
    = help: reconsider whether these declarations express smaller coherent concepts and rename them around those concepts; add another divider only for a genuinely independent family
 
 warning: 2 warnings emitted

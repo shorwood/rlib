@@ -10,6 +10,7 @@ LL | fn normalize_slug(slug: &str) -> String {
 LL | fn slug_path(slug: &str) -> PathBuf {
    |    --------- `slug_path` contributes behavior for raw `Slug` text
    |
+   = note: the `Slug` concept has related invariant and behavior but no single type owns or exposes them
    = help: introduce a string-backed `Slug` type and move its invariant and behavior onto that type
 note: the lint level is defined here
   --> $DIR/semantic.rs:3:9
@@ -26,6 +27,7 @@ LL |     email: String,
 LL | fn validate_email(_email: &str) -> Result<(), ()> {
    |    ^^^^^^^^^^^^^^ `validate_email` contributes behavior for raw `Email` text
    |
+   = note: the `Email` concept has related invariant and behavior but no single type owns or exposes them
    = help: introduce a string-backed `Email` type and move its invariant and behavior onto that type
 
 warning: these declarations collectively define a stringly typed `AccountKey` domain
@@ -40,6 +42,7 @@ LL | fn validate_account_key(_account_key: &str) -> Result<(), ()> {
 LL | fn normalize_account_key(account_key: &str) -> String {
    |    --------------------- `normalize_account_key` contributes behavior for raw `AccountKey` text
    |
+   = note: the `AccountKey` concept has related invariant and behavior but no single type owns or exposes them
    = help: accept the existing `AccountKey` type and move the remaining domain behavior onto it
 
 warning: 3 warnings emitted

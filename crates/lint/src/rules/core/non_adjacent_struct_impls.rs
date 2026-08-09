@@ -2,6 +2,7 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_span;
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use rustc_errors::{Applicability, DiagDecorator};
@@ -9,6 +10,7 @@ use rustc_hir::{HirId, Item, ItemKind, Mod, def_id::LocalDefId};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{Span, Symbol};
 
+use crate::utils::diagnostic::LateViolation;
 use crate::utils::impl_target::ImplTargetExt;
 
 // -----------------------------------------------------------------------------
@@ -70,6 +72,49 @@ struct MigrationEdit {
     replacement: String,
 }
 
+/// Source condition that prevents a trustworthy automatic implementation-group move.
+#[derive(Clone, Copy)]
+enum MigrationBarrier {
+    /// Expanded source cannot be owned by one authored edit.
+    ExpandedSource,
+    /// An impl attribute may need to travel with more context than its item span.
+    AttributedImplementation,
+    /// Struct and impl source belong to different physical files.
+    CrossFileSource,
+    /// A nearby comment may semantically belong to the implementation block.
+    NearbyComment,
+    /// Moving the impl would cross a textually scoped macro definition.
+    MacroDefinition,
+    /// Required source text or item boundaries could not be recovered safely.
+    UnavailableSource,
+}
+
+impl MigrationBarrier {
+    /// Explains why the diagnostic provides guidance instead of a machine-applicable edit.
+    const fn message(self) -> &'static str {
+        match self {
+            Self::ExpandedSource => {
+                "automatic migration is unavailable because expanded source has no single authored edit location"
+            }
+            Self::AttributedImplementation => {
+                "automatic migration is withheld because an impl attribute may carry compilation or formatting semantics"
+            }
+            Self::CrossFileSource => {
+                "automatic migration is unavailable because the struct and impl do not belong to one physical source file"
+            }
+            Self::NearbyComment => {
+                "automatic migration is withheld because a nearby comment may belong to the impl block"
+            }
+            Self::MacroDefinition => {
+                "automatic migration is withheld because moving the impl across a macro definition could change name resolution"
+            }
+            Self::UnavailableSource => {
+                "automatic migration is unavailable because the complete authored source could not be recovered safely"
+            }
+        }
+    }
+}
+
 /// Builds a source move for an entire impl group when comments, macros, and file boundaries are
 /// known not to change its meaning.
 struct Migration<'lint, 'hir> {
@@ -95,32 +140,52 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
     ///
     /// Attributes may control compilation or formatting, while expanded and cross-file text cannot
     /// be safely owned by one editor suggestion.
-    fn check_plain_same_file_source(&self) -> Option<()> {
+    fn check_plain_same_file_source(&self) -> Result<(), MigrationBarrier> {
+        // Resolve the common source file expected to own every migration edit.
         let source_map = self.cx.sess().source_map();
         let struct_file = source_map.span_to_filename(self.group.struct_item.span);
+        let impls = &self.group.impls;
+
+        // Reject generated declarations or implementations without one authored location.
         if self.group.struct_item.span.from_expansion()
-            || self.group.impls.iter().any(|impl_| {
-                impl_.item.span.from_expansion()
-                    || !self.cx.tcx.hir_attrs(impl_.item.hir_id()).is_empty()
-                    || source_map.span_to_filename(impl_.item.span) != struct_file
-            })
+            || impls.iter().any(|impl_| impl_.item.span.from_expansion())
         {
-            return None;
+            return Err(MigrationBarrier::ExpandedSource);
         }
-        Some(())
+
+        // Preserve implementation attributes that may affect compilation or formatting.
+        if impls
+            .iter()
+            .any(|impl_| !self.cx.tcx.hir_attrs(impl_.item.hir_id()).is_empty())
+        {
+            return Err(MigrationBarrier::AttributedImplementation);
+        }
+
+        // Keep a machine edit within one physical source file.
+        if impls
+            .iter()
+            .any(|impl_| source_map.span_to_filename(impl_.item.span) != struct_file)
+        {
+            return Err(MigrationBarrier::CrossFileSource);
+        }
+        Ok(())
     }
 
     /// Rejects a move when nearby comments could be intended to travel with an impl block.
     ///
     /// Whitespace is safe to leave behind. A comment is authored structure, so the lint asks the
     /// agent to move that case manually instead of guessing who owns the comment.
-    fn check_comments_are_unattached(&self) -> Option<()> {
+    fn check_comments_are_unattached(&self) -> Result<(), MigrationBarrier> {
+        // Start with the gap immediately following the struct declaration.
         let source_map = self.cx.sess().source_map();
         let mut boundaries = Vec::new();
-        boundaries.push((
-            self.group.struct_item.span.hi(),
-            self.items.get(self.group.struct_index + 1)?.span.lo(),
-        ));
+        let following_struct = self
+            .items
+            .get(self.group.struct_index + 1)
+            .ok_or(MigrationBarrier::UnavailableSource)?;
+        boundaries.push((self.group.struct_item.span.hi(), following_struct.span.lo()));
+
+        // Collect both neighboring gaps for every implementation block.
         for impl_ in &self.group.impls {
             if let Some(previous) = impl_
                 .index
@@ -135,16 +200,17 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
             boundaries.push((impl_.item.span.hi(), next.span.lo()));
         }
 
+        // Reject the migration when any boundary contains authored commentary.
         for (lo, hi) in boundaries {
             let gap = source_map
                 .span_to_snippet(Span::with_root_ctxt(lo, hi))
-                .ok()?;
+                .map_err(|_| MigrationBarrier::UnavailableSource)?;
             if !gap.contains("//") && !gap.contains("/*") {
                 continue;
             }
-            return None;
+            return Err(MigrationBarrier::NearbyComment);
         }
-        Some(())
+        Ok(())
     }
 
     /// Returns whether moving an impl would cross a textually scoped macro definition.
@@ -158,7 +224,7 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
     }
 
     /// Rejects moves across `macro_rules!` definitions because those names follow textual order.
-    fn check_no_macro_definition_is_crossed(&self) -> Option<()> {
+    fn check_no_macro_definition_is_crossed(&self) -> Result<(), MigrationBarrier> {
         let crosses_macro = self
             .group
             .impls
@@ -166,25 +232,28 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
             .any(|impl_| self.crosses_macro_definition(*impl_));
 
         // Permit the move only when textual macro scope cannot change.
-        (!crosses_macro).then_some(())
+        if crosses_macro {
+            return Err(MigrationBarrier::MacroDefinition);
+        }
+        Ok(())
     }
 
     /// Returns all deletions and the matching insertion, or declines if any source ownership is
     /// uncertain.
-    fn build(&self) -> Option<Vec<MigrationEdit>> {
-        // Validate source ownership, comments, and textual macro scope before editing.
+    fn build(&self) -> Result<Vec<MigrationEdit>, MigrationBarrier> {
+        // Validate source ownership and textual macro scope before assessing comment attachment.
         self.check_plain_same_file_source()?;
-        self.check_comments_are_unattached()?;
         self.check_no_macro_definition_is_crossed()?;
+        self.check_comments_are_unattached()?;
 
         // Capture every misplaced implementation in its authored module order.
         let source_map = self.cx.sess().source_map();
-        let snippets = self
-            .group
-            .impls
+        let impls = &self.group.impls;
+        let snippets = impls
             .iter()
             .map(|impl_| source_map.span_to_snippet(impl_.item.span).ok())
-            .collect::<Option<Vec<_>>>()?;
+            .collect::<Option<Vec<_>>>();
+        let snippets = snippets.ok_or(MigrationBarrier::UnavailableSource)?;
 
         // Join the authored implementations for one insertion after the struct.
         let insertion = format!("\n\n{}", snippets.join("\n\n"));
@@ -205,7 +274,144 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
             span: self.group.struct_item.span.shrink_to_hi(),
             replacement: insertion,
         });
-        Some(edits)
+        Ok(edits)
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Remediation: Implementation group migration
+// -----------------------------------------------------------------------------
+
+/// Safest available response to a misplaced implementation group.
+enum Remediation {
+    /// Manual movement guidance when source ownership is uncertain.
+    Guidance {
+        /// Exact source condition that prevented an automatic move.
+        barrier: MigrationBarrier,
+    },
+    /// Atomic source edits that move the complete implementation group.
+    Migration {
+        /// Deletions and insertion comprising one machine-applicable move.
+        edits: Vec<MigrationEdit>,
+    },
+}
+
+// -----------------------------------------------------------------------------
+// Violation: Nonadjacent implementation group
+// -----------------------------------------------------------------------------
+
+/// One misplaced implementation group with enough context to explain and repair it.
+struct Violation<'hir> {
+    /// Struct declaration that owns and receives the diagnostic.
+    struct_item: &'hir Item<'hir>,
+    /// First implementation block outside its required position.
+    first_misplaced_span: Span,
+    /// Struct name used throughout the diagnostic narrative.
+    struct_name: Symbol,
+    /// Number of direct implementation blocks that form the complete group.
+    impl_count: usize,
+    /// Manual guidance or a verified atomic source migration.
+    remediation: Remediation,
+}
+
+impl Violation<'_> {
+    /// Classifies one misplaced group and retains an atomic migration only when it is safe.
+    fn from_group<'tcx>(
+        cx: &LateContext<'tcx>,
+        items: &[&'tcx Item<'tcx>],
+        group: &ImplGroup<'tcx>,
+    ) -> Violation<'tcx> {
+        // Resolve the first misplaced block and conservatively prepare the complete group move.
+        let first_misplaced_span = group.first_misplaced().item.span;
+        let remediation = Migration::new(cx, items, group).build().map_or_else(
+            |barrier| Remediation::Guidance { barrier },
+            |edits| Remediation::Migration { edits },
+        );
+
+        // Preserve the group facts needed to explain the structural problem without reanalysis.
+        Violation {
+            struct_item: group.struct_item,
+            first_misplaced_span,
+            struct_name: group.struct_name,
+            impl_count: group.impls.len(),
+            remediation,
+        }
+    }
+
+    /// Describes the misplaced block that demonstrates the broken group boundary.
+    fn label_message(&self) -> String {
+        format!("this impl is outside `{}`'s impl group", self.struct_name)
+    }
+}
+
+impl LateViolation for Violation<'_> {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "impl blocks for `{}` should immediately follow its definition",
+            self.struct_name
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        if self.impl_count == 1 {
+            return Cow::Owned(format!(
+                "keeping this direct impl block adjacent lets readers and tools understand `{}` without searching the module",
+                self.struct_name
+            ));
+        }
+        Cow::Owned(format!(
+            "keeping all {} direct impl blocks adjacent lets readers and tools understand `{}` without searching the module",
+            self.impl_count, self.struct_name
+        ))
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        if self.impl_count == 1 {
+            return Cow::Owned(format!(
+                "move this impl block immediately after `{}`",
+                self.struct_name
+            ));
+        }
+        Cow::Owned(format!(
+            "move all {} impl blocks immediately after `{}`",
+            self.impl_count, self.struct_name
+        ))
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        // Materialize the complete diagnostic narrative before consuming source edits.
+        let primary_message = self.primary_message().into_owned();
+        let rationale_message = self.rationale_message().into_owned();
+        let remediation_message = self.remediation_message().into_owned();
+        let label_message = self.label_message();
+
+        // Explain the broken group and attach an atomic migration only when it is safe.
+        cx.tcx.emit_node_span_lint(
+            NON_ADJACENT_STRUCT_IMPLS,
+            self.struct_item.hir_id(),
+            self.struct_item.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(primary_message);
+                diag.span_label(self.first_misplaced_span, label_message);
+                diag.note(rationale_message);
+                match self.remediation {
+                    Remediation::Guidance { barrier } => {
+                        diag.note(barrier.message());
+                        diag.help(remediation_message);
+                    }
+                    Remediation::Migration { edits } => {
+                        diag.multipart_suggestion(
+                            remediation_message,
+                            edits
+                                .into_iter()
+                                .map(|edit| (edit.span, edit.replacement))
+                                .collect(),
+                            Applicability::MachineApplicable,
+                        );
+                    }
+                }
+            }),
+        );
     }
 }
 
@@ -318,60 +524,6 @@ impl NonAdjacentStructImpls {
         // Preserve module order when returning the discovered struct groups.
         groups.collect()
     }
-
-    /// Emits one warning for the complete misplaced group and offers one atomic move when safe.
-    fn emit_group<'tcx>(
-        cx: &LateContext<'tcx>,
-        items: &[&'tcx Item<'tcx>],
-        group: &ImplGroup<'tcx>,
-    ) {
-        // Resolve the first misplaced block and any complete atomic move.
-        let first_misplaced = group.first_misplaced();
-        let suggestion = Migration::new(cx, items, group).build();
-        let impl_count = group.impls.len();
-
-        // Tailor movement guidance to one implementation or the complete group.
-        let move_message = if impl_count == 1 {
-            format!(
-                "move this impl block immediately after `{}`",
-                group.struct_name
-            )
-        } else {
-            format!(
-                "move all {impl_count} impl blocks immediately after `{}`",
-                group.struct_name
-            )
-        };
-
-        // Report the group and attach the atomic move only when every edit is safe.
-        cx.tcx.emit_node_span_lint(
-            NON_ADJACENT_STRUCT_IMPLS,
-            group.struct_item.hir_id(),
-            group.struct_item.span,
-            DiagDecorator(|diag| {
-                diag.primary_message(format!(
-                    "impl blocks for `{}` should immediately follow its definition",
-                    group.struct_name
-                ));
-                diag.span_label(
-                    first_misplaced.item.span,
-                    format!("this impl is outside `{}`'s impl group", group.struct_name),
-                );
-                if let Some(edits) = suggestion {
-                    diag.multipart_suggestion(
-                        move_message,
-                        edits
-                            .into_iter()
-                            .map(|edit| (edit.span, edit.replacement))
-                            .collect(),
-                        Applicability::MachineApplicable,
-                    );
-                } else {
-                    diag.help(move_message);
-                }
-            }),
-        );
-    }
 }
 
 impl<'tcx> LateLintPass<'tcx> for NonAdjacentStructImpls {
@@ -385,7 +537,7 @@ impl<'tcx> LateLintPass<'tcx> for NonAdjacentStructImpls {
             if group.is_immediately_after_struct() {
                 continue;
             }
-            Self::emit_group(cx, &items, &group);
+            Violation::from_group(cx, &items, &group).emit(cx);
         }
     }
 }

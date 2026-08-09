@@ -4,7 +4,7 @@ extern crate rustc_lint;
 extern crate rustc_span;
 
 use rustc_hir::intravisit::{self, Visitor};
-use rustc_hir::{Block, Expr, ExprKind, Stmt, StmtKind};
+use rustc_hir::{Block, Expr, ExprKind, MatchSource, Stmt, StmtKind};
 use rustc_lexer::{FrontmatterAllowed, TokenKind, tokenize};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::{BytePos, Span};
@@ -138,6 +138,8 @@ struct FunctionLayoutEntry {
     span: Span,
     /// Nested authored bodies excluded from the containing block's line count.
     nested_spans: Vec<Span>,
+    /// Whether this entry is a declarative literal mapping counted as one operation.
+    is_declarative_mapping: bool,
 }
 
 impl FunctionLayoutEntry {
@@ -149,10 +151,19 @@ impl FunctionLayoutEntry {
             _ => FunctionLayoutNestedSpanCollector::collect_statement(cx, statement),
         };
 
+        // Classify a direct expression independently from its nested source bodies.
+        let is_declarative_mapping = match statement.kind {
+            StmtKind::Expr(expression) | StmtKind::Semi(expression) => {
+                Self::is_declarative_mapping(expression)
+            }
+            StmtKind::Let(_) | StmtKind::Item(_) => false,
+        };
+
         // Retain the complete entry span for comments and surface line counting.
         Self {
             span: statement.span,
             nested_spans,
+            is_declarative_mapping,
         }
     }
 
@@ -161,11 +172,36 @@ impl FunctionLayoutEntry {
         Self {
             span: expression.span,
             nested_spans: FunctionLayoutNestedSpanCollector::collect_expression(cx, expression),
+            is_declarative_mapping: Self::is_declarative_mapping(expression),
         }
+    }
+
+    /// Returns whether an expression contains only a literal value and transparent blocks.
+    fn is_literal_value(expression: &Expr<'_>) -> bool {
+        match expression.kind {
+            ExprKind::Lit(_) => true,
+            ExprKind::Block(block, _) => {
+                block.stmts.is_empty() && block.expr.is_some_and(Self::is_literal_value)
+            }
+            _ => false,
+        }
+    }
+
+    /// Recognizes authored matches that only map patterns to literal values.
+    fn is_declarative_mapping(expression: &Expr<'_>) -> bool {
+        let ExprKind::Match(_, arms, MatchSource::Normal | MatchSource::Postfix) = expression.kind
+        else {
+            return false;
+        };
+        arms.iter()
+            .all(|arm| arm.guard.is_none() && Self::is_literal_value(arm.body))
     }
 
     /// Counts authored code on the containing block's surface.
     fn direct_line_count(&self, cx: &LateContext<'_>) -> usize {
+        if self.is_declarative_mapping {
+            return 1;
+        }
         FunctionLayoutNestedSpanCollector::filtered_line_count(cx, self.span, &self.nested_spans)
     }
 }

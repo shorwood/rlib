@@ -10,6 +10,7 @@ LL | |
 LL | | fn main() {}
    | |____________^
    |
+   = note: the repeated organizational prefix makes distinct roles harder to identify and encourages new names to mirror file structure instead of domain concepts
    = help: prefer the concept-first names `MalformedContextState` → `State`; rename before creating additional sections (the divider prefix repeats the enclosing module; an exact root declaration already carries the context name; the redundant prefix can be removed without losing vocabulary)
 note: the lint level is defined here
   --> $DIR/malformed_context.rs:2:9

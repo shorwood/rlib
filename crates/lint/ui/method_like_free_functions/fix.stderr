@@ -4,6 +4,7 @@ warning: free function `bump` should be an inherent method on `Counter`
 LL | fn bump(mut counter: Counter, amount: u8) -> Counter {
    |    ^^^^
    |
+   = note: `bump` behavior is hidden in the module namespace instead of being discoverable through `Counter`
    = note: `#[warn(method_like_free_functions)]` on by default
 help: move the function into an inherent impl and update its uses
    |
@@ -22,6 +23,7 @@ warning: free function `inspect` should be an inherent method on `Counter`
 LL | fn inspect<'a>(counter: &'a Counter) -> u8 {
    |    ^^^^^^^
    |
+   = note: `inspect` behavior is hidden in the module namespace instead of being discoverable through `Counter`
 help: move the function into an inherent impl and update its uses
    |
 LL + impl Counter {
@@ -42,6 +44,7 @@ warning: free function `reset` should be an inherent method on `Counter`
 LL | fn reset(counter: &mut Counter) {
    |    ^^^^^
    |
+   = note: `reset` behavior is hidden in the module namespace instead of being discoverable through `Counter`
 help: move the function into an inherent impl and update its uses
    |
 LL + impl Counter {
@@ -57,6 +60,7 @@ warning: free function `unwrap` should be an inherent method on `Generic`
 LL | fn unwrap<T>(item: Generic<T>) -> T {
    |    ^^^^^^
    |
+   = note: `unwrap` behavior is hidden in the module namespace instead of being discoverable through `Generic`
 help: move the function into an inherent impl and update its uses
    |
 LL + impl<T> Generic<T> {
@@ -72,6 +76,7 @@ warning: free function `use_inspect` should be an inherent method on `Counter`
 LL | fn use_inspect(counter: &Counter) -> u8 {
    |    ^^^^^^^^^^^
    |
+   = note: `use_inspect` behavior is hidden in the module namespace instead of being discoverable through `Counter`
    = help: move `use_inspect` into an `impl Counter` block and replace its first parameter with `&self`
 
 warning: 5 warnings emitted

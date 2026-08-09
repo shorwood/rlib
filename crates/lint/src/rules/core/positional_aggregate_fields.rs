@@ -2,13 +2,57 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind, Variant, VariantData};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
+use crate::utils::diagnostic::LateViolation;
+
 // -----------------------------------------------------------------------------
-// PositionalAggregateFields
+// Violation: Positional aggregate diagnostic
+// -----------------------------------------------------------------------------
+
+/// Multi-field aggregate whose component roles exist only by position.
+struct Violation {
+    /// Complete aggregate declaration receiving the diagnostic.
+    span: Span,
+    /// User-facing aggregate kind.
+    kind: &'static str,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!("this {} has multiple positional fields", self.kind))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "constructors and patterns rely on ordering, so component roles remain implicit at every use site",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed("use record fields whose names explain each component's semantic role")
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.emit_span_lint(
+            POSITIONAL_AGGREGATE_FIELDS,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
+
+// -----------------------------------------------------------------------------
+// PositionalAggregateFields: Lint pass
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that rejects aggregates with several unnamed field roles.
@@ -60,22 +104,11 @@ impl PositionalAggregateFields {
         let fields = data.fields();
         (fields.len() >= 2 && fields[0].is_positional()).then_some(fallback)
     }
-
-    /// Emits record-field guidance for one positional aggregate.
-    fn emit(cx: &LateContext<'_>, span: Span, kind: &str) {
-        cx.emit_span_lint(
-            POSITIONAL_AGGREGATE_FIELDS,
-            span,
-            DiagDecorator(|diag| {
-                diag.primary_message(format!("this {kind} has multiple positional fields"));
-                diag.help("use record fields whose names explain each component's semantic role");
-            }),
-        );
-    }
 }
 
 impl LateLintPass<'_> for PositionalAggregateFields {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Classify authored tuple structs with more than one positional role.
         if item.span.from_expansion() {
             return;
         }
@@ -85,16 +118,29 @@ impl LateLintPass<'_> for PositionalAggregateFields {
         let Some(span) = Self::positional_span(&data, item.span) else {
             return;
         };
-        Self::emit(cx, span, "tuple struct");
+
+        // Emit record-oriented guidance for the complete struct declaration.
+        Violation {
+            span,
+            kind: "tuple struct",
+        }
+        .emit(cx);
     }
 
     fn check_variant(&mut self, cx: &LateContext<'_>, variant: &Variant<'_>) {
+        // Classify authored enum variants with more than one positional role.
         if variant.span.from_expansion() {
             return;
         }
         let Some(span) = Self::positional_span(&variant.data, variant.span) else {
             return;
         };
-        Self::emit(cx, span, "tuple-like enum variant");
+
+        // Emit record-oriented guidance for the complete variant declaration.
+        Violation {
+            span,
+            kind: "tuple-like enum variant",
+        }
+        .emit(cx);
     }
 }

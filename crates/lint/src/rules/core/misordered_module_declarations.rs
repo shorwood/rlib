@@ -1,19 +1,86 @@
 extern crate rustc_errors;
 extern crate rustc_hir;
+extern crate rustc_span;
 
+use std::borrow::Cow;
 use std::collections::HashSet;
 
 use rustc_errors::{Applicability, DiagDecorator};
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{HirId, Item, ItemKind, Mod};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_span::Span;
 
 use crate::utils::declaration_node::{
     DeclarationConstraints, DeclarationNode, DeclarationNodeList, DeclarationSource,
 };
+use crate::utils::diagnostic::LateViolation;
 use crate::utils::item_dependencies::DependenciesExt;
-use crate::utils::reorder_declarations::DeclarationOrder;
+use crate::utils::reorder_declarations::{DeclarationOrder, DeclarationOrderEdit};
 use crate::utils::source_organization::SectionAnalyzer;
+
+// -----------------------------------------------------------------------------
+// Violation: Misordered module declaration diagnostic
+// -----------------------------------------------------------------------------
+
+/// Module declarations with a resolved dependency-first permutation.
+struct Violation {
+    /// Module node used to anchor the lint level.
+    hir_id: HirId,
+    /// First declaration group that differs from dependency-first order.
+    span: Span,
+    /// Complete resolved declaration-group order.
+    expected_names: String,
+    /// Atomic reorder edits when all source ranges are safely owned.
+    edits: Option<Vec<DeclarationOrderEdit>>,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed("module declarations are not in dependency-first order")
+    }
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "the first misplaced declaration requires forward navigation; the resolved dependency-first order is {}",
+            self.expected_names
+        ))
+    }
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "move complete declaration groups into this order: {}",
+            self.expected_names
+        ))
+    }
+    fn emit(self, cx: &LateContext<'_>) {
+        // Render the stable explanation before moving optional source edits.
+        let rationale = self.rationale_message().into_owned();
+        let remediation = self.remediation_message().into_owned();
+
+        // Emit after resolving whether the exact order can be applied atomically.
+        cx.tcx.emit_node_span_lint(
+            MISORDERED_MODULE_DECLARATIONS,
+            self.hir_id,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.span_label(self.span, "first declaration out of order");
+                diag.note(rationale);
+                if let Some(edits) = self.edits {
+                    diag.multipart_suggestion(
+                        remediation,
+                        edits
+                            .into_iter()
+                            .map(|edit| (edit.span, edit.replacement))
+                            .collect(),
+                        Applicability::MachineApplicable,
+                    );
+                } else {
+                    diag.help(remediation);
+                }
+            }),
+        );
+    }
+}
 
 // -----------------------------------------------------------------------------
 // MisorderedModule
@@ -204,33 +271,13 @@ impl MisorderedModuleDeclarations {
             .flatten();
 
         // Keep the diagnostic useful even when comments or macros block a safe rewrite.
-        cx.tcx.emit_node_span_lint(
-            MISORDERED_MODULE_DECLARATIONS,
+        Violation {
             hir_id,
-            nodes[mismatch].source.span,
-            DiagDecorator(|diag| {
-                diag.primary_message("module declarations are not in dependency-first order");
-                diag.span_label(
-                    nodes[mismatch].source.span,
-                    "first declaration out of order",
-                );
-                diag.note(format!("expected declaration order: {names}"));
-                if let Some(edits) = edits {
-                    diag.multipart_suggestion(
-                        "reorder these declarations",
-                        edits
-                            .into_iter()
-                            .map(|edit| (edit.span, edit.replacement))
-                            .collect(),
-                        Applicability::MachineApplicable,
-                    );
-                } else {
-                    diag.help(format!(
-                        "move complete declaration groups into this order: {names}"
-                    ));
-                }
-            }),
-        );
+            span: nodes[mismatch].source.span,
+            expected_names: names,
+            edits,
+        }
+        .emit(cx);
     }
 }
 

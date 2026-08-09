@@ -4,6 +4,7 @@ extern crate rustc_hir;
 extern crate rustc_middle;
 extern crate rustc_span;
 
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
 use rustc_abi::ExternAbi;
@@ -17,6 +18,8 @@ use rustc_hir::{
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
 use rustc_span::{Pos, Span, Symbol};
+
+use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
 // Receiver: Receiver analysis
@@ -833,17 +836,114 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
 }
 
 // -----------------------------------------------------------------------------
-// MethodLike: Lint pass and diagnostics
+// Violation: Method relocation diagnostic
 // -----------------------------------------------------------------------------
 
 /// Whether a candidate can reuse its authored function name as a method.
 #[derive(Clone, Copy)]
-enum MethodLikeMigrationAvailability {
+enum ViolationMigrationAvailability {
     /// The destination method name is free.
     Available,
     /// An existing method already occupies the destination name.
     NameCollision,
 }
+
+/// Concrete remediation available after crate-wide call-site and collision analysis.
+enum ViolationRemediation {
+    /// Complete machine-applicable definition and use-site migration.
+    Migration(
+        /// Verified edits covering the definition and every resolved use site.
+        Vec<MigrationEdit>,
+    ),
+    /// Destination already has a method with the authored function name.
+    NameCollision,
+    /// Migration intent is known but one or more edits are not safely derivable.
+    Manual {
+        /// Receiver syntax that preserves the original first-parameter contract.
+        receiver: &'static str,
+    },
+}
+
+/// Method-like free function with complete relocation and call-site context.
+struct Violation {
+    /// Function HIR node used to anchor the lint level.
+    hir_id: HirId,
+    /// Function identifier span used as the primary diagnostic location.
+    span: Span,
+    /// Authored free-function name.
+    function_name: Symbol,
+    /// Same-module struct that owns the operation.
+    struct_name: Symbol,
+    /// Safest remediation supported by the collected crate facts.
+    remediation: ViolationRemediation,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "free function `{}` should be an inherent method on `{}`",
+            self.function_name, self.struct_name
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "`{}` behavior is hidden in the module namespace instead of being discoverable through `{}`",
+            self.function_name, self.struct_name
+        ))
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        match &self.remediation {
+            ViolationRemediation::Migration(_) => {
+                Cow::Borrowed("move the function into an inherent impl and update its uses")
+            }
+            ViolationRemediation::NameCollision => Cow::Owned(format!(
+                "remove this wrapper or choose a name other than the existing `{}` method",
+                self.function_name
+            )),
+            ViolationRemediation::Manual { receiver } => Cow::Owned(format!(
+                "move `{}` into an `impl {}` block and replace its first parameter with {receiver}",
+                self.function_name, self.struct_name
+            )),
+        }
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        // Render the stable diagnostic layers before moving migration edits.
+        let primary_message = self.primary_message().into_owned();
+        let rationale_message = self.rationale_message().into_owned();
+        let remediation_message = self.remediation_message().into_owned();
+
+        // Emit after the exact migration form and its stable wording are resolved.
+        cx.tcx.emit_node_span_lint(
+            METHOD_LIKE_FREE_FUNCTIONS,
+            self.hir_id,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(primary_message);
+                diag.note(rationale_message);
+                match self.remediation {
+                    ViolationRemediation::Migration(edits) => diag.multipart_suggestion(
+                        remediation_message,
+                        edits
+                            .into_iter()
+                            .map(|edit| (edit.span, edit.replacement))
+                            .collect(),
+                        Applicability::MachineApplicable,
+                    ),
+                    ViolationRemediation::NameCollision | ViolationRemediation::Manual { .. } => {
+                        diag.help(remediation_message)
+                    }
+                };
+            }),
+        );
+    }
+}
+
+// -----------------------------------------------------------------------------
+// MethodLikeFreeFunctions: Lint pass
+// -----------------------------------------------------------------------------
 
 /// Collects the information needed to find misplaced functions and safely move them.
 #[derive(Default)]
@@ -999,9 +1099,9 @@ impl MethodLikeFreeFunctions {
         &self,
         cx: &LateContext<'_>,
         candidate: &Candidate,
-        availability: MethodLikeMigrationAvailability,
+        availability: ViolationMigrationAvailability,
     ) -> Option<Vec<MigrationEdit>> {
-        matches!(availability, MethodLikeMigrationAvailability::Available)
+        matches!(availability, ViolationMigrationAvailability::Available)
             .then(|| {
                 MigrationBuilder::new(
                     cx,
@@ -1024,45 +1124,32 @@ impl MethodLikeFreeFunctions {
         // Resolve name collisions and the complete safe migration before reporting.
         let has_collision = candidate.has_method_collision(cx);
         let availability = if has_collision {
-            MethodLikeMigrationAvailability::NameCollision
+            ViolationMigrationAvailability::NameCollision
         } else {
-            MethodLikeMigrationAvailability::Available
+            ViolationMigrationAvailability::Available
         };
         let migration = self.candidate_migration(cx, candidate, availability);
 
-        // Explain the preferred method location and attach the complete safe migration.
-        cx.tcx.emit_node_span_lint(
-            METHOD_LIKE_FREE_FUNCTIONS,
-            candidate.function.hir_id,
-            candidate.function.name_span,
-            DiagDecorator(|diag| {
-                diag.primary_message(format!(
-                    "free function `{}` should be an inherent method on `{}`",
-                    candidate.function.name, candidate.receiver.struct_name
-                ));
-                if let Some(edits) = migration {
-                    diag.multipart_suggestion(
-                        "move the function into an inherent impl and update its uses",
-                        edits
-                            .into_iter()
-                            .map(|edit| (edit.span, edit.replacement))
-                            .collect(),
-                        Applicability::MachineApplicable,
-                    );
-                } else if has_collision {
-                    diag.help(format!(
-                        "remove this wrapper or choose a name other than the existing `{}` method",
-                        candidate.function.name
-                    ));
-                } else {
-                    diag.help(format!(
-                        "move `{}` into an `impl {}` block and replace its first parameter with {}",
-                        candidate.function.name,
-                        candidate.receiver.struct_name,
-                        candidate.receiver.semantics.kind.description()
-                    ));
-                }
-            }),
-        );
+        // Preserve the exact safe migration or manual barrier in the violation itself.
+        // Preserve the exact migration availability discovered across the complete crate.
+        let remediation = match migration {
+            Some(edits) => ViolationRemediation::Migration(edits),
+            None if has_collision => ViolationRemediation::NameCollision,
+            None => ViolationRemediation::Manual {
+                receiver: candidate.receiver.semantics.kind.description(),
+            },
+        };
+
+        // Capture the complete ownership and migration context before emitting.
+        let violation = Violation {
+            hir_id: candidate.function.hir_id,
+            span: candidate.function.name_span,
+            function_name: candidate.function.name,
+            struct_name: candidate.receiver.struct_name,
+            remediation,
+        };
+
+        // Emit only after every context-derived fact has crossed the violation boundary.
+        violation.emit(cx);
     }
 }

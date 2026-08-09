@@ -1,11 +1,95 @@
 extern crate rustc_errors;
 extern crate rustc_hir;
+extern crate rustc_span;
+
+use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_span::{Span, Symbol};
 
+use crate::utils::diagnostic::LateViolation;
 use crate::utils::foreign_type_analysis::ForeignTypeAnalyzer;
+
+// -----------------------------------------------------------------------------
+// Violation: Foreign type operation ownership diagnostic
+// -----------------------------------------------------------------------------
+
+/// Visible free function whose foreign-type operation lacks an idiomatic owner.
+enum Violation {
+    /// One foreign type is the clear semantic receiver.
+    ClearOwner {
+        /// Function name span used as the primary diagnostic location.
+        span: Span,
+        /// Foreign type that should receive a focused extension trait.
+        owner: Symbol,
+    },
+    /// Several foreign types remain plausible semantic receivers.
+    AmbiguousOwner {
+        /// Function name span used as the primary diagnostic location.
+        span: Span,
+        /// Foreign types whose competing ownership must be resolved explicitly.
+        candidates: Vec<Symbol>,
+    },
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        match self {
+            Self::ClearOwner { owner, .. } => Cow::Owned(format!(
+                "this visible free function behaves like an extension method on `{owner}`"
+            )),
+            Self::AmbiguousOwner { .. } => Cow::Borrowed(
+                "this visible free function exposes behavior through foreign types without a clear owner",
+            ),
+        }
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        match self {
+            Self::ClearOwner { owner, .. } => Cow::Owned(format!(
+                "callers must discover this `{owner}` operation in a helper namespace instead of through the type it extends"
+            )),
+            Self::AmbiguousOwner { candidates, .. } => {
+                let rendered = candidates.iter().map(|candidate| format!("`{candidate}`"));
+                let candidates = rendered.collect::<Vec<_>>().join(", ");
+                Cow::Owned(format!(
+                    "foreign parameter candidates {candidates} compete for ownership, so the API does not reveal which concept owns the operation"
+                ))
+            }
+        }
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        match self {
+            Self::ClearOwner { owner, .. } => Cow::Owned(format!(
+                "define a focused local extension trait for `{owner}` and colocate this operation with its impl"
+            )),
+            Self::AmbiguousOwner { .. } => Cow::Borrowed(
+                "choose one semantic subject and define a focused extension trait, or introduce a domain object that owns the operation",
+            ),
+        }
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        // Resolve the shared diagnostic anchor before rendering variant-specific messages.
+        let span = match &self {
+            Self::ClearOwner { span, .. } | Self::AmbiguousOwner { span, .. } => *span,
+        };
+
+        // Emit only after the variant-specific diagnostic anchor is resolved.
+        cx.emit_span_lint(
+            FOREIGN_TYPE_METHOD_LIKE_FREE_FUNCTIONS,
+            span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
 
 // -----------------------------------------------------------------------------
 // ForeignTypeMethodLikeFreeFunctions: Lint pass
@@ -67,35 +151,18 @@ impl LateLintPass<'_> for ForeignTypeMethodLikeFreeFunctions {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for finding in self.analyzer.findings(cx) {
-            cx.emit_span_lint(
-                FOREIGN_TYPE_METHOD_LIKE_FREE_FUNCTIONS,
-                finding.span,
-                DiagDecorator(|diag| {
-                    if let [owner] = finding.owners.as_slice() {
-                        diag.primary_message(format!(
-                            "this visible free function behaves like an extension method on `{owner}`"
-                        ));
-                        diag.help(format!(
-                            "define a focused local extension trait for `{owner}` and colocate this operation with its impl"
-                        ));
-                        return;
-                    }
-
-                    let candidates = finding
-                        .candidates
-                        .iter()
-                        .map(|candidate| format!("`{candidate}`"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    diag.primary_message(
-                        "this visible free function exposes behavior through foreign types without a clear owner",
-                    );
-                    diag.note(format!("foreign parameter candidates: {candidates}"));
-                    diag.help(
-                        "choose one semantic subject and define a focused extension trait, or introduce a domain object that owns the operation",
-                    );
-                }),
-            );
+            let violation = if let [owner] = finding.owners.as_slice() {
+                Violation::ClearOwner {
+                    span: finding.span,
+                    owner: *owner,
+                }
+            } else {
+                Violation::AmbiguousOwner {
+                    span: finding.span,
+                    candidates: finding.candidates,
+                }
+            };
+            violation.emit(cx);
         }
     }
 }

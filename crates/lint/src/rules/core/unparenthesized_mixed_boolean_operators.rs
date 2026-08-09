@@ -1,9 +1,67 @@
 extern crate rustc_ast;
 extern crate rustc_errors;
+extern crate rustc_span;
+
+use std::borrow::Cow;
 
 use rustc_ast::ast::{BinOpKind, Expr, ExprKind};
 use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
+use rustc_span::Span;
+
+use crate::utils::diagnostic::EarlyViolation;
+
+// -----------------------------------------------------------------------------
+// Violation: Ambiguous boolean grouping diagnostic
+// -----------------------------------------------------------------------------
+
+/// Authored boolean expression whose direct operand uses the opposite operator.
+struct Violation {
+    /// Complete mixed expression span used as the primary diagnostic location.
+    span: Span,
+    /// Direct mixed operand span shown as the grouping site.
+    mixed_operand_span: Span,
+    /// Outer boolean operator.
+    outer_operator: &'static str,
+    /// Nested opposing boolean operator.
+    inner_operator: &'static str,
+}
+
+impl EarlyViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "this boolean expression mixes `{}` and `{}` without explicit grouping",
+            self.outer_operator, self.inner_operator
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "Rust precedence determines how `{}` binds inside `{}`, but the authored syntax does not make that intention visually explicit",
+            self.inner_operator, self.outer_operator
+        ))
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "parenthesize the `{}` operand to state the intended boolean group",
+            self.inner_operator
+        ))
+    }
+
+    fn emit(self, cx: &EarlyContext<'_>) {
+        cx.emit_span_lint(
+            UNPARENTHESIZED_MIXED_BOOLEAN_OPERATORS,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.span_label(self.mixed_operand_span, "make this nested group explicit");
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
 
 // -----------------------------------------------------------------------------
 // UnparenthesizedMixedBooleanOperators: Boolean grouping policy
@@ -51,26 +109,31 @@ impl EarlyLintPass for UnparenthesizedMixedBooleanOperators {
         if expression.span.from_expansion() {
             return;
         }
+
+        // Resolve the authored outer boolean expression before locating its mixed operand.
         let ExprKind::Binary(operator, left, right) = &expression.kind else {
             return;
         };
-        if !Self::is_boolean(operator.node)
-            || ![left, right]
-                .into_iter()
-                .any(|operand| Self::has_opposite_operator(operand, operator.node))
-        {
+        if !Self::is_boolean(operator.node) {
             return;
         }
 
+        // Identify the direct operand whose opposing operator needs explicit grouping.
+        let Some(mixed_operand) = [left, right]
+            .into_iter()
+            .find(|operand| Self::has_opposite_operator(operand, operator.node))
+        else {
+            return;
+        };
+
         // Report the complete ambiguous expression with explicit grouping guidance.
-        cx.emit_span_lint(
-            UNPARENTHESIZED_MIXED_BOOLEAN_OPERATORS,
-            expression.span,
-            DiagDecorator(|diag| {
-                diag.primary_message("this boolean expression mixes `&&` and `||` without explicit grouping");
-                diag.help("parenthesize the intended boolean groups instead of relying on operator precedence");
-            }),
-        );
+        Violation {
+            span: expression.span,
+            mixed_operand_span: mixed_operand.span,
+            outer_operator: Self::operator_text(operator.node),
+            inner_operator: Self::operator_text(Self::opposite(operator.node)),
+        }
+        .emit(cx);
     }
 }
 
@@ -78,6 +141,24 @@ impl UnparenthesizedMixedBooleanOperators {
     /// Returns whether an operator participates in boolean short-circuiting.
     const fn is_boolean(operator: BinOpKind) -> bool {
         matches!(operator, BinOpKind::And | BinOpKind::Or)
+    }
+
+    /// Returns the opposing short-circuit operator for a validated boolean operator.
+    const fn opposite(operator: BinOpKind) -> BinOpKind {
+        match operator {
+            BinOpKind::And => BinOpKind::Or,
+            BinOpKind::Or => BinOpKind::And,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Renders a validated short-circuit operator in authored Rust syntax.
+    const fn operator_text(operator: BinOpKind) -> &'static str {
+        match operator {
+            BinOpKind::And => "&&",
+            BinOpKind::Or => "||",
+            _ => unreachable!(),
+        }
     }
 
     /// Returns whether a direct operand uses the other boolean operator.

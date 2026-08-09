@@ -6,6 +6,7 @@ LL | type Affected<'a> = &'a [(&'a Participant, NameTokens)];
    |                          |
    |                          the nested tuple hides its component roles
    |
+   = note: the surrounding container explains storage but cannot communicate what each tuple position represents
    = help: replace the tuple with a concept-specific record struct and named fields
 note: the lint level is defined here
   --> $DIR/semantic.rs:1:9
@@ -21,6 +22,7 @@ LL |     affected: Vec<(&'static Participant, NameTokens)>,
    |                   |
    |                   the nested tuple hides its component roles
    |
+   = note: the surrounding container explains storage but cannot communicate what each tuple position represents
    = help: replace the tuple with a concept-specific record struct and named fields
 
 warning: this explicit type contains an unnamed tuple shape
@@ -31,6 +33,7 @@ LL |     input: Option<(&Participant, NameTokens)>,
    |                   |
    |                   the nested tuple hides its component roles
    |
+   = note: the surrounding container explains storage but cannot communicate what each tuple position represents
    = help: replace the tuple with a concept-specific record struct and named fields
 
 warning: this explicit type contains an unnamed tuple shape
@@ -41,6 +44,7 @@ LL | ) -> Result<Vec<(&Participant, NameTokens)>, ()> {
    |                 |
    |                 the nested tuple hides its component roles
    |
+   = note: the surrounding container explains storage but cannot communicate what each tuple position represents
    = help: replace the tuple with a concept-specific record struct and named fields
 
 warning: 4 warnings emitted

@@ -7,6 +7,8 @@ LL | struct Attributed;
 LL | impl Attributed {}
    | ------------------ this impl is outside `Attributed`'s impl group
    |
+   = note: keeping this direct impl block adjacent lets readers and tools understand `Attributed` without searching the module
+   = note: automatic migration is withheld because an impl attribute may carry compilation or formatting semantics
    = help: move this impl block immediately after `Attributed`
    = note: `#[warn(non_adjacent_struct_impls)]` on by default
 
@@ -19,6 +21,8 @@ LL | struct Commented;
 LL | impl Commented {}
    | ----------------- this impl is outside `Commented`'s impl group
    |
+   = note: keeping this direct impl block adjacent lets readers and tools understand `Commented` without searching the module
+   = note: automatic migration is withheld because a nearby comment may belong to the impl block
    = help: move this impl block immediately after `Commented`
 
 warning: impl blocks for `MacroCrossing` should immediately follow its definition
@@ -34,6 +38,8 @@ LL | |     }
 LL | | }
    | |_- this impl is outside `MacroCrossing`'s impl group
    |
+   = note: keeping this direct impl block adjacent lets readers and tools understand `MacroCrossing` without searching the module
+   = note: automatic migration is withheld because moving the impl across a macro definition could change name resolution
    = help: move this impl block immediately after `MacroCrossing`
 
 warning: impl blocks for `Included` should immediately follow its definition
@@ -47,6 +53,8 @@ LL | struct Included;
 LL | impl Included {}
    | ---------------- this impl is outside `Included`'s impl group
    |
+   = note: keeping this direct impl block adjacent lets readers and tools understand `Included` without searching the module
+   = note: automatic migration is unavailable because the struct and impl do not belong to one physical source file
    = help: move this impl block immediately after `Included`
 
 warning: 4 warnings emitted

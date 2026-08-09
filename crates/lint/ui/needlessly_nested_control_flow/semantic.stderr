@@ -8,6 +8,7 @@ LL | |         work();
 LL | |     }
    | |_____^
    |
+   = note: the exceptional path keeps the main operation indented and makes both paths appear equally important
    = help: use the diverging branch as a guard and move the useful work into the surrounding block
 note: the lint level is defined here
   --> $DIR/semantic.rs:1:9
@@ -25,6 +26,7 @@ LL | |         panic!("invalid");
 LL | |     }
    | |_____^
    |
+   = note: the exceptional path keeps the main operation indented and makes both paths appear equally important
    = help: use the diverging branch as a guard and move the useful work into the surrounding block
 
 warning: this trailing condition needlessly wraps the remaining work
@@ -35,6 +37,7 @@ LL | |         work();
 LL | |     }
    | |_____^
    |
+   = note: the exceptional path keeps the main operation indented and makes both paths appear equally important
    = help: invert the condition and use an early `return` before the unwrapped body
 
 warning: this trailing condition needlessly wraps the remaining work
@@ -45,6 +48,7 @@ LL | |         work();
 LL | |     }
    | |_____^
    |
+   = note: the exceptional path keeps the main operation indented and makes both paths appear equally important
    = help: invert the condition and use an early `return` before the unwrapped body
 
 warning: this trailing condition needlessly wraps the remaining work
@@ -55,6 +59,7 @@ LL | |             work();
 LL | |         }
    | |_________^
    |
+   = note: the exceptional path keeps the main operation indented and makes both paths appear equally important
    = help: invert the condition and use an early `continue` before the unwrapped body
 
 warning: 5 warnings emitted

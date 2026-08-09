@@ -1,12 +1,59 @@
 extern crate rustc_errors;
 extern crate rustc_hir;
+extern crate rustc_span;
+
+use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::Block;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_span::Span;
+
+use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
-// RepeatedIdenticalStatements: Accidental repetition policy
+// Violation: Repeated statement diagnostic
+// -----------------------------------------------------------------------------
+
+/// Adjacent authored statements with identical normalized source.
+struct Violation {
+    /// First occurrence that establishes the duplicated operation.
+    first_span: Span,
+    /// Later occurrence receiving the primary diagnostic.
+    repeated_span: Span,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed("this statement exactly repeats its predecessor")
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "adjacent identical statements resemble an accidental copy, while intentional multiplicity remains invisible",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed("remove the duplicate or express intentional multiplicity explicitly")
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.emit_span_lint(
+            REPEATED_IDENTICAL_STATEMENTS,
+            self.repeated_span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.span_label(self.first_span, "the same statement first appears here");
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
+
+// -----------------------------------------------------------------------------
+// RepeatedIdenticalStatements: Lint pass
 // -----------------------------------------------------------------------------
 
 /// Compares neighboring statements within each authored block.
@@ -69,18 +116,12 @@ impl LateLintPass<'_> for RepeatedIdenticalStatements {
                 continue;
             }
 
-            // Report the later statement while identifying its first occurrence.
-            cx.emit_span_lint(
-                REPEATED_IDENTICAL_STATEMENTS,
-                repeated.span,
-                DiagDecorator(|diag| {
-                    diag.primary_message("this statement exactly repeats its predecessor");
-                    diag.span_label(first.span, "the same statement first appears here");
-                    diag.help(
-                        "remove the duplicate or express intentional multiplicity explicitly",
-                    );
-                }),
-            );
+            // Preserve both occurrences for one duplicate-focused diagnostic.
+            Violation {
+                first_span: first.span,
+                repeated_span: repeated.span,
+            }
+            .emit(cx);
         }
     }
 }

@@ -11,6 +11,7 @@ LL | |     }
 LL | | }
    | |_- this impl is outside `Movable`'s impl group
    |
+   = note: keeping this direct impl block adjacent lets readers and tools understand `Movable` without searching the module
    = note: `#[warn(non_adjacent_struct_impls)]` on by default
 help: move this impl block immediately after `Movable`
    |
@@ -32,6 +33,7 @@ LL | fn multiple_separator() {}
 LL | impl Multiple {}
    | ---------------- this impl is outside `Multiple`'s impl group
    |
+   = note: keeping all 2 direct impl blocks adjacent lets readers and tools understand `Multiple` without searching the module
 help: move all 2 impl blocks immediately after `Multiple`
    |
 LL ~ struct Multiple;
@@ -50,6 +52,7 @@ LL | struct Split;
 LL | impl Behavior for Split {}
    | -------------------------- this impl is outside `Split`'s impl group
    |
+   = note: keeping all 2 direct impl blocks adjacent lets readers and tools understand `Split` without searching the module
 help: move all 2 impl blocks immediately after `Split`
    |
 LL ~ struct Split;

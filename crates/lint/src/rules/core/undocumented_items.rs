@@ -2,13 +2,84 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_errors::DiagDecorator;
 use rustc_hir::{FieldDef, HirId, ImplItem, Item, ItemKind, Node, TraitItem, Variant};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{Span, sym};
 
+use crate::utils::diagnostic::LateViolation;
+
 // -----------------------------------------------------------------------------
-// UndocumentedItems
+// Violation: Undocumented declaration diagnostic
+// -----------------------------------------------------------------------------
+
+/// Authored semantic declaration with no documentation contract.
+struct Violation {
+    /// Declaration node used for item-level lint attributes.
+    hir_id: HirId,
+    /// Identifier or declaration extent receiving the diagnostic.
+    span: Span,
+    /// User-facing declaration kind.
+    kind: &'static str,
+}
+
+impl Violation {
+    /// Classifies an authored declaration only when its semantic contract is undocumented.
+    fn from_declaration(
+        cx: &LateContext<'_>,
+        hir_id: HirId,
+        span: Span,
+        kind: &'static str,
+    ) -> Option<Self> {
+        if Self::has_documentation(cx, hir_id) || span.in_external_macro(cx.sess().source_map()) {
+            return None;
+        }
+        Some(Self { hir_id, span, kind })
+    }
+
+    /// Returns whether an item carries any authored `doc` attribute or documentation comment.
+    fn has_documentation(cx: &LateContext<'_>, hir_id: HirId) -> bool {
+        cx.tcx
+            .hir_attrs(hir_id)
+            .iter()
+            .any(|attribute| attribute.is_doc_comment().is_some() || attribute.has_name(sym::doc))
+    }
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!("this {} is missing documentation", self.kind))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "without documentation, readers and agents must infer this {}'s purpose, invariants, and contract from implementation details",
+            self.kind
+        ))
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed("document its purpose, contract, or semantic role")
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.tcx.emit_node_span_lint(
+            UNDOCUMENTED_ITEMS,
+            self.hir_id,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
+
+// -----------------------------------------------------------------------------
+// UndocumentedItems: Lint pass
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that requires semantic declarations to explain their public and internal roles.
@@ -65,38 +136,6 @@ dylint_linting::impl_late_lint! {
 }
 
 impl UndocumentedItems {
-    /// Returns whether an item carries any authored `doc` attribute or documentation comment.
-    fn has_documentation(cx: &LateContext<'_>, hir_id: HirId) -> bool {
-        cx.tcx
-            .hir_attrs(hir_id)
-            .iter()
-            .any(|attribute| attribute.is_doc_comment().is_some() || attribute.has_name(sym::doc))
-    }
-
-    /// Returns whether a source span is controlled by the crate being linted.
-    fn is_authored(cx: &LateContext<'_>, span: Span) -> bool {
-        !span.in_external_macro(cx.sess().source_map())
-    }
-
-    /// Emits one declaration-focused documentation diagnostic.
-    fn emit(cx: &LateContext<'_>, hir_id: HirId, span: Span, kind: &str) {
-        // Ignore documented declarations and source controlled by external expansions.
-        if Self::has_documentation(cx, hir_id) || !Self::is_authored(cx, span) {
-            return;
-        }
-
-        // Request semantic documentation at the declaration's identifier.
-        cx.tcx.emit_node_span_lint(
-            UNDOCUMENTED_ITEMS,
-            hir_id,
-            span,
-            DiagDecorator(|diag| {
-                diag.primary_message(format!("this {kind} is missing documentation"));
-                diag.help("document its purpose, contract, or semantic role");
-            }),
-        );
-    }
-
     /// Classifies module-level declarations governed by this rule.
     fn item_kind(item: &Item<'_>) -> Option<&'static str> {
         Self::type_item_kind(item).or_else(|| Self::value_item_kind(item))
@@ -168,7 +207,12 @@ impl<'tcx> LateLintPass<'tcx> for UndocumentedItems {
         let Some(kind) = Self::item_kind(item) else {
             return;
         };
-        Self::emit(cx, item.hir_id(), Self::item_span(item), kind);
+        let Some(violation) =
+            Violation::from_declaration(cx, item.hir_id(), Self::item_span(item), kind)
+        else {
+            return;
+        };
+        violation.emit(cx);
     }
 
     fn check_field_def(&mut self, cx: &LateContext<'tcx>, field: &'tcx FieldDef<'tcx>) {
@@ -177,21 +221,39 @@ impl<'tcx> LateLintPass<'tcx> for UndocumentedItems {
         } else {
             field.ident.span
         };
-        Self::emit(cx, field.hir_id, span, "field");
+        let Some(violation) = Violation::from_declaration(cx, field.hir_id, span, "field") else {
+            return;
+        };
+        violation.emit(cx);
     }
 
     fn check_variant(&mut self, cx: &LateContext<'tcx>, variant: &'tcx Variant<'tcx>) {
-        Self::emit(cx, variant.hir_id, variant.ident.span, "enum variant");
+        let Some(violation) =
+            Violation::from_declaration(cx, variant.hir_id, variant.ident.span, "enum variant")
+        else {
+            return;
+        };
+        violation.emit(cx);
     }
 
     fn check_trait_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx TraitItem<'tcx>) {
-        Self::emit(cx, item.hir_id(), item.ident.span, "trait item");
+        let Some(violation) =
+            Violation::from_declaration(cx, item.hir_id(), item.ident.span, "trait item")
+        else {
+            return;
+        };
+        violation.emit(cx);
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
         if Self::is_trait_implementation_item(cx, item) {
             return;
         }
-        Self::emit(cx, item.hir_id(), item.ident.span, "inherent impl item");
+        let Some(violation) =
+            Violation::from_declaration(cx, item.hir_id(), item.ident.span, "inherent impl item")
+        else {
+            return;
+        };
+        violation.emit(cx);
     }
 }

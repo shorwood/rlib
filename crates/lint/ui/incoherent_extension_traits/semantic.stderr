@@ -5,6 +5,7 @@ LL | trait BroadExt {
    |       ^^^^^^^^
    |
    = note: its methods operate on multiple concrete subject families: `ExternalItem`, `ExternalType`
+   = note: importing `BroadExt` exposes unrelated or oversized behavior as though it were one coherent extension API
    = help: split the API into extension traits named for one semantic subject or capability
 note: the lint level is defined here
   --> $DIR/semantic.rs:4:9
@@ -19,6 +20,7 @@ LL | trait LargeExt {
    |       ^^^^^^^^
    |
    = note: it defines 9 methods, exceeding the configured limit of 8
+   = note: importing `LargeExt` exposes unrelated or oversized behavior as though it were one coherent extension API
    = help: split the API into extension traits named for one semantic subject or capability
 
 warning: extension trait `BroadBlanketExt` does not describe one focused capability
@@ -28,6 +30,7 @@ LL | trait BroadBlanketExt {
    |       ^^^^^^^^^^^^^^^
    |
    = note: its methods operate on multiple concrete subject families: `ExternalItem`, `ExternalType`
+   = note: importing `BroadBlanketExt` exposes unrelated or oversized behavior as though it were one coherent extension API
    = help: split the API into extension traits named for one semantic subject or capability
 
 warning: 3 warnings emitted

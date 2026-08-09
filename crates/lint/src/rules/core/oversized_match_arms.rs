@@ -2,6 +2,8 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_errors::DiagDecorator;
 use rustc_hir::intravisit::FnKind;
 use rustc_hir::{Body, FnDecl};
@@ -9,7 +11,50 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
+use crate::utils::diagnostic::LateViolation;
 use crate::utils::function_structure::FunctionStructureAnalyzer;
+
+// -----------------------------------------------------------------------------
+// Violation: Oversized match arm diagnostic
+// -----------------------------------------------------------------------------
+
+/// Match arm whose authored implementation exceeds the configured line budget.
+struct Violation {
+    /// Arm body span used as the primary diagnostic location.
+    span: Span,
+    /// Analyzer-derived message containing the measured line count.
+    primary_message: String,
+    /// Analyzer-derived extraction guidance.
+    remediation_message: String,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.primary_message)
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "inline implementation detail obscures the match's role as a readable table of alternatives",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.remediation_message)
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.emit_span_lint(
+            OVERSIZED_MATCH_ARMS,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
 
 // -----------------------------------------------------------------------------
 // OversizedMatchArms
@@ -80,14 +125,12 @@ impl<'tcx> LateLintPass<'tcx> for OversizedMatchArms {
             .analyze_control_flow(cx, body, def_id)
             .oversized_match_arms
         {
-            cx.emit_span_lint(
-                OVERSIZED_MATCH_ARMS,
-                finding.span,
-                DiagDecorator(|diag| {
-                    diag.primary_message(finding.message);
-                    diag.help(finding.help);
-                }),
-            );
+            Violation {
+                span: finding.span,
+                primary_message: finding.message,
+                remediation_message: finding.help,
+            }
+            .emit(cx);
         }
     }
 }

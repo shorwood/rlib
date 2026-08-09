@@ -4,6 +4,7 @@ warning: a private import does not expose anything from this barrel
 LL | use std::fmt;
    | ^^^^^^^^^^^^^
    |
+   = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: remove this import or expose it as a reexport that callers can actually use
    = note: `#[warn(invalid_barrel_file_items)]` on by default
 
@@ -13,6 +14,7 @@ warning: a private import does not expose anything from this barrel
 LL | pub(self) use std::io;
    | ^^^^^^^^^^^^^^^^^^^^^^
    |
+   = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: remove this import or expose it as a reexport that callers can actually use
 
 warning: a private import does not expose anything from this barrel
@@ -21,6 +23,7 @@ warning: a private import does not expose anything from this barrel
 LL | pub(in self) use std::mem;
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
+   = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: remove this import or expose it as a reexport that callers can actually use
 
 warning: an inline module hides implementation code inside a barrel file
@@ -33,6 +36,7 @@ LL | |     struct NestedType;
 LL | | }
    | |_^
    |
+   = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: move the module body to child.rs or child/mod.rs and leave only `mod child;` here
 
 warning: implementation code does not belong in a barrel file
@@ -41,6 +45,7 @@ warning: implementation code does not belong in a barrel file
 LL | fn implementation() {}
    | ^^^^^^^^^^^^^^^^^^^^^^
    |
+   = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: move this code into a dedicated module and leave its declaration or reexport here
 
 warning: implementation code does not belong in a barrel file
@@ -49,6 +54,7 @@ warning: implementation code does not belong in a barrel file
 LL | struct ImplementedHere;
    | ^^^^^^^^^^^^^^^^^^^^^^^
    |
+   = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: move this code into a dedicated module and leave its declaration or reexport here
 
 warning: macro definitions and calls do not belong in a barrel file
@@ -61,6 +67,7 @@ LL | |     };
 LL | | }
    | |_^
    |
+   = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: move the macro elsewhere and spell this barrel's declarations and reexports explicitly
 
 warning: macro definitions and calls do not belong in a barrel file
@@ -69,6 +76,7 @@ warning: macro definitions and calls do not belong in a barrel file
 LL | make_item!();
    | ^^^^^^^^^^^^^
    |
+   = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: move the macro elsewhere and spell this barrel's declarations and reexports explicitly
 
 warning: macro definitions and calls do not belong in a barrel file
@@ -77,6 +85,7 @@ warning: macro definitions and calls do not belong in a barrel file
 LL | include!("included.rs");
    | ^^^^^^^^^^^^^^^^^^^^^^^^
    |
+   = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: move the macro elsewhere and spell this barrel's declarations and reexports explicitly
 
 warning: a private import does not expose anything from this barrel
@@ -85,6 +94,7 @@ warning: a private import does not expose anything from this barrel
 LL | use std::path::Path;
    | ^^^^^^^^^^^^^^^^^^^^
    |
+   = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: remove this import or expose it as a reexport that callers can actually use
 
 warning: implementation code does not belong in a barrel file
@@ -93,6 +103,7 @@ warning: implementation code does not belong in a barrel file
 LL | fn crate_root_implementation() {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
+   = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: move this code into a dedicated module and leave its declaration or reexport here
 
 warning: 11 warnings emitted

@@ -9,6 +9,7 @@ LL | impl owner::Inherent {}
 LL | pub(crate) struct Inherent;
    | -------------------------- `Inherent` is defined in `owner.inc`
    |
+   = note: understanding `Inherent` currently requires searching both `owner.inc` and `implementations.inc` for its behavior
    = help: move this complete impl block into `owner.inc` beside `Inherent`
    = note: `#[warn(cross_file_struct_impls)]` on by default
 
@@ -23,6 +24,7 @@ LL | impl Behavior for owner::Traited {}
 LL | pub(crate) struct Traited;
    | ------------------------- `Traited` is defined in `owner.inc`
    |
+   = note: understanding `Traited` currently requires searching both `owner.inc` and `implementations.inc` for its behavior
    = help: move this complete impl block into `owner.inc` beside `Traited`
 
 warning: impl block for `Aliased` is not colocated with its definition
@@ -36,6 +38,7 @@ LL | impl owner::Alias {}
 LL | pub(crate) struct Aliased;
    | ------------------------- `Aliased` is defined in `owner.inc`
    |
+   = note: understanding `Aliased` currently requires searching both `owner.inc` and `implementations.inc` for its behavior
    = help: move this complete impl block into `owner.inc` beside `Aliased`
 
 warning: impl block for `Generic` is not colocated with its definition
@@ -49,6 +52,7 @@ LL | impl owner::Generic<u8> {}
 LL | pub(crate) struct Generic<T>(pub(crate) T);
    | ---------------------------- `Generic` is defined in `owner.inc`
    |
+   = note: understanding `Generic` currently requires searching both `owner.inc` and `implementations.inc` for its behavior
    = help: move this complete impl block into `owner.inc` beside `Generic`
 
 warning: 4 warnings emitted

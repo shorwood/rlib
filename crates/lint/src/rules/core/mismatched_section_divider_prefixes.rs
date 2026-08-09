@@ -1,11 +1,55 @@
 extern crate rustc_errors;
 extern crate rustc_hir;
+extern crate rustc_span;
+
+use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::{HirId, Mod};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_span::Span;
 
+use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_organization::SectionAnalyzer;
+
+// -----------------------------------------------------------------------------
+// Violation: Mismatched section family diagnostic
+// -----------------------------------------------------------------------------
+
+/// Section whose prefix disagrees with the declarations it claims to organize.
+struct Violation {
+    /// Divider span used as the primary diagnostic site.
+    span: Span,
+    /// Analyzer-derived mismatch summary naming the governed declarations.
+    primary_message: String,
+    /// Naming-first correction derived from the section participants.
+    remediation_message: String,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.primary_message)
+    }
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "the divider advertises a naming family that the governed declarations do not consistently follow",
+        )
+    }
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(&self.remediation_message)
+    }
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.emit_span_lint(
+            MISMATCHED_SECTION_DIVIDER_PREFIXES,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
 
 // -----------------------------------------------------------------------------
 // MismatchedSectionDividerPrefixes
@@ -86,14 +130,12 @@ dylint_linting::impl_late_lint! {
 impl<'tcx> LateLintPass<'tcx> for MismatchedSectionDividerPrefixes {
     fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, hir_id: HirId) {
         for finding in self.analyzer.analyze(cx, module, hir_id).mismatches {
-            cx.emit_span_lint(
-                MISMATCHED_SECTION_DIVIDER_PREFIXES,
-                finding.span,
-                DiagDecorator(|diag| {
-                    diag.primary_message(finding.message);
-                    diag.help(finding.help);
-                }),
-            );
+            Violation {
+                span: finding.span,
+                primary_message: finding.message,
+                remediation_message: finding.help,
+            }
+            .emit(cx);
         }
     }
 }

@@ -4,6 +4,7 @@ warning: this explicit tuple type leaves component roles unnamed
 LL | type PartitionAlias = (Accepted, Rejected);
    |                       ^^^^^^^^^^^^^^^^^^^^
    |
+   = note: callers must repeatedly infer each position, and reordered components remain type-compatible
    = help: introduce a concept-specific record struct with a meaningful name and named fields
 note: the lint level is defined here
   --> $DIR/semantic.rs:1:9
@@ -17,6 +18,7 @@ warning: this explicit tuple type leaves component roles unnamed
 LL |     partition: (Accepted, Rejected),
    |                ^^^^^^^^^^^^^^^^^^^^
    |
+   = note: callers must repeatedly infer each position, and reordered components remain type-compatible
    = help: introduce a concept-specific record struct with a meaningful name and named fields
 
 warning: this explicit tuple type leaves component roles unnamed
@@ -25,6 +27,7 @@ warning: this explicit tuple type leaves component roles unnamed
 LL | fn partition(input: (Accepted, Rejected)) -> (Accepted, Rejected) {
    |                     ^^^^^^^^^^^^^^^^^^^^
    |
+   = note: callers must repeatedly infer each position, and reordered components remain type-compatible
    = help: introduce a concept-specific record struct with a meaningful name and named fields
 
 warning: this explicit tuple type leaves component roles unnamed
@@ -33,6 +36,7 @@ warning: this explicit tuple type leaves component roles unnamed
 LL | fn partition(input: (Accepted, Rejected)) -> (Accepted, Rejected) {
    |                                              ^^^^^^^^^^^^^^^^^^^^
    |
+   = note: callers must repeatedly infer each position, and reordered components remain type-compatible
    = help: introduce a concept-specific record struct with a meaningful name and named fields
 
 warning: this explicit tuple type leaves component roles unnamed
@@ -41,6 +45,7 @@ warning: this explicit tuple type leaves component roles unnamed
 LL |     let annotated: (Accepted, Rejected) = input;
    |                    ^^^^^^^^^^^^^^^^^^^^
    |
+   = note: callers must repeatedly infer each position, and reordered components remain type-compatible
    = help: introduce a concept-specific record struct with a meaningful name and named fields
 
 warning: this explicit tuple type leaves component roles unnamed
@@ -49,6 +54,7 @@ warning: this explicit tuple type leaves component roles unnamed
 LL |     let closure = |value: (Accepted, Rejected)| value;
    |                           ^^^^^^^^^^^^^^^^^^^^
    |
+   = note: callers must repeatedly infer each position, and reordered components remain type-compatible
    = help: introduce a concept-specific record struct with a meaningful name and named fields
 
 warning: 6 warnings emitted

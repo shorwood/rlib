@@ -6,13 +6,13 @@ LL | |     (unsafe { foreign_value() }) + callback(Anchor) + child::VALUE + LIMI
 LL | | }
    | |_^ first declaration out of order
    |
-   = note: expected declaration order: `Anchor`, `child`, `extern block`, `LIMIT`, `run`, `main`
+   = note: the first misplaced declaration requires forward navigation; the resolved dependency-first order is `Anchor`, `child`, `extern block`, `LIMIT`, `run`, `main`
 note: the lint level is defined here
   --> $DIR/semantic.rs:6:9
    |
 LL | #![warn(misordered_module_declarations)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-help: reorder these declarations
+help: move complete declaration groups into this order: `Anchor`, `child`, `extern block`, `LIMIT`, `run`, `main`
    |
 LL + struct Anchor;
 LL + 

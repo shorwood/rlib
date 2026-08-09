@@ -196,4 +196,30 @@ macro_rules! generated_function {
 
 generated_function!();
 
+fn declarative_mapping(value: u8) -> &'static str {
+    match value {
+        0 => "zero",
+        1 => "one",
+        2 => "two",
+        3 => "three",
+        4 => "four",
+        5 => "five",
+        6 => "six",
+        _ => "many",
+    }
+}
+
+fn guarded_mapping(value: u8) -> &'static str {
+    match value {
+        0 if value.is_power_of_two() => "zero",
+        1 => "one",
+        2 => "two",
+        3 => "three",
+        4 => "four",
+        5 => "five",
+        6 => "six",
+        _ => "many",
+    }
+}
+
 fn main() {}

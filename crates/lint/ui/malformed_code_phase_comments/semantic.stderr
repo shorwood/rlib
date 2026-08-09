@@ -4,6 +4,7 @@ warning: this code phase comment is not canonical
 LL |     //
    |     ^^
    |
+   = note: inconsistent phase markers make workflow boundaries harder for readers and tools to recognize reliably
    = help: use `//` followed by concise sentence-style prose immediately before the phase
 note: the lint level is defined here
   --> $DIR/semantic.rs:1:9
@@ -16,12 +17,16 @@ warning: this code phase comment is not canonical
    |
 LL |     // THIS IS LOUD
    |     ^^^^^^^^^^^^^^^ help: render this phase comment canonically: `// This is loud`
+   |
+   = note: inconsistent phase markers make workflow boundaries harder for readers and tools to recognize reliably
 
 warning: this code phase comment is not canonical
   --> $DIR/semantic.rs:15:5
    |
 LL |     //  Normalize prefix spacing
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: render this phase comment canonically: `// Normalize prefix spacing`
+   |
+   = note: inconsistent phase markers make workflow boundaries harder for readers and tools to recognize reliably
 
 warning: this code phase comment must immediately precede its phase
   --> $DIR/semantic.rs:20:5
@@ -29,6 +34,7 @@ warning: this code phase comment must immediately precede its phase
 LL |     // Prepare the value.
    |     ^^^^^^^^^^^^^^^^^^^^^
    |
+   = note: inconsistent phase markers make workflow boundaries harder for readers and tools to recognize reliably
    = help: use `//` followed by concise sentence-style prose immediately before the phase
 
 warning: this code phase comment must be preceded by a blank line
@@ -37,6 +43,7 @@ warning: this code phase comment must be preceded by a blank line
 LL |     // Prepare the second value.
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
+   = note: inconsistent phase markers make workflow boundaries harder for readers and tools to recognize reliably
    = help: use `//` followed by concise sentence-style prose immediately before the phase
 
 warning: 5 warnings emitted

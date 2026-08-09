@@ -7,6 +7,7 @@ LL | fn target(value: u32) -> u32 {
 LL | fn direct(value: u32) -> u32 {
    |    ^^^^^^ delete this useless indirection
    |
+   = note: `direct` adds an API and navigation layer without changing the behavior of `target`
    = help: remove `direct` and update its callers to invoke `target` directly; move its documentation or adjust the target's name and visibility if needed
    = note: `#[warn(needless_function_wrappers)]` on by default
 
@@ -19,6 +20,7 @@ LL | fn target(value: u32) -> u32 {
 LL | fn explicit_return(value: u32) -> u32 {
    |    ^^^^^^^^^^^^^^^ delete this useless indirection
    |
+   = note: `explicit_return` adds an API and navigation layer without changing the behavior of `target`
    = help: remove `explicit_return` and update its callers to invoke `target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `no_arguments` is a redundant forwarding wrapper
@@ -30,6 +32,7 @@ LL | fn no_arguments_target() -> u32 {
 LL | fn no_arguments() -> u32 {
    |    ^^^^^^^^^^^^ delete this useless indirection
    |
+   = note: `no_arguments` adds an API and navigation layer without changing the behavior of `no_arguments_target`
    = help: remove `no_arguments` and update its callers to invoke `no_arguments_target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `generic` is a redundant forwarding wrapper
@@ -41,6 +44,7 @@ LL | fn generic_target<T>(value: T) -> T {
 LL | fn generic<T>(value: T) -> T {
    |    ^^^^^^^ delete this useless indirection
    |
+   = note: `generic` adds an API and navigation layer without changing the behavior of `generic_target`
    = help: remove `generic` and update its callers to invoke `generic_target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `cross_file` is a redundant forwarding wrapper
@@ -54,6 +58,7 @@ LL | fn cross_file(value: u32) -> u32 {
 LL | pub(crate) fn remote_target(value: u32) -> u32 {
    | ---------------------------------------------- forwarded implementation `remote::remote_target`
    |
+   = note: `cross_file` adds an API and navigation layer without changing the behavior of `remote::remote_target`
    = help: remove `cross_file` and update its callers to invoke `remote::remote_target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `documented_facade` is a redundant forwarding wrapper
@@ -65,6 +70,7 @@ LL | fn target(value: u32) -> u32 {
 LL | pub fn documented_facade(value: u32) -> u32 {
    |        ^^^^^^^^^^^^^^^^^ delete this useless indirection
    |
+   = note: `documented_facade` adds an API and navigation layer without changing the behavior of `target`
    = help: remove `documented_facade` and update its callers to invoke `target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `public_facade` is a redundant forwarding wrapper
@@ -76,6 +82,7 @@ LL | fn target(value: u32) -> u32 {
 LL | pub fn public_facade(value: u32) -> u32 {
    |        ^^^^^^^^^^^^^ delete this useless indirection
    |
+   = note: `public_facade` adds an API and navigation layer without changing the behavior of `target`
    = help: remove `public_facade` and update its callers to invoke `target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `private_documented` is a redundant forwarding wrapper
@@ -87,6 +94,7 @@ LL | fn target(value: u32) -> u32 {
 LL | fn private_documented(value: u32) -> u32 {
    |    ^^^^^^^^^^^^^^^^^^ delete this useless indirection
    |
+   = note: `private_documented` adds an API and navigation layer without changing the behavior of `target`
    = help: remove `private_documented` and update its callers to invoke `target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `chain_middle` is a redundant forwarding wrapper
@@ -98,6 +106,7 @@ LL | fn target(value: u32) -> u32 {
 LL | fn chain_middle(value: u32) -> u32 {
    |    ^^^^^^^^^^^^ delete this useless indirection
    |
+   = note: `chain_middle` adds an API and navigation layer without changing the behavior of `target`
    = help: remove `chain_middle` and update its callers to invoke `target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `chain_facade` is a redundant forwarding wrapper
@@ -109,6 +118,7 @@ LL | fn chain_middle(value: u32) -> u32 {
 LL | fn chain_facade(value: u32) -> u32 {
    |    ^^^^^^^^^^^^ delete this useless indirection
    |
+   = note: `chain_facade` adds an API and navigation layer without changing the behavior of `chain_middle`
    = help: remove `chain_facade` and update its callers to invoke `chain_middle` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `async_direct` is a redundant forwarding wrapper
@@ -120,6 +130,7 @@ LL | async fn async_target(value: u32) -> u32 {
 LL | async fn async_direct(value: u32) -> u32 {
    |          ^^^^^^^^^^^^ delete this useless indirection
    |
+   = note: `async_direct` adds an API and navigation layer without changing the behavior of `async_target`
    = help: remove `async_direct` and update its callers to invoke `async_target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `method` is a redundant forwarding wrapper
@@ -131,6 +142,7 @@ LL |     fn target(&self, value: u32) -> u32 {
 LL |     fn method(&self, value: u32) -> u32 {
    |        ^^^^^^ delete this useless indirection
    |
+   = note: `method` adds an API and navigation layer without changing the behavior of `Service::target`
    = help: remove `method` and update its callers to invoke `Service::target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `associated` is a redundant forwarding wrapper
@@ -142,6 +154,7 @@ LL |     fn associated_target(value: u32) -> u32 {
 LL |     fn associated(value: u32) -> u32 {
    |        ^^^^^^^^^^ delete this useless indirection
    |
+   = note: `associated` adds an API and navigation layer without changing the behavior of `Service::associated_target`
    = help: remove `associated` and update its callers to invoke `Service::associated_target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `async_method` is a redundant forwarding wrapper
@@ -153,6 +166,7 @@ LL |     async fn async_target(&self, value: u32) -> u32 {
 LL |     async fn async_method(&self, value: u32) -> u32 {
    |              ^^^^^^^^^^^^ delete this useless indirection
    |
+   = note: `async_method` adds an API and navigation layer without changing the behavior of `Service::async_target`
    = help: remove `async_method` and update its callers to invoke `Service::async_target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `method_from_separate_impl` is a redundant forwarding wrapper
@@ -164,6 +178,7 @@ LL |     fn target(&self, value: u32) -> u32 {
 LL |     fn method_from_separate_impl(&self, value: u32) -> u32 {
    |        ^^^^^^^^^^^^^^^^^^^^^^^^^ delete this useless indirection
    |
+   = note: `method_from_separate_impl` adds an API and navigation layer without changing the behavior of `Service::target`
    = help: remove `method_from_separate_impl` and update its callers to invoke `Service::target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: 15 warnings emitted

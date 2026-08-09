@@ -1,35 +1,38 @@
-warning: boolean parameter `minify` hides a policy choice at call sites
+warning: boolean parameter `minify` hides its alternatives at call sites
   --> $DIR/semantic.rs:12:11
    |
 LL | fn render(minify: bool) {}
    |           ^^^^^^
    |
-   = help: replace the flag with a semantic enum that names both choices
+   = note: callers otherwise see only `true` or `false` instead of the behavior selected by `minify`
+   = help: replace `minify: bool` with an enum whose type and variants name the policy choices
 note: the lint level is defined here
   --> $DIR/semantic.rs:3:9
    |
 LL | #![warn(boolean_function_arguments)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-warning: multiple boolean parameters hide independent policy choices
+warning: 2 boolean parameters create an unreadable positional flag combination
   --> $DIR/semantic.rs:14:11
    |
 LL | fn export(pretty: bool, include_metadata: Flag) {}
-   |           ^^^^^^        ---------------- boolean policy `include_metadata`
+   |           ^^^^^^        ---------------- `include_metadata` is a positional policy choice
    |           |
-   |           boolean policy `pretty`
+   |           `pretty` is a positional policy choice
    |
-   = help: collect these decisions in a named options type
+   = note: positional boolean arguments can be swapped without a type error and do not reveal which choice each literal controls
+   = help: collect these choices in a named options type, using enums for choices that are not true predicates
 
-warning: boolean parameter `value` hides a policy choice at call sites
+warning: boolean parameter `value` hides its alternatives at call sites
   --> $DIR/semantic.rs:18:27
    |
 LL | fn set_enabled_indirectly(value: bool) {}
    |                           ^^^^^
    |
-   = help: replace the flag with a semantic enum that names both choices
+   = note: callers otherwise see only `true` or `false` instead of the behavior selected by `value`
+   = help: replace `value: bool` with an enum whose type and variants name the policy choices
 
-warning: boolean parameter `pretty` hides a policy choice at call sites
+warning: boolean parameter `pretty` hides its alternatives at call sites
   --> $DIR/semantic.rs:26:25
    |
 LL |         fn local_render(pretty: bool) {}
@@ -38,16 +41,18 @@ LL |         fn local_render(pretty: bool) {}
 LL | local_boolean_signature!();
    | -------------------------- in this macro invocation
    |
-   = help: replace the flag with a semantic enum that names both choices
+   = note: callers otherwise see only `true` or `false` instead of the behavior selected by `pretty`
+   = help: replace `pretty: bool` with an enum whose type and variants name the policy choices
    = note: this warning originates in the macro `local_boolean_signature` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-warning: boolean parameter `minify` hides a policy choice at call sites
+warning: boolean parameter `minify` hides its alternatives at call sites
   --> $DIR/semantic.rs:34:18
    |
 LL |     fn configure(minify: bool);
    |                  ^^^^^^
    |
-   = help: replace the flag with a semantic enum that names both choices
+   = note: callers otherwise see only `true` or `false` instead of the behavior selected by `minify`
+   = help: replace `minify: bool` with an enum whose type and variants name the policy choices
 
 warning: 5 warnings emitted
 

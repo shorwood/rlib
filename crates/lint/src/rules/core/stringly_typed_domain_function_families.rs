@@ -2,6 +2,8 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_errors::DiagDecorator;
 use rustc_hir::intravisit::FnKind;
 use rustc_hir::{Body, FieldDef, FnDecl, Item};
@@ -9,8 +11,78 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
+use crate::utils::diagnostic::LateViolation;
 use crate::utils::parameter_analysis::ParameterSignature;
-use crate::utils::string_domain_analysis::DomainAnalyzer;
+use crate::utils::string_domain_analysis::{DomainAnalyzer, DomainFindingLabel};
+
+// -----------------------------------------------------------------------------
+// Violation: String domain family diagnostic
+// -----------------------------------------------------------------------------
+
+/// Declarations collectively acting as a missing string-backed domain type.
+struct Violation {
+    /// Primary declaration span for the inferred family.
+    span: Span,
+    /// Inferred domain type name used throughout the diagnostic.
+    domain: String,
+    /// Existing same-module type that can own the remaining behavior.
+    existing_type: Option<String>,
+    /// Declaration-specific evidence supporting the inferred family.
+    labels: Vec<DomainFindingLabel>,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "these declarations collectively define a stringly typed `{}` domain",
+            self.domain
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "the `{}` concept has related invariant and behavior but no single type owns or exposes them",
+            self.domain
+        ))
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        self.existing_type.as_ref().map_or_else(
+            || {
+                Cow::Owned(format!(
+                    "introduce a string-backed `{}` type and move its invariant and behavior onto that type",
+                    self.domain
+                ))
+            },
+            |existing_type| {
+                Cow::Owned(format!(
+                "accept the existing `{existing_type}` type and move the remaining domain behavior onto it"
+                ))
+            },
+        )
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        // Render the stable diagnostic layers before moving declaration labels.
+        let primary_message = self.primary_message().into_owned();
+        let rationale_message = self.rationale_message().into_owned();
+        let remediation_message = self.remediation_message().into_owned();
+
+        // Emit the stable layers before consuming declaration-specific labels.
+        cx.emit_span_lint(
+            STRINGLY_TYPED_DOMAIN_FUNCTION_FAMILIES,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(primary_message);
+                for label in self.labels {
+                    diag.span_label(label.span, label.message);
+                }
+                diag.note(rationale_message);
+                diag.help(remediation_message);
+            }),
+        );
+    }
+}
 
 // -----------------------------------------------------------------------------
 // StringlyTypedDomainFunctionFamilies
@@ -89,29 +161,13 @@ impl<'tcx> LateLintPass<'tcx> for StringlyTypedDomainFunctionFamilies {
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         for finding in self.analyzer.family_findings() {
-            cx.emit_span_lint(
-                STRINGLY_TYPED_DOMAIN_FUNCTION_FAMILIES,
-                finding.span,
-                DiagDecorator(|diag| {
-                    diag.primary_message(format!(
-                        "these declarations collectively define a stringly typed `{}` domain",
-                        finding.domain
-                    ));
-                    for label in finding.labels {
-                        diag.span_label(label.span, label.message);
-                    }
-                    if let Some(existing_type) = finding.existing_type {
-                        diag.help(format!(
-                            "accept the existing `{existing_type}` type and move the remaining domain behavior onto it"
-                        ));
-                    } else {
-                        diag.help(format!(
-                            "introduce a string-backed `{}` type and move its invariant and behavior onto that type",
-                            finding.domain
-                        ));
-                    }
-                }),
-            );
+            Violation {
+                span: finding.span,
+                domain: finding.domain,
+                existing_type: finding.existing_type,
+                labels: finding.labels,
+            }
+            .emit(cx);
         }
     }
 }

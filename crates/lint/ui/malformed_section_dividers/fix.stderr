@@ -6,6 +6,7 @@ LL | | // Request : request handling
 LL | | // -----------------------------------------------------------------------------
    | |________________________________________________________________________________^
    |
+   = note: well-formed, nonempty, consistently sized dividers give readers and tools predictable navigation landmarks
 note: the lint level is defined here
   --> $DIR/fix.rs:3:9
    |

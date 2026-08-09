@@ -1,6 +1,7 @@
 pub mod config;
 pub mod declaration_node;
 mod dependency_collector;
+pub mod diagnostic;
 pub mod impl_target;
 pub mod identifier_case;
 pub mod impl_item_dependencies;

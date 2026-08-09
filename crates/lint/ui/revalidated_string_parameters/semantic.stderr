@@ -7,6 +7,7 @@ LL | fn send_invitation(email: &str) -> Result<(), ()> {
 LL | fn subscribe(email: &str) -> Result<(), ()> {
    |              ----- `subscribe` re-establishes `Email` invariants for `email`
    |
+   = note: the `Email` invariant can drift or be bypassed because validity is not represented by the accepted type
    = help: introduce the domain type `Email` with private storage, establish its invariant during construction, and accept that type downstream
 note: the lint level is defined here
   --> $DIR/semantic.rs:1:9
@@ -23,6 +24,7 @@ LL | fn publish(slug: &str) -> Result<(), ()> {
 LL | fn archive(slug: &str) -> Result<(), ()> {
    |            ---- `archive` re-establishes `Slug` invariants for `slug`
    |
+   = note: the `Slug` invariant can drift or be bypassed because validity is not represented by the accepted type
    = help: introduce the domain type `Slug` with private storage, establish its invariant during construction, and accept that type downstream
 
 warning: 2 warnings emitted

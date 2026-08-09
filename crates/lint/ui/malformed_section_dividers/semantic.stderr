@@ -6,6 +6,7 @@ LL | | // request
 LL | | // -----------------------------------------------------------------------------
    | |________________________________________________________________________________^
    |
+   = note: well-formed, nonempty, consistently sized dividers give readers and tools predictable navigation landmarks
    = help: use `PascalCasePrefix` or `PascalCasePrefix: Sentence case description`
 note: the lint level is defined here
   --> $DIR/semantic.rs:2:9
@@ -21,6 +22,7 @@ LL | | // Empty:
 LL | | // -----------------------------------------------------------------------------
    | |________________________________________________________________________________^
    |
+   = note: well-formed, nonempty, consistently sized dividers give readers and tools predictable navigation landmarks
    = help: use `PascalCasePrefix` or `PascalCasePrefix: Sentence case description`
 
 warning: section divider exceeds the configured 80-character line limit
@@ -31,6 +33,7 @@ LL | | // LongDescription: This description is deliberately much too long for th
 LL | | // -----------------------------------------------------------------------------
    | |________________________________________________________________________________^
    |
+   = note: well-formed, nonempty, consistently sized dividers give readers and tools predictable navigation landmarks
    = help: shorten the optional description or choose a more compact template
 
 warning: section divider does not contain any module declarations
@@ -41,6 +44,7 @@ LL | | // Vacant
 LL | | // -----------------------------------------------------------------------------
    | |________________________________________________________________________________^
    |
+   = note: well-formed, nonempty, consistently sized dividers give readers and tools predictable navigation landmarks
    = help: remove this divider or place it before the declarations it describes
 
 warning: 4 warnings emitted
