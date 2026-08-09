@@ -13,6 +13,9 @@ use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 
+/// Exact variant count governed by the binary-classification policy.
+const BINARY_ENUM_VARIANT_COUNT: usize = 2;
+
 // -----------------------------------------------------------------------------
 // Violation: Externally owned binary enum classification
 // -----------------------------------------------------------------------------
@@ -191,7 +194,7 @@ impl LateLintPass<'_> for UnencapsulatedBinaryEnumClassification {
         // Validate the complete enum shape instead of inferring it from the selected branches.
         let enum_def = cx.tcx.adt_def(enum_definition.to_def_id());
         if !enum_def.is_enum()
-            || enum_def.variants().len() != 2
+            || enum_def.variants().len() != BINARY_ENUM_VARIANT_COUNT
             || enum_def
                 .variants()
                 .iter()

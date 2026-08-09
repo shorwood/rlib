@@ -25,6 +25,11 @@ pub fn to_pascal(value: &str) -> String {
     value.to_case(Case::Pascal)
 }
 
+/// Converts identifier text to canonical `UPPER_SNAKE_CASE`.
+pub fn to_upper_snake(value: &str) -> String {
+    value.to_case(Case::UpperSnake)
+}
+
 /// Checks whether identifier text is canonical `PascalCase`.
 pub fn is_pascal(value: &str) -> bool {
     !value.is_empty() && to_pascal(value) == value
@@ -44,6 +49,10 @@ pub fn words(value: &str) -> Vec<String> {
 pub fn pascal_words(value: &str) -> Vec<String> {
     IdentifierWords::from_case(value, Case::Pascal)
 }
+
+// -----------------------------------------------------------------------------
+// LongestCommonPascalPrefix: Shared identifier families
+// -----------------------------------------------------------------------------
 
 /// Finds the longest shared canonical `PascalCase` word prefix.
 pub fn longest_common_pascal_prefix(names: &[&str]) -> Option<String> {
@@ -73,7 +82,7 @@ pub fn longest_common_pascal_prefix(names: &[&str]) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_pascal, longest_common_pascal_prefix, pascal_words, words};
+    use super::{is_pascal, longest_common_pascal_prefix, pascal_words, to_upper_snake, words};
 
     #[test]
     fn understands_rust_identifier_boundaries() {
@@ -89,6 +98,11 @@ mod tests {
         assert!(is_pascal("HttpServerConfig"));
         assert!(!is_pascal("HTTPServerConfig"));
         assert!(!is_pascal("http_server_config"));
+    }
+
+    #[test]
+    fn renders_constant_identifiers() {
+        assert_eq!(to_upper_snake("deliveryRetryLimit"), "DELIVERY_RETRY_LIMIT");
     }
 
     #[test]

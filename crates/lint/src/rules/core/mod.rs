@@ -42,5 +42,6 @@ pub mod results_converted_to_options;
 pub mod stringly_typed_domain_function_families;
 pub mod undocumented_items;
 pub mod unencapsulated_binary_enum_classification;
+pub mod unnamed_policy_literals;
 pub mod unseparated_associated_items;
 pub mod unparenthesized_mixed_boolean_operators;

@@ -1,6 +1,6 @@
 //! UI regression tests for every default-configuration lint fixture.
 
-const CROSS_CUTTING_LINT_ALLOWS: [&str; 72] = [
+const CROSS_CUTTING_LINT_ALLOWS: [&str; 74] = [
     "-A",
     "ad_hoc_conversions",
     "-A",
@@ -69,6 +69,8 @@ const CROSS_CUTTING_LINT_ALLOWS: [&str; 72] = [
     "undocumented_items",
     "-A",
     "unencapsulated_binary_enum_classification",
+    "-A",
+    "unnamed_policy_literals",
     "-A",
     "unseparated_associated_items",
     "-A",

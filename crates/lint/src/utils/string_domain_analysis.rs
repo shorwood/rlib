@@ -16,6 +16,9 @@ use super::parameter_kind::{ParameterKind, ParameterTypeExt};
 use super::string_domain_revalidation::StringDomainBodyExt;
 use super::string_domain_vocabulary::StringDomainSymbolExt;
 
+/// Smallest consumer family that proves repeated domain revalidation.
+const MIN_REVALIDATION_CONSUMER_COUNT: usize = 2;
+
 // -----------------------------------------------------------------------------
 // DomainFinding: String domain diagnostics
 // -----------------------------------------------------------------------------
@@ -439,7 +442,7 @@ impl DomainAnalyzer {
         for (key, evidence) in self.revalidation_groups() {
             let distinct = evidence.iter().map(|item| item.consumer.def_id);
             let distinct = distinct.collect::<HashSet<_>>();
-            if family_keys.contains(&key) || distinct.len() < 2 {
+            if family_keys.contains(&key) || distinct.len() < MIN_REVALIDATION_CONSUMER_COUNT {
                 continue;
             }
             definitions.extend(distinct);

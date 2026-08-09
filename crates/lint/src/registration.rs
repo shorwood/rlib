@@ -81,6 +81,7 @@ pub extern "Rust" fn register_lints(
     // Register documentation, construction ownership, and item-layout policies.
     rules::core::undocumented_items::register_lints(sess, lint_store);
     rules::core::unencapsulated_binary_enum_classification::register_lints(sess, lint_store);
+    rules::core::unnamed_policy_literals::register_lints(sess, lint_store);
     rules::core::unseparated_associated_items::register_lints(sess, lint_store);
     rules::core::unparenthesized_mixed_boolean_operators::register_lints(sess, lint_store);
 }

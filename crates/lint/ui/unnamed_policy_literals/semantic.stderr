@@ -1,0 +1,205 @@
+warning: literal `3` encodes an unnamed retry bound
+  --> $DIR/semantic.rs:47:24
+   |
+LL |     for _attempt in 0..3 {
+   |                        ^
+   |
+   = note: this range bounds repeated execution of a fallible operation; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+note: the lint level is defined here
+  --> $DIR/semantic.rs:7:9
+   |
+LL | #![warn(unnamed_policy_literals)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: literal `4` encodes an unnamed retry bound
+  --> $DIR/semantic.rs:51:33
+   |
+LL |     let max_delivery_attempts = 4;
+   |                                 ^
+   |
+   = note: this range bounds repeated execution of a fallible operation; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant such as `MAX_DELIVERY_ATTEMPTS` and use it here; preserve the controlled operation and unit in the name
+
+warning: literal `11` encodes an unnamed retry bound
+  --> $DIR/semantic.rs:56:17
+   |
+LL |     let bound = 11;
+   |                 ^^
+   |
+   = note: this range bounds repeated execution of a fallible operation; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `250` encodes an unnamed timing policy
+  --> $DIR/semantic.rs:64:40
+   |
+LL |     let _delay = Duration::from_millis(250);
+   |                                        ^^^
+   |
+   = note: argument 1 to `std::time::Duration::from_millis` controls its timing policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `2 * 60` encodes an unnamed timing policy
+  --> $DIR/semantic.rs:65:47
+   |
+LL |     let _computed_delay = Duration::from_secs(2 * 60);
+   |                                               ^^^^^^
+   |
+   = note: argument 1 to `std::time::Duration::from_secs` controls its timing policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `-2.5` encodes an unnamed timing policy
+  --> $DIR/semantic.rs:66:51
+   |
+LL |     let _negative_delay = Duration::from_secs_f64(-2.5);
+   |                                                   ^^^^
+   |
+   = note: argument 1 to `std::time::Duration::from_secs_f64` controls its timing policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `64` encodes an unnamed capacity policy
+  --> $DIR/semantic.rs:67:47
+   |
+LL |     let mut values = Vec::<u8>::with_capacity(64);
+   |                                               ^^
+   |
+   = note: argument 1 to `std::vec::Vec::<T>::with_capacity` controls its capacity policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `32` encodes an unnamed capacity policy
+  --> $DIR/semantic.rs:68:26
+   |
+LL |     values.reserve_exact(32);
+   |                          ^^
+   |
+   = note: argument 1 to `std::vec::Vec::<T, A>::reserve_exact` controls its capacity policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `16` encodes an unnamed truncation policy
+  --> $DIR/semantic.rs:69:21
+   |
+LL |     values.truncate(16);
+   |                     ^^
+   |
+   = note: argument 1 to `std::vec::Vec::<T, A>::truncate` controls its truncation policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `5` encodes an unnamed pagination policy
+  --> $DIR/semantic.rs:70:36
+   |
+LL |     let _page = values.iter().skip(5).take(10);
+   |                                    ^
+   |
+   = note: argument 1 to `std::iter::Iterator::skip` controls its pagination policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `10` encodes an unnamed pagination policy
+  --> $DIR/semantic.rs:70:44
+   |
+LL |     let _page = values.iter().skip(5).take(10);
+   |                                            ^^
+   |
+   = note: argument 1 to `std::iter::Iterator::take` controls its pagination policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `8` encodes an unnamed capacity policy
+  --> $DIR/semantic.rs:71:56
+   |
+LL |     let _channel = std::sync::mpsc::sync_channel::<u8>(8);
+   |                                                        ^
+   |
+   = note: argument 1 to `std::sync::mpsc::sync_channel` controls its capacity policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `6` encodes an unnamed concurrency policy
+  --> $DIR/semantic.rs:72:44
+   |
+LL |     let _barrier = std::sync::Barrier::new(6);
+   |                                            ^
+   |
+   = note: argument 1 to `std::sync::Barrier::new` controls its concurrency policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `20` encodes an unnamed concurrency policy
+  --> $DIR/semantic.rs:76:50
+   |
+LL |     let _semaphore = tokio::sync::Semaphore::new(20);
+   |                                                  ^^
+   |
+   = note: argument 1 to `tokio::sync::Semaphore::new` controls its concurrency policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `24` encodes an unnamed capacity policy
+  --> $DIR/semantic.rs:77:53
+   |
+LL |     let _channel = tokio::sync::mpsc::channel::<u8>(24);
+   |                                                     ^^
+   |
+   = note: argument 1 to `tokio::sync::mpsc::channel` controls its capacity policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `12` encodes an unnamed concurrency policy
+  --> $DIR/semantic.rs:78:49
+   |
+LL |     let _buffered = vec![1_u8].buffer_unordered(12);
+   |                                                 ^^
+   |
+   = note: argument 1 to `futures_util::StreamExt::buffer_unordered` controls its concurrency policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `6` encodes an unnamed concurrency policy
+  --> $DIR/semantic.rs:79:61
+   |
+LL |     let _pool = rayon::ThreadPoolBuilder::new().num_threads(6);
+   |                                                             ^
+   |
+   = note: argument 1 to `rayon::ThreadPoolBuilder::num_threads` controls its concurrency policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `32` encodes an unnamed capacity policy
+  --> $DIR/semantic.rs:80:53
+   |
+LL |     let _bounded = crossbeam_channel::bounded::<u8>(32);
+   |                                                     ^^
+   |
+   = note: argument 1 to `crossbeam_channel::bounded` controls its capacity policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `5` encodes an unnamed retry bound
+  --> $DIR/semantic.rs:85:23
+   |
+LL |         max_attempts: 5,
+   |                       ^
+   |
+   = note: field `DeliveryPolicy::max_attempts` stores a literal-backed retry bound; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant such as `MAX_DELIVERY_ATTEMPTS` and use it here; preserve the controlled operation and unit in the name
+
+warning: literal `30` encodes an unnamed timing policy
+  --> $DIR/semantic.rs:86:38
+   |
+LL |         timeout: Duration::from_secs(30),
+   |                                      ^^
+   |
+   = note: field `DeliveryPolicy::timeout` stores a literal-backed timing policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant such as `DELIVERY_TIMEOUT` and use it here; preserve the controlled operation and unit in the name
+
+warning: literal `1024` encodes an unnamed behavioral threshold
+  --> $DIR/semantic.rs:91:24
+   |
+LL |     if payload.len() > 1024 {
+   |                        ^^^^
+   |
+   = note: this comparison controls a branch that performs a fallible operation or exits the current control flow; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: literal `15` encodes an unnamed timing policy
+  --> $DIR/semantic.rs:121:42
+   |
+LL |     let _timeout = Duration::from_millis(15);
+   |                                          ^^
+   |
+   = note: argument 1 to `std::time::Duration::from_millis` controls its timing policy; without a constant, reviewers cannot tell whether the value is incidental or contractual
+   = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
+
+warning: 22 warnings emitted
+

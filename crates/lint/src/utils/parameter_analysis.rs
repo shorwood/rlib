@@ -18,6 +18,9 @@ use rustc_span::{Span, Symbol};
 use super::parameter_kind::{ParameterKind, ParameterTypeExt};
 use super::parameter_role;
 
+/// Smallest family that can contain interchangeable parameter roles.
+const MIN_AMBIGUOUS_PARAMETER_COUNT: usize = 2;
+
 // -----------------------------------------------------------------------------
 // Parameter: Semantic function parameter analysis
 // -----------------------------------------------------------------------------
@@ -224,7 +227,7 @@ impl ParameterSignature {
             }
             unique_names.insert(name);
         }
-        unique_names.len() >= 2
+        unique_names.len() >= MIN_AMBIGUOUS_PARAMETER_COUNT
     }
 
     /// Returns direct boolean parameters in source order.
@@ -248,7 +251,7 @@ impl ParameterSignature {
         // Retain only precise, nonconventional role families.
         let mut groups = Vec::new();
         for (kind, parameters) in grouped {
-            if parameters.len() < 2
+            if parameters.len() < MIN_AMBIGUOUS_PARAMETER_COUNT
                 || !Self::roles_are_distinct(&parameters)
                 || Self::roles_are_conventional(self.name, kind, &parameters)
             {
