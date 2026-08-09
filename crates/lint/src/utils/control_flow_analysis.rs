@@ -3,12 +3,12 @@ extern crate rustc_lint;
 extern crate rustc_span;
 
 use rustc_hir::intravisit::{self, Visitor};
-use rustc_hir::{Arm, Block, Expr, ExprKind, HirId, MatchSource, Node, StmtKind};
-use rustc_lint::{LateContext, LintContext};
+use rustc_hir::{Arm, Block, Expr, ExprKind, HirId, MatchSource, StmtKind};
+use rustc_lint::LateContext;
 use rustc_span::Span;
 
 use super::config::FunctionStructureConfig;
-use super::function_layout_analysis::function_layout_code_line_count;
+use super::{control_flow_loop, control_flow_metrics};
 
 // -----------------------------------------------------------------------------
 // ControlFlow: Analyze semantic function structure
@@ -91,139 +91,6 @@ struct ControlFlowState {
     guardable_spans: Vec<Span>,
 }
 
-/// Returns the trailing expression of a block, including semicolon statements.
-fn control_flow_block_last_expression<'hir>(block: &'hir Block<'hir>) -> Option<&'hir Expr<'hir>> {
-    block.expr.or_else(|| {
-        block
-            .stmts
-            .last()
-            .and_then(|statement| match statement.kind {
-                StmtKind::Expr(expression) | StmtKind::Semi(expression) => Some(expression),
-                StmtKind::Let(_) | StmtKind::Item(_) => None,
-            })
-    })
-}
-
-/// Counts authored code lines in one match arm body without counting its braces.
-fn control_flow_match_arm_line_count(cx: &LateContext<'_>, arm: &Arm<'_>) -> usize {
-    if let ExprKind::Block(block, _) = arm.body.kind {
-        block
-            .stmts
-            .iter()
-            .map(|statement| function_layout_code_line_count(cx, statement.span))
-            .sum::<usize>()
-            + block.expr.map_or(0, |expression| {
-                function_layout_code_line_count(cx, expression.span)
-            })
-    } else {
-        function_layout_code_line_count(cx, arm.body.span)
-    }
-}
-
-/// Counts consecutive method calls by following receiver expressions inward.
-const fn control_flow_method_chain_length(mut expression: &Expr<'_>) -> usize {
-    let mut calls = 0;
-    while let ExprKind::MethodCall(_, receiver, _, _) = expression.kind {
-        calls += 1;
-        expression = receiver;
-    }
-    calls
-}
-
-/// Returns whether an expression is the receiver of a surrounding method call.
-fn control_flow_method_receiver_of_parent(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
-    matches!(
-        cx.tcx.parent_hir_node(expression.hir_id),
-        Node::Expr(Expr {
-            kind: ExprKind::MethodCall(_, receiver, _, _),
-            ..
-        }) if receiver.hir_id == expression.hir_id
-    )
-}
-
-/// Distinguishes a loop's direct body block from blocks nested inside its tail.
-fn control_flow_loop_ends_with_block(
-    cx: &LateContext<'_>,
-    expression: &Expr<'_>,
-    block: &Block<'_>,
-) -> bool {
-    let source_map = cx.sess().source_map();
-    let block_end = source_map.lookup_char_pos(block.span.hi()).line;
-    let loop_end = source_map.lookup_char_pos(expression.span.hi()).line;
-    block_end == loop_end
-}
-
-/// Classifies expression parents that establish a block's relationship to a loop.
-fn control_flow_expression_parent_loop_relation(
-    cx: &LateContext<'_>,
-    expression: &Expr<'_>,
-    block: &Block<'_>,
-) -> Option<bool> {
-    match expression.kind {
-        ExprKind::Loop(..) => Some(control_flow_loop_ends_with_block(cx, expression, block)),
-        ExprKind::Closure(..)
-        | ExprKind::If(..)
-        | ExprKind::Match(_, _, MatchSource::Normal | MatchSource::Postfix) => Some(false),
-        _ => None,
-    }
-}
-
-/// Classifies whether a parent proves or disproves that `block` is a direct loop body.
-fn control_flow_parent_loop_relation(
-    cx: &LateContext<'_>,
-    parent: HirId,
-    block: &Block<'_>,
-) -> Option<bool> {
-    match cx.tcx.hir_node(parent) {
-        Node::Expr(expression) => {
-            control_flow_expression_parent_loop_relation(cx, expression, block)
-        }
-        Node::Item(_) | Node::TraitItem(_) | Node::ImplItem(_) | Node::Crate(_) => Some(false),
-        _ => None,
-    }
-}
-
-/// Builds an excessive-depth finding for the first construct crossing the limit.
-fn control_flow_deep_finding(
-    config: &FunctionStructureConfig,
-    expression: &Expr<'_>,
-    kind: &str,
-    depth: usize,
-    remedy: ControlFlowDepthRemedy,
-) -> ControlFlowDeepFinding {
-    // Describe the exact construct and configured depth excess.
-    let message = format!(
-        "this {kind} reaches control-flow depth {}, exceeding the configured maximum of {}",
-        depth, config.max_control_flow_depth
-    );
-    let help = "extract a named helper or flatten guardable branches before adding more nesting"
-        .to_owned();
-
-    // Preserve the semantic facts consumed by both depth-related diagnostics.
-    ControlFlowDeepFinding {
-        span: expression.span,
-        hir_id: expression.hir_id,
-        has_guard_clause_alternative: matches!(remedy, ControlFlowDepthRemedy::GuardClause),
-        message,
-        help,
-    }
-}
-
-/// Walks transparent HIR parents to determine whether `block` is a loop body.
-fn control_flow_block_is_direct_loop_body(cx: &LateContext<'_>, block: &Block<'_>) -> bool {
-    let mut current = block.hir_id;
-    loop {
-        let parent = cx.tcx.parent_hir_id(current);
-        if parent == current {
-            return false;
-        }
-        if let Some(is_direct) = control_flow_parent_loop_relation(cx, parent, block) {
-            return is_direct;
-        }
-        current = parent;
-    }
-}
-
 /// HIR visitor that performs all control-flow readability analyses in one traversal.
 pub(super) struct ControlFlowAnalyzer<'analysis, 'tcx> {
     /// Compiler context for parent queries, types, and source mapping.
@@ -254,6 +121,46 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         }
     }
 
+    /// Returns the trailing expression of a block, including semicolon statements.
+    fn block_last_expression<'hir>(block: &'hir Block<'hir>) -> Option<&'hir Expr<'hir>> {
+        block.expr.or_else(|| {
+            block
+                .stmts
+                .last()
+                .and_then(|statement| match statement.kind {
+                    StmtKind::Expr(expression) | StmtKind::Semi(expression) => Some(expression),
+                    StmtKind::Let(_) | StmtKind::Item(_) => None,
+                })
+        })
+    }
+
+    /// Builds an excessive-depth finding for the first construct crossing the limit.
+    fn deep_finding(
+        config: &FunctionStructureConfig,
+        expression: &Expr<'_>,
+        kind: &str,
+        depth: usize,
+        remedy: ControlFlowDepthRemedy,
+    ) -> ControlFlowDeepFinding {
+        // Describe the exact construct and configured depth excess.
+        let message = format!(
+            "this {kind} reaches control-flow depth {}, exceeding the configured maximum of {}",
+            depth, config.max_control_flow_depth
+        );
+        let help =
+            "extract a named helper or flatten guardable branches before adding more nesting"
+                .to_owned();
+
+        // Preserve the semantic facts consumed by both depth-related diagnostics.
+        ControlFlowDeepFinding {
+            span: expression.span,
+            hir_id: expression.hir_id,
+            has_guard_clause_alternative: matches!(remedy, ControlFlowDepthRemedy::GuardClause),
+            message,
+            help,
+        }
+    }
+
     /// Returns whether `span` has already received guard-clause guidance.
     fn is_guardable(&self, span: Span) -> bool {
         self.state
@@ -278,8 +185,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         } else {
             ControlFlowDepthRemedy::General
         };
-        let finding =
-            control_flow_deep_finding(self.config, expression, kind, self.state.depth, remedy);
+        let finding = Self::deep_finding(self.config, expression, kind, self.state.depth, remedy);
         self.analysis.deep_nesting.push(finding);
     }
 
@@ -299,7 +205,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
 
         // Measure each authored arm while traversing its nested expressions.
         for arm in arms {
-            let lines = control_flow_match_arm_line_count(self.cx, arm);
+            let lines = control_flow_metrics::match_arm_lines(self.cx, arm);
             if lines > self.config.max_match_arm_lines && !arm.span.from_expansion() {
                 // Describe the oversized arm using its measured and configured limits.
                 let message = format!(
@@ -335,7 +241,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
     /// Checks a block's trailing conditional before walking its contents.
     fn visit_block_with_exit(&mut self, block: &'tcx Block<'tcx>, exit: ControlFlowGuardExit) {
         if !block.span.from_expansion()
-            && let Some(expression) = control_flow_block_last_expression(block)
+            && let Some(expression) = Self::block_last_expression(block)
             && matches!(expression.kind, ExprKind::If(_, _, None))
             && !matches!(exit, ControlFlowGuardExit::None)
         {
@@ -442,11 +348,11 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
     fn record_method_chain(&mut self, expression: &Expr<'_>) {
         // Ignore generated and nested receiver calls before measuring the chain.
         if expression.span.from_expansion()
-            || control_flow_method_receiver_of_parent(self.cx, expression)
+            || control_flow_metrics::is_parent_method_receiver(self.cx, expression)
         {
             return;
         }
-        let calls = control_flow_method_chain_length(expression);
+        let calls = control_flow_metrics::method_chain_length(expression);
         if calls <= self.config.max_method_chain_calls {
             return;
         }
@@ -470,7 +376,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
 
 impl<'tcx> Visitor<'tcx> for ControlFlowAnalyzer<'_, 'tcx> {
     fn visit_block(&mut self, block: &'tcx Block<'tcx>) {
-        let exit = if control_flow_block_is_direct_loop_body(self.cx, block) {
+        let exit = if control_flow_loop::is_direct_body(self.cx, block) {
             ControlFlowGuardExit::Continue
         } else {
             ControlFlowGuardExit::None

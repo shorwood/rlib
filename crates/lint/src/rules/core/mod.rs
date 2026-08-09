@@ -24,6 +24,7 @@ pub mod needless_function_wrappers;
 pub mod needlessly_nested_control_flow;
 pub mod nested_tuple_types;
 pub mod non_adjacent_struct_impls;
+pub mod overloaded_declaration_sections;
 pub mod oversized_match_arms;
 pub mod positional_aggregate_fields;
 pub mod repeated_identical_statements;

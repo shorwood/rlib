@@ -64,6 +64,8 @@ pub struct SectionAnalysis {
     pub(crate) duplicates: Vec<SectionFinding>,
     /// Dividers whose prefix disagrees with the declarations they contain.
     pub(crate) mismatches: Vec<SectionFinding>,
+    /// Dividers governing more distinct declarations than the configured limit.
+    pub(crate) overloaded: Vec<SectionFinding>,
     /// Valid sections available to companion semantic lints.
     pub(crate) sections: Vec<SectionGroup>,
 }
@@ -99,6 +101,8 @@ pub struct SectionAnalyzer {
     template: Template,
     /// Maximum permitted width of every rendered divider line.
     max_line_length: usize,
+    /// Maximum number of distinct declarations governed by one divider.
+    max_declarations_per_section: usize,
 }
 
 impl SectionAnalyzer {
@@ -106,14 +110,21 @@ impl SectionAnalyzer {
     pub(crate) fn from_config() -> Self {
         // Load the divider-specific project configuration.
         let config = LibraryConfig::load().section_dividers;
+        config
+            .validate()
+            .unwrap_or_else(|message| panic!("invalid section divider configuration: {message}"));
 
+        // Parse the source template before retaining the complete semantic policy.
         // Fail during lint construction when the project template is invalid.
         let parsed_template = Template::parse(&config.template, config.max_line_length);
         let template = parsed_template
             .unwrap_or_else(|message| panic!("invalid section divider template: {message}"));
+
+        // Retain the parsed template beside both configured limits.
         Self {
             template,
             max_line_length: config.max_line_length,
+            max_declarations_per_section: config.max_declarations_per_section,
         }
     }
 
@@ -411,12 +422,33 @@ impl ModuleAnalysis {
             return;
         }
 
+        // Collapse a nominal declaration and all of its implementation blocks into one concept.
+        let participants = section.participants.distinct_declarations();
+        if participants.len() > analyzer.max_declarations_per_section {
+            // Explain the measurable excess at the divider that owns the broad family.
+            let message = format!(
+                "section `{}` contains {} distinct declarations, exceeding the configured maximum of {}",
+                prefix.text,
+                participants.len(),
+                analyzer.max_declarations_per_section
+            );
+
+            // Steer remediation toward concepts and names before mechanical splitting.
+            let help = "reconsider whether these declarations express smaller coherent concepts and rename them around those concepts; add another divider only for a genuinely independent family".to_owned();
+            analysis.overloaded.push(SectionFinding {
+                span: section.divider.span,
+                message,
+                help,
+                replacement: None,
+            });
+        }
+
         // Publish the stable semantic section used by companion naming analyses.
         analysis.sections.push(SectionGroup {
             ordinal: analysis.sections.len() + 1,
             prefix: prefix.text.to_owned(),
             span: section.divider.span,
-            participants: section.participants.distinct_declarations(),
+            participants,
         });
     }
 

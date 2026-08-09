@@ -53,6 +53,7 @@ pub extern "Rust" fn register_lints(
     rules::core::needlessly_nested_control_flow::register_lints(sess, lint_store);
     rules::core::nested_tuple_types::register_lints(sess, lint_store);
     rules::core::non_adjacent_struct_impls::register_lints(sess, lint_store);
+    rules::core::overloaded_declaration_sections::register_lints(sess, lint_store);
     rules::core::oversized_match_arms::register_lints(sess, lint_store);
 
     // Register aggregate representation and statement-expression policies.

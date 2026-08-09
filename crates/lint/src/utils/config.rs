@@ -103,23 +103,43 @@ pub struct SectionDividerConfig {
     pub(crate) template: String,
     /// Maximum rendered divider width, including the section content.
     pub(crate) max_line_length: usize,
+    /// Maximum number of distinct declarations governed by one divider.
+    pub(crate) max_declarations_per_section: usize,
 }
 
 impl Default for SectionDividerConfig {
     fn default() -> Self {
+        // Keep the default divider readable under the ordinary source width.
+        let template = "// -----------------------------------------------------------------------------\n\
+                        // {content}\n\
+                        // -----------------------------------------------------------------------------"
+            .to_owned();
+
+        // Bound each conceptual family independently from its rendered syntax.
         Self {
             max_line_length: 80,
-            template: "// -----------------------------------------------------------------------------\n\
-                       // {content}\n\
-                       // -----------------------------------------------------------------------------"
-                .to_owned(),
+            max_declarations_per_section: 8,
+            template,
         }
+    }
+}
+
+impl SectionDividerConfig {
+    /// Rejects limits that cannot describe a useful declaration section.
+    pub(crate) fn validate(&self) -> Result<(), String> {
+        if self.max_declarations_per_section == 0 {
+            return Err(
+                "section_dividers.max_declarations_per_section must be greater than zero"
+                    .to_owned(),
+            );
+        }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{FunctionStructureConfig, LibraryConfig};
+    use super::{FunctionStructureConfig, LibraryConfig, SectionDividerConfig};
 
     #[test]
     fn parses_custom_function_structure_limits() {
@@ -161,6 +181,37 @@ mod tests {
         let config = FunctionStructureConfig {
             phase_comment_prefix: "---".to_owned(),
             ..FunctionStructureConfig::default()
+        };
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn parses_custom_section_declaration_limit() {
+        let config = toml::from_str::<LibraryConfig>(
+            r"
+                [section_dividers]
+                max_declarations_per_section = 12
+            ",
+        )
+        .expect("custom section declaration limit should parse");
+
+        assert_eq!(config.section_dividers.max_declarations_per_section, 12);
+        assert!(config.section_dividers.validate().is_ok());
+    }
+
+    #[test]
+    fn uses_eight_declarations_per_section_by_default() {
+        assert_eq!(
+            SectionDividerConfig::default().max_declarations_per_section,
+            8
+        );
+    }
+
+    #[test]
+    fn rejects_zero_section_declaration_limit() {
+        let config = SectionDividerConfig {
+            max_declarations_per_section: 0,
+            ..SectionDividerConfig::default()
         };
         assert!(config.validate().is_err());
     }
