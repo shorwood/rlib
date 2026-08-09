@@ -11,7 +11,7 @@ use rustc_lint::{LateContext, LintContext};
 use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 
-use super::identifier_case::identifier_words;
+use super::identifier_case;
 use super::parameter_analysis::{
     Parameter, ParameterKind, ParameterSignature, parameter_type_is_textual,
 };
@@ -179,7 +179,7 @@ const DOMAIN_BEHAVIOR_WORDS: &[&str] = &[
 
 /// Normalizes one Rust identifier into lowercase semantic words.
 fn domain_normalized_words(identifier: Symbol) -> Vec<String> {
-    let words = identifier_words(identifier.as_str());
+    let words = identifier_case::words(identifier.as_str());
     words.into_iter().map(|word| word.to_lowercase()).collect()
 }
 
@@ -623,7 +623,7 @@ impl DomainAnalyzer {
     fn matching_type(&self, key: &DomainKey) -> Option<&DomainTypeEvidence> {
         self.types.iter().find(|existing| {
             existing.module == key.module
-                && identifier_words(existing.name.as_str()).concat() == key.domain
+                && identifier_case::words(existing.name.as_str()).concat() == key.domain
         })
     }
 

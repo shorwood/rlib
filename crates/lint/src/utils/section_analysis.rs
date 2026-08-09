@@ -11,9 +11,7 @@ use rustc_middle::ty;
 use rustc_span::{BytePos, Span};
 
 use super::config::LibraryConfig;
-use super::identifier_case::{
-    identifier_is_pascal_case, identifier_longest_pascal_prefix, sentence_case,
-};
+use super::{identifier_case, prose_case};
 
 // -----------------------------------------------------------------------------
 // Section: Shared organization analysis data
@@ -202,6 +200,12 @@ struct ModuleSectionPrefix<'name> {
     text: &'name str,
 }
 
+/// Semantic namespace supplied by a named containing module.
+struct ModuleNamespace {
+    /// Canonical `PascalCase` form of the module name.
+    prefix: String,
+}
+
 /// Builds and validates the ordered section event stream for one source module.
 struct ModuleAnalysis;
 
@@ -263,18 +267,39 @@ impl ModuleAnalysis {
             Self::append_dividers(analyzer, cx, gap, &mut events);
         }
         events.sort_unstable_by_key(SectionEvent::position);
-        Self::analyze_events(analyzer, events)
+        let namespace = Self::namespace(cx, hir_id);
+        Self::analyze_events(analyzer, events, namespace)
     }
 
     /// Reduces a complete event stream into independently reportable findings.
-    fn analyze_events(analyzer: &SectionAnalyzer, events: Vec<SectionEvent>) -> SectionAnalysis {
-        let mut state = SectionEventAnalysisState::default();
+    fn analyze_events(
+        analyzer: &SectionAnalyzer,
+        events: Vec<SectionEvent>,
+        namespace: Option<ModuleNamespace>,
+    ) -> SectionAnalysis {
+        let mut state = SectionEventAnalysisState {
+            namespace,
+            ..SectionEventAnalysisState::default()
+        };
 
         // Close each group when the following divider starts a new one.
         for event in events {
             state.apply(analyzer, event);
         }
         state.finish(analyzer)
+    }
+
+    /// Resolves the semantic namespace of a named containing module.
+    fn namespace(cx: &LateContext<'_>, hir_id: HirId) -> Option<ModuleNamespace> {
+        let containing_nodes = [cx.tcx.hir_node(hir_id), cx.tcx.parent_hir_node(hir_id)];
+        let item = containing_nodes.into_iter().find_map(|node| match node {
+            Node::Item(item) if matches!(item.kind, ItemKind::Mod(..)) => Some(item),
+            _ => None,
+        })?;
+        let ident = item.kind.ident()?;
+        Some(ModuleNamespace {
+            prefix: identifier_case::to_pascal(ident.name.as_str()),
+        })
     }
 
     /// Finds the physical source extent in which module-level dividers may appear.
@@ -481,15 +506,19 @@ impl ModuleAnalysis {
     fn mismatch_finding(
         section: &SectionEventGroup,
         prefix: ModuleSectionPrefix<'_>,
+        namespace: Option<&ModuleNamespace>,
     ) -> Option<SectionFinding> {
         // Infer a family only when the divider actually governs declarations.
         if section.participants.is_empty() {
             return None;
         }
+        if namespace.is_some_and(|namespace| namespace.prefix == prefix.text) {
+            return None;
+        }
         let names = section.participants.names();
 
         // Report declarations with no shared naming root directly.
-        let Some(expected) = identifier_longest_pascal_prefix(&names) else {
+        let Some(expected) = identifier_case::longest_common_pascal_prefix(&names) else {
             return Some(Self::unrelated_names_finding(section, prefix));
         };
         if expected == prefix.text {
@@ -510,6 +539,7 @@ impl ModuleAnalysis {
     fn finish_section(
         analyzer: &SectionAnalyzer,
         section: &SectionEventGroup,
+        namespace: Option<&ModuleNamespace>,
         seen_prefixes: &mut HashMap<String, Span>,
         analysis: &mut SectionAnalysis,
     ) {
@@ -524,7 +554,7 @@ impl ModuleAnalysis {
         // Record the section independently for each semantic companion lint.
         Self::record_valid_section(analyzer, section, &parsed, prefix, analysis);
         Self::record_duplicate_section(section, prefix, seen_prefixes, analysis);
-        let Some(finding) = Self::mismatch_finding(section, prefix) else {
+        let Some(finding) = Self::mismatch_finding(section, prefix, namespace) else {
             return;
         };
         analysis.mismatches.push(finding);
@@ -761,7 +791,7 @@ impl SectionEventCandidates {
         let names = self.names();
 
         // Turn the inferred prefix, or its absence, into naming-first guidance.
-        identifier_longest_pascal_prefix(&names).map_or_else(
+        identifier_case::longest_common_pascal_prefix(&names).map_or_else(
             || format!(
                 "reconsider the names {} so related declarations share a visible prefix, then add a divider; create separate sections only for independent concepts",
                 self.formatted_names()
@@ -804,6 +834,8 @@ struct SectionEventAnalysisState {
     current: Option<SectionEventGroup>,
     /// First source span associated with each previously used prefix.
     seen_prefixes: HashMap<String, Span>,
+    /// Semantic namespace inherited from the containing module.
+    namespace: Option<ModuleNamespace>,
 }
 
 impl SectionEventAnalysisState {
@@ -833,6 +865,7 @@ impl SectionEventAnalysisState {
             ModuleAnalysis::finish_section(
                 analyzer,
                 &section,
+                self.namespace.as_ref(),
                 &mut self.seen_prefixes,
                 &mut self.analysis,
             );
@@ -863,9 +896,12 @@ impl SectionEventAnalysisState {
         ModuleAnalysis::finish_section(
             analyzer,
             &section,
+            self.namespace.as_ref(),
             &mut self.seen_prefixes,
             &mut self.analysis,
         );
+
+        // Return every finding and validated section accumulated by the reducer.
         self.analysis
     }
 }
@@ -896,8 +932,8 @@ impl ParsedContent {
             });
 
         // Normalize both halves before classifying the first canonical-form violation.
-        let prefix = identifier_is_pascal_case(raw_prefix).then(|| raw_prefix.to_owned());
-        let normalized_description = raw_description.map(sentence_case);
+        let prefix = identifier_case::is_pascal(raw_prefix).then(|| raw_prefix.to_owned());
+        let normalized_description = raw_description.map(prose_case::sentence);
         let normalized =
             Self::normalized_content(prefix.as_deref(), normalized_description.as_deref());
 
@@ -1151,7 +1187,7 @@ impl Template {
 #[cfg(test)]
 mod tests {
     use super::{ParsedContent, Template};
-    use crate::utils::identifier_case::identifier_longest_pascal_prefix;
+    use crate::utils::identifier_case;
 
     #[test]
     fn validates_templates() {
@@ -1200,15 +1236,15 @@ mod tests {
     #[test]
     fn finds_longest_pascal_case_word_prefix() {
         assert_eq!(
-            identifier_longest_pascal_prefix(&["Candidate", "CandidateBindingUse"]),
+            identifier_case::longest_common_pascal_prefix(&["Candidate", "CandidateBindingUse"]),
             Some("Candidate".to_owned())
         );
         assert_eq!(
-            identifier_longest_pascal_prefix(&["MyThing", "MyOther"]),
+            identifier_case::longest_common_pascal_prefix(&["MyThing", "MyOther"]),
             Some("My".to_owned())
         );
         assert_eq!(
-            identifier_longest_pascal_prefix(&["MyThing", "Model"]),
+            identifier_case::longest_common_pascal_prefix(&["MyThing", "Model"]),
             None
         );
     }

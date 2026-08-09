@@ -29,3 +29,14 @@ struct Standalone;
 
 fn handler_parse() {}
 fn render_response() {}
+
+mod identifier_case {
+    // -----------------------------------------------------------------------------
+    // IdentifierCase
+    // -----------------------------------------------------------------------------
+
+    pub fn words() {
+        super::render_response();
+    }
+    pub fn is_pascal() {}
+}

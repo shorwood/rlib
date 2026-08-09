@@ -11,7 +11,7 @@ use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty;
 use rustc_span::Span;
 
-use super::identifier_case::{identifier_pascal_words, identifier_words};
+use super::identifier_case;
 use super::item_dependencies::item_dependencies;
 use super::section_analysis::{SectionAnalyzer, SectionGroup, SectionParticipant};
 
@@ -641,14 +641,14 @@ impl NameTokens {
     /// Tokenizes a `PascalCase` declaration or section name.
     fn pascal(value: &str) -> Self {
         Self {
-            words: identifier_pascal_words(value),
+            words: identifier_case::pascal_words(value),
         }
     }
 
     /// Tokenizes an enclosing module name in its native identifier case.
     fn context(value: &str) -> Self {
         Self {
-            words: identifier_words(value),
+            words: identifier_case::words(value),
         }
     }
 
@@ -842,16 +842,16 @@ mod tests {
         ConfidenceEvidence, ConfidenceNameAvailability, ConfidenceSignal, NameTokens,
         THRESHOLD_REPORT, THRESHOLD_SUGGESTION,
     };
-    use crate::utils::identifier_case::identifier_pascal_words;
+    use crate::utils::identifier_case;
 
     #[test]
     fn tokenizes_pascal_case_and_acronyms() {
         assert_eq!(
-            identifier_pascal_words("HttpServerConfig"),
+            identifier_case::pascal_words("HttpServerConfig"),
             ["Http", "Server", "Config"]
         );
         assert_eq!(
-            identifier_pascal_words("MigrationEdits"),
+            identifier_case::pascal_words("MigrationEdits"),
             ["Migration", "Edits"]
         );
     }

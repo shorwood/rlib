@@ -32,6 +32,9 @@ dylint_linting::impl_late_lint! {
     /// Requires a divider prefix to equal the longest PascalCase word prefix shared by every
     /// participating type, free function, constant, and static in its section. Rust identifier
     /// conventions are normalized before comparison, so `request_parser` belongs to `Request`.
+    /// A divider may instead match the containing module's name: the module then supplies the
+    /// family namespace, allowing idiomatic APIs such as `identifier_case::words` without forcing
+    /// the redundant name `identifier_case::identifier_words`.
     ///
     /// ### Why is this bad?
     ///
@@ -56,6 +59,23 @@ dylint_linting::impl_late_lint! {
     /// // -----------------------------------------------------------------------------
     /// struct Request;
     /// struct RequestResponse;
+    /// ```
+    ///
+    /// A module-owned namespace is also valid even when its declarations have different names:
+    ///
+    /// ```rust
+    /// mod identifier_case {
+    ///     // -----------------------------------------------------------------------------
+    ///     // IdentifierCase
+    ///     // -----------------------------------------------------------------------------
+    ///     pub fn words(value: &str) -> Vec<String> {
+    ///         todo!()
+    ///     }
+    ///
+    ///     pub fn is_pascal(value: &str) -> bool {
+    ///         todo!()
+    ///     }
+    /// }
     /// ```
     pub MISMATCHED_SECTION_DIVIDER_PREFIXES,
     Warn,

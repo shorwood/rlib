@@ -9,7 +9,7 @@ use rustc_span::{BytePos, Span};
 use std::ops::RangeInclusive;
 
 use super::config::FunctionStructureConfig;
-use super::identifier_case::sentence_case;
+use super::prose_case;
 
 // -----------------------------------------------------------------------------
 // FunctionLayout: Parse and validate explanatory comments
@@ -192,7 +192,7 @@ fn function_layout_safe_sentence_replacement(content: &str) -> Option<String> {
     let words = content.split_whitespace().collect::<Vec<_>>();
     let is_shouting = function_layout_is_shouting(content, &words);
     let has_protected_content = !is_shouting && function_layout_has_protected_content(&words);
-    (!has_protected_content).then(|| sentence_case(content))
+    (!has_protected_content).then(|| prose_case::sentence(content))
 }
 
 /// Validates presence, spacing, and sentence style of phase-comment prose.

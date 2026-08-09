@@ -1,101 +1,92 @@
 use convert_case::{Case, Casing};
 
 // -----------------------------------------------------------------------------
-// Identifier: Rust identifier casing
+// IdentifierCase: Rust identifier casing
 // -----------------------------------------------------------------------------
 
-/// Splits a Rust-style `PascalCase` identifier into normalized `PascalCase` words.
-pub fn identifier_pascal_words(value: &str) -> Vec<String> {
-    let words = Case::Pascal.split(&value);
-    let populated = words.into_iter().filter(|word| !word.is_empty());
-    populated.map(|word| word.to_case(Case::Pascal)).collect()
+/// Converts identifier text to canonical `PascalCase`.
+pub fn to_pascal(value: &str) -> String {
+    value.to_case(Case::Pascal)
 }
 
-/// Converts a Rust identifier from its authored convention to `PascalCase` words.
-pub fn identifier_words(value: &str) -> Vec<String> {
-    let source = if value.contains('_') {
-        Case::Snake
-    } else {
-        Case::Pascal
-    };
+/// Checks whether identifier text is canonical `PascalCase`.
+pub fn is_pascal(value: &str) -> bool {
+    !value.is_empty() && to_pascal(value) == value
+}
+
+/// Splits and normalizes identifier text according to its source convention.
+fn normalized_words(value: &str, source: Case<'_>) -> Vec<String> {
     let words = source.split(&value);
     let populated = words.into_iter().filter(|word| !word.is_empty());
     populated.map(|word| word.to_case(Case::Pascal)).collect()
 }
 
-/// Normalizes a Rust identifier to canonical `PascalCase`.
-pub fn identifier_pascal_case(value: &str) -> String {
-    value.to_case(Case::Pascal)
+/// Splits an authored Rust identifier into canonical `PascalCase` words.
+pub fn words(value: &str) -> Vec<String> {
+    let source = if value.contains('_') {
+        Case::Snake
+    } else {
+        Case::Pascal
+    };
+    normalized_words(value, source)
 }
 
-/// Returns whether a string is already canonical `PascalCase`.
-pub fn identifier_is_pascal_case(value: &str) -> bool {
-    !value.is_empty() && identifier_pascal_case(value) == value
+/// Splits a known `PascalCase` identifier into canonical words.
+pub fn pascal_words(value: &str) -> Vec<String> {
+    normalized_words(value, Case::Pascal)
 }
 
-/// Returns the longest canonical `PascalCase` word prefix shared by the identifiers.
-pub fn identifier_longest_pascal_prefix(names: &[&str]) -> Option<String> {
-    let first = identifier_words(names.first()?);
+/// Finds the longest shared canonical `PascalCase` word prefix.
+pub fn longest_common_pascal_prefix(names: &[&str]) -> Option<String> {
+    let mut names = names.iter();
+    let mut prefix = words(names.next()?);
 
-    // Prefer the longest prefix that remains visible in every authored name.
-    (1..=first.len()).rev().find_map(|length| {
-        names
-            .iter()
-            .skip(1)
-            .all(|name| identifier_words(name).starts_with(&first[..length]))
-            .then(|| first[..length].concat())
-    })
-}
+    // Shorten the candidate prefix against each remaining identifier.
+    for name in names {
+        // Measure the common leading word sequence before truncating the candidate.
+        let candidate = words(name);
+        let paired_words = prefix.iter().zip(&candidate);
+        let shared = paired_words
+            .take_while(|(left, right)| left == right)
+            .count();
+        prefix.truncate(shared);
 
-// -----------------------------------------------------------------------------
-// SentenceCase: Free text sentence casing
-// -----------------------------------------------------------------------------
+        // Stop immediately when no canonical family prefix survives.
+        if !prefix.is_empty() {
+            continue;
+        }
+        return None;
+    }
 
-/// Normalizes free text to canonical sentence case.
-pub fn sentence_case(value: &str) -> String {
-    value.to_case(Case::Sentence)
+    // Render the surviving canonical word sequence as one type-family prefix.
+    Some(prefix.concat())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        identifier_is_pascal_case, identifier_longest_pascal_prefix, identifier_pascal_words,
-        identifier_words, sentence_case,
-    };
+    use super::{is_pascal, longest_common_pascal_prefix, pascal_words, words};
 
     #[test]
     fn understands_rust_identifier_boundaries() {
         assert_eq!(
-            identifier_pascal_words("HttpServerConfig"),
+            pascal_words("HttpServerConfig"),
             ["Http", "Server", "Config"]
         );
-        assert_eq!(
-            identifier_words("http_server_config"),
-            ["Http", "Server", "Config"]
-        );
+        assert_eq!(words("http_server_config"), ["Http", "Server", "Config"]);
     }
 
     #[test]
     fn validates_canonical_pascal_case() {
-        assert!(identifier_is_pascal_case("HttpServerConfig"));
-        assert!(!identifier_is_pascal_case("HTTPServerConfig"));
-        assert!(!identifier_is_pascal_case("http_server_config"));
+        assert!(is_pascal("HttpServerConfig"));
+        assert!(!is_pascal("HTTPServerConfig"));
+        assert!(!is_pascal("http_server_config"));
     }
 
     #[test]
     fn finds_prefixes_across_rust_identifier_conventions() {
         assert_eq!(
-            identifier_longest_pascal_prefix(&["request_parser", "RequestPolicy"]),
+            longest_common_pascal_prefix(&["request_parser", "RequestPolicy"]),
             Some("Request".to_owned())
-        );
-    }
-
-    #[test]
-    fn normalizes_the_complete_sentence() {
-        assert_eq!(sentence_case("THIS IS LOUD"), "This is loud");
-        assert_eq!(
-            sentence_case("already sentence case"),
-            "Already sentence case"
         );
     }
 }
