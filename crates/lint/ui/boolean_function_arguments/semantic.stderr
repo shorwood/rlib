@@ -1,0 +1,53 @@
+warning: boolean parameter `minify` hides a policy choice at call sites
+  --> $DIR/semantic.rs:12:11
+   |
+LL | fn render(minify: bool) {}
+   |           ^^^^^^
+   |
+   = help: replace the flag with a semantic enum that names both choices
+note: the lint level is defined here
+  --> $DIR/semantic.rs:3:9
+   |
+LL | #![warn(boolean_function_arguments)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: multiple boolean parameters hide independent policy choices
+  --> $DIR/semantic.rs:14:11
+   |
+LL | fn export(pretty: bool, include_metadata: Flag) {}
+   |           ^^^^^^        ---------------- boolean policy `include_metadata`
+   |           |
+   |           boolean policy `pretty`
+   |
+   = help: collect these decisions in a named options type
+
+warning: boolean parameter `value` hides a policy choice at call sites
+  --> $DIR/semantic.rs:18:27
+   |
+LL | fn set_enabled_indirectly(value: bool) {}
+   |                           ^^^^^
+   |
+   = help: replace the flag with a semantic enum that names both choices
+
+warning: boolean parameter `pretty` hides a policy choice at call sites
+  --> $DIR/semantic.rs:26:25
+   |
+LL |         fn local_render(pretty: bool) {}
+   |                         ^^^^^^
+...
+LL | local_boolean_signature!();
+   | -------------------------- in this macro invocation
+   |
+   = help: replace the flag with a semantic enum that names both choices
+   = note: this warning originates in the macro `local_boolean_signature` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: boolean parameter `minify` hides a policy choice at call sites
+  --> $DIR/semantic.rs:34:18
+   |
+LL |     fn configure(minify: bool);
+   |                  ^^^^^^
+   |
+   = help: replace the flag with a semantic enum that names both choices
+
+warning: 5 warnings emitted
+

@@ -1,0 +1,62 @@
+warning: `u64` parameters `user`, `project`, `delay` carry distinct roles but remain interchangeable
+  --> $DIR/semantic.rs:16:13
+   |
+LL | fn schedule(user: UserNumber, project: u64, delay: u64) {}
+   |             ^^^^              -------       ----- role `delay`
+   |             |                 |
+   |             role `user`       role `project`
+   |
+   = help: introduce role-specific newtypes, or group values belonging to one operation in a named struct
+note: the lint level is defined here
+  --> $DIR/semantic.rs:3:9
+   |
+LL | #![warn(ambiguous_primitive_parameters)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: textual parameters `user`, `organization`, `token` carry distinct roles but remain interchangeable
+  --> $DIR/semantic.rs:18:17
+   |
+LL | fn authenticate(user: &str, organization: String, token: Box<str>) {}
+   |                 ^^^^        ------------          ----- role `token`
+   |                 |           |
+   |                 |           role `organization`
+   |                 role `user`
+   |
+   = help: introduce domain-specific string types, or group operation-specific text in a named request
+
+warning: `u64` parameters `user`, `project` carry distinct roles but remain interchangeable
+  --> $DIR/semantic.rs:25:14
+   |
+LL |     fn route(user: u64, project: u64);
+   |              ^^^^       ------- role `project`
+   |              |
+   |              role `user`
+   |
+   = help: introduce role-specific newtypes, or group values belonging to one operation in a named struct
+
+warning: `u64` parameters `user`, `project` carry distinct roles but remain interchangeable
+  --> $DIR/semantic.rs:37:22
+   |
+LL |     fn assign(&self, user: u64, project: u64) {}
+   |                      ^^^^       ------- role `project`
+   |                      |
+   |                      role `user`
+   |
+   = help: introduce role-specific newtypes, or group values belonging to one operation in a named struct
+
+warning: `u32` parameters `account`, `project` carry distinct roles but remain interchangeable
+  --> $DIR/semantic.rs:54:25
+   |
+LL |         fn local_assign(account: u32, project: u32) {}
+   |                         ^^^^^^^       ------- role `project`
+   |                         |
+   |                         role `account`
+...
+LL | local_ambiguous_signature!();
+   | ---------------------------- in this macro invocation
+   |
+   = help: introduce role-specific newtypes, or group values belonging to one operation in a named struct
+   = note: this warning originates in the macro `local_ambiguous_signature` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: 5 warnings emitted
+

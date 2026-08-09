@@ -1,6 +1,8 @@
+pub mod ambiguous_primitive_parameters;
 pub mod bare_tuple_types;
 pub mod bidirectional_module_dependencies;
 pub mod bool_fields_without_predicate_prefix;
+pub mod boolean_function_arguments;
 pub mod collection_method_like_free_functions;
 pub mod cross_file_struct_impls;
 pub mod deeply_nested_control_flow;
@@ -25,5 +27,7 @@ pub mod non_adjacent_struct_impls;
 pub mod oversized_match_arms;
 pub mod positional_aggregate_fields;
 pub mod repeated_identical_statements;
+pub mod revalidated_string_parameters;
+pub mod stringly_typed_domain_function_families;
 pub mod undocumented_items;
 pub mod unparenthesized_mixed_boolean_operators;

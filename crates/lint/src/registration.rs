@@ -19,9 +19,11 @@ pub extern "Rust" fn register_lints(
     lint_store: &mut rustc_lint::LintStore,
 ) {
     // Register aggregate, dependency, and field-naming policies.
+    rules::core::ambiguous_primitive_parameters::register_lints(sess, lint_store);
     rules::core::bare_tuple_types::register_lints(sess, lint_store);
     rules::core::bidirectional_module_dependencies::register_lints(sess, lint_store);
     rules::core::bool_fields_without_predicate_prefix::register_lints(sess, lint_store);
+    rules::core::boolean_function_arguments::register_lints(sess, lint_store);
     rules::core::collection_method_like_free_functions::register_lints(sess, lint_store);
     rules::core::cross_file_struct_impls::register_lints(sess, lint_store);
 
@@ -56,6 +58,8 @@ pub extern "Rust" fn register_lints(
     // Register aggregate representation and statement-expression policies.
     rules::core::positional_aggregate_fields::register_lints(sess, lint_store);
     rules::core::repeated_identical_statements::register_lints(sess, lint_store);
+    rules::core::revalidated_string_parameters::register_lints(sess, lint_store);
+    rules::core::stringly_typed_domain_function_families::register_lints(sess, lint_store);
     rules::core::undocumented_items::register_lints(sess, lint_store);
     rules::core::unparenthesized_mixed_boolean_operators::register_lints(sess, lint_store);
 }
