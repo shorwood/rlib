@@ -99,9 +99,12 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for BidirectionalModuleDependencies {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Abort early if this item is not an import, because only imports create dependencies.
         let ItemKind::Use(path, _) = item.kind else {
             return;
         };
+
+        // Iterate over all resolved namespaces for this import and record the first relevant dependency.
         let source = cx.tcx.parent_module(item.hir_id()).to_local_def_id();
         for resolution in [path.res.type_ns, path.res.value_ns, path.res.macro_ns]
             .into_iter()

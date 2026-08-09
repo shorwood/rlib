@@ -59,25 +59,33 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for ImplicitFirstWinsDeduplication {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
-        // Recognize an authored iterator filter call.
+        // Abort early if this expression is a macro expansion or not a method call on an iterator.
         if expression.span.from_expansion() {
             return;
         }
+
+        // Abort early if this expression is not a `filter` method call with a single predicate argument.
         let ExprKind::MethodCall(filter, _, [predicate], _) = expression.kind else {
             return;
         };
+
+        // Abort early if the method name is not `filter`.
         if filter.ident.name.as_str() != "filter" {
             return;
         }
 
-        // Inspect the filter closure for a direct set insertion predicate.
+        // Abort early if the predicate is not a closure that returns the result of a `HashSet::insert` call.
         let ExprKind::Closure(closure) = predicate.kind else {
             return;
         };
+
+        // Abort early if the closure body is not a method call on a `HashSet` receiver.
         let body = cx.tcx.hir_body(closure.body).value.peel_blocks();
         let ExprKind::MethodCall(insert, receiver, _, _) = body.kind else {
             return;
         };
+
+        // Abort early if the method name is not `insert` or the receiver is not a `HashSet`.
         if insert.ident.name.as_str() != "insert" || !Self::is_hash_set(cx, receiver) {
             return;
         }

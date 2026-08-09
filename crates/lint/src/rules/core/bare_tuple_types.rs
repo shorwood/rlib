@@ -56,12 +56,17 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for BareTupleTypes {
     fn check_ty(&mut self, cx: &LateContext<'_>, ty: &Ty<'_, AmbigArg>) {
+        // Check for a bare tuple type at the root of an explicit type annotation.
         let Some(tuple) = ExplicitTupleType::classify(cx, ty) else {
             return;
         };
+
+        // Only bare tuples are rejected; named tuples and unit tuples are permitted.
         if tuple.kind != ExplicitTupleKind::Bare {
             return;
         }
+
+        // Emit a lint for the bare tuple type.
         cx.emit_span_lint(
             BARE_TUPLE_TYPES,
             tuple.root_span,
