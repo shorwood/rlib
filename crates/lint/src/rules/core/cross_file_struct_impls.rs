@@ -6,7 +6,7 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 
-use crate::utils::direct_impl_struct::direct_impl_struct;
+use crate::utils::impl_target::ImplTargetExt;
 
 // -----------------------------------------------------------------------------
 // ImplPlacement: Cross file placement model
@@ -33,7 +33,7 @@ impl<'hir> ImplPlacement<'hir> {
         }
 
         // Resolve an authored local struct definition from the implementation.
-        let struct_def_id = direct_impl_struct(cx, item)?;
+        let struct_def_id = item.direct_struct(cx)?;
         let struct_span = cx.tcx.def_span(struct_def_id);
         if struct_span.in_external_macro(cx.sess().source_map()) {
             return None;

@@ -112,68 +112,78 @@ impl DomainWords {
 // StringDomainVocabulary: Public vocabulary queries
 // -----------------------------------------------------------------------------
 
-/// Returns whether an identifier contains behavior owned by a domain type.
-pub(super) fn has_behavior(identifier: Symbol) -> bool {
-    DomainWords::normalized(identifier)
-        .0
-        .iter()
-        .any(|word| BehaviorVocabulary::contains(word))
+/// Domain-vocabulary queries colocated with compiler symbols.
+pub(super) trait StringDomainSymbolExt {
+    /// Returns whether this identifier contains behavior owned by a domain type.
+    fn has_domain_behavior(self) -> bool;
+    /// Returns whether this identifier names an invariant-establishing operation.
+    fn establishes_domain_invariant(self) -> bool;
+    /// Infers a domain concept from this precise parameter or field name.
+    fn parameter_domain(self) -> Option<String>;
+    /// Connects this function name and textual parameters to domain candidates.
+    fn function_domains(self, parameters: &[&Parameter]) -> HashSet<String>;
 }
 
-/// Returns whether an identifier names an invariant-establishing operation.
-pub(super) fn establishes_invariant(identifier: Symbol) -> bool {
-    DomainWords::normalized(identifier)
-        .0
-        .iter()
-        .any(|word| BehaviorVocabulary::establishes_invariant(word))
-}
+impl StringDomainSymbolExt for Symbol {
+    fn has_domain_behavior(self) -> bool {
+        DomainWords::normalized(self)
+            .0
+            .iter()
+            .any(|word| BehaviorVocabulary::contains(word))
+    }
 
-/// Infers a domain concept from a precise parameter or field name.
-pub(super) fn from_parameter(identifier: Symbol) -> Option<String> {
-    let words = DomainWords::meaningful(identifier);
-    (!words.is_empty()).then(|| words.to_pascal())
-}
+    fn establishes_domain_invariant(self) -> bool {
+        DomainWords::normalized(self)
+            .0
+            .iter()
+            .any(|word| BehaviorVocabulary::establishes_invariant(word))
+    }
 
-/// Connects function vocabulary and textual parameter names to domain candidates.
-pub(super) fn function_domains(function: Symbol, parameters: &[&Parameter]) -> HashSet<String> {
-    // Derive the domain expressed directly by the operation name.
-    let function_words = DomainWords::meaningful(function);
-    let function_domain = (!function_words.is_empty()).then(|| function_words.to_pascal());
-    let function_word_set = function_words.into_set();
+    fn parameter_domain(self) -> Option<String> {
+        let words = DomainWords::meaningful(self);
+        (!words.is_empty()).then(|| words.to_pascal())
+    }
 
-    // Prefer domains supported by both the operation and a parameter name.
-    let mut domains = HashSet::new();
-    for parameter in parameters {
-        let parameter_words = DomainWords::meaningful(parameter.name);
-        if !parameter_words.is_supported_by(&function_word_set) {
-            continue;
+    fn function_domains(self, parameters: &[&Parameter]) -> HashSet<String> {
+        // Derive the domain expressed directly by the operation name.
+        let function_words = DomainWords::meaningful(self);
+        let function_domain = (!function_words.is_empty()).then(|| function_words.to_pascal());
+        let function_word_set = function_words.into_set();
+
+        // Prefer domains supported by both the operation and a parameter name.
+        let mut domains = HashSet::new();
+        for parameter in parameters {
+            let parameter_words = DomainWords::meaningful(parameter.name);
+            if !parameter_words.is_supported_by(&function_word_set) {
+                continue;
+            }
+            domains.insert(parameter_words.to_pascal());
         }
-        domains.insert(parameter_words.to_pascal());
-    }
 
-    // A unary behavior function may express its domain entirely in its name.
-    if domains.is_empty()
-        && parameters.len() == 1
-        && let Some(domain) = function_domain
-    {
-        domains.insert(domain);
+        // A unary behavior function may express its domain entirely in its name.
+        if domains.is_empty()
+            && parameters.len() == 1
+            && let Some(domain) = function_domain
+        {
+            domains.insert(domain);
+        }
+        domains
     }
-    domains
 }
 
 #[cfg(test)]
 mod tests {
     use super::rustc_span::{Symbol, create_default_session_globals_then};
-    use super::{DomainWords, from_parameter};
+    use super::{DomainWords, StringDomainSymbolExt};
 
     #[test]
     fn extracts_domain_names_from_precise_parameters() {
         create_default_session_globals_then(|| {
             assert_eq!(
-                from_parameter(Symbol::intern("left_access_token")),
+                Symbol::intern("left_access_token").parameter_domain(),
                 Some("AccessToken".to_owned())
             );
-            assert_eq!(from_parameter(Symbol::intern("source")), None);
+            assert_eq!(Symbol::intern("source").parameter_domain(), None);
         });
     }
 

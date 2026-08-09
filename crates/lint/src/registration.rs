@@ -30,6 +30,8 @@ pub extern "Rust" fn register_lints(
     // Register control-flow and section identity policies.
     rules::core::deeply_nested_control_flow::register_lints(sess, lint_store);
     rules::core::duplicate_section_divider_prefixes::register_lints(sess, lint_store);
+    rules::core::foreign_type_method_like_free_functions::register_lints(sess, lint_store);
+    rules::core::incoherent_extension_traits::register_lints(sess, lint_store);
     rules::core::incoherent_type_family_names::register_lints(sess, lint_store);
     rules::core::implicit_first_wins_deduplication::register_lints(sess, lint_store);
     rules::core::invalid_barrel_file_items::register_lints(sess, lint_store);
@@ -52,6 +54,7 @@ pub extern "Rust" fn register_lints(
     rules::core::needless_function_wrappers::register_lints(sess, lint_store);
     rules::core::needlessly_nested_control_flow::register_lints(sess, lint_store);
     rules::core::nested_tuple_types::register_lints(sess, lint_store);
+    rules::core::non_adjacent_extension_trait_impls::register_lints(sess, lint_store);
     rules::core::non_adjacent_struct_impls::register_lints(sess, lint_store);
     rules::core::overloaded_declaration_sections::register_lints(sess, lint_store);
     rules::core::oversized_match_arms::register_lints(sess, lint_store);

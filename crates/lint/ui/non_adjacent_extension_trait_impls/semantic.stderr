@@ -1,0 +1,33 @@
+warning: the impl group for extension trait `InterruptedExt` is not adjacent to its declaration
+  --> $DIR/semantic.rs:31:1
+   |
+LL |   trait InterruptedExt {
+   |         -------------- extension trait declared here
+...
+LL | / impl InterruptedExt for InterruptedTarget {
+LL | |     fn inspect(&self) {}
+LL | | }
+   | |_^
+   |
+   = help: move every authored extension impl into one consecutive group immediately after the trait in the same module
+note: the lint level is defined here
+  --> $DIR/semantic.rs:4:9
+   |
+LL | #![warn(non_adjacent_extension_trait_impls)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: the impl group for extension trait `RemoteExt` is not adjacent to its declaration
+  --> $DIR/semantic.rs:42:5
+   |
+LL |   trait RemoteExt {
+   |         --------- extension trait declared here
+...
+LL | /     impl RemoteExt for RemoteTarget {
+LL | |         fn inspect(&self) {}
+LL | |     }
+   | |_____^
+   |
+   = help: move every authored extension impl into one consecutive group immediately after the trait in the same module
+
+warning: 2 warnings emitted
+

@@ -8,7 +8,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use crate::utils::declaration_node::{
     DeclarationConstraints, DeclarationNode, DeclarationNodeList, DeclarationSource,
 };
-use crate::utils::item_dependencies::item_dependencies;
+use crate::utils::item_dependencies::DependenciesExt;
 use crate::utils::reorder_declarations::DeclarationOrder;
 use crate::utils::source_organization::SectionAnalyzer;
 
@@ -185,7 +185,7 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedTypeDeclarations {
                 category: 0,
                 // Visibility is intentionally neutral: independent types retain authored order.
                 is_outward_visible: false,
-                dependencies: item_dependencies(cx.tcx, item),
+                dependencies: item.dependencies(cx.tcx),
             };
 
             // Combine the source identity and ordering constraints as one movable node.

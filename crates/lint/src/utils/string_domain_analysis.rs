@@ -11,10 +11,9 @@ use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 
 use super::identifier_case;
-use super::parameter_analysis::{
-    Parameter, ParameterKind, ParameterSignature, parameter_type_is_textual,
-};
-use super::{string_domain_revalidation, string_domain_vocabulary};
+use super::parameter_analysis::{Parameter, ParameterKind, ParameterSignature, ParameterTypeExt};
+use super::string_domain_revalidation::StringDomainBodyExt;
+use super::string_domain_vocabulary::StringDomainSymbolExt;
 
 // -----------------------------------------------------------------------------
 // DomainFinding: String domain diagnostics
@@ -133,7 +132,7 @@ impl DomainEvidenceRevalidation {
         parameter: &Parameter,
     ) -> Option<Self> {
         // Resolve the domain and preserve the consuming function as one semantic identity.
-        let domain = string_domain_vocabulary::from_parameter(parameter.name)?;
+        let domain = parameter.name.parameter_domain()?;
         let consumer = DomainEvidenceConsumer {
             def_id: signature.def_id,
             module,
@@ -272,10 +271,10 @@ impl DomainAnalyzer {
         let owner = cx.tcx.parent(field.def_id.to_def_id());
         let is_struct_field = cx.tcx.def_kind(owner) == DefKind::Struct;
         let ty = cx.tcx.type_of(field.def_id).instantiate_identity();
-        if !is_struct_field || !parameter_type_is_textual(cx, ty) {
+        if !is_struct_field || !ty.is_textual(cx) {
             return;
         }
-        let Some(domain) = string_domain_vocabulary::from_parameter(field.ident.name) else {
+        let Some(domain) = field.ident.name.parameter_domain() else {
             return;
         };
 
@@ -306,8 +305,8 @@ impl DomainAnalyzer {
         let textual = Self::textual_parameters(signature);
 
         // Free functions collectively imitate an impl block only when behavior is visible.
-        if parent_is_module && string_domain_vocabulary::has_behavior(signature.name) {
-            for domain in string_domain_vocabulary::function_domains(signature.name, &textual) {
+        if parent_is_module && signature.name.has_domain_behavior() {
+            for domain in signature.name.function_domains(&textual) {
                 self.functions.push(DomainEvidenceFunction {
                     def_id: signature.def_id,
                     module,
@@ -317,12 +316,12 @@ impl DomainAnalyzer {
                 });
             }
         }
-        if string_domain_vocabulary::establishes_invariant(signature.name) {
+        if signature.name.establishes_domain_invariant() {
             return;
         }
 
         // Downstream consumers count when they re-establish an identifiable invariant.
-        let revalidated = string_domain_revalidation::bindings(cx, body, &textual);
+        let revalidated = body.revalidated_bindings(cx, &textual);
         for parameter in textual {
             if !revalidated.contains(&parameter.hir_id) {
                 continue;

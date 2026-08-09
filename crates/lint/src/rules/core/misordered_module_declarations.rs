@@ -11,7 +11,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use crate::utils::declaration_node::{
     DeclarationConstraints, DeclarationNode, DeclarationNodeList, DeclarationSource,
 };
-use crate::utils::item_dependencies::item_dependencies;
+use crate::utils::item_dependencies::DependenciesExt;
 use crate::utils::reorder_declarations::DeclarationOrder;
 use crate::utils::source_organization::SectionAnalyzer;
 
@@ -119,7 +119,7 @@ impl MisorderedModuleDeclarations {
                 .extend(Self::contained_definitions(cx, items[*extension.end]));
             extension
                 .dependencies
-                .extend(item_dependencies(cx.tcx, items[*extension.end]));
+                .extend(items[*extension.end].dependencies(cx.tcx));
         }
     }
 
@@ -261,7 +261,7 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedModuleDeclarations {
             // Collect the declaration and dependencies owned by its movable source group.
             let mut end = index;
             let mut definitions = Self::contained_definitions(cx, item);
-            let mut dependencies = item_dependencies(cx.tcx, item);
+            let mut dependencies = item.dependencies(cx.tcx);
             if Self::is_type(item) {
                 // Extend nominal types through their adjacent direct implementation group.
                 let mut extension = MisorderedModuleDeclarationGroupExtension {

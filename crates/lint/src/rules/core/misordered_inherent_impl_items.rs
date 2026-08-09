@@ -8,7 +8,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use crate::utils::declaration_node::{
     DeclarationConstraints, DeclarationNode, DeclarationNodeList, DeclarationSource,
 };
-use crate::utils::impl_item_dependencies::impl_item_dependencies;
+use crate::utils::impl_item_dependencies::DependenciesExt;
 use crate::utils::reorder_declarations::DeclarationOrder;
 
 // -----------------------------------------------------------------------------
@@ -176,7 +176,7 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedInherentImplItems {
                 constraints: DeclarationConstraints {
                     category: Self::category(cx, item),
                     is_outward_visible: item.vis_span().is_some_and(|span| !span.is_empty()),
-                    dependencies: impl_item_dependencies(cx.tcx, item),
+                    dependencies: item.dependencies(cx.tcx),
                 },
             })
             .collect::<Vec<_>>();

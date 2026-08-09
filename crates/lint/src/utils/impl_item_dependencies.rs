@@ -10,12 +10,20 @@ use rustc_middle::ty::TyCtxt;
 
 use super::dependency_collector::DependencyCollector;
 
-/// Resolves references made by an associated impl item to declarations in the current crate.
-pub fn impl_item_dependencies<'tcx>(
-    tcx: TyCtxt<'tcx>,
-    item: &'tcx ImplItem<'tcx>,
-) -> HashSet<LocalDefId> {
-    let mut collector = DependencyCollector::new(tcx);
-    collector.visit_impl_item(item);
-    collector.finish()
+// -----------------------------------------------------------------------------
+// DependenciesExt: Associated item dependency queries
+// -----------------------------------------------------------------------------
+
+/// Dependency queries colocated with compiler impl items.
+pub trait DependenciesExt {
+    /// Resolves references made by this impl item to declarations in the current crate.
+    fn dependencies<'tcx>(&'tcx self, tcx: TyCtxt<'tcx>) -> HashSet<LocalDefId>;
+}
+
+impl DependenciesExt for ImplItem<'_> {
+    fn dependencies<'tcx>(&'tcx self, tcx: TyCtxt<'tcx>) -> HashSet<LocalDefId> {
+        let mut collector = DependencyCollector::new(tcx);
+        collector.visit_impl_item(self);
+        collector.finish()
+    }
 }

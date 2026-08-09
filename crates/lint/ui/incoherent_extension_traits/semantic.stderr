@@ -1,0 +1,34 @@
+warning: extension trait `BroadExt` does not describe one focused capability
+  --> $DIR/semantic.rs:11:7
+   |
+LL | trait BroadExt {
+   |       ^^^^^^^^
+   |
+   = note: its methods operate on multiple concrete subject families: `ExternalItem`, `ExternalType`
+   = help: split the API into extension traits named for one semantic subject or capability
+note: the lint level is defined here
+  --> $DIR/semantic.rs:4:9
+   |
+LL | #![warn(incoherent_extension_traits)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: extension trait `LargeExt` does not describe one focused capability
+  --> $DIR/semantic.rs:21:7
+   |
+LL | trait LargeExt {
+   |       ^^^^^^^^
+   |
+   = note: it defines 9 methods, exceeding the configured limit of 8
+   = help: split the API into extension traits named for one semantic subject or capability
+
+warning: extension trait `BroadBlanketExt` does not describe one focused capability
+  --> $DIR/semantic.rs:57:7
+   |
+LL | trait BroadBlanketExt {
+   |       ^^^^^^^^^^^^^^^
+   |
+   = note: its methods operate on multiple concrete subject families: `ExternalItem`, `ExternalType`
+   = help: split the API into extension traits named for one semantic subject or capability
+
+warning: 3 warnings emitted
+

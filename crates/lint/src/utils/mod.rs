@@ -1,7 +1,7 @@
 pub mod config;
 pub mod declaration_node;
 mod dependency_collector;
-pub mod direct_impl_struct;
+pub mod impl_target;
 pub mod identifier_case;
 pub mod impl_item_dependencies;
 pub mod item_dependencies;
@@ -20,6 +20,8 @@ pub mod function_structure;
 pub mod reorder_declarations;
 mod section_analysis;
 mod family_name_analysis;
+pub mod foreign_type_analysis;
+pub mod extension_trait_analysis;
 pub mod source_organization;
 mod string_domain_vocabulary;
 mod string_domain_revalidation;

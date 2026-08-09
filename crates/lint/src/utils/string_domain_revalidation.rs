@@ -10,7 +10,7 @@ use rustc_hir::{Body, Expr, ExprKind, HirId};
 use rustc_lint::LateContext;
 
 use super::parameter_analysis::Parameter;
-use super::string_domain_vocabulary;
+use super::string_domain_vocabulary::StringDomainSymbolExt;
 
 // -----------------------------------------------------------------------------
 // StringDomainRevalidation: Raw string invariant analysis
@@ -103,7 +103,7 @@ impl<'analysis, 'tcx> RevalidationVisitor<'analysis, 'tcx> {
             return;
         };
         let name = self.cx.tcx.item_name(def_id);
-        if !string_domain_vocabulary::establishes_invariant(name) {
+        if !name.establishes_domain_invariant() {
             return;
         }
         for argument in arguments {
@@ -118,7 +118,7 @@ impl<'analysis, 'tcx> RevalidationVisitor<'analysis, 'tcx> {
         receiver: &'tcx Expr<'tcx>,
         arguments: &'tcx [Expr<'tcx>],
     ) {
-        if !string_domain_vocabulary::establishes_invariant(name) {
+        if !name.establishes_domain_invariant() {
             return;
         }
         self.record_bindings(receiver);
@@ -145,13 +145,24 @@ impl<'tcx> Visitor<'tcx> for RevalidationVisitor<'_, 'tcx> {
     }
 }
 
-/// Returns every textual parameter whose invariant is re-established in a body.
-pub(super) fn bindings<'tcx>(
-    cx: &LateContext<'tcx>,
-    body: &'tcx Body<'tcx>,
-    parameters: &[&Parameter],
-) -> HashSet<HirId> {
-    let mut visitor = RevalidationVisitor::new(cx, parameters);
-    visitor.visit_expr(body.value);
-    visitor.revalidated
+/// Revalidation queries colocated with compiler function bodies.
+pub(super) trait StringDomainBodyExt {
+    /// Returns every textual parameter whose invariant is re-established in this body.
+    fn revalidated_bindings<'tcx>(
+        &'tcx self,
+        cx: &LateContext<'tcx>,
+        parameters: &[&Parameter],
+    ) -> HashSet<HirId>;
+}
+
+impl StringDomainBodyExt for Body<'_> {
+    fn revalidated_bindings<'tcx>(
+        &'tcx self,
+        cx: &LateContext<'tcx>,
+        parameters: &[&Parameter],
+    ) -> HashSet<HirId> {
+        let mut visitor = RevalidationVisitor::new(cx, parameters);
+        visitor.visit_expr(self.value);
+        visitor.revalidated
+    }
 }

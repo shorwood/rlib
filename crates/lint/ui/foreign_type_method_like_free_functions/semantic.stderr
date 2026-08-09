@@ -1,0 +1,76 @@
+warning: this visible free function behaves like an extension method on `ExternalItem`
+  --> $DIR/semantic.rs:14:8
+   |
+LL | pub fn inspect_item(ambient: &Ambient, item: &ExternalItem) {}
+   |        ^^^^^^^^^^^^
+   |
+   = help: define a focused local extension trait for `ExternalItem` and colocate this operation with its impl
+note: the lint level is defined here
+  --> $DIR/semantic.rs:4:9
+   |
+LL | #![warn(foreign_type_method_like_free_functions)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: this visible free function behaves like an extension method on `ExternalType`
+  --> $DIR/semantic.rs:15:15
+   |
+LL | pub(crate) fn inspect_type(ambient: &Ambient, ty: &ExternalType) {}
+   |               ^^^^^^^^^^^^
+   |
+   = help: define a focused local extension trait for `ExternalType` and colocate this operation with its impl
+
+warning: this visible free function exposes behavior through foreign types without a clear owner
+  --> $DIR/semantic.rs:18:8
+   |
+LL | pub fn register_document(registry: &Registry, document: &Document) {}
+   |        ^^^^^^^^^^^^^^^^^
+   |
+   = note: foreign parameter candidates: `Registry`, `Document`
+   = help: choose one semantic subject and define a focused extension trait, or introduce a domain object that owns the operation
+
+warning: this visible free function behaves like an extension method on `ExternalItem`
+  --> $DIR/semantic.rs:21:8
+   |
+LL | pub fn inspect(item: &ExternalItem) {}
+   |        ^^^^^^^
+   |
+   = help: define a focused local extension trait for `ExternalItem` and colocate this operation with its impl
+
+warning: this visible free function behaves like an extension method on `ExternalItem`
+  --> $DIR/semantic.rs:22:8
+   |
+LL | pub fn inspect_alias(item: &ItemAlias) {}
+   |        ^^^^^^^^^^^^^
+   |
+   = help: define a focused local extension trait for `ExternalItem` and colocate this operation with its impl
+
+warning: this visible free function behaves like an extension method on `ExternalType`
+  --> $DIR/semantic.rs:26:16
+   |
+LL |         pub fn generated_locally(item: &ExternalType) {}
+   |                ^^^^^^^^^^^^^^^^^
+...
+LL | local_helper!();
+   | --------------- in this macro invocation
+   |
+   = help: define a focused local extension trait for `ExternalType` and colocate this operation with its impl
+   = note: this warning originates in the macro `local_helper` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: this visible free function behaves like an extension method on `ExternalType`
+  --> $DIR/semantic.rs:46:19
+   |
+LL |     pub(super) fn super_visible(ty: &ExternalType) {}
+   |                   ^^^^^^^^^^^^^
+   |
+   = help: define a focused local extension trait for `ExternalType` and colocate this operation with its impl
+
+warning: this visible free function behaves like an extension method on `Document`
+  --> $DIR/semantic.rs:47:22
+   |
+LL |     pub(in crate) fn crate_visible(document: &Document) {}
+   |                      ^^^^^^^^^^^^^
+   |
+   = help: define a focused local extension trait for `Document` and colocate this operation with its impl
+
+warning: 8 warnings emitted
+

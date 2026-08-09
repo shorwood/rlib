@@ -1,6 +1,6 @@
 //! UI regression tests for every default-configuration lint fixture.
 
-const CROSS_CUTTING_LINT_ALLOWS: [&str; 48] = [
+const CROSS_CUTTING_LINT_ALLOWS: [&str; 54] = [
     "-A",
     "ambiguous_primitive_parameters",
     "-A",
@@ -13,6 +13,10 @@ const CROSS_CUTTING_LINT_ALLOWS: [&str; 48] = [
     "deeply_nested_control_flow",
     "-A",
     "duplicate_section_divider_prefixes",
+    "-A",
+    "foreign_type_method_like_free_functions",
+    "-A",
+    "incoherent_extension_traits",
     "-A",
     "incoherent_type_family_names",
     "-A",
@@ -31,6 +35,8 @@ const CROSS_CUTTING_LINT_ALLOWS: [&str; 48] = [
     "missing_section_dividers",
     "-A",
     "nested_tuple_types",
+    "-A",
+    "non_adjacent_extension_trait_impls",
     "-A",
     "needlessly_nested_control_flow",
     "-A",

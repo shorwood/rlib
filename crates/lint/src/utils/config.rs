@@ -1,16 +1,43 @@
 use serde::Deserialize;
 
 // -----------------------------------------------------------------------------
-// LibraryConfig: Complete lint library configuration
+// ExtensionTraitConfig: Focused extension trait limits
 // -----------------------------------------------------------------------------
 
-/// Environment key under which Dylint provides this library's configuration table.
-const LIBRARY_CONFIG_KEY: &str = env!("CARGO_PKG_NAME");
+/// Limits that prevent extension traits from becoming catch-all APIs.
+#[derive(Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ExtensionTraitConfig {
+    /// Maximum number of methods permitted on one extension trait.
+    pub(crate) max_methods: usize,
+}
+
+impl Default for ExtensionTraitConfig {
+    fn default() -> Self {
+        Self { max_methods: 8 }
+    }
+}
+
+impl ExtensionTraitConfig {
+    /// Rejects a method budget that cannot admit any extension behavior.
+    pub(crate) fn validate(&self) -> Result<(), String> {
+        if self.max_methods == 0 {
+            return Err("extension_traits.max_methods must be greater than zero".to_owned());
+        }
+        Ok(())
+    }
+}
+
+// -----------------------------------------------------------------------------
+// LibraryConfig: Complete lint library configuration
+// -----------------------------------------------------------------------------
 
 /// Every configurable policy exposed through the `rlib-lint` Dylint table.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct LibraryConfig {
+    /// Size policy used by focused extension-trait lints.
+    pub(crate) extension_traits: ExtensionTraitConfig,
     /// Limits and syntax used by the function-structure lint family.
     pub(crate) function_structure: FunctionStructureConfig,
     /// Rendering and width policy used by section-divider lints.
@@ -20,7 +47,7 @@ pub struct LibraryConfig {
 impl LibraryConfig {
     /// Loads the complete library configuration from Dylint's process environment.
     pub(crate) fn load() -> Self {
-        dylint_linting::config_or_default(LIBRARY_CONFIG_KEY)
+        dylint_linting::config_or_default(env!("CARGO_PKG_NAME"))
     }
 }
 
@@ -139,7 +166,33 @@ impl SectionDividerConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::{FunctionStructureConfig, LibraryConfig, SectionDividerConfig};
+    use super::{
+        ExtensionTraitConfig, FunctionStructureConfig, LibraryConfig, SectionDividerConfig,
+    };
+
+    #[test]
+    fn parses_custom_extension_trait_limit() {
+        let config = toml::from_str::<LibraryConfig>(
+            r"
+                [extension_traits]
+                max_methods = 5
+            ",
+        )
+        .expect("custom extension trait limit should parse");
+        assert_eq!(config.extension_traits.max_methods, 5);
+        assert!(config.extension_traits.validate().is_ok());
+    }
+
+    #[test]
+    fn uses_eight_extension_methods_by_default() {
+        assert_eq!(ExtensionTraitConfig::default().max_methods, 8);
+    }
+
+    #[test]
+    fn rejects_zero_extension_method_limit() {
+        let config = ExtensionTraitConfig { max_methods: 0 };
+        assert!(config.validate().is_err());
+    }
 
     #[test]
     fn parses_custom_function_structure_limits() {

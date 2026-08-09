@@ -49,6 +49,47 @@ impl ParameterKind {
         Self::Float { representation }
     }
 
+    /// Classifies exact numeric primitive representations.
+    fn numeric(ty: Ty<'_>) -> Option<Self> {
+        match ty.kind() {
+            ty::Int(representation) => Some(Self::signed(*representation)),
+            ty::Uint(representation) => Some(Self::unsigned(*representation)),
+            ty::Float(representation) => Some(Self::float(*representation)),
+            _ => None,
+        }
+    }
+
+    /// Classifies scalar primitive and directly borrowed textual representations.
+    fn scalar(ty: Ty<'_>) -> Option<Self> {
+        if let Some(kind) = Self::numeric(ty) {
+            return Some(kind);
+        }
+        match ty.kind() {
+            ty::Char => Some(Self::Character),
+            ty::Str => Some(Self::Text),
+            _ => None,
+        }
+    }
+
+    /// Classifies standard textual ADTs after resolving re-exported definition paths.
+    fn adt(
+        cx: &LateContext<'_>,
+        def_id: rustc_span::def_id::DefId,
+        arguments: ty::GenericArgsRef<'_>,
+    ) -> Option<Self> {
+        let path = cx.tcx.def_path_str(def_id);
+        if path.ends_with("::string::String") {
+            return Some(Self::Text);
+        }
+        if !path.ends_with("::boxed::Box") && !path.ends_with("::borrow::Cow") {
+            return None;
+        }
+        arguments
+            .types()
+            .any(|argument| matches!(argument.kind(), ty::Str))
+            .then_some(Self::Text)
+    }
+
     /// Describes this family in a diagnostic without exposing compiler terminology.
     pub fn description(self) -> String {
         match self {
@@ -65,63 +106,30 @@ impl ParameterKind {
     }
 }
 
-/// Classifies exact numeric primitive representations.
-fn numeric_kind(ty: Ty<'_>) -> Option<ParameterKind> {
-    match ty.kind() {
-        ty::Int(representation) => Some(ParameterKind::signed(*representation)),
-        ty::Uint(representation) => Some(ParameterKind::unsigned(*representation)),
-        ty::Float(representation) => Some(ParameterKind::float(*representation)),
-        _ => None,
-    }
+/// Parameter-family queries colocated with compiler types.
+pub trait ParameterTypeExt {
+    /// Classifies aliases and references by their interchangeable representation.
+    fn interchangeable_kind(self, cx: &LateContext<'_>) -> Option<ParameterKind>;
+    /// Returns whether this resolved type belongs to the textual family.
+    fn is_textual(&self, cx: &LateContext<'_>) -> bool;
 }
 
-/// Classifies scalar primitive and directly borrowed textual representations.
-fn scalar_kind(ty: Ty<'_>) -> Option<ParameterKind> {
-    if let Some(kind) = numeric_kind(ty) {
-        return Some(kind);
-    }
-    match ty.kind() {
-        ty::Char => Some(ParameterKind::Character),
-        ty::Str => Some(ParameterKind::Text),
-        _ => None,
-    }
-}
+impl ParameterTypeExt for Ty<'_> {
+    fn interchangeable_kind(self, cx: &LateContext<'_>) -> Option<ParameterKind> {
+        // References do not distinguish semantic roles at the call site.
+        let ty = self.peel_refs();
 
-/// Classifies standard textual ADTs after resolving re-exported definition paths.
-fn adt_kind(
-    cx: &LateContext<'_>,
-    def_id: rustc_span::def_id::DefId,
-    arguments: ty::GenericArgsRef<'_>,
-) -> Option<ParameterKind> {
-    let path = cx.tcx.def_path_str(def_id);
-    if path.ends_with("::string::String") {
-        return Some(ParameterKind::Text);
+        // Resolve scalar values before inspecting standard-library text containers.
+        if let Some(kind) = ParameterKind::scalar(ty) {
+            return Some(kind);
+        }
+        let ty::Adt(definition, arguments) = ty.kind() else {
+            return None;
+        };
+        ParameterKind::adt(cx, definition.did(), arguments)
     }
-    if !path.ends_with("::boxed::Box") && !path.ends_with("::borrow::Cow") {
-        return None;
+
+    fn is_textual(&self, cx: &LateContext<'_>) -> bool {
+        (*self).interchangeable_kind(cx) == Some(ParameterKind::Text)
     }
-    arguments
-        .types()
-        .any(|argument| matches!(argument.kind(), ty::Str))
-        .then_some(ParameterKind::Text)
-}
-
-/// Classifies aliases and references by their interchangeable representation.
-pub(super) fn interchangeable_kind(cx: &LateContext<'_>, ty: Ty<'_>) -> Option<ParameterKind> {
-    // References do not distinguish semantic roles at the call site.
-    let ty = ty.peel_refs();
-
-    // Resolve scalar values before inspecting standard-library text containers.
-    if let Some(kind) = scalar_kind(ty) {
-        return Some(kind);
-    }
-    let ty::Adt(definition, arguments) = ty.kind() else {
-        return None;
-    };
-    adt_kind(cx, definition.did(), arguments)
-}
-
-/// Returns whether a resolved type belongs to the textual family.
-pub fn type_is_textual(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
-    interchangeable_kind(cx, ty) == Some(ParameterKind::Text)
 }

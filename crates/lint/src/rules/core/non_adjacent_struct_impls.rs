@@ -9,7 +9,7 @@ use rustc_hir::{HirId, Item, ItemKind, Mod, def_id::LocalDefId};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{Span, Symbol};
 
-use crate::utils::direct_impl_struct::direct_impl_struct;
+use crate::utils::impl_target::ImplTargetExt;
 
 // -----------------------------------------------------------------------------
 // ImplGroup: Collected implementation groups
@@ -290,7 +290,7 @@ impl NonAdjacentStructImpls {
     ) -> Vec<ImplGroup<'tcx>> {
         let mut impls_by_struct = HashMap::<LocalDefId, Vec<ImplGroupItem<'tcx>>>::new();
         for (index, item) in items.iter().enumerate() {
-            let Some(struct_def_id) = direct_impl_struct(cx, item) else {
+            let Some(struct_def_id) = item.direct_struct(cx) else {
                 continue;
             };
             impls_by_struct

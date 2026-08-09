@@ -8,7 +8,8 @@ use rustc_lint::LateContext;
 use rustc_span::Span;
 
 use super::config::FunctionStructureConfig;
-use super::{control_flow_loop, control_flow_metrics};
+use super::control_flow_loop::LoopBodyExt;
+use super::control_flow_metrics::{ControlFlowArmExt, ControlFlowExpressionExt};
 
 // -----------------------------------------------------------------------------
 // ControlFlow: Analyze semantic function structure
@@ -205,7 +206,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
 
         // Measure each authored arm while traversing its nested expressions.
         for arm in arms {
-            let lines = control_flow_metrics::match_arm_lines(self.cx, arm);
+            let lines = arm.code_lines(self.cx);
             if lines > self.config.max_match_arm_lines && !arm.span.from_expansion() {
                 // Describe the oversized arm using its measured and configured limits.
                 let message = format!(
@@ -347,12 +348,10 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
     /// Reports an outermost method chain when its call count exceeds the limit.
     fn record_method_chain(&mut self, expression: &Expr<'_>) {
         // Ignore generated and nested receiver calls before measuring the chain.
-        if expression.span.from_expansion()
-            || control_flow_metrics::is_parent_method_receiver(self.cx, expression)
-        {
+        if expression.span.from_expansion() || expression.is_parent_method_receiver(self.cx) {
             return;
         }
-        let calls = control_flow_metrics::method_chain_length(expression);
+        let calls = expression.method_chain_length();
         if calls <= self.config.max_method_chain_calls {
             return;
         }
@@ -376,7 +375,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
 
 impl<'tcx> Visitor<'tcx> for ControlFlowAnalyzer<'_, 'tcx> {
     fn visit_block(&mut self, block: &'tcx Block<'tcx>) {
-        let exit = if control_flow_loop::is_direct_body(self.cx, block) {
+        let exit = if block.is_direct_loop_body(self.cx) {
             ControlFlowGuardExit::Continue
         } else {
             ControlFlowGuardExit::None

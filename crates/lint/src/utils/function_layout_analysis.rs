@@ -357,7 +357,14 @@ impl<'tcx> Visitor<'tcx> for FunctionLayoutAnalyzer<'_, 'tcx> {
     }
 }
 
-/// Counts physical lines containing non-comment source tokens within `span`.
-pub(super) fn function_layout_code_line_count(cx: &LateContext<'_>, span: Span) -> usize {
-    FunctionLayoutNestedSpanCollector::filtered_line_count(cx, span, &[])
+/// Function-layout measurements colocated with compiler spans.
+pub(super) trait FunctionLayoutSpanExt {
+    /// Counts physical lines containing non-comment source tokens within this span.
+    fn code_line_count(self, cx: &LateContext<'_>) -> usize;
+}
+
+impl FunctionLayoutSpanExt for Span {
+    fn code_line_count(self, cx: &LateContext<'_>) -> usize {
+        FunctionLayoutNestedSpanCollector::filtered_line_count(cx, self, &[])
+    }
 }

@@ -8,7 +8,7 @@ use rustc_span::Span;
 
 use super::config::FunctionStructureConfig;
 use super::function_layout_prose::FunctionLayoutProse;
-use super::function_layout_source::{self, Comment};
+use super::function_layout_source::{Comment, SourcePositionExt, SourceSpanExt};
 
 // -----------------------------------------------------------------------------
 // FunctionLayout: Parse and validate explanatory comments
@@ -107,7 +107,7 @@ fn function_layout_comment_blocks(
     span: Span,
     prefix: &str,
 ) -> Vec<FunctionLayoutCommentBlock> {
-    let comments = function_layout_source::comments(cx, span);
+    let comments = span.comments(cx);
     let mut blocks = Vec::new();
     let mut index = 0;
     while index < comments.len() {
@@ -155,8 +155,8 @@ impl FunctionLayoutEntryGap {
     ) -> Self {
         // Resolve source positions needed to validate every candidate header.
         let blocks = function_layout_comment_blocks(cx, span, &config.phase_comment_prefix);
-        let next_line = next.map(|span| function_layout_source::line(cx, span.lo()));
-        let previous_line = previous.map(|span| function_layout_source::line(cx, span.hi()));
+        let next_line = next.map(|span| span.lo().source_line(cx));
+        let previous_line = previous.map(|span| span.hi().source_line(cx));
         let mut has_valid_header = false;
         let mut findings = Vec::new();
 

@@ -12,7 +12,7 @@ use rustc_middle::ty;
 use rustc_span::Span;
 
 use super::identifier_case;
-use super::item_dependencies::item_dependencies;
+use super::item_dependencies::DependenciesExt;
 use super::section_analysis::{SectionAnalyzer, SectionGroup, SectionParticipant};
 
 // -----------------------------------------------------------------------------
@@ -794,7 +794,7 @@ impl ModuleNamingAnalysis {
                 dependencies
                     .entry(item.owner_id.def_id)
                     .or_default()
-                    .extend(item_dependencies(cx.tcx, item));
+                    .extend(item.dependencies(cx.tcx));
                 continue;
             }
 
@@ -810,7 +810,7 @@ impl ModuleNamingAnalysis {
             dependencies
                 .entry(definition)
                 .or_default()
-                .extend(item_dependencies(cx.tcx, item));
+                .extend(item.dependencies(cx.tcx));
         }
         dependencies
     }
