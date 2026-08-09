@@ -12,7 +12,8 @@ use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::parameter_analysis::{ParameterGroup, ParameterKind, ParameterSignature};
+use crate::utils::parameter_analysis::{ParameterGroup, ParameterSignature};
+use crate::utils::parameter_kind::ParameterKind;
 use crate::utils::string_domain_analysis::DomainAnalyzer;
 
 // -----------------------------------------------------------------------------

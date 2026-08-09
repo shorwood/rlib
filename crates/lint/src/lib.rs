@@ -3,5 +3,3 @@
 pub(crate) mod utils;
 pub(crate) mod rules;
 mod registration;
-
-pub use registration::register_lints;

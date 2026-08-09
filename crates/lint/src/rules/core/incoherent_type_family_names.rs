@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_organization::FamilyNameAnalyzer;
+use crate::utils::family_name_analysis::FamilyNameAnalyzer;
 
 // -----------------------------------------------------------------------------
 // Violation: Incoherent declaration family naming diagnostic

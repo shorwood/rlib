@@ -15,7 +15,7 @@ use crate::utils::declaration_node::{
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::item_dependencies::DependenciesExt;
 use crate::utils::reorder_declarations::{DeclarationOrder, DeclarationOrderEdit};
-use crate::utils::source_organization::SectionAnalyzer;
+use crate::utils::section_analysis::SectionAnalyzer;
 
 // -----------------------------------------------------------------------------
 // Violation: Misordered type declaration diagnostic

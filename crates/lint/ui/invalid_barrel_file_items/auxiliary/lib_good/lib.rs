@@ -3,6 +3,4 @@
 #![allow(dead_code)]
 
 #[path = "lib_child.rs"]
-mod child;
-
-pub use child::LibraryEntry;
+pub mod child;

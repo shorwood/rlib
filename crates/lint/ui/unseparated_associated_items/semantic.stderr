@@ -25,3 +25,4 @@ LL |     fn first(&self) {}
    |                       +
 
 warning: 2 warnings emitted
+

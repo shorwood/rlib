@@ -4,11 +4,10 @@ extern crate rustc_span;
 
 use std::borrow::Cow;
 
-use rustc_ast::ast::{Inline, Item, ItemKind, ModKind, VisibilityKind};
+use rustc_ast::ast::{Inline, Item, ItemKind, ModKind};
 use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
-use rustc_span::symbol::kw;
 
 use crate::utils::diagnostic::EarlyViolation;
 
@@ -21,8 +20,8 @@ use crate::utils::diagnostic::EarlyViolation;
 enum ViolationKind {
     /// An inline module hides implementation code inside a barrel file.
     InlineModule,
-    /// A private import does not expose anything from this barrel.
-    PrivateImport,
+    /// An import introduces behavior or a competing item path into a barrel.
+    Import,
     /// Macro definitions and calls do not belong in a barrel file.
     Macro,
     /// Implementation code does not belong in a barrel file.
@@ -31,11 +30,10 @@ enum ViolationKind {
 
 impl ViolationKind {
     /// Classifies a top-level item, returning `None` for valid barrel entries.
-    fn from_item(item: &Item) -> Option<Self> {
+    const fn from_item(item: &Item) -> Option<Self> {
         match &item.kind {
             ItemKind::Mod(_, _, kind) => Self::from_module(kind),
-            ItemKind::Use(_) if Self::is_outward_reexport(&item.vis.kind) => None,
-            ItemKind::Use(_) => Some(Self::PrivateImport),
+            ItemKind::Use(_) => Some(Self::Import),
             ItemKind::MacCall(_) | ItemKind::MacroDef(..) | ItemKind::DelegationMac(_) => {
                 Some(Self::Macro)
             }
@@ -51,23 +49,11 @@ impl ViolationKind {
         }
     }
 
-    /// Returns whether a `use` makes a name visible outside the current module.
-    ///
-    /// `pub(crate)`, `pub(super)`, and `pub(in ancestor)` all expose a useful barrel entry.
-    /// `pub(self)` and `pub(in self)` are merely private imports written with longer syntax.
-    fn is_outward_reexport(visibility: &VisibilityKind) -> bool {
-        match visibility {
-            VisibilityKind::Public => true,
-            VisibilityKind::Restricted { path, .. } => **path != kw::SelfLower,
-            VisibilityKind::Inherited => false,
-        }
-    }
-
     /// Explains why the particular item conflicts with the role of a barrel file.
     const fn message(self) -> &'static str {
         match self {
             Self::InlineModule => "an inline module hides implementation code inside a barrel file",
-            Self::PrivateImport => "a private import does not expose anything from this barrel",
+            Self::Import => "imports do not belong in a barrel file",
             Self::Macro => "macro definitions and calls do not belong in a barrel file",
             Self::Implementation => "implementation code does not belong in a barrel file",
         }
@@ -79,14 +65,12 @@ impl ViolationKind {
             Self::InlineModule => {
                 "move the module body to child.rs or child/mod.rs and leave only `mod child;` here"
             }
-            Self::PrivateImport => {
-                "remove this import or expose it as a reexport that callers can actually use"
-            }
+            Self::Import => "remove this import and use the item's canonical defining-module path",
             Self::Macro => {
-                "move the macro elsewhere and spell this barrel's declarations and reexports explicitly"
+                "move the macro elsewhere and spell this barrel's module declarations explicitly"
             }
             Self::Implementation => {
-                "move this code into a dedicated module and leave its declaration or reexport here"
+                "move this code into a dedicated module and leave only its module declaration here"
             }
         }
     }
@@ -146,9 +130,9 @@ struct InvalidBarrelFileItems {
 dylint_linting::impl_pre_expansion_lint! {
     /// ### What it does
     ///
-    /// Keeps every physical `mod.rs` and `lib.rs` file focused on describing the module tree. Such
-    /// a file may declare child modules and expose their names, but it may not contain
-    /// implementation code.
+    /// Keeps every physical `mod.rs` and `lib.rs` file focused exclusively on declaring its module
+    /// tree. Child module visibility belongs on the module declaration itself; imports,
+    /// reexports, macros, inline modules, and implementation code are rejected.
     ///
     /// ### Why is this bad?
     ///
@@ -161,7 +145,7 @@ dylint_linting::impl_pre_expansion_lint! {
     /// ```rust
     /// // mod.rs or lib.rs
     /// mod parser;
-    /// pub use parser::Parser;
+    /// use parser::Parser;
     ///
     /// fn parse() {}
     /// ```
@@ -170,8 +154,7 @@ dylint_linting::impl_pre_expansion_lint! {
     ///
     /// ```rust,ignore
     /// // mod.rs or lib.rs
-    /// mod parser;
-    /// pub use parser::{Parser, parse};
+    /// pub mod parser;
     ///
     /// // parser.rs
     /// pub struct Parser;
@@ -179,7 +162,7 @@ dylint_linting::impl_pre_expansion_lint! {
     /// ```
     pub INVALID_BARREL_FILE_ITEMS,
     Warn,
-    "keeps mod.rs and lib.rs limited to module declarations and reexports",
+    "keeps mod.rs and lib.rs limited to out-of-line module declarations",
     InvalidBarrelFileItems::default()
 }
 

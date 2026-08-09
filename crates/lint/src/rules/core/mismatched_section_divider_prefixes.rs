@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_organization::SectionAnalyzer;
+use crate::utils::section_analysis::SectionAnalyzer;
 
 // -----------------------------------------------------------------------------
 // Violation: Mismatched section family diagnostic

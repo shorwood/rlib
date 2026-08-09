@@ -11,7 +11,8 @@ use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 
 use super::identifier_case;
-use super::parameter_analysis::{Parameter, ParameterKind, ParameterSignature, ParameterTypeExt};
+use super::parameter_analysis::{Parameter, ParameterSignature};
+use super::parameter_kind::{ParameterKind, ParameterTypeExt};
 use super::string_domain_revalidation::StringDomainBodyExt;
 use super::string_domain_vocabulary::StringDomainSymbolExt;
 

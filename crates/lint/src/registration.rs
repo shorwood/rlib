@@ -50,12 +50,15 @@ pub extern "Rust" fn register_lints(
     rules::core::missing_code_phase_comments::register_lints(sess, lint_store);
     rules::core::missing_section_dividers::register_lints(sess, lint_store);
 
-    // Register nesting, tuple, and statement-level policies.
+    // Register nesting, tuple, and adjacency policies.
     rules::core::needless_function_wrappers::register_lints(sess, lint_store);
     rules::core::needlessly_nested_control_flow::register_lints(sess, lint_store);
     rules::core::nested_tuple_types::register_lints(sess, lint_store);
     rules::core::non_adjacent_extension_trait_impls::register_lints(sess, lint_store);
     rules::core::non_adjacent_struct_impls::register_lints(sess, lint_store);
+
+    // Register export ownership and section-size policies.
+    rules::core::non_defining_module_reexports::register_lints(sess, lint_store);
     rules::core::overloaded_declaration_sections::register_lints(sess, lint_store);
     rules::core::oversized_match_arms::register_lints(sess, lint_store);
 

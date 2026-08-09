@@ -15,7 +15,7 @@ use rustc_middle::ty::Ty;
 use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 
-pub use super::parameter_kind::{ParameterKind, ParameterTypeExt};
+use super::parameter_kind::{ParameterKind, ParameterTypeExt};
 use super::parameter_role;
 
 // -----------------------------------------------------------------------------

@@ -1,30 +1,30 @@
-warning: a private import does not expose anything from this barrel
+warning: imports do not belong in a barrel file
   --> $DIR/auxiliary/bad/mod.rs:1:1
    |
 LL | use std::fmt;
    | ^^^^^^^^^^^^^
    |
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
-   = help: remove this import or expose it as a reexport that callers can actually use
+   = help: remove this import and use the item's canonical defining-module path
    = note: `#[warn(invalid_barrel_file_items)]` on by default
 
-warning: a private import does not expose anything from this barrel
+warning: imports do not belong in a barrel file
   --> $DIR/auxiliary/bad/mod.rs:2:1
    |
 LL | pub(self) use std::io;
    | ^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
-   = help: remove this import or expose it as a reexport that callers can actually use
+   = help: remove this import and use the item's canonical defining-module path
 
-warning: a private import does not expose anything from this barrel
+warning: imports do not belong in a barrel file
   --> $DIR/auxiliary/bad/mod.rs:3:1
    |
 LL | pub(in self) use std::mem;
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
-   = help: remove this import or expose it as a reexport that callers can actually use
+   = help: remove this import and use the item's canonical defining-module path
 
 warning: an inline module hides implementation code inside a barrel file
   --> $DIR/auxiliary/bad/mod.rs:5:1
@@ -46,7 +46,7 @@ LL | fn implementation() {}
    | ^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
-   = help: move this code into a dedicated module and leave its declaration or reexport here
+   = help: move this code into a dedicated module and leave only its module declaration here
 
 warning: implementation code does not belong in a barrel file
   --> $DIR/auxiliary/bad/mod.rs:12:1
@@ -55,7 +55,7 @@ LL | struct ImplementedHere;
    | ^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
-   = help: move this code into a dedicated module and leave its declaration or reexport here
+   = help: move this code into a dedicated module and leave only its module declaration here
 
 warning: macro definitions and calls do not belong in a barrel file
   --> $DIR/auxiliary/bad/mod.rs:14:1
@@ -68,7 +68,7 @@ LL | | }
    | |_^
    |
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
-   = help: move the macro elsewhere and spell this barrel's declarations and reexports explicitly
+   = help: move the macro elsewhere and spell this barrel's module declarations explicitly
 
 warning: macro definitions and calls do not belong in a barrel file
   --> $DIR/auxiliary/bad/mod.rs:20:1
@@ -77,7 +77,7 @@ LL | make_item!();
    | ^^^^^^^^^^^^^
    |
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
-   = help: move the macro elsewhere and spell this barrel's declarations and reexports explicitly
+   = help: move the macro elsewhere and spell this barrel's module declarations explicitly
 
 warning: macro definitions and calls do not belong in a barrel file
   --> $DIR/auxiliary/bad/mod.rs:21:1
@@ -86,16 +86,16 @@ LL | include!("included.rs");
    | ^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
-   = help: move the macro elsewhere and spell this barrel's declarations and reexports explicitly
+   = help: move the macro elsewhere and spell this barrel's module declarations explicitly
 
-warning: a private import does not expose anything from this barrel
+warning: imports do not belong in a barrel file
   --> $DIR/auxiliary/lib_bad/lib.rs:1:1
    |
 LL | use std::path::Path;
    | ^^^^^^^^^^^^^^^^^^^^
    |
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
-   = help: remove this import or expose it as a reexport that callers can actually use
+   = help: remove this import and use the item's canonical defining-module path
 
 warning: implementation code does not belong in a barrel file
   --> $DIR/auxiliary/lib_bad/lib.rs:3:1
@@ -104,7 +104,7 @@ LL | fn crate_root_implementation() {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
-   = help: move this code into a dedicated module and leave its declaration or reexport here
+   = help: move this code into a dedicated module and leave only its module declaration here
 
 warning: 11 warnings emitted
 
