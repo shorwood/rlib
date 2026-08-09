@@ -134,8 +134,9 @@ impl EarlyViolation for Violation {
 
 /// Enforces the barrel-file boundary while remembering when traversal is inside an inline module.
 ///
-/// The depth prevents one inline module from producing another warning for every item in its body.
-/// The inline module itself is the single actionable mistake: moving its body fixes all children.
+/// The depth prevents one inline module from producing another warning for every item in its
+/// body. The inline module itself is the single actionable mistake: moving its body fixes all
+/// children.
 #[derive(Default)]
 struct InvalidBarrelFileItems {
     /// Number of nested inline modules whose children should not be reported separately.
@@ -183,18 +184,21 @@ dylint_linting::impl_pre_expansion_lint! {
 }
 
 impl EarlyLintPass for InvalidBarrelFileItems {
-    /// Checks one explicitly written top-level item before macros can replace it with generated code.
+    /// Checks one explicitly written top-level item before macros can replace it with generated
+    /// code.
     ///
     /// Running before expansion matters for code such as `include!("items.rs")`: the macro call is
     /// itself forbidden even when the included file happens to contain only module declarations.
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
-        // Ignore all items inside an inline module because the module itself is the actionable problem.
+        // Ignore all items inside an inline module because the module itself is the actionable
+        // problem.
         if self.ignored_inline_depth > 0 {
             self.enter_inline_module(item);
             return;
         }
 
-        // Ignore items that are not physically written in a barrel file because they cannot be moved.
+        // Ignore items that are not physically written in a barrel file because they cannot be
+        // moved.
         if !Self::is_written_in_barrel_file(cx, item) {
             return;
         }
@@ -204,7 +208,8 @@ impl EarlyLintPass for InvalidBarrelFileItems {
             return;
         };
 
-        // Emit a single warning for the item and enter any inline module to avoid duplicate warnings.
+        // Emit a single warning for the item and enter any inline module to avoid duplicate
+        // warnings.
         Violation {
             span: item.span,
             kind,

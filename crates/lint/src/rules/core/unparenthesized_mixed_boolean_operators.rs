@@ -78,9 +78,9 @@ dylint_linting::impl_early_lint! {
     ///
     /// ### Why is this bad?
     ///
-    /// Rust gives `&&` higher precedence than `||`, but relying on that fact makes subtle conditions
-    /// easy to misread and edit incorrectly. Explicit groups communicate whether one requirement
-    /// governs every alternative or only the neighboring expression.
+    /// Rust gives `&&` higher precedence than `||`, but relying on that fact makes subtle
+    /// conditions easy to misread and edit incorrectly. Explicit groups communicate whether one
+    /// requirement governs every alternative or only the neighboring expression.
     ///
     /// For example, this expression can easily be mistaken for requiring `is_final` in both cases:
     ///

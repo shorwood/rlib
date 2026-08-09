@@ -6,7 +6,8 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 use rustc_errors::{Applicability, DiagDecorator};
-use rustc_hir::{HirId, Item, ItemKind, Mod, def_id::LocalDefId};
+use rustc_hir::def_id::LocalDefId;
+use rustc_hir::{HirId, Item, ItemKind, Mod};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{Span, Symbol};
 
@@ -460,8 +461,9 @@ dylint_linting::impl_late_lint! {
 impl NonAdjacentStructImpls {
     /// Returns module items whose ordering is controlled by the current crate.
     ///
-    /// External macros may generate hidden helper items or derived impls. Ignoring that output keeps
-    /// the rule focused on definitions an agent can actually rearrange. Local macro output remains.
+    /// External macros may generate hidden helper items or derived impls. Ignoring that output
+    /// keeps the rule focused on definitions an agent can actually rearrange. Local macro output
+    /// remains.
     fn editable_module_items<'tcx>(
         cx: &LateContext<'tcx>,
         module: &'tcx Mod<'tcx>,

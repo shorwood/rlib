@@ -7,7 +7,9 @@ extern crate rustc_span;
 use std::collections::{HashMap, HashSet};
 
 use rustc_abi::ExternAbi;
-use rustc_hir::{Item, ItemKind, def::DefKind, def_id::DefId};
+use rustc_hir::def::DefKind;
+use rustc_hir::def_id::DefId;
+use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol};

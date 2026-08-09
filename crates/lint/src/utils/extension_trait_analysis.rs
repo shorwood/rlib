@@ -5,10 +5,12 @@ extern crate rustc_span;
 
 use std::collections::{HashMap, HashSet};
 
-use rustc_hir::{Item, ItemKind, TraitItem, TraitItemKind, def::DefKind};
+use rustc_hir::def::DefKind;
+use rustc_hir::{Item, ItemKind, TraitItem, TraitItemKind};
 use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty::{self, Ty, TypeVisitableExt};
-use rustc_span::{Span, Symbol, def_id::LocalDefId};
+use rustc_span::def_id::LocalDefId;
+use rustc_span::{Span, Symbol};
 
 use crate::utils::foreign_type_analysis::NominalTypeExt;
 

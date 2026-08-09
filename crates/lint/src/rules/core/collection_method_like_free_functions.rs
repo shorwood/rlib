@@ -8,7 +8,8 @@ use std::borrow::Cow;
 
 use rustc_abi::ExternAbi;
 use rustc_errors::DiagDecorator;
-use rustc_hir::{BindingMode, HirId, Item, ItemKind, Mod, Mutability, PatKind, def_id::LocalDefId};
+use rustc_hir::def_id::LocalDefId;
+use rustc_hir::{BindingMode, HirId, Item, ItemKind, Mod, Mutability, PatKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol, sym};
@@ -157,7 +158,8 @@ struct Candidate {
 }
 
 impl Candidate {
-    /// Recognizes a free function whose first parameter is a supported collection of a local struct.
+    /// Recognizes a free function whose first parameter is a supported collection of a local
+    /// struct.
     ///
     /// The compiler's understanding of the type is used here, so aliases such as `type Items =
     /// Vec<Item>` are treated the same as spelling `Vec<Item>` directly.

@@ -2,12 +2,12 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_span;
 
+use std::borrow::Cow;
+
 use rustc_errors::DiagDecorator;
 use rustc_hir::{HirId, Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{Span, Symbol};
-
-use std::borrow::Cow;
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::impl_target::ImplTargetExt;

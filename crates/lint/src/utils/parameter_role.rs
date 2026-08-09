@@ -82,7 +82,6 @@ mod tests {
     extern crate rustc_middle;
 
     use self::rustc_middle::ty;
-
     use super::{ParameterKind, names_are_conventional};
 
     #[test]

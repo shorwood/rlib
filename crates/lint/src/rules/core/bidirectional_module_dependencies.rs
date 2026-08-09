@@ -162,7 +162,8 @@ impl LateLintPass<'_> for BidirectionalModuleDependencies {
             return;
         };
 
-        // Iterate over all resolved namespaces for this import and record the first relevant dependency.
+        // Iterate over all resolved namespaces for this import and record the first relevant
+        // dependency.
         let source = cx.tcx.parent_module(item.hir_id()).to_local_def_id();
         for resolution in [path.res.type_ns, path.res.value_ns, path.res.macro_ns]
             .into_iter()

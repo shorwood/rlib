@@ -106,7 +106,8 @@ impl LateLintPass<'_> for ImplicitFirstWinsDeduplication {
             return;
         }
 
-        // Abort early if this expression is not a `filter` method call with a single predicate argument.
+        // Abort early if this expression is not a `filter` method call with a single predicate
+        // argument.
         let ExprKind::MethodCall(filter, _, [predicate], _) = expression.kind else {
             return;
         };
@@ -116,7 +117,8 @@ impl LateLintPass<'_> for ImplicitFirstWinsDeduplication {
             return;
         }
 
-        // Abort early if the predicate is not a closure that returns the result of a `HashSet::insert` call.
+        // Abort early if the predicate is not a closure that returns the result of a
+        // `HashSet::insert` call.
         let ExprKind::Closure(closure) = predicate.kind else {
             return;
         };

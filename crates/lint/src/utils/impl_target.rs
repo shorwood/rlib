@@ -2,7 +2,8 @@ extern crate rustc_hir;
 extern crate rustc_lint;
 extern crate rustc_middle;
 
-use rustc_hir::{Item, ItemKind, def_id::LocalDefId};
+use rustc_hir::def_id::LocalDefId;
+use rustc_hir::{Item, ItemKind};
 use rustc_lint::LateContext;
 use rustc_middle::ty;
 

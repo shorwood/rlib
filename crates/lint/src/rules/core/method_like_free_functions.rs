@@ -9,11 +9,11 @@ use std::collections::{HashMap, HashSet};
 
 use rustc_abi::ExternAbi;
 use rustc_errors::{Applicability, DiagDecorator};
+use rustc_hir::def::{DefKind, Res};
+use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{
     Expr, ExprKind, GenericParamKind, Generics, HirId, Item, ItemKind, Mutability, Node, Param,
     PatKind, Ty as HirTy, TyKind,
-    def::{DefKind, Res},
-    def_id::LocalDefId,
 };
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
@@ -1116,7 +1116,8 @@ impl MethodLikeFreeFunctions {
             .flatten()
     }
 
-    /// Emits the warning and includes a complete migration only when every edit is known to be safe.
+    /// Emits the warning and includes a complete migration only when every edit is known to be
+    /// safe.
     ///
     /// When no automatic migration is available, the help still explains the intended method form
     /// or the naming collision that requires a manual choice.

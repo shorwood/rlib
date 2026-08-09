@@ -2,10 +2,8 @@ extern crate rustc_hir;
 extern crate rustc_lint;
 extern crate rustc_span;
 
-use std::{
-    collections::{HashMap, HashSet},
-    ops::Deref,
-};
+use std::collections::{HashMap, HashSet};
+use std::ops::Deref;
 
 use rustc_hir::def_id::LocalDefId;
 use rustc_lint::LateContext;

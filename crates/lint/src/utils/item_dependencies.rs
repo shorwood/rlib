@@ -3,10 +3,9 @@ extern crate rustc_middle;
 
 use std::collections::HashSet;
 
-use rustc_hir::Item;
-use rustc_hir::ItemKind;
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir::intravisit::Visitor;
+use rustc_hir::{Item, ItemKind};
 use rustc_middle::ty::TyCtxt;
 
 use super::dependency_collector::DependencyCollector;

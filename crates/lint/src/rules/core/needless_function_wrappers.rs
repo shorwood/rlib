@@ -8,11 +8,11 @@ use std::borrow::Cow;
 
 use rustc_abi::ExternAbi;
 use rustc_errors::DiagDecorator;
+use rustc_hir::def::{DefKind, Res};
+use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{
     Body, Expr, ExprKind, FnHeader, HirId, ImplItem, ImplItemKind, Item, ItemKind, MatchSource,
     Node, PatKind,
-    def::{DefKind, Res},
-    def_id::LocalDefId,
 };
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty::{self, Ty};
