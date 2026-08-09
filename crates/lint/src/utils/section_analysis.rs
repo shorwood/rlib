@@ -336,18 +336,21 @@ impl ModuleAnalysis {
         // Expand inline-module bodies to include comments beside their braces.
         let source_map = cx.sess().source_map();
         let opening_source = source_map.span_to_snippet(item.span.with_hi(inner.lo()));
-        let opening_brace = opening_source.ok().and_then(|source| source.rfind('{'));
-        let opening_offset = opening_brace
-            .and_then(|offset| u32::try_from(offset + 1).ok())
-            .map(BytePos);
+        let opening_brace = opening_source.map_or(None, |source| source.rfind('{'));
+
+        // Convert the authored opening position into the compiler's byte offset.
+        let opening_offset = opening_brace.and_then(|offset| {
+            u32::try_from(offset + 1).map_or(None, |offset| Some(BytePos(offset)))
+        });
         let lo = opening_offset.map_or_else(|| inner.lo(), |offset| item.span.lo() + offset);
 
         // Extend through the authored closing brace when its source is available.
         let closing_source = source_map.span_to_snippet(item.span.with_lo(inner.hi()));
-        let closing_brace = closing_source.ok().and_then(|source| source.find('}'));
+        let closing_brace = closing_source.map_or(None, |source| source.find('}'));
+
+        // Convert the authored closing position into the compiler's byte offset.
         let closing_offset = closing_brace
-            .and_then(|offset| u32::try_from(offset).ok())
-            .map(BytePos);
+            .and_then(|offset| u32::try_from(offset).map_or(None, |offset| Some(BytePos(offset))));
         let hi = closing_offset.map_or_else(|| inner.hi(), |offset| inner.hi() + offset);
         inner.with_lo(lo).with_hi(hi)
     }
@@ -1179,7 +1182,10 @@ impl Template {
             if line.indentation != indentation {
                 return None;
             }
-            let Some(value) = Self::line_content(template, line).ok()? else {
+            let Ok(value) = Self::line_content(template, line) else {
+                return None;
+            };
+            let Some(value) = value else {
                 continue;
             };
             content = Some(value);

@@ -34,7 +34,11 @@ pub extern "Rust" fn register_lints(
 
     // Register control-flow and section identity policies.
     rules::core::deeply_nested_control_flow::register_lints(sess, lint_store);
+    rules::core::discarded_results::register_lints(sess, lint_store);
     rules::core::duplicate_section_divider_prefixes::register_lints(sess, lint_store);
+    rules::core::fallible_values_replaced_with_defaults::register_lints(sess, lint_store);
+
+    // Register family naming, extension ownership, and deduplication policies.
     rules::core::foreign_type_method_like_free_functions::register_lints(sess, lint_store);
     rules::core::incoherent_extension_traits::register_lints(sess, lint_store);
     rules::core::incoherent_type_family_names::register_lints(sess, lint_store);
@@ -70,6 +74,7 @@ pub extern "Rust" fn register_lints(
     // Register aggregate representation and statement-expression policies.
     rules::core::positional_aggregate_fields::register_lints(sess, lint_store);
     rules::core::repeated_identical_statements::register_lints(sess, lint_store);
+    rules::core::results_converted_to_options::register_lints(sess, lint_store);
     rules::core::revalidated_string_parameters::register_lints(sess, lint_store);
     rules::core::stringly_typed_domain_function_families::register_lints(sess, lint_store);
 

@@ -47,12 +47,13 @@ impl DeclarationOrder {
         by_source.sort_by_key(|index| nodes[*index].source.span.lo());
         for pair in by_source.windows(2) {
             // Inspect the exact authored gap between adjacent source declarations.
-            let gap = source_map
-                .span_to_snippet(Span::with_root_ctxt(
-                    nodes[pair[0]].source.span.hi(),
-                    nodes[pair[1]].source.span.lo(),
-                ))
-                .ok()?;
+            let gap_span = Span::with_root_ctxt(
+                nodes[pair[0]].source.span.hi(),
+                nodes[pair[1]].source.span.lo(),
+            );
+            let Ok(gap) = source_map.span_to_snippet(gap_span) else {
+                return None;
+            };
 
             // Reject gaps containing authored comments or macro definitions.
             if !gap.contains("//") && !gap.contains("/*") && !gap.contains("macro_rules!") {
@@ -64,8 +65,15 @@ impl DeclarationOrder {
         // Pair reordered snippets with the original source-ordered target spans.
         let snippets = order
             .iter()
-            .map(|index| source_map.span_to_snippet(nodes[*index].source.span).ok())
-            .collect::<Option<Vec<_>>>()?;
+            .map(|index| {
+                source_map
+                    .span_to_snippet(nodes[*index].source.span)
+                    .map_err(|_| ())
+            })
+            .collect::<Result<Vec<_>, _>>();
+        let Ok(snippets) = snippets else {
+            return None;
+        };
 
         // Construct one replacement for each original source position.
         let targets = by_source.iter().zip(snippets);

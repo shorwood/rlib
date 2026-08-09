@@ -389,9 +389,9 @@ impl ConstructorLikeFreeFunctions {
         candidate: &ConstructionCandidate,
     ) -> Option<String> {
         let source_map = cx.sess().source_map();
-        let function = source_map
-            .span_to_snippet(candidate.function.item_span)
-            .ok()?;
+        let Ok(function) = source_map.span_to_snippet(candidate.function.item_span) else {
+            return None;
+        };
         let lines = function.lines().map(|line| format!("    {line}"));
         Some(lines.collect::<Vec<_>>().join("\n"))
     }

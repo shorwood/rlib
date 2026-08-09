@@ -252,9 +252,12 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
         let impls = &self.group.impls;
         let snippets = impls
             .iter()
-            .map(|impl_| source_map.span_to_snippet(impl_.item.span).ok())
-            .collect::<Option<Vec<_>>>();
-        let snippets = snippets.ok_or(MigrationBarrier::UnavailableSource)?;
+            .map(|impl_| {
+                source_map
+                    .span_to_snippet(impl_.item.span)
+                    .map_err(|_| MigrationBarrier::UnavailableSource)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         // Join the authored implementations for one insertion after the struct.
         let insertion = format!("\n\n{}", snippets.join("\n\n"));

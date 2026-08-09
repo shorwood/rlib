@@ -565,8 +565,12 @@ impl MigrationEdits {
         self.0
             .sort_unstable_by_key(|edit| std::cmp::Reverse(edit.span.lo()));
         for edit in &self.0 {
-            let start = usize::try_from((edit.span.lo() - outer.lo()).to_u32()).ok()?;
-            let end = usize::try_from((edit.span.hi() - outer.lo()).to_u32()).ok()?;
+            let Ok(start) = usize::try_from((edit.span.lo() - outer.lo()).to_u32()) else {
+                return None;
+            };
+            let Ok(end) = usize::try_from((edit.span.hi() - outer.lo()).to_u32()) else {
+                return None;
+            };
             source.replace_range(start..end, &edit.replacement);
         }
         Some(())
@@ -677,7 +681,10 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
     /// Reads the original source text covered by a compiler source range.
     fn snippet(&self, span: Span) -> Option<String> {
         let source_map = self.cx.sess().source_map();
-        source_map.span_to_snippet(span).ok()
+        let Ok(snippet) = source_map.span_to_snippet(span) else {
+            return None;
+        };
+        Some(snippet)
     }
 
     /// Preserves explicit reference syntax while replacing its binding with `self`.

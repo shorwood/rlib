@@ -104,10 +104,10 @@ impl Block {
     fn previous_line_is_blank(cx: &LateContext<'_>, gap: Span, comment: Span) -> bool {
         let before = gap.with_hi(comment.lo());
         let source_map = cx.sess().source_map();
-        let snippet = source_map.span_to_snippet(before).ok();
-        let previous_line = snippet
-            .as_deref()
-            .and_then(|source| source.lines().rev().nth(1));
+        let Ok(snippet) = source_map.span_to_snippet(before) else {
+            return false;
+        };
+        let previous_line = snippet.lines().rev().nth(1);
         previous_line.is_some_and(|line| line.trim().is_empty())
     }
 }
