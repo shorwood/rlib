@@ -44,9 +44,9 @@ struct Violation {
     remediation: Remediation,
 }
 
-impl Violation {
+impl From<SectionFinding> for Violation {
     /// Converts shared section analysis into this lint's diagnostic vocabulary.
-    fn from_finding(finding: SectionFinding) -> Self {
+    fn from(finding: SectionFinding) -> Self {
         // Select the strongest remediation supported by the analyzer's source evidence.
         let remediation = finding.replacement.map_or_else(
             || Remediation::Help {
@@ -165,7 +165,7 @@ dylint_linting::impl_late_lint! {
 impl<'tcx> LateLintPass<'tcx> for MalformedSectionDividers {
     fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, hir_id: HirId) {
         for finding in self.analyzer.analyze(cx, module, hir_id).malformed {
-            Violation::from_finding(finding).emit(cx);
+            Violation::from(finding).emit(cx);
         }
     }
 }

@@ -22,7 +22,7 @@ pub trait DependenciesExt {
 
 impl DependenciesExt for ImplItem<'_> {
     fn dependencies<'tcx>(&'tcx self, tcx: TyCtxt<'tcx>) -> HashSet<LocalDefId> {
-        let mut collector = DependencyCollector::new(tcx);
+        let mut collector = DependencyCollector::for_context(tcx);
         collector.visit_impl_item(self);
         collector.finish()
     }

@@ -19,6 +19,7 @@ pub extern "Rust" fn register_lints(
     lint_store: &mut rustc_lint::LintStore,
 ) {
     // Register aggregate, construction, dependency, and field-naming policies.
+    rules::core::ad_hoc_conversions::register_lints(sess, lint_store);
     rules::core::ad_hoc_string_parsers::register_lints(sess, lint_store);
     rules::core::ambiguous_primitive_parameters::register_lints(sess, lint_store);
     rules::core::bare_tuple_types::register_lints(sess, lint_store);

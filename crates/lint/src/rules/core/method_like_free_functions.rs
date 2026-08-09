@@ -11,14 +11,17 @@ use rustc_abi::ExternAbi;
 use rustc_errors::{Applicability, DiagDecorator};
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::LocalDefId;
+use rustc_hir::intravisit::FnKind;
 use rustc_hir::{
-    Expr, ExprKind, GenericParamKind, Generics, HirId, Item, ItemKind, Mutability, Node, Param,
-    PatKind, Ty as HirTy, TyKind,
+    Body, Expr, ExprKind, FnDecl, GenericParamKind, Generics, HirId, Item, ItemKind, Mutability,
+    Node, Param, PatKind, Ty as HirTy, TyKind,
 };
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
 use rustc_span::{Pos, Span, Symbol};
 
+use crate::utils::construction_analysis::ConstructionAnalysis;
+use crate::utils::conversion_analysis::ConversionAnalysis;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -971,6 +974,10 @@ struct MethodLikeFreeFunctions {
     function_uses: HashMap<LocalDefId, Vec<Span>>,
     /// Imported functions for which moving the definition would strand an alias.
     imported_functions: HashSet<LocalDefId>,
+    /// Target-construction evidence used to defer conversions to their result type.
+    constructions: ConstructionAnalysis,
+    /// One-source conversion ownership discovered across the crate.
+    conversions: ConversionAnalysis,
 }
 
 dylint_linting::impl_late_lint! {
@@ -1007,12 +1014,14 @@ dylint_linting::impl_late_lint! {
     MethodLikeFreeFunctions::default()
 }
 
-impl LateLintPass<'_> for MethodLikeFreeFunctions {
+impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
     /// Looks at each top-level item and remembers functions that may belong on a struct.
     ///
     /// Imports are recorded separately because moving an imported function could silently change
     /// what its alias means.
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        self.constructions.record_item(cx, item);
+        self.conversions.record_item(cx, item);
         if self.record_function_import(item) {
             return;
         }
@@ -1021,6 +1030,23 @@ impl LateLintPass<'_> for MethodLikeFreeFunctions {
             return;
         };
         self.candidates.push(candidate);
+    }
+
+    fn check_fn(
+        &mut self,
+        cx: &LateContext<'tcx>,
+        kind: FnKind<'tcx>,
+        _: &'tcx FnDecl<'tcx>,
+        body: &'tcx Body<'tcx>,
+        span: Span,
+        def_id: LocalDefId,
+    ) {
+        self.constructions
+            .record_function(cx, kind, body, span, def_id);
+        let Some(candidate) = self.constructions.candidate(def_id) else {
+            return;
+        };
+        self.conversions.record_function(cx, kind, body, candidate);
     }
 
     /// Remembers uses of local names and free functions that a later fix may need to rewrite.
@@ -1055,6 +1081,13 @@ impl LateLintPass<'_> for MethodLikeFreeFunctions {
         // References are only complete after the entire crate has been visited. Waiting until now
         // lets a migration update every call site or decline the fix as one atomic decision.
         for candidate in &self.candidates {
+            if self
+                .conversions
+                .target_owned_definitions()
+                .contains(&candidate.function.def_id)
+            {
+                continue;
+            }
             self.emit_candidate(cx, candidate);
         }
     }

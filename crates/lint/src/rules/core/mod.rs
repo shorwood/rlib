@@ -1,3 +1,4 @@
+pub mod ad_hoc_conversions;
 pub mod ad_hoc_string_parsers;
 pub mod ambiguous_primitive_parameters;
 pub mod bare_tuple_types;

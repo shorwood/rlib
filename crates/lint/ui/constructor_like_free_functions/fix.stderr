@@ -1,29 +1,30 @@
-warning: constructor-like free function `token_from_raw` creates `Token` outside its inherent impl
+warning: constructor-like free function `token_from_raw_unchecked` creates `Token` outside its inherent impl
   --> $DIR/fix.rs:8:4
    |
-LL | fn token_from_raw(raw: String) -> Token {
-   |    ^^^^^^^^^^^^^^
+LL | fn token_from_raw_unchecked(raw: String) -> Token {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = note: `token_from_raw`'s construction contract is hidden in the module namespace instead of being discoverable through `Token`
+   = note: `token_from_raw_unchecked`'s construction contract is hidden in the module namespace instead of being discoverable through `Token`
 note: the lint level is defined here
   --> $DIR/fix.rs:3:9
    |
 LL | #![warn(constructor_like_free_functions)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-help: move `token_from_raw` into an inherent `impl Token`; reconsider whether its name describes the invariant or source concept instead of merely saying `new`, `build`, or `create`
+help: move `token_from_raw_unchecked` into an inherent `impl Token`; reconsider whether its name describes the invariant or source concept instead of merely saying `new`, `build`, or `create`
    |
 LL + impl Token {
-LL +     fn token_from_raw(raw: String) -> Token {
+LL +     fn token_from_raw_unchecked(raw: String) -> Token {
 LL +         Token(raw)
 LL +     }
 LL + }
 LL |
 LL | fn use_token() {
-LL ~     let _ = crate::Token::token_from_raw(String::new());
+LL ~     let _ = crate::Token::token_from_raw_unchecked(String::new());
 LL | }
 LL |
 LL | fn main() {
-LL ~     let constructor = crate::Token::token_from_raw;
+LL ~     let constructor = crate::Token::token_from_raw_unchecked;
    |
 
 warning: 1 warning emitted
+

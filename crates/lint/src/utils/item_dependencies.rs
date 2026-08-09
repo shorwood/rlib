@@ -23,7 +23,7 @@ pub trait DependenciesExt {
 impl DependenciesExt for Item<'_> {
     fn dependencies<'tcx>(&'tcx self, tcx: TyCtxt<'tcx>) -> HashSet<LocalDefId> {
         // Collect references from the declaration and all owned associated items.
-        let mut collector = DependencyCollector::new(tcx);
+        let mut collector = DependencyCollector::for_context(tcx);
         collector.visit_item(self);
 
         // Traverse associated declarations owned by the item's outer HIR node.

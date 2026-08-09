@@ -99,6 +99,8 @@ pub struct ConstructionCandidateOwnership {
     pub origin: ConstructionOrigin,
     /// Whether the first parameter already supplies the constructed type.
     pub is_first_input_target: bool,
+    /// Whether the function and constructed type are defined in the same module.
+    pub is_target_same_module: bool,
 }
 
 /// One authored function proven to construct a local nominal type.
@@ -119,7 +121,8 @@ pub struct ConstructionCandidate {
 impl ConstructionCandidate {
     /// Returns whether this candidate is a structurally canonical textual parser.
     pub fn is_text_parser(&self) -> bool {
-        self.target.return_shape == ConstructionReturn::FallibleDirect
+        self.ownership.is_target_same_module
+            && self.target.return_shape == ConstructionReturn::FallibleDirect
             && self.parser.has_single_str_input
             && self.parser.has_used_string_input
             && !self.parser.has_target_lifetime
@@ -418,7 +421,7 @@ impl ConstructionAnalysis {
             return;
         }
 
-        // Resolve one same-module local target through supported return containers.
+        // Resolve one local target through supported return containers.
         let Some(function) = Self::function_context(cx, def_id) else {
             return;
         };
@@ -426,9 +429,7 @@ impl ConstructionAnalysis {
         let Some(target) = Self::constructed_target(cx, signature.output()) else {
             return;
         };
-        if cx.tcx.opt_local_parent(target.def_id) != Some(function.module) {
-            return;
-        }
+        let is_target_same_module = cx.tcx.opt_local_parent(target.def_id) == Some(function.module);
 
         // Require a target-producing expression and retain parser source evidence.
         let inputs = signature.inputs();
@@ -476,6 +477,7 @@ impl ConstructionAnalysis {
         let ownership = ConstructionCandidateOwnership {
             origin: function.origin,
             is_first_input_target,
+            is_target_same_module,
         };
 
         // Preserve string-input evidence used only by the parser rule.
@@ -499,6 +501,14 @@ impl ConstructionAnalysis {
             parser,
             migration,
         });
+    }
+
+    /// Returns the construction candidate most recently recorded for one function.
+    pub fn candidate(&self, def_id: LocalDefId) -> Option<&ConstructionCandidate> {
+        self.candidates
+            .iter()
+            .rev()
+            .find(|candidate| candidate.function.def_id == def_id)
     }
 
     /// Groups every structurally valid textual parser by its constructed target.

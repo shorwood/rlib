@@ -39,7 +39,7 @@ struct Tarjan<'graph> {
 
 impl<'graph> Tarjan<'graph> {
     /// Initializes a traversal over `edges`.
-    fn new(edges: &'graph [HashSet<usize>]) -> Self {
+    fn for_graph(edges: &'graph [HashSet<usize>]) -> Self {
         // Initialize depth-first state for every graph vertex.
         let state = TarjanState {
             next_index: 0,
@@ -260,7 +260,7 @@ impl DeclarationNodeList {
         let edges = node_edges.collect::<Vec<_>>();
 
         // Collapse recursive components before applying stable tie breakers.
-        let components = Tarjan::new(&edges).run();
+        let components = Tarjan::for_graph(&edges).run();
         let mut component_of = vec![0; self.len()];
         for (component, members) in components.iter().enumerate() {
             for member in members {

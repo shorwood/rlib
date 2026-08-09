@@ -576,7 +576,7 @@ impl ModuleAnalysis {
         analysis: &mut SectionAnalysis,
     ) {
         // Parse the divider content to validate its syntax and extract the authored prefix.
-        let parsed = ParsedContent::parse(&section.divider.raw_content);
+        let parsed = ParsedContent::from(section.divider.raw_content.as_str());
         Self::record_malformed_section(analyzer, section, &parsed, analysis);
         let Some(prefix) = parsed.prefix.as_deref() else {
             return;
@@ -956,9 +956,9 @@ struct ParsedContent {
     error: Option<String>,
 }
 
-impl ParsedContent {
+impl From<&str> for ParsedContent {
     /// Parses divider content and computes its canonical representation.
-    fn parse(content: &str) -> Self {
+    fn from(content: &str) -> Self {
         // Split and trim the authored prefix and optional description.
         let trimmed = content.trim();
         let (raw_prefix, raw_description) = trimmed
@@ -989,7 +989,9 @@ impl ParsedContent {
             error,
         }
     }
+}
 
+impl ParsedContent {
     /// Joins a valid prefix and optional description using canonical spacing.
     fn normalized_content(prefix: Option<&str>, description: Option<&str>) -> Option<String> {
         match (prefix, description) {
@@ -1287,7 +1289,7 @@ mod tests {
 
     #[test]
     fn normalizes_safe_content_errors() {
-        let parsed = ParsedContent::parse("Candidate : collected state");
+        let parsed = ParsedContent::from("Candidate : collected state");
         assert!(parsed.error.is_some());
         assert_eq!(
             parsed.normalized.as_deref(),

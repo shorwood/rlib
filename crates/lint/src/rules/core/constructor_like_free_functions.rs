@@ -16,6 +16,7 @@ use rustc_span::Span;
 use crate::utils::construction_analysis::{
     ConstructionAnalysis, ConstructionAnalysisModuleItem, ConstructionCandidate, ConstructionOrigin,
 };
+use crate::utils::conversion_analysis::ConversionAnalysis;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -132,6 +133,8 @@ impl LateViolation for Violation {
 struct ConstructorLikeFreeFunctions {
     /// Shared semantic and source analyzer.
     constructions: ConstructionAnalysis,
+    /// Conversion families used to defer canonical pairs to the stronger trait policy.
+    conversions: ConversionAnalysis,
 }
 
 dylint_linting::impl_late_lint! {
@@ -191,6 +194,7 @@ dylint_linting::impl_late_lint! {
 impl<'tcx> LateLintPass<'tcx> for ConstructorLikeFreeFunctions {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.constructions.record_item(cx, item);
+        self.conversions.record_item(cx, item);
     }
 
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
@@ -208,14 +212,25 @@ impl<'tcx> LateLintPass<'tcx> for ConstructorLikeFreeFunctions {
     ) {
         self.constructions
             .record_function(cx, kind, body, span, def_id);
+        let Some(candidate) = self.constructions.candidate(def_id) else {
+            return;
+        };
+        self.conversions.record_function(cx, kind, body, candidate);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         let parser_families = self.constructions.parser_families();
+        let reportable_conversions = self.conversions.reportable_candidates();
+        let conversion_definitions = reportable_conversions
+            .into_iter()
+            .map(|candidate| candidate.identity.def_id)
+            .collect::<std::collections::HashSet<_>>();
         for candidate in &self.constructions.candidates {
             // Leave receiver-shaped functions and canonical parsers to their stronger rules.
-            if candidate.ownership.origin != ConstructionOrigin::Free
+            if !candidate.ownership.is_target_same_module
+                || candidate.ownership.origin != ConstructionOrigin::Free
                 || candidate.ownership.is_first_input_target
+                || conversion_definitions.contains(&candidate.function.def_id)
             {
                 continue;
             }

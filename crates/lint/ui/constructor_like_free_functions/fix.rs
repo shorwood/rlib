@@ -5,15 +5,15 @@
 
 struct Token(String);
 
-fn token_from_raw(raw: String) -> Token {
+fn token_from_raw_unchecked(raw: String) -> Token {
     Token(raw)
 }
 
 fn use_token() {
-    let _ = token_from_raw(String::new());
+    let _ = token_from_raw_unchecked(String::new());
 }
 
 fn main() {
-    let constructor = token_from_raw;
+    let constructor = token_from_raw_unchecked;
     let _ = constructor(String::new());
 }

@@ -23,7 +23,7 @@ pub(super) struct DependencyCollector<'tcx> {
 
 impl<'tcx> DependencyCollector<'tcx> {
     /// Starts an empty dependency traversal backed by `tcx`.
-    pub(super) fn new(tcx: TyCtxt<'tcx>) -> Self {
+    pub(super) fn for_context(tcx: TyCtxt<'tcx>) -> Self {
         Self {
             tcx,
             definitions: HashSet::new(),

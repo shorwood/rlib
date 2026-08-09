@@ -10,7 +10,7 @@ struct Session {
     token: String,
 }
 
-fn create_session(token: String) -> Session {
+fn create_session_with_token(token: String) -> Session {
     Session { token }
 }
 

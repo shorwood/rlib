@@ -64,7 +64,7 @@ impl DomainWords {
     }
 
     /// Removes action and generic transport vocabulary from a domain candidate.
-    fn meaningful(identifier: Symbol) -> Self {
+    fn filtered_for_domain_inference(identifier: Symbol) -> Self {
         let words = Self::normalized(identifier).0.into_iter().filter(|word| {
             !BehaviorVocabulary::contains(word)
                 && !matches!(
@@ -143,20 +143,20 @@ impl StringDomainSymbolExt for Symbol {
     }
 
     fn parameter_domain(self) -> Option<String> {
-        let words = DomainWords::meaningful(self);
+        let words = DomainWords::filtered_for_domain_inference(self);
         (!words.is_empty()).then(|| words.to_pascal())
     }
 
     fn function_domains(self, parameters: &[&Parameter]) -> HashSet<String> {
         // Derive the domain expressed directly by the operation name.
-        let function_words = DomainWords::meaningful(self);
+        let function_words = DomainWords::filtered_for_domain_inference(self);
         let function_domain = (!function_words.is_empty()).then(|| function_words.to_pascal());
         let function_word_set = function_words.into_set();
 
         // Prefer domains supported by both the operation and a parameter name.
         let mut domains = HashSet::new();
         for parameter in parameters {
-            let parameter_words = DomainWords::meaningful(parameter.name);
+            let parameter_words = DomainWords::filtered_for_domain_inference(parameter.name);
             if !parameter_words.is_supported_by(&function_word_set) {
                 continue;
             }
@@ -194,10 +194,16 @@ mod tests {
     fn removes_behavior_and_transport_vocabulary() {
         create_default_session_globals_then(|| {
             assert_eq!(
-                DomainWords::meaningful(Symbol::intern("normalize_project_slug")).0,
+                DomainWords::filtered_for_domain_inference(Symbol::intern(
+                    "normalize_project_slug"
+                ))
+                .0,
                 ["project", "slug"]
             );
-            assert!(DomainWords::meaningful(Symbol::intern("format_message")).is_empty());
+            assert!(
+                DomainWords::filtered_for_domain_inference(Symbol::intern("format_message"))
+                    .is_empty()
+            );
         });
     }
 }
