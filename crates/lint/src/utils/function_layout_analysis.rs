@@ -34,6 +34,17 @@ enum FunctionLayoutPhaseHeader {
     Missing,
 }
 
+impl FunctionLayoutPhaseHeader {
+    /// Classifies whether an analyzed entry gap supplies a valid phase header.
+    const fn from_entry_gap(gap: &FunctionLayoutEntryGap) -> Self {
+        if gap.has_valid_header {
+            Self::Present
+        } else {
+            Self::Missing
+        }
+    }
+}
+
 /// Finds immediate nested bodies whose code belongs to a child layout scope.
 struct FunctionLayoutNestedSpanCollector<'analysis, 'tcx> {
     /// Compiler context used to resolve closure bodies.
@@ -336,11 +347,7 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         // Preserve the comment parser's semantic boundary decision.
         let analyzed =
             FunctionLayoutEntryGap::analyze(self.cx, self.config, gap, previous, Some(next));
-        let header = if analyzed.has_valid_header {
-            FunctionLayoutPhaseHeader::Present
-        } else {
-            FunctionLayoutPhaseHeader::Missing
-        };
+        let header = FunctionLayoutPhaseHeader::from_entry_gap(&analyzed);
 
         // Merge malformed comments before returning the lightweight boundary state.
         self.analysis.malformed.extend(analyzed.findings);

@@ -32,12 +32,6 @@ impl FunctionStructureAnalyzer {
         Self { config }
     }
 
-    /// Returns whether an authored function completes with the unit type.
-    pub(crate) fn function_returns_unit(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
-        let signature = cx.tcx.fn_sig(def_id).instantiate_identity();
-        signature.output().skip_binder().is_unit()
-    }
-
     /// Unwraps the compiler-created closure that represents an authored async function body.
     fn authored_body<'tcx>(cx: &LateContext<'tcx>, body: &'tcx Body<'tcx>) -> &'tcx Expr<'tcx> {
         if let ExprKind::Closure(closure) = body.value.kind {
@@ -63,11 +57,9 @@ impl FunctionStructureAnalyzer {
         body: &'tcx Body<'tcx>,
         def_id: LocalDefId,
     ) -> ControlFlowAnalysis {
-        let function_return = if Self::function_returns_unit(cx, def_id) {
-            ControlFlowFunctionReturn::Unit
-        } else {
-            ControlFlowFunctionReturn::Value
-        };
+        let signature = cx.tcx.fn_sig(def_id).instantiate_identity();
+        let output = signature.output().skip_binder();
+        let function_return = ControlFlowFunctionReturn::from_output(output);
         ControlFlowAnalyzer::new(cx, &self.config, function_return)
             .analyze(Self::authored_body(cx, body))
     }

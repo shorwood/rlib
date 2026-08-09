@@ -35,5 +35,6 @@ pub mod repeated_identical_statements;
 pub mod revalidated_string_parameters;
 pub mod stringly_typed_domain_function_families;
 pub mod undocumented_items;
+pub mod unencapsulated_binary_enum_classification;
 pub mod unseparated_associated_items;
 pub mod unparenthesized_mixed_boolean_operators;

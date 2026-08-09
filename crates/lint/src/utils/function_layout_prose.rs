@@ -15,6 +15,17 @@ enum FunctionLayoutProsePosition {
     Continuation,
 }
 
+impl FunctionLayoutProsePosition {
+    /// Advances the grammatical position after one authored word.
+    fn after_word(word: &str) -> Self {
+        if word.ends_with(['.', '!', '?']) {
+            Self::SentenceStart
+        } else {
+            Self::Continuation
+        }
+    }
+}
+
 /// Validates and safely normalizes authored phase-comment prose.
 pub(super) struct FunctionLayoutProse;
 
@@ -93,15 +104,10 @@ impl FunctionLayoutProse {
         }
 
         // Normalize prose while preserving code and established proper terms.
-        let mut starts_sentence = true;
+        let mut position = FunctionLayoutProsePosition::SentenceStart;
         let normalized_words = words.iter().map(|word| {
-            let position = if starts_sentence {
-                FunctionLayoutProsePosition::SentenceStart
-            } else {
-                FunctionLayoutProsePosition::Continuation
-            };
             let normalized = Self::normalize_word(word, position);
-            starts_sentence = word.ends_with(['.', '!', '?']);
+            position = FunctionLayoutProsePosition::after_word(word);
             normalized
         });
 

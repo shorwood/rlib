@@ -848,6 +848,17 @@ enum ViolationMigrationAvailability {
     NameCollision,
 }
 
+impl ViolationMigrationAvailability {
+    /// Resolves whether a candidate's authored name is available on its destination type.
+    fn for_candidate(cx: &LateContext<'_>, candidate: &Candidate) -> Self {
+        if candidate.has_method_collision(cx) {
+            Self::NameCollision
+        } else {
+            Self::Available
+        }
+    }
+}
+
 /// Concrete remediation available after crate-wide call-site and collision analysis.
 enum ViolationRemediation {
     /// Complete machine-applicable definition and use-site migration.
@@ -1123,19 +1134,15 @@ impl MethodLikeFreeFunctions {
     /// or the naming collision that requires a manual choice.
     fn emit_candidate(&self, cx: &LateContext<'_>, candidate: &Candidate) {
         // Resolve name collisions and the complete safe migration before reporting.
-        let has_collision = candidate.has_method_collision(cx);
-        let availability = if has_collision {
-            ViolationMigrationAvailability::NameCollision
-        } else {
-            ViolationMigrationAvailability::Available
-        };
+        let availability = ViolationMigrationAvailability::for_candidate(cx, candidate);
         let migration = self.candidate_migration(cx, candidate, availability);
 
-        // Preserve the exact safe migration or manual barrier in the violation itself.
-        // Preserve the exact migration availability discovered across the complete crate.
+        // Preserve the exact safe migration or its crate-wide manual barrier.
         let remediation = match migration {
             Some(edits) => ViolationRemediation::Migration(edits),
-            None if has_collision => ViolationRemediation::NameCollision,
+            None if matches!(availability, ViolationMigrationAvailability::NameCollision) => {
+                ViolationRemediation::NameCollision
+            }
             None => ViolationRemediation::Manual {
                 receiver: candidate.receiver.semantics.kind.description(),
             },

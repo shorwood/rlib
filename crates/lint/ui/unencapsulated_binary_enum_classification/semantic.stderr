@@ -1,0 +1,22 @@
+warning: this boolean condition classifies every variant of binary enum `FunctionReturn` outside its inherent impl
+  --> $DIR/semantic.rs:20:5
+   |
+LL | /     if returns_unit {
+LL | |         FunctionReturn::Unit
+   | |         -------------------- one outcome is selected here
+LL | |     } else {
+LL | |         FunctionReturn::Value
+   | |         --------------------- the complementary outcome is selected here
+LL | |     }
+   | |_____^
+   |
+   = note: the predicate-to-variant mapping is part of `FunctionReturn`'s construction contract; keeping it at call sites duplicates its polarity and obscures the canonical conversion
+   = help: add a semantic constructor on `FunctionReturn` that accepts the source concept when practical; avoid generic names such as `from_bool` or `from_condition`
+note: the lint level is defined here
+  --> $DIR/semantic.rs:2:9
+   |
+LL | #![warn(unencapsulated_binary_enum_classification)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: 1 warning emitted
+

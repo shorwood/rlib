@@ -160,10 +160,7 @@ impl FamilyInference<'_> {
             return None;
         }
 
-        let has_collision = self.renames.iter().any(|rename| {
-            rename.replacement != rename.participant.name
-                && occupied_names.contains(&rename.replacement)
-        });
+        let availability = ConfidenceNameAvailability::for_renames(&self.renames, occupied_names);
 
         // Render every inferred replacement for the diagnostic guidance.
         let rendered_renames = self
@@ -173,16 +170,11 @@ impl FamilyInference<'_> {
         let replacements = rendered_renames.collect::<Vec<_>>().join(", ");
 
         // Tailor naming guidance to confidence and namespace collisions.
-        let availability = if has_collision {
-            ConfidenceNameAvailability::Occupied
-        } else {
-            ConfidenceNameAvailability::Available
-        };
         let help = if ConfidenceEvidence::allows_exact_names(self.score, availability) {
             format!(
                 "prefer the concept-first names {replacements}; rename before creating additional sections"
             )
-        } else if has_collision {
+        } else if matches!(availability, ConfidenceNameAvailability::Occupied) {
             "the concise candidate name is already occupied; choose another concept-first name instead of adding another section".to_owned()
         } else {
             "reconsider the family vocabulary before adding another section; the evidence is not strong enough to prescribe exact names".to_owned()
@@ -253,6 +245,24 @@ enum ConfidenceNameAvailability {
     Available,
     /// At least one inferred replacement collides with an existing declaration.
     Occupied,
+}
+
+impl ConfidenceNameAvailability {
+    /// Resolves whether every inferred replacement remains free in the module namespace.
+    fn for_renames(
+        renames: &[FamilyInferenceRename<'_>],
+        occupied_names: &HashSet<String>,
+    ) -> Self {
+        let has_collision = renames.iter().any(|rename| {
+            rename.replacement != rename.participant.name
+                && occupied_names.contains(&rename.replacement)
+        });
+        if has_collision {
+            Self::Occupied
+        } else {
+            Self::Available
+        }
+    }
 }
 
 #[derive(Default)]

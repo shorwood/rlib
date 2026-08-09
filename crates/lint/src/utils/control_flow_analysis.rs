@@ -1,10 +1,12 @@
 extern crate rustc_hir;
 extern crate rustc_lint;
+extern crate rustc_middle;
 extern crate rustc_span;
 
 use rustc_hir::intravisit::{self, Visitor};
 use rustc_hir::{Arm, Block, Expr, ExprKind, HirId, MatchSource, StmtKind};
 use rustc_lint::LateContext;
+use rustc_middle::ty::Ty;
 use rustc_span::Span;
 
 use super::config::FunctionStructureConfig;
@@ -63,15 +65,6 @@ enum ControlFlowGuardExit {
     Continue,
 }
 
-/// More specific remediation available for an excessive-depth finding.
-#[derive(Clone, Copy)]
-enum ControlFlowDepthRemedy {
-    /// Guard-clause guidance supersedes generic depth guidance.
-    GuardClause,
-    /// Only generic extraction or flattening guidance is available.
-    General,
-}
-
 /// Return behavior of the outer function under analysis.
 #[derive(Clone, Copy)]
 pub(super) enum ControlFlowFunctionReturn {
@@ -79,6 +72,17 @@ pub(super) enum ControlFlowFunctionReturn {
     Unit,
     /// An early return must provide a value.
     Value,
+}
+
+impl ControlFlowFunctionReturn {
+    /// Classifies the early-return contract from the authored function output type.
+    pub(super) fn from_output(output: Ty<'_>) -> Self {
+        if output.is_unit() {
+            Self::Unit
+        } else {
+            Self::Value
+        }
+    }
 }
 
 /// Mutable traversal state shared by the control-flow readability analyses.
@@ -90,6 +94,35 @@ struct ControlFlowState {
     is_inside_excessive_depth: bool,
     /// Spans already recognized as having a guard-clause alternative.
     guardable_spans: Vec<Span>,
+}
+
+impl ControlFlowState {
+    /// Returns whether a span already has a recorded guard-clause alternative.
+    fn contains_guardable_span(&self, span: Span) -> bool {
+        self.guardable_spans
+            .iter()
+            .any(|guardable| guardable.lo() == span.lo() && guardable.hi() == span.hi())
+    }
+}
+
+/// More specific remediation available for an excessive-depth finding.
+#[derive(Clone, Copy)]
+enum ControlFlowDepthRemedy {
+    /// Guard-clause guidance supersedes generic depth guidance.
+    GuardClause,
+    /// Only generic extraction or flattening guidance is available.
+    General,
+}
+
+impl ControlFlowDepthRemedy {
+    /// Selects the most specific remedy available for one expression.
+    fn for_expression(state: &ControlFlowState, span: Span) -> Self {
+        if state.contains_guardable_span(span) {
+            Self::GuardClause
+        } else {
+            Self::General
+        }
+    }
 }
 
 /// HIR visitor that performs all control-flow readability analyses in one traversal.
@@ -162,14 +195,6 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         }
     }
 
-    /// Returns whether `span` has already received guard-clause guidance.
-    fn is_guardable(&self, span: Span) -> bool {
-        self.state
-            .guardable_spans
-            .iter()
-            .any(|guardable| guardable.lo() == span.lo() && guardable.hi() == span.hi())
-    }
-
     /// Records only the outermost construct that crosses the nesting limit.
     fn record_excessive_depth(&mut self, expression: &Expr<'_>, kind: &str) {
         // Ignore permitted depth and descendants of an already reported construct.
@@ -181,11 +206,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         self.state.is_inside_excessive_depth = true;
 
         // Preserve whether more specific guard-clause guidance can supersede this finding.
-        let remedy = if self.is_guardable(expression.span) {
-            ControlFlowDepthRemedy::GuardClause
-        } else {
-            ControlFlowDepthRemedy::General
-        };
+        let remedy = ControlFlowDepthRemedy::for_expression(&self.state, expression.span);
         let finding = Self::deep_finding(self.config, expression, kind, self.state.depth, remedy);
         self.analysis.deep_nesting.push(finding);
     }
@@ -232,7 +253,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
 
     /// Records one unique guard-clause opportunity.
     fn push_needless(&mut self, finding: ControlFlowFinding) {
-        if self.is_guardable(finding.span) {
+        if self.state.contains_guardable_span(finding.span) {
             return;
         }
         self.state.guardable_spans.push(finding.span);

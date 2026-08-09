@@ -35,6 +35,19 @@ enum FunctionLayoutCommentSyntax {
     Malformed,
 }
 
+impl FunctionLayoutCommentSyntax {
+    /// Classifies the authored header and its continuation lines together.
+    fn from_comments(content: Option<&str>, continuations: &[Comment]) -> Self {
+        if FunctionLayoutProse::is_canonical(content)
+            && FunctionLayoutCommentBlock::continuations_are_canonical(continuations)
+        {
+            Self::Canonical
+        } else {
+            Self::Malformed
+        }
+    }
+}
+
 /// Consecutive line comments headed by the configured phase prefix.
 struct FunctionLayoutCommentBlock {
     /// Complete span from the first header through the final continuation.
@@ -74,17 +87,11 @@ impl FunctionLayoutCommentBlock {
 
         // Validate the header content and every natural continuation line.
         let content = remainder.strip_prefix(' ');
-        let continuation_is_canonical = Self::continuations_are_canonical(&comments[1..]);
-        let content_is_canonical = FunctionLayoutProse::is_canonical(content);
+        let syntax = FunctionLayoutCommentSyntax::from_comments(content, &comments[1..]);
 
         // Suggest only transformations that cannot damage protected authored terms.
         let replacement = FunctionLayoutProse::replacement(content, prefix);
         let last = comments.last().expect("comment blocks are nonempty");
-        let syntax = if content_is_canonical && continuation_is_canonical {
-            FunctionLayoutCommentSyntax::Canonical
-        } else {
-            FunctionLayoutCommentSyntax::Malformed
-        };
 
         // Retain both the complete block and its independently repairable first line.
         Some(Self::from_parts(first, last, syntax, replacement))
