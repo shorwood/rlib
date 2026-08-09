@@ -4,6 +4,7 @@ mod dependency_collector;
 pub mod diagnostic;
 pub mod impl_target;
 pub mod identifier_case;
+pub mod construction_analysis;
 pub mod impl_item_dependencies;
 pub mod item_dependencies;
 pub mod parameter_kind;

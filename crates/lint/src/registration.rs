@@ -18,13 +18,17 @@ pub extern "Rust" fn register_lints(
     sess: &rustc_session::Session,
     lint_store: &mut rustc_lint::LintStore,
 ) {
-    // Register aggregate, dependency, and field-naming policies.
+    // Register aggregate, construction, dependency, and field-naming policies.
+    rules::core::ad_hoc_string_parsers::register_lints(sess, lint_store);
     rules::core::ambiguous_primitive_parameters::register_lints(sess, lint_store);
     rules::core::bare_tuple_types::register_lints(sess, lint_store);
     rules::core::bidirectional_module_dependencies::register_lints(sess, lint_store);
     rules::core::bool_fields_without_predicate_prefix::register_lints(sess, lint_store);
     rules::core::boolean_function_arguments::register_lints(sess, lint_store);
+
+    // Register constructor ownership and cross-file implementation policies.
     rules::core::collection_method_like_free_functions::register_lints(sess, lint_store);
+    rules::core::constructor_like_free_functions::register_lints(sess, lint_store);
     rules::core::cross_file_struct_impls::register_lints(sess, lint_store);
 
     // Register control-flow and section identity policies.

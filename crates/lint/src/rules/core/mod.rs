@@ -1,9 +1,11 @@
+pub mod ad_hoc_string_parsers;
 pub mod ambiguous_primitive_parameters;
 pub mod bare_tuple_types;
 pub mod bidirectional_module_dependencies;
 pub mod bool_fields_without_predicate_prefix;
 pub mod boolean_function_arguments;
 pub mod collection_method_like_free_functions;
+pub mod constructor_like_free_functions;
 pub mod cross_file_struct_impls;
 pub mod deeply_nested_control_flow;
 pub mod duplicate_section_divider_prefixes;
