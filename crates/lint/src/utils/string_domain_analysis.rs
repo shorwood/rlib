@@ -245,7 +245,7 @@ impl DomainAnalyzer {
     }
 
     /// Records existing named types that may already own an inferred domain.
-    pub fn record_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+    pub(crate) fn record_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Restrict evidence to authored declarations that can name a domain type.
         let is_type = matches!(
             item.kind,
@@ -268,7 +268,7 @@ impl DomainAnalyzer {
     }
 
     /// Records raw textual struct fields as supporting evidence.
-    pub fn record_field(&mut self, cx: &LateContext<'_>, field: &FieldDef<'_>) {
+    pub(crate) fn record_field(&mut self, cx: &LateContext<'_>, field: &FieldDef<'_>) {
         // Require authored named state stored directly as textual data.
         if field.is_positional() || field.span.in_external_macro(cx.sess().source_map()) {
             return;
@@ -294,7 +294,7 @@ impl DomainAnalyzer {
     }
 
     /// Records free-function family and consumer-side revalidation evidence.
-    pub fn record_function<'tcx>(
+    pub(crate) fn record_function<'tcx>(
         &mut self,
         cx: &LateContext<'tcx>,
         signature: &ParameterSignature,
@@ -375,7 +375,7 @@ impl DomainAnalyzer {
     }
 
     /// Produces one diagnostic per strongly supported free-function family.
-    pub fn family_findings(&self) -> Vec<DomainFindingFamily> {
+    pub(crate) fn family_findings(&self) -> Vec<DomainFindingFamily> {
         let mut findings = Vec::new();
         for (key, functions) in self.family_groups() {
             // Combine behavioral, state, and existing-type evidence into one finding.
@@ -409,7 +409,7 @@ impl DomainAnalyzer {
     }
 
     /// Produces repeated-validation findings not superseded by a function family.
-    pub fn revalidation_findings(&self) -> Vec<DomainFindingRevalidation> {
+    pub(crate) fn revalidation_findings(&self) -> Vec<DomainFindingRevalidation> {
         let family_keys = self.family_groups().into_keys().collect::<HashSet<_>>();
         let grouped = self.revalidation_groups();
         let mut findings = Vec::new();
@@ -427,7 +427,7 @@ impl DomainAnalyzer {
     }
 
     /// Returns definitions covered by either stronger string-domain diagnostic.
-    pub fn stronger_function_ids(&self) -> HashSet<LocalDefId> {
+    pub(crate) fn stronger_function_ids(&self) -> HashSet<LocalDefId> {
         let family_groups = self.family_groups();
         let family_keys = family_groups.keys().cloned().collect::<HashSet<_>>();
         let mut definitions = HashSet::new();

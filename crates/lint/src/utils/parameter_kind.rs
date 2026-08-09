@@ -91,7 +91,7 @@ impl ParameterKind {
     }
 
     /// Describes this family in a diagnostic without exposing compiler terminology.
-    pub fn description(self) -> String {
+    pub(crate) fn description(self) -> String {
         match self {
             Self::SignedInteger { representation } => {
                 format!("`{representation:?}`").to_lowercase()

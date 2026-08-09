@@ -3,7 +3,7 @@ extern crate rustc_lint;
 extern crate rustc_middle;
 extern crate rustc_span;
 
-use rustc_hir::def::{DefKind, Res};
+use rustc_hir::def::{CtorOf, DefKind, Res};
 use rustc_hir::{Expr, ExprKind};
 use rustc_lint::LateContext;
 use rustc_middle::ty::{self, Ty};
@@ -24,7 +24,7 @@ pub struct ResultContract<'tcx> {
 
 impl<'tcx> ResultContract<'tcx> {
     /// Resolves an expression whose concrete type is the standard `Result`.
-    pub fn from_expression(cx: &LateContext<'tcx>, expression: &Expr<'_>) -> Option<Self> {
+    pub(crate) fn from_expression(cx: &LateContext<'tcx>, expression: &Expr<'_>) -> Option<Self> {
         Self::from_type(cx, cx.typeck_results().expr_ty(expression))
     }
 
@@ -47,12 +47,12 @@ impl<'tcx> ResultContract<'tcx> {
     }
 
     /// Formats the successful value type for remediation guidance.
-    pub fn success_name(self) -> String {
+    pub(crate) fn success_name(self) -> String {
         self.success.to_string()
     }
 
     /// Formats the erased error type for diagnostic context.
-    pub fn error_name(self) -> String {
+    pub(crate) fn error_name(self) -> String {
         self.error.to_string()
     }
 }
@@ -64,6 +64,10 @@ impl<'tcx> ResultContract<'tcx> {
 /// Supported inherent operation on standard Result.
 #[derive(Clone, Copy)]
 pub enum ResultOperation {
+    /// Maps success while replacing failure with an eager fallback.
+    MapOr,
+    /// Maps success while producing a fallback from the failure.
+    MapOrElse,
     /// Converts success to `Some` and failure to `None`.
     Ok,
     /// Returns success or an eagerly supplied fallback.
@@ -78,6 +82,8 @@ impl ResultOperation {
     /// Returns the standard associated item name used for resolution.
     const fn name(self) -> &'static str {
         match self {
+            Self::MapOr => "map_or",
+            Self::MapOrElse => "map_or_else",
             Self::Ok => "ok",
             Self::UnwrapOr => "unwrap_or",
             Self::UnwrapOrElse => "unwrap_or_else",
@@ -116,17 +122,17 @@ pub struct ResolvedResultCall<'hir, 'tcx> {
 
 impl<'hir, 'tcx> ResolvedResultCall<'hir, 'tcx> {
     /// Returns the Result receiver used as diagnostic evidence.
-    pub const fn receiver(&self) -> &'hir Expr<'hir> {
+    pub(crate) const fn receiver(&self) -> &'hir Expr<'hir> {
         self.receiver
     }
 
     /// Returns explicit arguments excluding the semantic receiver.
-    pub const fn arguments(&self) -> &'hir [Expr<'hir>] {
+    pub(crate) const fn arguments(&self) -> &'hir [Expr<'hir>] {
         self.arguments
     }
 
     /// Returns the receiver's resolved success and failure types.
-    pub const fn contract(&self) -> ResultContract<'tcx> {
+    pub(crate) const fn contract(&self) -> ResultContract<'tcx> {
         self.contract
     }
 }
@@ -143,13 +149,41 @@ pub struct ResultLossAnalyzer<'analysis, 'tcx> {
 
 impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
     /// Binds result-loss analysis to the active compiler context.
-    pub const fn for_context(cx: &'analysis LateContext<'tcx>) -> Self {
+    pub(crate) const fn for_context(cx: &'analysis LateContext<'tcx>) -> Self {
         Self { cx }
     }
 
+    /// Returns a closure's direct value only when transparent blocks contain no statements.
+    const fn direct_closure_value<'hir>(expression: &'hir Expr<'hir>) -> &'hir Expr<'hir> {
+        let mut value = expression;
+        loop {
+            match value.kind {
+                ExprKind::Block(block, _) if block.stmts.is_empty() => {
+                    let Some(inner) = block.expr else {
+                        return value;
+                    };
+                    value = inner;
+                }
+                ExprKind::DropTemps(inner) => value = inner,
+                _ => return value,
+            }
+        }
+    }
+
     /// Resolves an expression whose concrete type is standard Result.
-    pub fn contract(&self, expression: &Expr<'_>) -> Option<ResultContract<'tcx>> {
+    pub(crate) fn contract(&self, expression: &Expr<'_>) -> Option<ResultContract<'tcx>> {
         ResultContract::from_expression(self.cx, expression)
+    }
+
+    /// Returns whether an expression has the standard `Option` type.
+    pub(crate) fn is_option_value(&self, expression: &Expr<'_>) -> bool {
+        let expression_type = self.cx.typeck_results().expr_ty(expression).peel_refs();
+        let ty::Adt(definition, _) = expression_type.kind() else {
+            return false;
+        };
+        self.cx
+            .tcx
+            .is_diagnostic_item(sym::Option, definition.did())
     }
 
     /// Normalizes one type-dependent method call into semantic call parts.
@@ -194,9 +228,10 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
     }
 
     /// Returns whether an expression directly calls standard `Default::default`.
-    pub fn is_default_value(&self, expression: &Expr<'_>) -> bool {
+    pub(crate) fn is_default_value(&self, expression: &Expr<'_>) -> bool {
         // Resolve a direct zero-argument associated function call.
-        let ExprKind::Call(callee, []) = expression.peel_blocks().kind else {
+        let value = Self::direct_closure_value(expression);
+        let ExprKind::Call(callee, []) = value.kind else {
             return false;
         };
         let Some(definition) = self.resolved_path_definition(callee) else {
@@ -213,16 +248,16 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
     }
 
     /// Returns whether a closure ignores its error and directly yields a default value.
-    pub fn is_defaulting_closure(&self, expression: &Expr<'_>) -> bool {
+    pub(crate) fn is_defaulting_closure(&self, expression: &Expr<'_>) -> bool {
         let ExprKind::Closure(closure) = expression.kind else {
             return false;
         };
         let body = self.cx.tcx.hir_body(closure.body);
-        self.is_default_value(body.value)
+        self.is_default_value(Self::direct_closure_value(body.value))
     }
 
     /// Recognizes an explicit call to standard `drop` with a Result argument.
-    pub fn dropped_result(&self, expression: &Expr<'_>) -> Option<ResultContract<'tcx>> {
+    pub(crate) fn dropped_result(&self, expression: &Expr<'_>) -> Option<ResultContract<'tcx>> {
         let ExprKind::Call(callee, [argument]) = expression.kind else {
             return None;
         };
@@ -231,6 +266,53 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
             return None;
         }
         self.contract(argument)
+    }
+
+    /// Returns whether a direct path resolves to standard Option's absent variant.
+    fn is_option_none_variant(&self, value: &Expr<'_>) -> bool {
+        // Resolve the authored path and its exact compiler definition.
+        let ExprKind::Path(path) = value.kind else {
+            return false;
+        };
+        let Res::Def(kind, definition) = self.cx.qpath_res(&path, value.hir_id) else {
+            return false;
+        };
+
+        // Normalize a unit constructor and a variant definition to the variant itself.
+        let variant = match kind {
+            DefKind::Variant => definition,
+            DefKind::Ctor(CtorOf::Variant, _) => self.cx.tcx.parent(definition),
+            _ => return false,
+        };
+
+        // Require the standard option definition and its absent variant name.
+        self.cx.tcx.item_name(variant).as_str() == "None"
+            && self
+                .cx
+                .tcx
+                .is_diagnostic_item(sym::Option, self.cx.tcx.parent(variant))
+    }
+
+    /// Returns whether an expression directly spells Option absence.
+    pub(crate) fn is_option_absence(&self, expression: &Expr<'_>) -> bool {
+        // Accept a direct standard default expression for an option value.
+        let value = Self::direct_closure_value(expression);
+        if self.is_option_value(value) && self.is_default_value(value) {
+            return true;
+        }
+
+        // Resolve a direct path to the standard option's absent variant.
+        self.is_option_none_variant(value)
+    }
+
+    /// Returns whether a closure directly yields Option absence without side-effect statements.
+    pub(crate) fn is_option_absence_closure(&self, expression: &Expr<'_>) -> bool {
+        let ExprKind::Closure(closure) = expression.kind else {
+            return false;
+        };
+        let body = self.cx.tcx.hir_body(closure.body);
+        let value = Self::direct_closure_value(body.value);
+        self.is_option_absence(value)
     }
 
     /// Normalizes one direct UFCS call into semantic call parts.
@@ -262,7 +344,7 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
     }
 
     /// Recognizes one inherent Result operation in method or UFCS syntax.
-    pub fn call<'hir>(
+    pub(crate) fn call<'hir>(
         &self,
         expression: &'hir Expr<'hir>,
         operation: ResultOperation,

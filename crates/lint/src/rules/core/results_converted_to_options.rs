@@ -13,6 +13,52 @@ use crate::utils::diagnostic::LateViolation;
 use crate::utils::result_loss_analysis::{ResolvedResultCall, ResultLossAnalyzer, ResultOperation};
 
 // -----------------------------------------------------------------------------
+// OptionConversion: Recognized failure to absence operation
+// -----------------------------------------------------------------------------
+
+/// Standard Result operation that directly replaces failure with Option absence.
+enum OptionConversion {
+    /// Dedicated Result-to-Option conversion.
+    Ok,
+    /// Eager absence supplied to `map_or`.
+    MapOr,
+    /// Error-ignoring absence closure supplied to `map_or_else`.
+    MapOrElse,
+    /// Eager absence supplied to `unwrap_or`.
+    UnwrapOr,
+    /// Error-ignoring absence closure supplied to `unwrap_or_else`.
+    UnwrapOrElse,
+    /// Option's default absence supplied by `unwrap_or_default`.
+    UnwrapOrDefault,
+}
+
+impl OptionConversion {
+    /// Describes the precise syntax collapsing failure into absence.
+    const fn description(&self) -> &'static str {
+        match self {
+            Self::Ok => "`ok` conversion",
+            Self::MapOr => "`map_or` absence fallback",
+            Self::MapOrElse => "`map_or_else` absence fallback",
+            Self::UnwrapOr => "`unwrap_or` absence fallback",
+            Self::UnwrapOrElse => "`unwrap_or_else` absence fallback",
+            Self::UnwrapOrDefault => "`unwrap_or_default` Option fallback",
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// OptionFinding: Classified result conversion
+// -----------------------------------------------------------------------------
+
+/// Resolved result call paired with the failure-to-absence operation it selected.
+struct OptionFinding<'hir, 'tcx> {
+    /// Standard Result operation consuming the failure branch.
+    call: ResolvedResultCall<'hir, 'tcx>,
+    /// Exact absence-producing operation selected by the call.
+    conversion: OptionConversion,
+}
+
+// -----------------------------------------------------------------------------
 // Violation: Result to option information loss
 // -----------------------------------------------------------------------------
 
@@ -22,21 +68,31 @@ struct Violation {
     span: Span,
     /// Result receiver labeled as the source of erased information.
     result_span: Span,
-    /// Value retained when the operation succeeds.
-    success_type: String,
+    /// Actual Option type produced by the complete conversion expression.
+    option_type: String,
     /// Concrete failure collapsed into absence.
     error_type: String,
+    /// Recognized operation used to tailor the diagnostic.
+    conversion: OptionConversion,
 }
 
 impl Violation {
     /// Captures the concrete types and spans from one resolved result conversion.
-    fn from_call(span: Span, call: &ResolvedResultCall<'_, '_>) -> Self {
-        let contract = call.contract();
+    fn from_finding(
+        cx: &LateContext<'_>,
+        expression: &Expr<'_>,
+        finding: OptionFinding<'_, '_>,
+    ) -> Self {
+        // Preserve the concrete result contract before moving its classified finding.
+        let contract = finding.call.contract();
+
+        // Assemble the complete diagnostic context around the classified conversion.
         Self {
-            span,
-            result_span: call.receiver().span,
-            success_type: contract.success_name(),
+            span: expression.span,
+            result_span: finding.call.receiver().span,
+            option_type: cx.typeck_results().expr_ty(expression).to_string(),
             error_type: contract.error_name(),
+            conversion: finding.conversion,
         }
     }
 }
@@ -44,15 +100,16 @@ impl Violation {
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
-            "this conversion turns `{}` failures into an indistinguishable absence",
-            self.error_type
+            "this {} turns `{}` failures into an indistinguishable absence",
+            self.conversion.description(),
+            self.error_type,
         ))
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
-            "the resulting `Option<{}>` cannot distinguish an absent value from a failed operation or explain the lost `{}`",
-            self.success_type, self.error_type
+            "the resulting `{}` cannot distinguish an absent value from a failed operation or explain the lost `{}`",
+            self.option_type, self.error_type
         ))
     }
 
@@ -83,22 +140,24 @@ impl LateViolation for Violation {
 // ResultsConvertedToOptions: Explicit absence boundary policy
 // -----------------------------------------------------------------------------
 
-/// Finds standard Result `ok` calls that silently collapse failure into absence.
+/// Finds standard Result operations that silently collapse failure into absence.
 struct ResultsConvertedToOptions;
 
 dylint_linting::impl_late_lint! {
     /// ### What it does
     ///
-    /// Finds calls to the standard `Result::ok` operation in method or UFCS form. Calls through
-    /// type aliases are resolved semantically, while custom methods named `ok`, non-Result
-    /// receivers, explicit matches, and macro-generated code remain valid.
+    /// Finds standard Result operations that directly replace failure with Option absence:
+    /// `ok`, Option-valued `map_or` and `map_or_else`, and Option defaults supplied through
+    /// `unwrap_or`, `unwrap_or_else`, or `unwrap_or_default`. Method and UFCS syntax and type
+    /// aliases are resolved semantically. Custom same-named methods, explicit matches,
+    /// error-aware closures, and macro-generated code remain valid.
     ///
     /// ### Why is this bad?
     ///
-    /// `Result::ok` compresses two distinct states into `None`: domain absence and operational
-    /// failure. The concise call hides both the erased error type and the location where the
-    /// application chose to stop treating failure as failure. Agents can then propagate the
-    /// optional value through unrelated code without enough context to recover the original
+    /// These operations compress two distinct states into `None`: domain absence and operational
+    /// failure. Their concise fallback syntax hides both the erased error type and the location
+    /// where the application chose to stop treating failure as failure. Agents can then propagate
+    /// the optional value through unrelated code without enough context to recover the original
     /// policy.
     ///
     /// ```rust
@@ -129,18 +188,92 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for ResultsConvertedToOptions {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
-        // Resolve only authored calls to the inherent result conversion operation.
+        // Resolve only authored calls to inherent result conversion operations.
         if expression.span.from_expansion() {
             return;
         }
-        let analyzer = ResultLossAnalyzer::for_context(cx);
-        let Some(call) = analyzer.call(expression, ResultOperation::Ok) else {
+        let Some(finding) = Self::classify(cx, expression) else {
             return;
         };
-        if !call.arguments().is_empty() {
-            return;
+
+        Violation::from_finding(cx, expression, finding).emit(cx);
+    }
+}
+
+impl ResultsConvertedToOptions {
+    /// Classifies every direct standard Result operation that yields Option absence on failure.
+    fn classify<'hir, 'tcx>(
+        cx: &LateContext<'tcx>,
+        expression: &'hir Expr<'hir>,
+    ) -> Option<OptionFinding<'hir, 'tcx>> {
+        // Bind every supported operation to one semantic result analyzer.
+        let analyzer = ResultLossAnalyzer::for_context(cx);
+
+        // Recognize the dedicated Result-to-Option conversion.
+        if let Some(call) = analyzer.call(expression, ResultOperation::Ok)
+            && call.arguments().is_empty()
+        {
+            return Some(OptionFinding {
+                call,
+                conversion: OptionConversion::Ok,
+            });
         }
 
-        Violation::from_call(expression.span, &call).emit(cx);
+        // Recognize eager absence supplied while mapping a successful value.
+        if let Some(call) = analyzer.call(expression, ResultOperation::MapOr)
+            && let [fallback, _mapper] = call.arguments()
+            && analyzer.is_option_value(expression)
+            && analyzer.is_option_absence(fallback)
+        {
+            return Some(OptionFinding {
+                call,
+                conversion: OptionConversion::MapOr,
+            });
+        }
+
+        // Recognize a side-effect-free absence closure used while mapping success.
+        if let Some(call) = analyzer.call(expression, ResultOperation::MapOrElse)
+            && let [fallback, _mapper] = call.arguments()
+            && analyzer.is_option_value(expression)
+            && analyzer.is_option_absence_closure(fallback)
+        {
+            return Some(OptionFinding {
+                call,
+                conversion: OptionConversion::MapOrElse,
+            });
+        }
+
+        // Recognize eager absence replacing a failed Option-producing operation.
+        if let Some(call) = analyzer.call(expression, ResultOperation::UnwrapOr)
+            && let [fallback] = call.arguments()
+            && analyzer.is_option_value(expression)
+            && analyzer.is_option_absence(fallback)
+        {
+            return Some(OptionFinding {
+                call,
+                conversion: OptionConversion::UnwrapOr,
+            });
+        }
+
+        // Recognize a side effect free absence closure replacing a failed option operation.
+        if let Some(call) = analyzer.call(expression, ResultOperation::UnwrapOrElse)
+            && let [fallback] = call.arguments()
+            && analyzer.is_option_value(expression)
+            && analyzer.is_option_absence_closure(fallback)
+        {
+            return Some(OptionFinding {
+                call,
+                conversion: OptionConversion::UnwrapOrElse,
+            });
+        }
+
+        // Recognize option's dedicated default, which is always absence.
+        let call = analyzer.call(expression, ResultOperation::UnwrapOrDefault)?;
+        (call.arguments().is_empty() && analyzer.is_option_value(expression)).then_some(
+            OptionFinding {
+                call,
+                conversion: OptionConversion::UnwrapOrDefault,
+            },
+        )
     }
 }

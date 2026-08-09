@@ -8,6 +8,10 @@ fn fail() -> LoadResult {
     Err(Failure("unavailable"))
 }
 
+fn fail_optional() -> Result<Option<String>, Failure> {
+    Err(Failure("unavailable"))
+}
+
 macro_rules! generated_default {
     () => {
         fail().unwrap_or_default()
@@ -27,6 +31,11 @@ fn default_operations() {
 fn accepted() {
     let _option = Option::<String>::None.unwrap_or_default();
     let _error_aware = fail().unwrap_or_else(|error| error.0.to_owned());
+    let _reported = fail().unwrap_or_else(|error| {
+        eprintln!("load failed: {}", error.0);
+        String::default()
+    });
+    let _option_result = fail_optional().unwrap_or_default();
     let _explicit = match fail() {
         Ok(value) => value,
         Err(_) => String::default(),

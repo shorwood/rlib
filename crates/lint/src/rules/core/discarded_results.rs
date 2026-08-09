@@ -20,6 +20,8 @@ use crate::utils::result_loss_analysis::{ResultContract, ResultLossAnalyzer};
 enum ResultDiscard {
     /// Wildcard `let` binding that suppresses the Result's must-use contract.
     WildcardBinding,
+    /// Underscore-prefixed binding that advertises the Result will not be used normally.
+    UnderscoreBinding,
     /// Explicit call to standard `drop` with the Result as its argument.
     DropCall,
 }
@@ -29,6 +31,7 @@ impl ResultDiscard {
     const fn description(&self) -> &'static str {
         match self {
             Self::WildcardBinding => "wildcard binding",
+            Self::UnderscoreBinding => "underscore-prefixed binding",
             Self::DropCall => "explicit `drop` call",
         }
     }
@@ -113,9 +116,10 @@ struct DiscardedResults;
 dylint_linting::impl_late_lint! {
     /// ### What it does
     ///
-    /// Finds standard `Result` values deliberately consumed through a wildcard `let` binding or
-    /// an explicit call to `drop`. Ordinary unused Results remain covered by Rust's
-    /// `unused_must_use` lint, while non-Result values and macro-generated code remain valid.
+    /// Finds standard `Result` values deliberately consumed through a wildcard assignment, an
+    /// underscore-prefixed binding, or an explicit call to `drop`. Ordinary unused Results remain
+    /// covered by Rust's `unused_must_use` lint, while non-Result values and macro-generated code
+    /// remain valid.
     ///
     /// ### Why is this bad?
     ///
@@ -152,7 +156,7 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for DiscardedResults {
     fn check_stmt(&mut self, cx: &LateContext<'_>, statement: &Stmt<'_>) {
-        let Some(violation) = Self::wildcard_violation(cx, statement) else {
+        let Some(violation) = Self::binding_violation(cx, statement) else {
             return;
         };
         violation.emit(cx);
@@ -167,17 +171,23 @@ impl LateLintPass<'_> for DiscardedResults {
 }
 
 impl DiscardedResults {
-    /// Classifies one authored wildcard binding of a standard result.
-    fn wildcard_violation(cx: &LateContext<'_>, statement: &Stmt<'_>) -> Option<Violation> {
-        // Resolve the authored wildcard syntax and its initializer.
+    /// Classifies one authored wildcard or underscore-prefixed binding of a standard result.
+    fn binding_violation(cx: &LateContext<'_>, statement: &Stmt<'_>) -> Option<Violation> {
+        // Resolve the authored binding syntax and its initializer.
         if statement.span.from_expansion() {
             return None;
         }
         let StmtKind::Let(local) = statement.kind else {
             return None;
         };
-        let PatKind::Wild = local.pat.kind else {
-            return None;
+
+        // Classify only bindings whose spelling explicitly advertises disposal.
+        let discard = match local.pat.kind {
+            PatKind::Wild => ResultDiscard::WildcardBinding,
+            PatKind::Binding(_, _, ident, None) if ident.name.as_str().starts_with('_') => {
+                ResultDiscard::UnderscoreBinding
+            }
+            _ => return None,
         };
         let initializer = local.init?;
 
@@ -190,7 +200,7 @@ impl DiscardedResults {
             statement.span,
             initializer.span,
             contract,
-            ResultDiscard::WildcardBinding,
+            discard,
         ))
     }
 

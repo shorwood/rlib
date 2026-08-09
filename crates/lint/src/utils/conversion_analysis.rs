@@ -219,7 +219,7 @@ pub enum ConversionContract {
 
 impl ConversionContract {
     /// Names the standard trait appropriate for this conversion contract.
-    pub const fn trait_name(&self) -> &'static str {
+    pub(crate) const fn trait_name(&self) -> &'static str {
         match self {
             Self::Infallible => "From",
             Self::Fallible { .. } => "TryFrom",
@@ -472,7 +472,7 @@ impl ConversionAnalysis {
     }
 
     /// Records an existing standard conversion implementation for pair suppression.
-    pub fn record_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+    pub(crate) fn record_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Restrict pair occupancy to authored standard conversion implementations.
         let ItemKind::Impl(_) = item.kind else {
             return;
@@ -508,7 +508,7 @@ impl ConversionAnalysis {
     }
 
     /// Records a one-source function when its source reaches target construction.
-    pub fn record_function<'tcx>(
+    pub(crate) fn record_function<'tcx>(
         &mut self,
         cx: &LateContext<'tcx>,
         kind: FnKind<'tcx>,
@@ -612,7 +612,7 @@ impl ConversionAnalysis {
     }
 
     /// Returns unique, unoccupied families eligible for diagnostics.
-    pub fn reportable_candidates(&self) -> Vec<&ConversionCandidate> {
+    pub(crate) fn reportable_candidates(&self) -> Vec<&ConversionCandidate> {
         // Group policy-eligible candidates by their exact semantic pair.
         let mut families = HashMap::<&ConversionPair, Vec<&ConversionCandidate>>::new();
         for candidate in self
@@ -636,7 +636,7 @@ impl ConversionAnalysis {
     }
 
     /// Returns functions whose result construction semantically consumes their sole source.
-    pub const fn target_owned_definitions(&self) -> &HashSet<LocalDefId> {
+    pub(crate) const fn target_owned_definitions(&self) -> &HashSet<LocalDefId> {
         &self.target_owned_definitions
     }
 }

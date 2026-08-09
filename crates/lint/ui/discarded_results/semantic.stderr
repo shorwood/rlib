@@ -47,5 +47,16 @@ LL |     std::mem::drop(fail());
    = note: discarding the complete value erases whether the operation failed and makes `Failure` unavailable for recovery, reporting, or context
    = help: propagate the Result, inspect its error branch, or translate the failure at an explicit match boundary
 
-warning: 4 warnings emitted
+warning: this underscore-prefixed binding discards a `Result` without handling `Failure`
+  --> $DIR/semantic.rs:37:5
+   |
+LL |     let _handled = explicit_policy();
+   |     ^^^^^^^^^^^^^^^-----------------^
+   |                    |
+   |                    this Result is discarded in full
+   |
+   = note: discarding the complete value erases whether the operation failed and makes `Failure` unavailable for recovery, reporting, or context
+   = help: propagate the Result, inspect its error branch, or translate the failure at an explicit match boundary
+
+warning: 5 warnings emitted
 

@@ -120,7 +120,7 @@ pub struct ConstructionCandidate {
 
 impl ConstructionCandidate {
     /// Returns whether this candidate is a structurally canonical textual parser.
-    pub fn is_text_parser(&self) -> bool {
+    pub(crate) fn is_text_parser(&self) -> bool {
         self.ownership.is_target_same_module
             && self.target.return_shape == ConstructionReturn::FallibleDirect
             && self.parser.has_single_str_input
@@ -129,7 +129,7 @@ impl ConstructionCandidate {
     }
 
     /// Returns whether the authored name describes one canonical, unqualified parser.
-    pub fn has_unqualified_parser_name(&self) -> bool {
+    pub(crate) fn has_unqualified_parser_name(&self) -> bool {
         // Establish the vocabulary that adds no format or policy qualification.
         let target_words = identifier_case::words(self.target.name.as_str());
         let neutral = [
@@ -144,7 +144,7 @@ impl ConstructionCandidate {
     }
 
     /// Builds a crate-root-qualified associated-function path for reference rewrites.
-    pub fn qualified_associated_path(&self, cx: &LateContext<'_>) -> String {
+    pub(crate) fn qualified_associated_path(&self, cx: &LateContext<'_>) -> String {
         let path = cx.tcx.def_path_str(self.target.def_id.to_def_id());
         let target_path = path.split_once("::").map_or_else(
             || format!("crate::{path}"),
@@ -383,7 +383,7 @@ impl ConstructionAnalysis {
     }
 
     /// Records a resolved authored reference to a local free function.
-    pub fn record_expression(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+    pub(crate) fn record_expression(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
         // Resolve one direct path expression to a local function definition.
         let ExprKind::Path(path) = expression.kind else {
             return;
@@ -403,7 +403,7 @@ impl ConstructionAnalysis {
     }
 
     /// Discovers one function whose body constructs the local type in its return contract.
-    pub fn record_function<'tcx>(
+    pub(crate) fn record_function<'tcx>(
         &mut self,
         cx: &LateContext<'tcx>,
         kind: FnKind<'tcx>,
@@ -504,7 +504,7 @@ impl ConstructionAnalysis {
     }
 
     /// Returns the construction candidate most recently recorded for one function.
-    pub fn candidate(&self, def_id: LocalDefId) -> Option<&ConstructionCandidate> {
+    pub(crate) fn candidate(&self, def_id: LocalDefId) -> Option<&ConstructionCandidate> {
         self.candidates
             .iter()
             .rev()
@@ -512,7 +512,7 @@ impl ConstructionAnalysis {
     }
 
     /// Groups every structurally valid textual parser by its constructed target.
-    pub fn parser_families(&self) -> HashMap<LocalDefId, Vec<&ConstructionCandidate>> {
+    pub(crate) fn parser_families(&self) -> HashMap<LocalDefId, Vec<&ConstructionCandidate>> {
         let mut families = HashMap::<LocalDefId, Vec<&ConstructionCandidate>>::new();
         let parsers = self
             .candidates
@@ -604,7 +604,7 @@ impl ConstructionAnalysis {
     }
 
     /// Records module order, imports, and existing `FromStr` implementations.
-    pub fn record_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+    pub(crate) fn record_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.record_module_item(cx, item);
         self.record_import(cx, item);
         self.record_from_str_impl(cx, item);

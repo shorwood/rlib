@@ -140,8 +140,9 @@ dylint_linting::impl_late_lint! {
     /// Finds standard Result operations that replace the error branch with the success type's
     /// `Default` value: `unwrap_or_default`, `unwrap_or(T::default())`, and a direct
     /// `unwrap_or_else(|_| T::default())` closure. Method and UFCS syntax and type aliases are
-    /// recognized semantically. Option fallbacks, custom methods, error-aware closures, explicit
-    /// matches, and macro-generated code remain valid.
+    /// recognized semantically. Option fallbacks are delegated to
+    /// `results_converted_to_options`; custom methods, error-aware closures, explicit matches, and
+    /// macro-generated code remain valid.
     ///
     /// ### Why is this bad?
     ///
@@ -199,6 +200,11 @@ impl FallibleValuesReplacedWithDefaults {
     ) -> Option<DefaultFinding<'hir, 'tcx>> {
         // Bind every supported operation to one semantic result analyzer.
         let analyzer = ResultLossAnalyzer::for_context(cx);
+
+        // Option defaults are absence conversions owned by `results_converted_to_options`.
+        if analyzer.is_option_value(expression) {
+            return None;
+        }
 
         // Recognize the dedicated default-producing operation first.
         if let Some(call) = analyzer.call(expression, ResultOperation::UnwrapOrDefault)

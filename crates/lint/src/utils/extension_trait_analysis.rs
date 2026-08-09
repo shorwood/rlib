@@ -128,7 +128,7 @@ pub struct ExtensionTraitAnalyzer {
 
 impl ExtensionTraitAnalyzer {
     /// Records trait declarations, extension impls, and potential group interruptions.
-    pub fn record_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+    pub(crate) fn record_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Retain every authored top-level declaration so unrelated items can interrupt a group.
         let def_id = item.owner_id.def_id;
         let Some(parent) = cx.tcx.opt_local_parent(def_id) else {
@@ -204,7 +204,7 @@ impl ExtensionTraitAnalyzer {
     }
 
     /// Records one method's size contribution and concrete nonreceiver subject types.
-    pub fn record_trait_item(&mut self, cx: &LateContext<'_>, item: &TraitItem<'_>) {
+    pub(crate) fn record_trait_item(&mut self, cx: &LateContext<'_>, item: &TraitItem<'_>) {
         // Resolve the owning local trait and count only methods.
         if !matches!(item.kind, TraitItemKind::Fn(..)) {
             return;
@@ -239,7 +239,7 @@ impl ExtensionTraitAnalyzer {
     }
 
     /// Returns extension traits that exceed either configured coherence boundary.
-    pub fn coherence_findings(
+    pub(crate) fn coherence_findings(
         &self,
         cx: &LateContext<'_>,
         max_methods: usize,
@@ -279,7 +279,7 @@ impl ExtensionTraitAnalyzer {
     }
 
     /// Returns traits whose declaration and extension impls are cross-module or interrupted.
-    pub fn placement_findings(&self) -> Vec<ExtensionTraitPlacementFinding> {
+    pub(crate) fn placement_findings(&self) -> Vec<ExtensionTraitPlacementFinding> {
         // Restore source order independently inside each authored module.
         let mut items_by_module =
             HashMap::<LocalDefId, Vec<&ExtensionTraitAnalyzerModuleItem>>::new();

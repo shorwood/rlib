@@ -84,7 +84,7 @@ impl ForeignTypeAnalyzer {
     }
 
     /// Records an authored, Rust-ABI free function visible outside its defining module.
-    pub fn record_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+    pub(crate) fn record_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Identify an ordinary top-level function and retain its compiler identity.
         let ItemKind::Fn { sig, .. } = item.kind else {
             return;
@@ -167,7 +167,7 @@ impl ForeignTypeAnalyzer {
     }
 
     /// Returns findings after distinguishing repeated infrastructure from semantic subjects.
-    pub fn findings(&self, cx: &LateContext<'_>) -> Vec<ForeignTypeFunctionFinding> {
+    pub(crate) fn findings(&self, cx: &LateContext<'_>) -> Vec<ForeignTypeFunctionFinding> {
         let ambient = self.ambient_foreign_types();
         self.functions
             .iter()

@@ -62,7 +62,7 @@ pub struct ParameterSignature {
 
 impl ParameterSignature {
     /// Collects a function or provided method under an authored Rust API boundary.
-    pub fn from_body(
+    pub(crate) fn from_body(
         cx: &LateContext<'_>,
         kind: FnKind<'_>,
         body: &Body<'_>,
@@ -97,7 +97,7 @@ impl ParameterSignature {
     }
 
     /// Collects a required local trait method, which has names but no HIR body.
-    pub fn from_required_trait(cx: &LateContext<'_>, item: &TraitItem<'_>) -> Option<Self> {
+    pub(crate) fn from_required_trait(cx: &LateContext<'_>, item: &TraitItem<'_>) -> Option<Self> {
         // Require an authored required method using the ordinary Rust ABI.
         let TraitItemKind::Fn(signature, TraitFn::Required(names)) = item.kind else {
             return None;
@@ -228,7 +228,7 @@ impl ParameterSignature {
     }
 
     /// Returns direct boolean parameters in source order.
-    pub fn boolean_parameters(&self) -> Vec<&Parameter> {
+    pub(crate) fn boolean_parameters(&self) -> Vec<&Parameter> {
         self.parameters
             .iter()
             .filter(|parameter| parameter.is_boolean)
@@ -236,7 +236,7 @@ impl ParameterSignature {
     }
 
     /// Groups interchangeable non-boolean primitive parameters by representation.
-    pub fn ambiguous_groups(&self) -> Vec<ParameterGroup<'_>> {
+    pub(crate) fn ambiguous_groups(&self) -> Vec<ParameterGroup<'_>> {
         let mut grouped = HashMap::<ParameterKind, Vec<&Parameter>>::new();
         for parameter in &self.parameters {
             let Some(kind) = parameter.interchangeable else {
@@ -261,7 +261,7 @@ impl ParameterSignature {
     }
 
     /// Returns whether one boolean parameter forms `set_property(property)` exactly.
-    pub fn has_exact_boolean_setter(&self) -> bool {
+    pub(crate) fn has_exact_boolean_setter(&self) -> bool {
         let booleans = self.boolean_parameters();
         if booleans.len() != 1 {
             return false;

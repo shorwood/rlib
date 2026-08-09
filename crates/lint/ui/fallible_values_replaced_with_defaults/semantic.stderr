@@ -1,5 +1,5 @@
 warning: this `unwrap_or_default` replaces `Failure` failures with `std::string::String`'s default value
-  --> $DIR/semantic.rs:18:22
+  --> $DIR/semantic.rs:22:22
    |
 LL |     let _dedicated = fail().unwrap_or_default();
    |                      ------^^^^^^^^^^^^^^^^^^^^
@@ -15,7 +15,7 @@ LL | #![warn(fallible_values_replaced_with_defaults)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: this `unwrap_or` with a default value replaces `Failure` failures with `std::string::String`'s default value
-  --> $DIR/semantic.rs:19:18
+  --> $DIR/semantic.rs:23:18
    |
 LL |     let _eager = fail().unwrap_or(String::default());
    |                  ------^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -26,7 +26,7 @@ LL |     let _eager = fail().unwrap_or(String::default());
    = help: propagate or handle the error; when a default is deliberate, expose that policy in an explicit match that can inspect the failure
 
 warning: this `unwrap_or_else` with an error-ignoring default closure replaces `Failure` failures with `std::string::String`'s default value
-  --> $DIR/semantic.rs:20:17
+  --> $DIR/semantic.rs:24:17
    |
 LL |     let _lazy = fail().unwrap_or_else(|_| String::default());
    |                 ------^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -37,7 +37,7 @@ LL |     let _lazy = fail().unwrap_or_else(|_| String::default());
    = help: propagate or handle the error; when a default is deliberate, expose that policy in an explicit match that can inspect the failure
 
 warning: this `unwrap_or_default` replaces `Failure` failures with `std::string::String`'s default value
-  --> $DIR/semantic.rs:22:27
+  --> $DIR/semantic.rs:26:27
    |
 LL |     let _ufcs_dedicated = Result::unwrap_or_default(fail());
    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^------^
@@ -48,7 +48,7 @@ LL |     let _ufcs_dedicated = Result::unwrap_or_default(fail());
    = help: propagate or handle the error; when a default is deliberate, expose that policy in an explicit match that can inspect the failure
 
 warning: this `unwrap_or` with a default value replaces `Failure` failures with `std::string::String`'s default value
-  --> $DIR/semantic.rs:23:23
+  --> $DIR/semantic.rs:27:23
    |
 LL |     let _ufcs_eager = Result::unwrap_or(fail(), String::default());
    |                       ^^^^^^^^^^^^^^^^^^------^^^^^^^^^^^^^^^^^^^^
@@ -59,7 +59,7 @@ LL |     let _ufcs_eager = Result::unwrap_or(fail(), String::default());
    = help: propagate or handle the error; when a default is deliberate, expose that policy in an explicit match that can inspect the failure
 
 warning: this `unwrap_or_else` with an error-ignoring default closure replaces `Failure` failures with `std::string::String`'s default value
-  --> $DIR/semantic.rs:24:22
+  --> $DIR/semantic.rs:28:22
    |
 LL |     let _ufcs_lazy = Result::unwrap_or_else(fail(), |_| String::default());
    |                      ^^^^^^^^^^^^^^^^^^^^^^^------^^^^^^^^^^^^^^^^^^^^^^^^
