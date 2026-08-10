@@ -72,3 +72,4 @@ LL + fn in_self() {}
    |
 
 warning: 7 warnings emitted
+

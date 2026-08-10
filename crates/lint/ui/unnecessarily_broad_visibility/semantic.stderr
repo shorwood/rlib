@@ -135,3 +135,4 @@ LL +  fn unused_public_function() {}
    |
 
 warning: 9 warnings emitted
+

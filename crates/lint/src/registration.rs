@@ -18,9 +18,15 @@ pub extern "Rust" fn register_lints(
     sess: &rustc_session::Session,
     lint_store: &mut rustc_lint::LintStore,
 ) {
-    // Register aggregate, construction, dependency, and field-naming policies.
+    // Register standard trait protocol policies.
+    rules::core::ad_hoc_collection_construction::register_lints(sess, lint_store);
     rules::core::ad_hoc_conversions::register_lints(sess, lint_store);
+    rules::core::ad_hoc_equality::register_lints(sess, lint_store);
+    rules::core::ad_hoc_iterators::register_lints(sess, lint_store);
+    rules::core::ad_hoc_ordering::register_lints(sess, lint_store);
     rules::core::ad_hoc_string_parsers::register_lints(sess, lint_store);
+
+    // Register aggregate, dependency, and field-naming policies.
     rules::core::ambiguous_primitive_parameters::register_lints(sess, lint_store);
     rules::core::bare_tuple_types::register_lints(sess, lint_store);
     rules::core::bidirectional_module_dependencies::register_lints(sess, lint_store);

@@ -16,3 +16,4 @@ LL | #![warn(visibility_required_only_by_tests)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: 1 warning emitted
+

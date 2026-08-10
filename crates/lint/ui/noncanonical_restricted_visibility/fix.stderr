@@ -33,3 +33,4 @@ LL |     pub(in crate) static CRATE_VALUE: usize = 2;
    = note: a small visibility vocabulary makes module boundaries immediately comparable and prevents arbitrary ancestor paths from encoding fragile file topology
 
 warning: 3 warnings emitted
+

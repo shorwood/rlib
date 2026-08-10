@@ -13,6 +13,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
 use rustc_span::Span;
 
+use crate::utils::collection_construction_analysis::CollectionConstructionAnalysis;
 use crate::utils::construction_analysis::{
     ConstructionAnalysis, ConstructionAnalysisModuleItem, ConstructionCandidate, ConstructionOrigin,
 };
@@ -135,6 +136,8 @@ struct ConstructorLikeFreeFunctions {
     constructions: ConstructionAnalysis,
     /// Conversion families used to defer canonical pairs to the stronger trait policy.
     conversions: ConversionAnalysis,
+    /// Sequence-ingestion families deferred to standard collection traits.
+    collections: CollectionConstructionAnalysis,
 }
 
 dylint_linting::impl_late_lint! {
@@ -195,6 +198,7 @@ impl<'tcx> LateLintPass<'tcx> for ConstructorLikeFreeFunctions {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.constructions.record_item(cx, item);
         self.conversions.record_item(cx, item);
+        self.collections.record_item(cx, item);
     }
 
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
@@ -212,6 +216,7 @@ impl<'tcx> LateLintPass<'tcx> for ConstructorLikeFreeFunctions {
     ) {
         self.constructions
             .record_function(cx, kind, body, span, def_id);
+        self.collections.record_function(cx, kind, body, def_id);
         let Some(candidate) = self.constructions.candidate(def_id) else {
             return;
         };
@@ -225,12 +230,14 @@ impl<'tcx> LateLintPass<'tcx> for ConstructorLikeFreeFunctions {
             .into_iter()
             .map(|candidate| candidate.identity.def_id)
             .collect::<std::collections::HashSet<_>>();
+        let collection_definitions = self.collections.reportable_definitions();
         for candidate in &self.constructions.candidates {
             // Leave receiver-shaped functions and canonical parsers to their stronger rules.
             if !candidate.ownership.is_target_same_module
                 || candidate.ownership.origin != ConstructionOrigin::Free
                 || candidate.ownership.is_first_input_target
                 || conversion_definitions.contains(&candidate.function.def_id)
+                || collection_definitions.contains(&candidate.function.def_id)
             {
                 continue;
             }

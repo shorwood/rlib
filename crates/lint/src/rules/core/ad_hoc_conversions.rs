@@ -11,6 +11,7 @@ use rustc_hir::{Body, FnDecl, Item};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 
+use crate::utils::collection_construction_analysis::CollectionConstructionAnalysis;
 use crate::utils::construction_analysis::ConstructionAnalysis;
 use crate::utils::conversion_analysis::{
     ConversionAnalysis, ConversionCandidate, ConversionConfidence, ConversionContract,
@@ -176,6 +177,8 @@ struct AdHocConversions {
     constructions: ConstructionAnalysis,
     /// Conversion-specific provenance, effect, family, and trait evidence.
     conversions: ConversionAnalysis,
+    /// Collection ingestion that owns iterable-to-storage conversions more precisely.
+    collections: CollectionConstructionAnalysis,
 }
 
 dylint_linting::impl_late_lint! {
@@ -234,6 +237,7 @@ impl<'tcx> LateLintPass<'tcx> for AdHocConversions {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.constructions.record_item(cx, item);
         self.conversions.record_item(cx, item);
+        self.collections.record_item(cx, item);
     }
 
     fn check_fn(
@@ -247,6 +251,7 @@ impl<'tcx> LateLintPass<'tcx> for AdHocConversions {
     ) {
         self.constructions
             .record_function(cx, kind, body, span, def_id);
+        self.collections.record_function(cx, kind, body, def_id);
         let Some(candidate) = self.constructions.candidate(def_id) else {
             return;
         };
@@ -254,7 +259,11 @@ impl<'tcx> LateLintPass<'tcx> for AdHocConversions {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
+        let collection_definitions = self.collections.reportable_definitions();
         for candidate in self.conversions.reportable_candidates() {
+            if collection_definitions.contains(&candidate.identity.def_id) {
+                continue;
+            }
             Violation::from(candidate).emit(cx);
         }
     }

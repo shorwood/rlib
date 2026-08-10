@@ -1,0 +1,77 @@
+warning: `slugs_equal` defines canonical-looking equality for `Slug` outside `PartialEq`
+  --> $DIR/semantic.rs:6:1
+   |
+LL | fn slugs_equal(left: &Slug, right: &Slug) -> bool {
+   | ^^^^^^^^^^^^^^^-----------^^------------^^^^^^^^^
+   |                |            |
+   |                |            second value in the same relation
+   |                first value in the inferred equality relation
+LL |     left.0 == right.0
+   |     ----------------- both values determine this boolean result
+   |
+   = note: canonical equality determines generic comparisons, deduplication, sets, and map keys for `Slug`; detached implementations can disagree with `Hash` or with each other
+   = help: if this is `Slug`'s canonical equivalence relation, implement `PartialEq` there and add `Eq` only after confirming reflexivity; otherwise give the operation a contextual name or introduce a comparison wrapper
+note: the lint level is defined here
+  --> $DIR/semantic.rs:1:9
+   |
+LL | #![warn(ad_hoc_equality)]
+   |         ^^^^^^^^^^^^^^^
+
+warning: `equals` defines canonical-looking equality for `Account` outside `PartialEq`
+  --> $DIR/semantic.rs:13:5
+   |
+LL |     fn equals(&self, other: &Self) -> bool {
+   |     ^^^^^^^^^^-----^^------------^^^^^^^^^
+   |               |      |
+   |               |      second value in the same relation
+   |               first value in the inferred equality relation
+LL |         self.0 == other.0
+   |         ----------------- both values determine this boolean result
+   |
+   = note: canonical equality determines generic comparisons, deduplication, sets, and map keys for `Account`; detached implementations can disagree with `Hash` or with each other
+   = help: if this is `Account`'s canonical equivalence relation, implement `PartialEq` there and add `Eq` only after confirming reflexivity; otherwise give the operation a contextual name or introduce a comparison wrapper
+
+warning: `equal` is one of 2 APIs competing to define equality for `Ambiguous`
+  --> $DIR/semantic.rs:21:5
+   |
+LL |     fn equal(&self, other: &Self) -> bool {
+   |     ^^^^^^^^^-----^^------------^^^^^^^^^
+   |              |      |
+   |              |      second value in the same relation
+   |              first value in the inferred equality relation
+LL |         self.0 == other.0
+   |         ----------------- both values determine this boolean result
+   |
+   = note: canonical equality determines generic comparisons, deduplication, sets, and map keys for `Ambiguous`; detached implementations can disagree with `Hash` or with each other
+   = help: choose one lawful `PartialEq` relation for `Ambiguous`; name every contextual relation by its key or policy, or encode it in a wrapper type
+
+warning: `same` is one of 2 APIs competing to define equality for `Ambiguous`
+  --> $DIR/semantic.rs:25:5
+   |
+LL |     fn same(&self, other: &Self) -> bool {
+   |     ^^^^^^^^-----^^------------^^^^^^^^^
+   |             |      |
+   |             |      second value in the same relation
+   |             first value in the inferred equality relation
+LL |         self.0 == other.0
+   |         ----------------- both values determine this boolean result
+   |
+   = note: canonical equality determines generic comparisons, deduplication, sets, and map keys for `Ambiguous`; detached implementations can disagree with `Hash` or with each other
+   = help: choose one lawful `PartialEq` relation for `Ambiguous`; name every contextual relation by its key or policy, or encode it in a wrapper type
+
+warning: `equal` implements equality for `Existing` separately from its `PartialEq` contract
+  --> $DIR/semantic.rs:39:5
+   |
+LL |     fn equal(&self, other: &Self) -> bool {
+   |     ^^^^^^^^^-----^^------------^^^^^^^^^
+   |              |      |
+   |              |      second value in the same relation
+   |              first value in the inferred equality relation
+LL |         self.0 % 10 == other.0 % 10
+   |         --------------------------- both values determine this boolean result
+   |
+   = note: canonical equality determines generic comparisons, deduplication, sets, and map keys for `Existing`; detached implementations can disagree with `Hash` or with each other
+   = help: delegate to `Existing`'s `PartialEq` implementation or make the different relation explicit in the API or a wrapper; ensure every existing `Hash` implementation follows the canonical equality fields
+
+warning: 5 warnings emitted
+

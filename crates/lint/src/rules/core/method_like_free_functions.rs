@@ -13,6 +13,8 @@ use rustc_hir::{Body, Expr, ExprKind, FnDecl, HirId, Item, ItemKind, Node};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::{Span, Symbol};
 
+use crate::utils::collection_construction_analysis::CollectionConstructionAnalysis;
+use crate::utils::comparison_analysis::ComparisonAnalysis;
 use crate::utils::construction_analysis::ConstructionAnalysis;
 use crate::utils::conversion_analysis::ConversionAnalysis;
 use crate::utils::diagnostic::LateViolation;
@@ -158,6 +160,10 @@ struct MethodLikeFreeFunctions {
     constructions: ConstructionAnalysis,
     /// One-source conversion ownership discovered across the crate.
     conversions: ConversionAnalysis,
+    /// Standard comparison protocols that supersede generic method relocation.
+    comparisons: ComparisonAnalysis,
+    /// Standard collection protocols that supersede generic method relocation.
+    collections: CollectionConstructionAnalysis,
 }
 
 dylint_linting::impl_late_lint! {
@@ -200,8 +206,13 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
     /// Imports are recorded separately because moving an imported function could silently change
     /// what its alias means.
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Record stronger ownership protocols before generic method candidacy.
         self.constructions.record_item(cx, item);
         self.conversions.record_item(cx, item);
+
+        // Comparison and collection protocols also take precedence over generic ownership.
+        self.comparisons.record_item(cx, item);
+        self.collections.record_item(cx, item);
         if self.record_function_import(item) {
             return;
         }
@@ -223,6 +234,8 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
     ) {
         self.constructions
             .record_function(cx, kind, body, span, def_id);
+        self.comparisons.record_function(cx, kind, body, def_id);
+        self.collections.record_function(cx, kind, body, def_id);
         let Some(candidate) = self.constructions.candidate(def_id) else {
             return;
         };
@@ -258,6 +271,9 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
     /// Waiting until the end prevents a fix from overlooking a call that appears later in the
     /// source.
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
+        let comparison_definitions = self.comparisons.reportable_definitions();
+        let collection_definitions = self.collections.reportable_definitions();
+
         // References are only complete after the entire crate has been visited. Waiting until now
         // lets a migration update every call site or decline the fix as one atomic decision.
         for candidate in &self.candidates {
@@ -265,6 +281,8 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
                 .conversions
                 .target_owned_definitions()
                 .contains(&candidate.definition_id())
+                || comparison_definitions.contains(&candidate.definition_id())
+                || collection_definitions.contains(&candidate.definition_id())
             {
                 continue;
             }

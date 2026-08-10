@@ -1,0 +1,57 @@
+warning: `from_entries` reproduces `FromIterator<Entry>` for `Report`
+  --> $DIR/semantic.rs:16:8
+   |
+LL |     fn from_entries(entries: impl IntoIterator<Item = Entry>) -> Self {
+   |        ^^^^^^^^^^^^ ---------------------------------------- this source supplies the stored item sequence
+...
+LL |         report.entries.extend(entries);
+   |         ------------------------------ items flow into target-owned collection storage here
+   |
+   = note: the complete infallible flow from an item sequence into target-owned storage is the standard `FromIterator` protocol; a named duplicate hides collection and extension support from generic code
+   = help: implement `FromIterator<Entry>` for `Report` and accept `IntoIterator<Item = Entry>` at convenience boundaries; retain a named API only when its policy is explicit and cannot be represented by the item type
+note: the lint level is defined here
+  --> $DIR/semantic.rs:1:9
+   |
+LL | #![warn(ad_hoc_collection_construction)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `add_all_entries` reproduces `Extend<Entry>` for `Report`
+  --> $DIR/semantic.rs:24:8
+   |
+LL |     fn add_all_entries(&mut self, entries: impl IntoIterator<Item = Entry>) {
+   |        ^^^^^^^^^^^^^^^            ---------------------------------------- this source supplies the stored item sequence
+LL |         self.entries.extend(entries);
+   |         ---------------------------- items flow into target-owned collection storage here
+   |
+   = note: the complete infallible flow from an item sequence into target-owned storage is the standard `Extend` protocol; a named duplicate hides collection and extension support from generic code
+   = help: implement `Extend<Entry>` for `Report` and accept `IntoIterator<Item = Entry>` at convenience boundaries; retain a named API only when its policy is explicit and cannot be represented by the item type
+
+warning: `free_report_from_entries` reproduces `FromIterator<Entry>` for `FreeReport`
+  --> $DIR/semantic.rs:33:4
+   |
+LL | fn free_report_from_entries(entries: impl IntoIterator<Item = Entry>) -> FreeReport {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^ ---------------------------------------- this source supplies the stored item sequence
+...
+LL |         report.entries.push(entry);
+   |         -------------------------- items flow into target-owned collection storage here
+   |
+   = note: the complete infallible flow from an item sequence into target-owned storage is the standard `FromIterator` protocol; a named duplicate hides collection and extension support from generic code
+   = help: implement `FromIterator<Entry>` for `FreeReport` and accept `IntoIterator<Item = Entry>` at convenience boundaries; retain a named API only when its policy is explicit and cannot be represented by the item type
+
+warning: `add_all_free_report_entries` reproduces `Extend<Entry>` for `FreeReport`
+  --> $DIR/semantic.rs:43:4
+   |
+LL | fn add_all_free_report_entries(
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL |     report: &mut FreeReport,
+LL |     entries: impl IntoIterator<Item = Entry>,
+   |     ---------------------------------------- this source supplies the stored item sequence
+LL | ) {
+LL |     report.entries.extend(entries);
+   |     ------------------------------ items flow into target-owned collection storage here
+   |
+   = note: the complete infallible flow from an item sequence into target-owned storage is the standard `Extend` protocol; a named duplicate hides collection and extension support from generic code
+   = help: implement `Extend<Entry>` for `FreeReport` and accept `IntoIterator<Item = Entry>` at convenience boundaries; retain a named API only when its policy is explicit and cannot be represented by the item type
+
+warning: 4 warnings emitted
+
