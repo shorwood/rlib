@@ -39,9 +39,9 @@ pub struct LibraryConfig {
     /// Size policy used by focused extension-trait lints.
     pub(crate) extension_traits: ExtensionTraitConfig,
     /// Limits and syntax used by the function-structure lint family.
-    pub(crate) function_structure: FunctionStructureConfig,
+    pub(super) function_structure: FunctionStructureConfig,
     /// Rendering and width policy used by section-divider lints.
-    pub(crate) section_dividers: SectionDividerConfig,
+    pub(super) section_dividers: SectionDividerConfig,
 }
 
 impl LibraryConfig {
@@ -60,15 +60,15 @@ impl LibraryConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct FunctionStructureConfig {
     /// Maximum number of source lines permitted in one unnamed function phase.
-    pub(crate) max_phase_lines: usize,
+    pub(super) max_phase_lines: usize,
     /// Ordinary line-comment prefix that introduces a named phase.
-    pub(crate) phase_comment_prefix: String,
+    pub(super) phase_comment_prefix: String,
     /// Maximum permitted nesting depth for control-flow expressions.
-    pub(crate) max_control_flow_depth: usize,
+    pub(super) max_control_flow_depth: usize,
     /// Maximum source-line span permitted for one match arm body.
-    pub(crate) max_match_arm_lines: usize,
+    pub(super) max_match_arm_lines: usize,
     /// Maximum number of calls permitted in one method-call chain.
-    pub(crate) max_method_chain_calls: usize,
+    pub(super) max_method_chain_calls: usize,
 }
 
 impl Default for FunctionStructureConfig {
@@ -85,7 +85,7 @@ impl Default for FunctionStructureConfig {
 
 impl FunctionStructureConfig {
     /// Rejects values that would make source analysis ambiguous or degenerate.
-    pub(crate) fn validate(&self) -> Result<(), String> {
+    pub(super) fn validate(&self) -> Result<(), String> {
         // Numeric limits must leave every policy with a meaningful nonzero boundary.
         for (name, value) in [
             ("max_phase_lines", self.max_phase_lines),
@@ -127,11 +127,11 @@ impl FunctionStructureConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct SectionDividerConfig {
     /// Divider template containing the required `{content}` placeholder.
-    pub(crate) template: String,
+    pub(super) template: String,
     /// Maximum rendered divider width, including the section content.
-    pub(crate) max_line_length: usize,
+    pub(super) max_line_length: usize,
     /// Maximum number of distinct declarations governed by one divider.
-    pub(crate) max_declarations_per_section: usize,
+    pub(super) max_declarations_per_section: usize,
 }
 
 impl Default for SectionDividerConfig {
@@ -153,7 +153,7 @@ impl Default for SectionDividerConfig {
 
 impl SectionDividerConfig {
     /// Rejects limits that cannot describe a useful declaration section.
-    pub(crate) fn validate(&self) -> Result<(), String> {
+    pub(super) fn validate(&self) -> Result<(), String> {
         if self.max_declarations_per_section == 0 {
             return Err(
                 "section_dividers.max_declarations_per_section must be greater than zero"

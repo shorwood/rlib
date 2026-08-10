@@ -58,21 +58,21 @@ pub enum ExtensionTraitProblem {
 /// One extension trait whose API is too broad to remain a single discoverable concept.
 pub struct ExtensionTraitFinding {
     /// Trait name span used as the primary diagnostic location.
-    pub span: Span,
+    pub(crate) span: Span,
     /// Trait name shown in guidance.
-    pub name: Symbol,
+    pub(crate) name: Symbol,
     /// Independent coherence failures found on the trait.
-    pub problems: Vec<ExtensionTraitProblem>,
+    pub(crate) problems: Vec<ExtensionTraitProblem>,
 }
 
 /// One extension trait whose declaration and authored impls do not form one group.
 pub struct ExtensionTraitPlacementFinding {
     /// First misplaced impl, or the trait when its whole group is cross-module.
-    pub span: Span,
+    pub(crate) span: Span,
     /// Trait declaration span linked to the misplaced group.
-    pub trait_span: Span,
+    pub(crate) trait_span: Span,
     /// Trait name shown in guidance.
-    pub name: Symbol,
+    pub(crate) name: Symbol,
 }
 
 // -----------------------------------------------------------------------------

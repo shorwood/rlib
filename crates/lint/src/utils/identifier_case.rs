@@ -21,22 +21,22 @@ impl IdentifierWords {
 // -----------------------------------------------------------------------------
 
 /// Converts identifier text to canonical `PascalCase`.
-pub fn to_pascal(value: &str) -> String {
+pub(super) fn to_pascal(value: &str) -> String {
     value.to_case(Case::Pascal)
 }
 
 /// Converts identifier text to canonical `UPPER_SNAKE_CASE`.
-pub fn to_upper_snake(value: &str) -> String {
+pub(super) fn to_upper_snake(value: &str) -> String {
     value.to_case(Case::UpperSnake)
 }
 
 /// Checks whether identifier text is canonical `PascalCase`.
-pub fn is_pascal(value: &str) -> bool {
+pub(super) fn is_pascal(value: &str) -> bool {
     !value.is_empty() && to_pascal(value) == value
 }
 
 /// Splits an authored Rust identifier into canonical `PascalCase` words.
-pub fn words(value: &str) -> Vec<String> {
+pub(super) fn words(value: &str) -> Vec<String> {
     let source = if value.contains('_') {
         Case::Snake
     } else {
@@ -46,7 +46,7 @@ pub fn words(value: &str) -> Vec<String> {
 }
 
 /// Splits a known `PascalCase` identifier into canonical words.
-pub fn pascal_words(value: &str) -> Vec<String> {
+pub(super) fn pascal_words(value: &str) -> Vec<String> {
     IdentifierWords::from_case(value, Case::Pascal)
 }
 
@@ -55,7 +55,7 @@ pub fn pascal_words(value: &str) -> Vec<String> {
 // -----------------------------------------------------------------------------
 
 /// Finds the longest shared canonical `PascalCase` word prefix.
-pub fn longest_common_pascal_prefix(names: &[&str]) -> Option<String> {
+pub(super) fn longest_common_pascal_prefix(names: &[&str]) -> Option<String> {
     let mut names = names.iter();
     let mut prefix = words(names.next()?);
 

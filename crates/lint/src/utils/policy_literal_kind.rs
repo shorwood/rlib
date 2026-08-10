@@ -104,7 +104,7 @@ const POLICY_CATEGORY_VOCABULARIES: [&[&str]; 7] = [
 
 impl PolicyCategory {
     /// Every category in diagnostic precedence order.
-    pub(crate) const fn all() -> [Self; 7] {
+    pub(super) const fn all() -> [Self; 7] {
         // Preserve the same precedence used when overlapping evidence is merged.
         POLICY_CATEGORY_ALL
     }
@@ -123,13 +123,13 @@ impl PolicyCategory {
     }
 
     /// Returns whether one normalized identifier word names this policy category.
-    pub(crate) fn matches_word(self, word: &str) -> bool {
+    pub(super) fn matches_word(self, word: &str) -> bool {
         // Select by discriminant so the vocabulary lookup remains uniform.
         POLICY_CATEGORY_VOCABULARIES[self as usize].contains(&word)
     }
 
     /// Selects the strongest policy category implied by an authored identifier.
-    pub(crate) fn from_name(name: &str) -> Option<Self> {
+    pub(super) fn from_name(name: &str) -> Option<Self> {
         // Normalize once before testing the ordered high-confidence vocabulary families.
         let words = identifier_case::words(name)
             .into_iter()
@@ -141,7 +141,7 @@ impl PolicyCategory {
     }
 
     /// Ranking used when one literal receives overlapping evidence.
-    pub(crate) const fn evidence_rank(self) -> u8 {
+    pub(super) const fn evidence_rank(self) -> u8 {
         match self {
             Self::Retry => 7,
             Self::Timing => 6,

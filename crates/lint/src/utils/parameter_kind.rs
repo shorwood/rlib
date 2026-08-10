@@ -107,7 +107,7 @@ impl ParameterKind {
 }
 
 /// Parameter-family queries colocated with compiler types.
-pub trait ParameterTypeExt {
+pub(super) trait ParameterTypeExt {
     /// Classifies aliases and references by their interchangeable representation.
     fn interchangeable_kind(self, cx: &LateContext<'_>) -> Option<ParameterKind>;
 

@@ -6,7 +6,7 @@ use super::policy_literal_kind::PolicyCategory;
 // -----------------------------------------------------------------------------
 
 /// Returns whether a type name explicitly advertises configuration ownership.
-pub fn is_configuration_type_name(name: &str) -> bool {
+pub(super) fn is_configuration_type_name(name: &str) -> bool {
     // Limit structural inference to conventional configuration container suffixes.
     ["Config", "Options", "Policy", "Settings", "Limits"]
         .iter()
@@ -14,7 +14,7 @@ pub fn is_configuration_type_name(name: &str) -> bool {
 }
 
 /// Derives a constant name only when authored vocabulary already describes the policy.
-pub fn for_authored_name(name: &str, category: PolicyCategory) -> Option<String> {
+pub(super) fn for_authored_name(name: &str, category: PolicyCategory) -> Option<String> {
     // Normalize the candidate before requiring an explicit policy-role word.
     let name = name.trim_start_matches('_');
     let canonical_words = words(name);
@@ -34,11 +34,11 @@ pub fn for_authored_name(name: &str, category: PolicyCategory) -> Option<String>
 }
 
 /// Authored configuration vocabulary used to infer one constant name.
-pub struct ConfigurationNameContext<'name> {
+pub(super) struct ConfigurationNameContext<'name> {
     /// Name of the configuration type that supplies domain context.
-    pub(crate) type_name: &'name str,
+    pub(super) type_name: &'name str,
     /// Name of the field that supplies the policy role.
-    pub(crate) field_name: &'name str,
+    pub(super) field_name: &'name str,
 }
 
 impl ConfigurationNameContext<'_> {
@@ -80,7 +80,7 @@ impl ConfigurationNameContext<'_> {
     }
 
     /// Combines a policy field with its configuration type when domain context is missing.
-    pub(crate) fn infer(self, category: PolicyCategory) -> Option<String> {
+    pub(super) fn infer(self, category: PolicyCategory) -> Option<String> {
         // Preserve precise field vocabulary before consulting the surrounding type.
         if let Some(suggestion) = self.precise_field_suggestion(category) {
             return Some(suggestion);

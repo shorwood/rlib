@@ -29,38 +29,38 @@ const MIN_AMBIGUOUS_PARAMETER_COUNT: usize = 2;
 #[derive(Clone)]
 pub struct Parameter {
     /// HIR identity used to recognize binding references.
-    pub hir_id: HirId,
+    pub(super) hir_id: HirId,
     /// Identifier source range used for labels.
-    pub span: Span,
+    pub(crate) span: Span,
     /// Authored binding name.
-    pub name: Symbol,
+    pub(crate) name: Symbol,
     /// Whether the resolved parameter type is exactly `bool`.
-    pub is_boolean: bool,
+    is_boolean: bool,
     /// Interchangeable primitive family, excluding booleans.
-    pub interchangeable: Option<ParameterKind>,
+    pub(super) interchangeable: Option<ParameterKind>,
 }
 
 /// One reportable family of interchangeable parameters.
 pub struct ParameterGroup<'signature> {
     /// Shared semantic representation.
-    pub kind: ParameterKind,
+    pub(crate) kind: ParameterKind,
     /// Parameters carrying distinct roles through names alone.
-    pub parameters: Vec<&'signature Parameter>,
+    pub(crate) parameters: Vec<&'signature Parameter>,
 }
 
 /// One authored function or method signature with simple named parameters.
 #[derive(Clone)]
 pub struct ParameterSignature {
     /// Definition identity used for semantic type queries.
-    pub def_id: LocalDefId,
+    pub(crate) def_id: LocalDefId,
     /// HIR identity on which function-level diagnostics are emitted.
-    pub hir_id: HirId,
+    pub(crate) hir_id: HirId,
     /// Authored function or method name.
-    pub name: Symbol,
+    pub(super) name: Symbol,
     /// Name source range used as the primary diagnostic site.
-    pub span: Span,
+    pub(super) span: Span,
     /// Direct parameters excluding `self`.
-    pub parameters: Vec<Parameter>,
+    pub(super) parameters: Vec<Parameter>,
 }
 
 impl ParameterSignature {

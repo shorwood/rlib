@@ -45,7 +45,7 @@ struct ModuleNamespace {
 }
 
 #[path = "section_event_stream.rs"]
-pub(super) mod event_stream;
+mod event_stream;
 
 /// Builds and validates the ordered section event stream for one source module.
 pub(super) struct ModuleAnalysis;

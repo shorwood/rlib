@@ -46,20 +46,20 @@ pub enum ConstructionOrigin {
 #[derive(Clone, Copy)]
 pub struct ConstructionParserFacts {
     /// Whether the function takes exactly one immutable string slice.
-    pub has_single_str_input: bool,
+    has_single_str_input: bool,
     /// Whether that string binding is referenced by the body.
-    pub has_used_string_input: bool,
+    has_used_string_input: bool,
     /// Whether the target declares a lifetime that `FromStr` cannot return.
-    pub has_target_lifetime: bool,
+    has_target_lifetime: bool,
 }
 
 /// Authored source properties used by conservative constructor relocation.
 #[derive(Clone, Copy)]
 pub struct ConstructionMigrationFacts {
     /// Whether source visibility is private.
-    pub is_private: bool,
+    pub(crate) is_private: bool,
     /// Whether attributes decorate the function declaration.
-    pub has_attributes: bool,
+    pub(crate) has_attributes: bool,
 }
 
 // -----------------------------------------------------------------------------
@@ -70,57 +70,57 @@ pub struct ConstructionMigrationFacts {
 #[derive(Clone)]
 pub struct ConstructionCandidateFunction {
     /// Function definition used to index resolved references.
-    pub def_id: LocalDefId,
+    pub(crate) def_id: LocalDefId,
     /// Authored function identifier.
-    pub name: Symbol,
+    pub(crate) name: Symbol,
     /// Function identifier source range.
-    pub name_span: Span,
+    pub(crate) name_span: Span,
     /// Complete source range used by guarded migration.
-    pub item_span: Span,
+    pub(crate) item_span: Span,
     /// Module containing the function and its construction target.
-    pub module: LocalDefId,
+    pub(crate) module: LocalDefId,
 }
 
 /// Constructed local type and the return contract that reaches it.
 #[derive(Clone)]
 pub struct ConstructionCandidateTarget {
     /// Local nominal type constructed by the body.
-    pub def_id: LocalDefId,
+    pub(crate) def_id: LocalDefId,
     /// Display name of the constructed type.
-    pub name: Symbol,
+    pub(crate) name: Symbol,
     /// Standard-container shape around the constructed value.
-    pub return_shape: ConstructionReturn,
+    pub(super) return_shape: ConstructionReturn,
 }
 
 /// Function ownership facts used to select the responsible lint policy.
 #[derive(Clone, Copy)]
 pub struct ConstructionCandidateOwnership {
     /// Whether the function is module-level or already associated.
-    pub origin: ConstructionOrigin,
+    pub(crate) origin: ConstructionOrigin,
     /// Whether the first parameter already supplies the constructed type.
-    pub is_first_input_target: bool,
+    pub(crate) is_first_input_target: bool,
     /// Whether the function and constructed type are defined in the same module.
-    pub is_target_same_module: bool,
+    pub(crate) is_target_same_module: bool,
 }
 
 /// One authored function proven to construct a local nominal type.
 #[derive(Clone)]
 pub struct ConstructionCandidate {
     /// Function identity and source ownership.
-    pub function: ConstructionCandidateFunction,
+    pub(crate) function: ConstructionCandidateFunction,
     /// Local type and return-container contract.
-    pub target: ConstructionCandidateTarget,
+    pub(crate) target: ConstructionCandidateTarget,
     /// Ownership and receiver-overlap facts.
-    pub ownership: ConstructionCandidateOwnership,
+    pub(crate) ownership: ConstructionCandidateOwnership,
     /// Text-parser-specific structural evidence.
-    pub parser: ConstructionParserFacts,
+    parser: ConstructionParserFacts,
     /// Source facts governing automatic relocation.
-    pub migration: ConstructionMigrationFacts,
+    pub(crate) migration: ConstructionMigrationFacts,
 }
 
 impl ConstructionCandidate {
     /// Returns whether this candidate is a structurally canonical textual parser.
-    pub(crate) fn is_text_parser(&self) -> bool {
+    pub(super) fn is_text_parser(&self) -> bool {
         self.ownership.is_target_same_module
             && self.target.return_shape == ConstructionReturn::FallibleDirect
             && self.parser.has_single_str_input
@@ -203,24 +203,24 @@ enum ConstructionInputContainerRoot {
 #[derive(Clone, Copy)]
 pub struct ConstructionAnalysisModuleItem {
     /// Definition identity of the item.
-    pub def_id: LocalDefId,
+    pub(crate) def_id: LocalDefId,
     /// Authored source range of the item.
-    pub span: Span,
+    pub(crate) span: Span,
 }
 
 /// Crate-wide construction discovery shared by ownership and parser lints.
 #[derive(Default)]
 pub struct ConstructionAnalysis {
     /// Proven constructor-like functions in traversal order.
-    pub candidates: Vec<ConstructionCandidate>,
+    pub(crate) candidates: Vec<ConstructionCandidate>,
     /// Direct authored items grouped by their module.
-    pub module_items: HashMap<LocalDefId, Vec<ConstructionAnalysisModuleItem>>,
+    pub(crate) module_items: HashMap<LocalDefId, Vec<ConstructionAnalysisModuleItem>>,
     /// Resolved path references grouped by function definition.
-    pub function_uses: HashMap<LocalDefId, Vec<Span>>,
+    pub(crate) function_uses: HashMap<LocalDefId, Vec<Span>>,
     /// Functions referenced by use declarations.
-    pub imported_functions: HashSet<LocalDefId>,
+    pub(crate) imported_functions: HashSet<LocalDefId>,
     /// Local nominal types that already implement `FromStr`.
-    pub from_str_targets: HashSet<LocalDefId>,
+    pub(crate) from_str_targets: HashSet<LocalDefId>,
 }
 
 impl ConstructionAnalysis {

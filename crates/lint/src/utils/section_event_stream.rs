@@ -13,22 +13,12 @@ use rustc_span::{BytePos, Span};
 use super::{ModuleAnalysis, ModuleNamespace};
 use crate::utils::identifier_case;
 use crate::utils::section_analysis::{
-    SectionAnalysis, SectionAnalyzer, SectionFinding, SectionParticipant,
+    SectionAnalysis, SectionAnalyzer, SectionEventDivider, SectionFinding, SectionParticipant,
 };
 
 // -----------------------------------------------------------------------------
-// SectionEvent: Section events and participants
+// SectionEventCandidate: Section events and participants
 // -----------------------------------------------------------------------------
-
-/// Authored divider data carried through section event analysis.
-pub(in crate::utils::section_analysis) struct SectionEventDivider {
-    /// Complete source range occupied by the divider template.
-    pub(in crate::utils::section_analysis) span: Span,
-    /// Unparsed content captured from the template placeholder.
-    pub(in crate::utils::section_analysis) raw_content: String,
-    /// Whitespace that prefixes each rendered divider line.
-    pub(in crate::utils::section_analysis) indentation: String,
-}
 
 /// Semantic role of a named declaration within a source section.
 #[derive(Clone, Copy)]

@@ -19,7 +19,7 @@ use rustc_span::{Span, Symbol};
 // -----------------------------------------------------------------------------
 
 /// Resolves a compiler type to its concrete nominal identity.
-pub trait NominalTypeExt {
+pub(super) trait NominalTypeExt {
     /// Follows references and aliases to a concrete nominal definition.
     fn nominal_def_id(self) -> Option<DefId>;
 }
@@ -43,11 +43,11 @@ impl NominalTypeExt for Ty<'_> {
 /// One visible free function whose foreign parameters deserve an owning abstraction.
 pub struct ForeignTypeFunctionFinding {
     /// Function name span used as the primary diagnostic location.
-    pub span: Span,
+    pub(crate) span: Span,
     /// Foreign nominal types that remain plausible owners after ambient dependencies are removed.
-    pub owners: Vec<Symbol>,
+    pub(crate) owners: Vec<Symbol>,
     /// Every foreign nominal parameter type, used when ownership remains ambiguous.
-    pub candidates: Vec<Symbol>,
+    pub(crate) candidates: Vec<Symbol>,
 }
 
 /// Semantic signature retained until ambient dependencies can be inferred crate-wide.

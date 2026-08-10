@@ -14,12 +14,21 @@ mod template;
 mod module_analysis;
 
 use module_analysis::ModuleAnalysis;
-use module_analysis::event_stream::SectionEventDivider;
 use template::{Template, TemplateMatch};
 
 // -----------------------------------------------------------------------------
 // Section: Shared organization analysis data
 // -----------------------------------------------------------------------------
+
+/// Authored divider data owned by section analysis and consumed by its event stream.
+struct SectionEventDivider {
+    /// Complete source range occupied by the divider template.
+    span: Span,
+    /// Unparsed content captured from the template placeholder.
+    raw_content: String,
+    /// Whitespace that prefixes each rendered divider line.
+    indentation: String,
+}
 
 /// One source-level problem found by the shared analyzer.
 pub struct SectionFinding {
@@ -36,25 +45,25 @@ pub struct SectionFinding {
 /// One distinct declaration covered by a valid section.
 pub struct SectionParticipant {
     /// Local definition represented by this declaration or implementation.
-    pub(crate) def_id: rustc_hir::def_id::LocalDefId,
+    pub(super) def_id: rustc_hir::def_id::LocalDefId,
     /// Authored declaration name used for family inference and diagnostics.
-    pub(crate) name: String,
+    pub(super) name: String,
     /// Source range occupied by the declaration.
-    pub(crate) span: Span,
+    pub(super) span: Span,
     /// Whether this participant defines a nominal type rather than supporting it.
-    pub(crate) is_nominal: bool,
+    pub(super) is_nominal: bool,
 }
 
 /// One valid authored section available to semantic companion lints.
 pub struct SectionGroup {
     /// One-based position of the section in its source module.
-    pub(crate) ordinal: usize,
+    pub(super) ordinal: usize,
     /// `PascalCase` family prefix declared by the divider.
-    pub(crate) prefix: String,
+    pub(super) prefix: String,
     /// Complete source range of the divider template.
-    pub(crate) span: Span,
+    pub(super) span: Span,
     /// Distinct declarations governed by the divider.
-    pub(crate) participants: Vec<SectionParticipant>,
+    pub(super) participants: Vec<SectionParticipant>,
 }
 
 /// Findings split by lint identity so each rule remains independently configurable.
@@ -71,7 +80,7 @@ pub struct SectionAnalysis {
     /// Dividers governing more distinct declarations than the configured limit.
     pub(crate) overloaded: Vec<SectionFinding>,
     /// Valid sections available to companion semantic lints.
-    pub(crate) sections: Vec<SectionGroup>,
+    pub(super) sections: Vec<SectionGroup>,
 }
 
 impl SectionAnalysis {

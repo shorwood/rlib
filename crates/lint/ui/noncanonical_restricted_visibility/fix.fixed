@@ -1,0 +1,12 @@
+// run-rustfix
+#![warn(noncanonical_restricted_visibility)]
+#![allow(dead_code)]
+
+struct PrivateValue;
+
+mod parent {
+    pub(super) const PARENT_VALUE: usize = 1;
+    pub(crate) static CRATE_VALUE: usize = 2;
+}
+
+fn main() {}

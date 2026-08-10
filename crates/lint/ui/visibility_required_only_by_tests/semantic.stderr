@@ -1,0 +1,18 @@
+warning: function `normalize` has visibility required only by tests
+  --> $DIR/semantic.rs:7:5
+   |
+LL |     pub(crate) fn normalize(input: &str) -> String {
+   |     ^^^^^^^^^^
+...
+LL |         assert_eq!(super::parser::normalize(" value "), "value");
+   |                    ------------------------ test-only boundary use from `tests`
+   |
+   = note: production uses require only `private`, but in-source tests force `pub(super)` beyond defining module `parser`; test layout is therefore expanding the production dependency boundary
+   = help: move the tests under `parser` or exercise `normalize` through its owning public behavior, then narrow the declaration to `private`
+note: the lint level is defined here
+  --> $DIR/semantic.rs:3:9
+   |
+LL | #![warn(visibility_required_only_by_tests)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: 1 warning emitted

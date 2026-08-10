@@ -194,18 +194,18 @@ impl PolicyApiShape {
 }
 
 /// One resolved API whose selected arguments encode operational policy.
-pub struct PolicyApi {
+pub(super) struct PolicyApi {
     /// Kind of policy controlled by the selected arguments.
-    pub(crate) category: PolicyCategory,
+    pub(super) category: PolicyCategory,
     /// Stable user-facing API description used by diagnostics.
-    pub(crate) display: String,
+    pub(super) display: String,
     /// Zero-based argument positions carrying policy values.
-    pub(crate) argument_positions: &'static [usize],
+    pub(super) argument_positions: &'static [usize],
 }
 
 impl PolicyApi {
     /// Classifies a resolved call or method call against the curated catalogue.
-    pub(crate) fn for_expression(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<Self> {
+    pub(super) fn for_expression(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<Self> {
         // Prefer stable standard identities before consulting dependency-specific families.
         let identity = PolicyApiIdentity::resolve(cx, expression)?;
         let shape = Self::standard(&identity).or_else(|| Self::ecosystem(&identity))?;

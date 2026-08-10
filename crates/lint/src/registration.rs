@@ -68,6 +68,7 @@ pub extern "Rust" fn register_lints(
 
     // Register export ownership and section-size policies.
     rules::core::non_defining_module_reexports::register_lints(sess, lint_store);
+    rules::core::noncanonical_restricted_visibility::register_lints(sess, lint_store);
     rules::core::overloaded_declaration_sections::register_lints(sess, lint_store);
     rules::core::oversized_match_arms::register_lints(sess, lint_store);
 
@@ -82,6 +83,8 @@ pub extern "Rust" fn register_lints(
     rules::core::undocumented_items::register_lints(sess, lint_store);
     rules::core::unencapsulated_binary_enum_classification::register_lints(sess, lint_store);
     rules::core::unnamed_policy_literals::register_lints(sess, lint_store);
+    rules::core::unnecessarily_broad_visibility::register_lints(sess, lint_store);
     rules::core::unseparated_associated_items::register_lints(sess, lint_store);
     rules::core::unparenthesized_mixed_boolean_operators::register_lints(sess, lint_store);
+    rules::core::visibility_required_only_by_tests::register_lints(sess, lint_store);
 }

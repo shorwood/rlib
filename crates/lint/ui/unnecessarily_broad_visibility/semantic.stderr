@@ -1,0 +1,137 @@
+warning: struct `PrivateStruct` has unnecessarily broad `pub(crate)` visibility
+  --> $DIR/semantic.rs:4:1
+   |
+LL | pub(crate) struct PrivateStruct {
+   | ^^^^^^^^^^
+   |
+   = note: all observed uses are reachable with `private` from defining module `crate`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
+note: the lint level is defined here
+  --> $DIR/semantic.rs:1:9
+   |
+LL | #![warn(unnecessarily_broad_visibility)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: narrow `PrivateStruct` to `private` after confirming cfg-disabled and external consumers do not require the broader boundary
+   |
+LL - pub(crate) struct PrivateStruct {
+LL +  struct PrivateStruct {
+   |
+
+warning: field `private_field` has unnecessarily broad `pub(crate)` visibility
+  --> $DIR/semantic.rs:5:5
+   |
+LL |     pub(crate) private_field: usize,
+   |     ^^^^^^^^^^
+   |
+   = note: all observed uses are reachable with `private` from defining module `crate`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
+help: narrow `private_field` to `private` after confirming cfg-disabled and external consumers do not require the broader boundary
+   |
+LL -     pub(crate) private_field: usize,
+LL +      private_field: usize,
+   |
+
+warning: module `parent` has unnecessarily broad `pub` visibility
+  --> $DIR/semantic.rs:8:1
+   |
+LL | pub mod parent {
+   | ^^^
+   |
+   = note: all observed uses are reachable with `private` from defining module `crate`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
+   = note: unrestricted `pub` is analyzed because this package declares `publish = false`
+help: narrow `parent` to `private` after confirming cfg-disabled and external consumers do not require the broader boundary
+   |
+LL - pub mod parent {
+LL +  mod parent {
+   |
+
+warning: struct `ParentConstructed` has unnecessarily broad `pub(crate)` visibility
+  --> $DIR/semantic.rs:9:5
+   |
+LL |     pub(crate) struct ParentConstructed {
+   |     ^^^^^^^^^^
+...
+LL |         let value = super::parent::ParentConstructed { value: 1 };
+   |                     -------------------------------- boundary-setting use from `sibling`
+   |
+   = note: all observed uses are reachable with `pub(super)` from defining module `parent`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
+help: narrow `ParentConstructed` to `pub(super)` after confirming cfg-disabled and external consumers do not require the broader boundary
+   |
+LL -     pub(crate) struct ParentConstructed {
+LL +     pub(super) struct ParentConstructed {
+   |
+
+warning: field `value` has unnecessarily broad `pub(crate)` visibility
+  --> $DIR/semantic.rs:10:9
+   |
+LL |         pub(crate) value: usize,
+   |         ^^^^^^^^^^
+...
+LL |         let value = super::parent::ParentConstructed { value: 1 };
+   |                                                        ----- boundary-setting use from `sibling`
+   |
+   = note: all observed uses are reachable with `pub(super)` from defining module `parent`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
+help: narrow `value` to `pub(super)` after confirming cfg-disabled and external consumers do not require the broader boundary
+   |
+LL -         pub(crate) value: usize,
+LL +         pub(super) value: usize,
+   |
+
+warning: inherent method `parent_method` has unnecessarily broad `pub(crate)` visibility
+  --> $DIR/semantic.rs:14:9
+   |
+LL |         pub(crate) fn parent_method(&self) -> usize {
+   |         ^^^^^^^^^^
+...
+LL |         let _ = value.parent_method();
+   |                 --------------------- boundary-setting use from `sibling`
+   |
+   = note: all observed uses are reachable with `pub(super)` from defining module `parent`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
+help: narrow `parent_method` to `pub(super)` after confirming cfg-disabled and external consumers do not require the broader boundary
+   |
+LL -         pub(crate) fn parent_method(&self) -> usize {
+LL +         pub(super) fn parent_method(&self) -> usize {
+   |
+
+warning: function `parent_only` has unnecessarily broad `pub(crate)` visibility
+  --> $DIR/semantic.rs:23:5
+   |
+LL |     pub(crate) fn parent_only() {}
+   |     ^^^^^^^^^^
+...
+LL |     parent::parent_only();
+   |     ------------------- boundary-setting use from `crate`
+   |
+   = note: all observed uses are reachable with `pub(super)` from defining module `parent`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
+help: narrow `parent_only` to `pub(super)` after confirming cfg-disabled and external consumers do not require the broader boundary
+   |
+LL -     pub(crate) fn parent_only() {}
+LL +     pub(super) fn parent_only() {}
+   |
+
+warning: function `use_crate_boundary` has unnecessarily broad `pub(crate)` visibility
+  --> $DIR/semantic.rs:29:5
+   |
+LL |     pub(crate) fn use_crate_boundary() {
+   |     ^^^^^^^^^^
+   |
+   = note: all observed uses are reachable with `private` from defining module `sibling`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
+help: narrow `use_crate_boundary` to `private` after confirming cfg-disabled and external consumers do not require the broader boundary
+   |
+LL -     pub(crate) fn use_crate_boundary() {
+LL +      fn use_crate_boundary() {
+   |
+
+warning: function `unused_public_function` has unnecessarily broad `pub` visibility
+  --> $DIR/semantic.rs:69:1
+   |
+LL | pub fn unused_public_function() {}
+   | ^^^
+   |
+   = note: all observed uses are reachable with `private` from defining module `crate`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
+   = note: unrestricted `pub` is analyzed because this package declares `publish = false`
+help: narrow `unused_public_function` to `private` after confirming cfg-disabled and external consumers do not require the broader boundary
+   |
+LL - pub fn unused_public_function() {}
+LL +  fn unused_public_function() {}
+   |
+
+warning: 9 warnings emitted

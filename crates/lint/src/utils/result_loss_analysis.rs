@@ -24,7 +24,7 @@ pub struct ResultContract<'tcx> {
 
 impl<'tcx> ResultContract<'tcx> {
     /// Resolves an expression whose concrete type is the standard `Result`.
-    pub(crate) fn from_expression(cx: &LateContext<'tcx>, expression: &Expr<'_>) -> Option<Self> {
+    fn from_expression(cx: &LateContext<'tcx>, expression: &Expr<'_>) -> Option<Self> {
         Self::from_type(cx, cx.typeck_results().expr_ty(expression))
     }
 

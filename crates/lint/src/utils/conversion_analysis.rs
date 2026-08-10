@@ -309,15 +309,15 @@ impl ConversionConfidence {
 #[derive(Clone)]
 pub struct ConversionCandidateIdentity {
     /// Function definition used for cross-lint precedence.
-    pub def_id: LocalDefId,
+    pub(crate) def_id: LocalDefId,
     /// Function HIR node used to anchor lint levels.
-    pub hir_id: HirId,
+    pub(crate) hir_id: HirId,
     /// Authored function identifier.
-    pub name: Symbol,
+    pub(crate) name: Symbol,
     /// Function identifier source range.
-    pub name_span: Span,
+    pub(crate) name_span: Span,
     /// Sole source parameter range.
-    pub source_span: Span,
+    pub(crate) source_span: Span,
 }
 
 impl ConversionCandidateIdentity {
@@ -341,13 +341,13 @@ impl ConversionCandidateIdentity {
 #[derive(Clone)]
 pub struct ConversionCandidateSemantics {
     /// Concrete source type shown in diagnostics.
-    pub source: String,
+    pub(crate) source: String,
     /// Concrete target type shown in diagnostics.
-    pub target: String,
+    pub(crate) target: String,
     /// Standard infallible or fallible contract.
-    pub contract: ConversionContract,
+    pub(crate) contract: ConversionContract,
     /// Strength of the authored conversion claim.
-    pub confidence: ConversionConfidence,
+    pub(crate) confidence: ConversionConfidence,
 }
 
 impl ConversionCandidateSemantics {
@@ -371,9 +371,9 @@ impl ConversionCandidateSemantics {
 #[derive(Clone)]
 pub struct ConversionCandidate {
     /// Function identity and authored source ranges.
-    pub identity: ConversionCandidateIdentity,
+    pub(crate) identity: ConversionCandidateIdentity,
     /// Concrete source, target, contract, and confidence context.
-    pub semantics: ConversionCandidateSemantics,
+    pub(crate) semantics: ConversionCandidateSemantics,
     /// Exact semantic pair used for ambiguity and trait suppression.
     pair: ConversionPair,
     /// Whether effects, policy, and parser precedence permit reporting.

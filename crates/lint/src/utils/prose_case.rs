@@ -5,7 +5,7 @@ use convert_case::{Case, Casing};
 // -----------------------------------------------------------------------------
 
 /// Converts prose to canonical sentence case.
-pub fn sentence(value: &str) -> String {
+pub(super) fn sentence(value: &str) -> String {
     value.to_case(Case::Sentence)
 }
 

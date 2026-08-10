@@ -26,31 +26,31 @@ const MIN_REVALIDATION_CONSUMER_COUNT: usize = 2;
 /// Supporting declaration attached to a domain-boundary diagnostic.
 pub struct DomainFindingLabel {
     /// Declaration source range.
-    pub span: Span,
+    pub(crate) span: Span,
     /// Explanation of the declaration's contribution to the finding.
-    pub message: String,
+    pub(crate) message: String,
 }
 
 /// Free functions and raw fields collectively behaving like a missing domain type.
 pub struct DomainFindingFamily {
     /// Primary source range for the family-level warning.
-    pub span: Span,
+    pub(crate) span: Span,
     /// Inferred `PascalCase` domain concept.
-    pub domain: String,
+    pub(crate) domain: String,
     /// Existing same-module type already naming the inferred concept.
-    pub existing_type: Option<String>,
+    pub(crate) existing_type: Option<String>,
     /// Supporting declarations in source order.
-    pub labels: Vec<DomainFindingLabel>,
+    pub(crate) labels: Vec<DomainFindingLabel>,
 }
 
 /// Raw textual parameters that repeatedly re-establish one domain invariant.
 pub struct DomainFindingRevalidation {
     /// Primary parameter source range.
-    pub span: Span,
+    pub(crate) span: Span,
     /// Inferred `PascalCase` domain concept.
-    pub domain: String,
+    pub(crate) domain: String,
     /// Consumer parameters that repeat invariant establishment.
-    pub labels: Vec<DomainFindingLabel>,
+    pub(crate) labels: Vec<DomainFindingLabel>,
 }
 
 // -----------------------------------------------------------------------------

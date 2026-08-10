@@ -1,0 +1,35 @@
+warning: struct `PrivateValue` uses noncanonical restricted visibility `pub(self)`
+  --> $DIR/fix.rs:5:1
+   |
+LL | pub(self) struct PrivateValue;
+   | ^^^^^^^^^
+   |
+   = note: a small visibility vocabulary makes module boundaries immediately comparable and prevents arbitrary ancestor paths from encoding fragile file topology
+note: the lint level is defined here
+  --> $DIR/fix.rs:2:9
+   |
+LL | #![warn(noncanonical_restricted_visibility)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: remove the explicit self-only visibility and keep the declaration private
+   |
+LL - pub(self) struct PrivateValue;
+LL + struct PrivateValue;
+   |
+
+warning: constant item `PARENT_VALUE` uses noncanonical restricted visibility `pub(in super)`
+  --> $DIR/fix.rs:8:5
+   |
+LL |     pub(in super) const PARENT_VALUE: usize = 1;
+   |     ^^^^^^^^^^^^^ help: write the equivalent canonical `pub(super)` visibility: `pub(super)`
+   |
+   = note: a small visibility vocabulary makes module boundaries immediately comparable and prevents arbitrary ancestor paths from encoding fragile file topology
+
+warning: static item `CRATE_VALUE` uses noncanonical restricted visibility `pub(in crate)`
+  --> $DIR/fix.rs:9:5
+   |
+LL |     pub(in crate) static CRATE_VALUE: usize = 2;
+   |     ^^^^^^^^^^^^^ help: write the equivalent canonical `pub(crate)` visibility: `pub(crate)`
+   |
+   = note: a small visibility vocabulary makes module boundaries immediately comparable and prevents arbitrary ancestor paths from encoding fragile file topology
+
+warning: 3 warnings emitted

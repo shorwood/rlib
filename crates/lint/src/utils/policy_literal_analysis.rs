@@ -783,7 +783,7 @@ pub struct PolicyLiteralAnalyzer;
 
 impl PolicyLiteralAnalyzer {
     /// Returns every deduplicated unnamed policy literal in one function or closure body.
-    pub fn analyze<'tcx>(
+    pub(crate) fn analyze<'tcx>(
         cx: &LateContext<'tcx>,
         body: &'tcx Body<'tcx>,
     ) -> Vec<PolicyLiteralFinding> {

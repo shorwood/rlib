@@ -1,5 +1,5 @@
 #![feature(rustc_private)]
 #![warn(unused_extern_crates)]
-pub(crate) mod utils;
-pub(crate) mod rules;
+mod utils;
+mod rules;
 mod registration;
