@@ -45,4 +45,5 @@ pub mod delegating_type_analysis;
 pub mod generic_abstraction_analysis;
 pub mod callable_generic_analysis;
 pub mod single_implementation_trait_analysis;
+pub mod standard_interface_analysis;
 pub mod visibility_usage_analysis;

@@ -1,6 +1,8 @@
 pub mod ad_hoc_collection_construction;
 pub mod ad_hoc_conversions;
 pub mod ad_hoc_equality;
+pub mod ad_hoc_error_interfaces;
+pub mod ad_hoc_formatting;
 pub mod ad_hoc_iterators;
 pub mod ad_hoc_ordering;
 pub mod ad_hoc_string_parsers;

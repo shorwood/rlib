@@ -1,12 +1,16 @@
 //! UI regression tests for every default-configuration lint fixture.
 
-const CROSS_CUTTING_LINT_ALLOWS: [&str; 94] = [
+const CROSS_CUTTING_LINT_ALLOWS: [&str; 98] = [
     "-A",
     "ad_hoc_collection_construction",
     "-A",
     "ad_hoc_conversions",
     "-A",
     "ad_hoc_equality",
+    "-A",
+    "ad_hoc_error_interfaces",
+    "-A",
+    "ad_hoc_formatting",
     "-A",
     "ad_hoc_iterators",
     "-A",

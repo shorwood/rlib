@@ -20,6 +20,7 @@ use crate::utils::conversion_analysis::ConversionAnalysis;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::method_candidate_analysis::migration::{MigrationBuilder, MigrationEdit};
 use crate::utils::method_candidate_analysis::{MethodCandidate, MethodCandidateBindingUse};
+use crate::utils::standard_interface_analysis::StandardInterfaceAnalysis;
 
 // -----------------------------------------------------------------------------
 // Violation: Method relocation diagnostic
@@ -164,6 +165,8 @@ struct MethodLikeFreeFunctions {
     comparisons: ComparisonAnalysis,
     /// Standard collection protocols that supersede generic method relocation.
     collections: CollectionConstructionAnalysis,
+    /// Canonical formatting protocols that supersede generic method relocation.
+    interfaces: StandardInterfaceAnalysis,
 }
 
 dylint_linting::impl_late_lint! {
@@ -213,6 +216,9 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
         // Comparison and collection protocols also take precedence over generic ownership.
         self.comparisons.record_item(cx, item);
         self.collections.record_item(cx, item);
+
+        // Formatting ownership likewise needs complete crate-wide interface evidence.
+        self.interfaces.record_item(cx, item);
         if self.record_function_import(item) {
             return;
         }
@@ -232,10 +238,14 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
         span: Span,
         def_id: LocalDefId,
     ) {
+        // Collect stronger constructor and standard protocol ownership first.
         self.constructions
             .record_function(cx, kind, body, span, def_id);
         self.comparisons.record_function(cx, kind, body, def_id);
         self.collections.record_function(cx, kind, body, def_id);
+
+        // Retain canonical text helpers for formatting-specific precedence.
+        self.interfaces.record_function(cx, kind, body, def_id);
         let Some(candidate) = self.constructions.candidate(def_id) else {
             return;
         };
@@ -273,19 +283,27 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         let comparison_definitions = self.comparisons.reportable_definitions();
         let collection_definitions = self.collections.reportable_definitions();
+        let formatting_definitions = self.interfaces.reportable_formatting_definitions(cx);
 
         // References are only complete after the entire crate has been visited. Waiting until now
         // lets a migration update every call site or decline the fix as one atomic decision.
         for candidate in &self.candidates {
-            if self
+            // Suppress generic relocation whenever a more specific protocol owns the definition.
+            let definition = candidate.definition_id();
+            let has_conversion = self
                 .conversions
                 .target_owned_definitions()
-                .contains(&candidate.definition_id())
-                || comparison_definitions.contains(&candidate.definition_id())
-                || collection_definitions.contains(&candidate.definition_id())
-            {
+                .contains(&definition);
+
+            // Check the remaining standard protocol analyzers together.
+            let has_protocol = comparison_definitions.contains(&definition)
+                || collection_definitions.contains(&definition)
+                || formatting_definitions.contains(&definition);
+            if has_conversion || has_protocol {
                 continue;
             }
+
+            // Generic method ownership remains the most specific available advice.
             self.emit_candidate(cx, candidate);
         }
     }

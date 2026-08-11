@@ -22,7 +22,11 @@ pub extern "Rust" fn register_lints(
     rules::core::ad_hoc_collection_construction::register_lints(sess, lint_store);
     rules::core::ad_hoc_conversions::register_lints(sess, lint_store);
     rules::core::ad_hoc_equality::register_lints(sess, lint_store);
+    rules::core::ad_hoc_error_interfaces::register_lints(sess, lint_store);
+    rules::core::ad_hoc_formatting::register_lints(sess, lint_store);
     rules::core::ad_hoc_iterators::register_lints(sess, lint_store);
+
+    // Register the remaining standard trait protocol policies.
     rules::core::ad_hoc_ordering::register_lints(sess, lint_store);
     rules::core::ad_hoc_string_parsers::register_lints(sess, lint_store);
 

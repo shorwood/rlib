@@ -1,0 +1,79 @@
+warning: error type `ParseFailure` exposes an ad hoc interface but is missing `Debug`, `Display`, `std::error::Error`
+  --> $DIR/semantic.rs:7:8
+   |
+LL | struct ParseFailure {
+   |        ^^^^^^^^^^^^
+LL |     message: String,
+   |     ------- ad hoc presentation evidence
+...
+LL | fn parse_failure() -> Result<(), ParseFailure> {
+   | ---------------------------------------------- this active `Result` uses the type as its error
+   |
+   = note: standard error interfaces make presentation, reporting, generic bounds, and causal traversal available without project-specific conventions
+   = help: implement the missing `Debug`, `Display`, and `std::error::Error` contracts for `ParseFailure`
+note: the lint level is defined here
+  --> $DIR/semantic.rs:1:9
+   |
+LL | #![warn(ad_hoc_error_interfaces)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: error type `Notice` exposes an ad hoc interface but is missing `Display`
+  --> $DIR/semantic.rs:15:8
+   |
+LL | struct Notice {
+   |        ^^^^^^
+LL |     pub message: String,
+   |         ------- ad hoc presentation evidence
+...
+LL | fn notice() -> Result<(), Notice> {
+   | --------------------------------- this active `Result` uses the type as its error
+   |
+   = note: standard error interfaces make presentation, reporting, generic bounds, and causal traversal available without project-specific conventions
+   = help: implement `std::fmt::Display` for `Notice` and keep a named message accessor only for a distinct structured-data contract
+
+warning: error type `MessageOnly` exposes an ad hoc interface but is missing `Display`
+  --> $DIR/semantic.rs:23:8
+   |
+LL | struct MessageOnly {
+   |        ^^^^^^^^^^^
+...
+LL |     fn message(&self) -> &str {
+   |     ------------------------- ad hoc presentation evidence
+...
+LL | fn message_only() -> Result<(), MessageOnly> {
+   | -------------------------------------------- this active `Result` uses the type as its error
+   |
+   = note: standard error interfaces make presentation, reporting, generic bounds, and causal traversal available without project-specific conventions
+   = help: implement `std::fmt::Display` for `MessageOnly` and keep a named message accessor only for a distinct structured-data contract
+
+warning: error type `CauseError` exposes an ad hoc interface but is missing `std::error::Error`, `Error::source`
+  --> $DIR/semantic.rs:49:8
+   |
+LL | struct CauseError {
+   |        ^^^^^^^^^^
+...
+LL |     fn cause(&self) -> &InnerError {
+   |     ------------------------------ ad hoc causal accessor
+...
+LL | fn cause_error() -> Result<(), CauseError> {
+   | ------------------------------------------ this active `Result` uses the type as its error
+   |
+   = note: standard error interfaces make presentation, reporting, generic bounds, and causal traversal available without project-specific conventions
+   = help: implement the missing standard contracts for `CauseError` and expose only the proven causal predecessor through `Error::source`
+
+warning: error type `ExistingNoSource` exposes an ad hoc interface but is missing `Error::source`
+  --> $DIR/semantic.rs:70:8
+   |
+LL | struct ExistingNoSource {
+   |        ^^^^^^^^^^^^^^^^
+...
+LL |     fn source(&self) -> &(dyn Error + 'static) {
+   |     ------------------------------------------ ad hoc causal accessor
+...
+LL | fn existing_no_source() -> Result<(), ExistingNoSource> {
+   | ------------------------------------------------------- this active `Result` uses the type as its error
+   |
+   = note: standard error interfaces make presentation, reporting, generic bounds, and causal traversal available without project-specific conventions
+   = help: implement the missing standard contracts for `ExistingNoSource` and expose only the proven causal predecessor through `Error::source`
+
+warning: 5 warnings emitted
