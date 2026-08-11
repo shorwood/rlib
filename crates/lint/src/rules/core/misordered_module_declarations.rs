@@ -15,6 +15,7 @@ use crate::utils::declaration_node::{
     DeclarationConstraints, DeclarationNode, DeclarationNodeList, DeclarationSource,
 };
 use crate::utils::diagnostic::LateViolation;
+use crate::utils::impl_target::ImplTargetExt;
 use crate::utils::item_dependencies::DependenciesExt;
 use crate::utils::reorder_declarations::{DeclarationOrder, DeclarationOrderEdit};
 use crate::utils::section_analysis::SectionAnalyzer;
@@ -307,6 +308,15 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedModuleDeclarations {
                 item.kind,
                 ItemKind::ExternCrate(..) | ItemKind::Use(..) | ItemKind::Macro(..)
             ) {
+                index += 1;
+                continue;
+            }
+
+            // A separated direct struct impl belongs to the declaration group diagnosed by
+            // `non_adjacent_struct_impls`. Ordering it independently can demand that the impl move
+            // away from its type, contradicting that lint's required adjacency. Ignore it here;
+            // once colocated, the type-group extension below incorporates all its dependencies.
+            if item.direct_struct(cx).is_some() {
                 index += 1;
                 continue;
             }

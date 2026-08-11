@@ -7,6 +7,24 @@
 
 use std::mem::size_of;
 
+mod deferred_impl_regression {
+    #![allow(non_adjacent_struct_impls)]
+
+    struct Deferred;
+
+    const SEPARATOR: usize = 0;
+
+    impl Deferred {
+        fn run() -> usize {
+            helper()
+        }
+    }
+
+    fn helper() -> usize {
+        SEPARATOR
+    }
+}
+
 fn run(callback: fn(Anchor) -> usize) -> usize {
     (unsafe { foreign_value() }) + callback(Anchor) + child::VALUE + LIMIT
 }

@@ -209,6 +209,8 @@ pub struct VisibilityUsageAnalyzer {
     uses: HashMap<LocalDefId, Vec<VisibilityUse>>,
     /// Definitions exposed through another candidate's authored interface.
     interface_dependencies: HashMap<LocalDefId, HashSet<LocalDefId>>,
+    /// Types named by trait associated-type bindings whose minimum reach is compiler-enforced.
+    trait_interface_types: HashSet<LocalDefId>,
     /// Canonically named test modules discovered in test-harness compilations.
     test_modules: HashSet<LocalDefId>,
 }
@@ -273,6 +275,10 @@ impl VisibilityUsageAnalyzer {
                 // Record interface dependencies independently from executable references.
                 self.record_impl_item_interface(cx, item);
             }
+        } else {
+            // Trait items inherit visibility, but their associated-type bindings can expose
+            // otherwise local declarations through the implementing type's public contract.
+            self.record_impl_item_interface(cx, item);
         }
 
         // Resolve references from the associated declaration and body.
@@ -327,6 +333,15 @@ impl VisibilityUsageAnalyzer {
         // Derive one ordered finding for every canonical visibility that can shrink.
         let mut findings = Vec::new();
         for candidate in self.candidates.into_values() {
+            // Trait associated types cannot be narrowed independently from their implementation
+            // target; rustc rejects a private binding even when no caller names it directly.
+            if self
+                .trait_interface_types
+                .contains(&candidate.identity.def_id)
+            {
+                continue;
+            }
+
             // Resolve canonical syntax and references attributed to this declaration.
             let Some(current) = candidate.authored.boundary() else {
                 continue;
@@ -566,8 +581,54 @@ impl VisibilityUsageAnalyzer {
     ) {
         let mut collector = VisibilityReferenceCollector::for_interface(cx);
         collector.visit_impl_item(item);
+        if let rustc_hir::ImplItemKind::Type(assigned) = item.kind
+            && let Some(assigned) = assigned.try_as_ambig_ty()
+        {
+            collector.visit_ty(assigned);
+        }
+        let mut definitions = collector.definitions();
+
+        // Inherent items expose their signatures through their own authored visibility.
+        if matches!(item.impl_kind, ImplItemImplKind::Inherent { .. }) {
+            self.interface_dependencies
+                .insert(item.owner_id.def_id, definitions);
+            return;
+        }
+
+        // HIR traversal does not expose the normalized right-hand side of every trait
+        // associated-type binding, so supplement it from the semantic assigned type.
+        if matches!(item.kind, rustc_hir::ImplItemKind::Type(..)) {
+            let assigned = cx.tcx.type_of(item.owner_id).instantiate_identity();
+            for component in assigned.walk() {
+                let Some(component) = component.as_type() else {
+                    continue;
+                };
+                let ty::Adt(definition, _) = component.kind() else {
+                    continue;
+                };
+                if let Some(definition) = definition.did().as_local() {
+                    definitions.insert(definition);
+                }
+            }
+        }
+        self.trait_interface_types
+            .extend(definitions.iter().copied());
+
+        // Trait associated types are exposed wherever the concrete implementing type is usable.
+        // Rust rejects narrowing such a type below the target even when no consumer names the
+        // associated type directly, so attach the dependency to that local target declaration.
+        let parent = cx.tcx.local_parent(item.owner_id.def_id);
+        let self_type = cx.tcx.type_of(parent).instantiate_identity();
+        let ty::Adt(definition, _) = self_type.kind() else {
+            return;
+        };
+        let Some(target) = definition.did().as_local() else {
+            return;
+        };
         self.interface_dependencies
-            .insert(item.owner_id.def_id, collector.definitions());
+            .entry(target)
+            .or_default()
+            .extend(definitions);
     }
 
     /// Returns whether a module lies within a canonical in-source test module.

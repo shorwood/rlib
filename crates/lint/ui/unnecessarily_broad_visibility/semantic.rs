@@ -66,6 +66,28 @@ mod update_consumer {
     }
 }
 
+mod parse_owner {
+    use std::str::FromStr;
+
+    pub(crate) struct ParseError;
+
+    pub(crate) struct Parsed;
+
+    impl FromStr for Parsed {
+        type Err = ParseError;
+
+        fn from_str(_: &str) -> Result<Self, Self::Err> {
+            Ok(Self)
+        }
+    }
+}
+
+mod parse_consumer {
+    fn exercise() {
+        let _ = "value".parse::<super::parse_owner::Parsed>();
+    }
+}
+
 pub fn unused_public_function() {}
 
 fn main() {
