@@ -1,0 +1,32 @@
+warning: trait `Repository` has a single concrete implementation and no polymorphic consumer
+  --> $DIR/semantic.rs:12:7
+   |
+LL | trait Repository {
+   |       ^^^^^^^^^^
+...
+LL | impl Repository for Database {
+   |                     -------- sole implementation for `Database`
+   |
+   = note: `Database` is the only concrete local implementation; no generic bound, `impl Trait`, trait object, associated-type projection, dependent supertrait, or trait alias uses this contract polymorphically
+   = help: move the contract onto `Database` and use the concrete type directly; retain the trait when a real polymorphic boundary is introduced
+note: the lint level is defined here
+  --> $DIR/semantic.rs:2:9
+   |
+LL | #![warn(single_implementation_traits, unnecessarily_broad_visibility)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: trait `ClosedPackageService` has a single concrete implementation and no polymorphic consumer
+  --> $DIR/semantic.rs:29:11
+   |
+LL | pub trait ClosedPackageService {
+   |           ^^^^^^^^^^^^^^^^^^^^
+...
+LL | impl ClosedPackageService for Worker {
+   |                               ------ sole implementation for `Worker`
+   |
+   = note: `Worker` is the only concrete local implementation; no generic bound, `impl Trait`, trait object, associated-type projection, dependent supertrait, or trait alias uses this contract polymorphically
+   = note: this public trait is analyzed because the package declares `publish = false`
+   = help: move the contract onto `Worker` and use the concrete type directly; retain the trait when a real polymorphic boundary is introduced
+
+warning: 2 warnings emitted
+

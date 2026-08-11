@@ -5,11 +5,12 @@ extern crate rustc_span;
 use std::borrow::Cow;
 
 use rustc_errors::{Applicability, DiagDecorator};
-use rustc_hir::{FieldDef, HirId, ImplItem, Item};
+use rustc_hir::{AmbigArg, FieldDef, HirId, ImplItem, Item, PolyTraitRef, Ty};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
+use crate::utils::single_implementation_trait_analysis::SingleImplementationTraitAnalyzer;
 use crate::utils::visibility_boundary::VisibilityBoundary;
 use crate::utils::visibility_usage_analysis::{VisibilityFinding, VisibilityUsageAnalyzer};
 
@@ -179,6 +180,8 @@ impl LateViolation for Violation {
 struct UnnecessarilyBroadVisibility {
     /// Shared analysis used to derive canonical declaration boundaries.
     analyzer: VisibilityUsageAnalyzer,
+    /// Parallel trait analysis used to give the abstraction diagnostic precedence.
+    trait_analyzer: SingleImplementationTraitAnalyzer,
 }
 
 dylint_linting::impl_late_lint! {
@@ -232,6 +235,7 @@ dylint_linting::impl_late_lint! {
 impl<'tcx> LateLintPass<'tcx> for UnnecessarilyBroadVisibility {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.analyzer.record_item(cx, item);
+        self.trait_analyzer.record_item(cx, item);
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
@@ -242,9 +246,27 @@ impl<'tcx> LateLintPass<'tcx> for UnnecessarilyBroadVisibility {
         self.analyzer.record_field(cx, field);
     }
 
+    fn check_poly_trait_ref(
+        &mut self,
+        cx: &LateContext<'tcx>,
+        trait_ref: &'tcx PolyTraitRef<'tcx>,
+    ) {
+        self.trait_analyzer.record_poly_trait_ref(cx, trait_ref);
+    }
+
+    fn check_ty(&mut self, cx: &LateContext<'tcx>, ty: &'tcx Ty<'tcx, AmbigArg>) {
+        self.trait_analyzer.record_ty(cx, ty);
+    }
+
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
+        let abstraction_findings = std::mem::take(&mut self.trait_analyzer).findings(cx);
+        let abstraction_traits = abstraction_findings
+            .into_iter()
+            .map(|finding| finding.declaration.def_id)
+            .collect::<std::collections::HashSet<_>>();
         for finding in std::mem::take(&mut self.analyzer).findings(cx) {
-            if finding.boundary.effective_current <= finding.boundary.required
+            if abstraction_traits.contains(&finding.declaration.hir_id.owner.def_id)
+                || finding.boundary.effective_current <= finding.boundary.required
                 || finding.is_test_constrained()
             {
                 continue;

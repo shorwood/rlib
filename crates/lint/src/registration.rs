@@ -83,6 +83,7 @@ pub extern "Rust" fn register_lints(
     rules::core::repeated_identical_statements::register_lints(sess, lint_store);
     rules::core::results_converted_to_options::register_lints(sess, lint_store);
     rules::core::revalidated_string_parameters::register_lints(sess, lint_store);
+    rules::core::single_implementation_traits::register_lints(sess, lint_store);
     rules::core::stringly_typed_domain_function_families::register_lints(sess, lint_store);
 
     // Register documentation, construction ownership, and item-layout policies.

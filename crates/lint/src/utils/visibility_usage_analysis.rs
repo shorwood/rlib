@@ -368,13 +368,16 @@ impl VisibilityUsageAnalyzer {
                 continue;
             }
 
-            // Package declaration identity independently from the boundary calculation.
+            // Resolve ownership text before packaging declaration source identity.
+            let defining_module = Self::module_name(cx.tcx, candidate.defining_module);
+
+            // Package definition and source identity independently from boundary calculation.
             let declaration = VisibilityFindingDeclaration {
                 hir_id: candidate.identity.hir_id,
                 span: candidate.identity.span,
                 name: candidate.identity.name,
                 kind: candidate.identity.kind,
-                defining_module: Self::module_name(cx.tcx, candidate.defining_module),
+                defining_module,
             };
 
             // Keep the complete and production-only reach comparable as one decision.
