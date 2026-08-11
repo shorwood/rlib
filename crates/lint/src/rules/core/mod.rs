@@ -46,6 +46,7 @@ pub mod results_converted_to_options;
 pub mod revalidated_string_parameters;
 pub mod single_implementation_traits;
 pub mod stringly_typed_domain_function_families;
+pub mod unconsumed_generic_abstractions;
 pub mod undocumented_items;
 pub mod unencapsulated_binary_enum_classification;
 pub mod unnamed_policy_literals;

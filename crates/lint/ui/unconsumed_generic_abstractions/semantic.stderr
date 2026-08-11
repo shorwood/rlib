@@ -1,0 +1,91 @@
+warning: type parameter `T` on struct `OnlyStruct` has only one concrete substitution
+  --> $DIR/semantic.rs:13:19
+   |
+LL | struct OnlyStruct<T> {
+   |                   ^
+...
+LL | type OnlyStructUse = OnlyStruct<Concrete>;
+   |                      -------------------- `Concrete` is supplied here
+   |
+   = note: every active authored use supplies `Concrete`; no generic forwarding, inferred argument, projection, opaque type, trait object, alias, or second concrete substitution demonstrates that this parameter is consumed polymorphically
+   = help: replace `T` with `Concrete` until a second real substitution is required
+note: the lint level is defined here
+  --> $DIR/semantic.rs:1:9
+   |
+LL | #![warn(unconsumed_generic_abstractions)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type parameter `T` on enum `OnlyEnum` has only one concrete substitution
+  --> $DIR/semantic.rs:19:15
+   |
+LL | enum OnlyEnum<T> {
+   |               ^
+...
+LL | type OnlyEnumUse = OnlyEnum<u32>;
+   |                    ------------- `u32` is supplied here
+   |
+   = note: every active authored use supplies `u32`; no generic forwarding, inferred argument, projection, opaque type, trait object, alias, or second concrete substitution demonstrates that this parameter is consumed polymorphically
+   = help: replace `T` with `u32` until a second real substitution is required
+
+warning: type parameter `T` on union `OnlyUnion` has only one concrete substitution
+  --> $DIR/semantic.rs:25:17
+   |
+LL | union OnlyUnion<T: Copy> {
+   |                 ^
+...
+LL | type OnlyUnionUse = OnlyUnion<u64>;
+   |                     -------------- `u64` is supplied here
+   |
+   = note: every active authored use supplies `u64`; no generic forwarding, inferred argument, projection, opaque type, trait object, alias, or second concrete substitution demonstrates that this parameter is consumed polymorphically
+   = help: replace `T` with `u64` until a second real substitution is required
+
+warning: type parameter `T` on type alias `OnlyAlias` has only one concrete substitution
+  --> $DIR/semantic.rs:31:16
+   |
+LL | type OnlyAlias<T> = Option<T>;
+   |                ^
+LL | type OnlyAliasUse = OnlyAlias<u16>;
+   |                     -------------- `u16` is supplied here
+   |
+   = note: every active authored use supplies `u16`; no generic forwarding, inferred argument, projection, opaque type, trait object, alias, or second concrete substitution demonstrates that this parameter is consumed polymorphically
+   = help: replace `T` with `u16` until a second real substitution is required
+
+warning: type parameter `T` on struct `Mixed` has only one concrete substitution
+  --> $DIR/semantic.rs:34:14
+   |
+LL | struct Mixed<T, U> {
+   |              ^
+...
+LL | type MixedFirst = Mixed<u8, u16>;
+   |                   -------------- `u8` is supplied here
+LL | type MixedSecond = Mixed<u8, u32>;
+   |                    -------------- `u8` is supplied here
+   |
+   = note: every active authored use supplies `u8`; no generic forwarding, inferred argument, projection, opaque type, trait object, alias, or second concrete substitution demonstrates that this parameter is consumed polymorphically
+   = help: replace `T` with `u8` until a second real substitution is required
+
+warning: type parameter `T` on struct `ClosedPackage` has only one concrete substitution
+  --> $DIR/semantic.rs:42:26
+   |
+LL | pub struct ClosedPackage<T> {
+   |                          ^
+...
+LL | type ClosedPackageUse = ClosedPackage<Concrete>;
+   |                         ----------------------- `Concrete` is supplied here
+   |
+   = note: every active authored use supplies `Concrete`; no generic forwarding, inferred argument, projection, opaque type, trait object, alias, or second concrete substitution demonstrates that this parameter is consumed polymorphically
+   = note: this public declaration is analyzed because the package declares `publish = false`
+   = help: replace `T` with `Concrete` until a second real substitution is required
+
+warning: type parameter `T` on struct `WithLifetimeAndConst` has only one concrete substitution
+  --> $DIR/semantic.rs:89:33
+   |
+LL | struct WithLifetimeAndConst<'a, T, const N: usize>(&'a [T; N]);
+   |                                 ^
+LL | type WithLifetimeAndConstUse = WithLifetimeAndConst<'static, Concrete, 1>;
+   |                                ------------------------------------------ `Concrete` is supplied here
+   |
+   = note: every active authored use supplies `Concrete`; no generic forwarding, inferred argument, projection, opaque type, trait object, alias, or second concrete substitution demonstrates that this parameter is consumed polymorphically
+   = help: replace `T` with `Concrete` until a second real substitution is required
+
+warning: 7 warnings emitted

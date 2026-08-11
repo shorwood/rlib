@@ -40,5 +40,6 @@ pub mod string_domain_analysis;
 pub mod tuple_types;
 pub mod visibility_boundary;
 mod visibility_package_policy;
+pub mod generic_abstraction_analysis;
 pub mod single_implementation_trait_analysis;
 pub mod visibility_usage_analysis;

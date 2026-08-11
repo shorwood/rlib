@@ -87,10 +87,13 @@ pub extern "Rust" fn register_lints(
     rules::core::stringly_typed_domain_function_families::register_lints(sess, lint_store);
 
     // Register documentation, construction ownership, and item-layout policies.
+    rules::core::unconsumed_generic_abstractions::register_lints(sess, lint_store);
     rules::core::undocumented_items::register_lints(sess, lint_store);
     rules::core::unencapsulated_binary_enum_classification::register_lints(sess, lint_store);
     rules::core::unnamed_policy_literals::register_lints(sess, lint_store);
     rules::core::unnecessarily_broad_visibility::register_lints(sess, lint_store);
+
+    // Register remaining associated-item, expression, and test-visibility policies.
     rules::core::unseparated_associated_items::register_lints(sess, lint_store);
     rules::core::unparenthesized_mixed_boolean_operators::register_lints(sess, lint_store);
     rules::core::visibility_required_only_by_tests::register_lints(sess, lint_store);
