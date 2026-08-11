@@ -1,5 +1,5 @@
 #![warn(unnecessarily_broad_visibility)]
-#![allow(dead_code)]
+#![allow(dead_code, misordered_module_declarations)]
 
 pub(crate) struct PrivateStruct {
     pub(crate) private_field: usize,
@@ -70,4 +70,34 @@ pub fn unused_public_function() {}
 
 fn main() {
     parent::parent_only();
+}
+
+struct PrecedenceInner;
+
+impl PrecedenceInner {
+    fn first(&self) -> u8 {
+        1
+    }
+
+    fn second(&self) -> u8 {
+        2
+    }
+}
+
+pub(crate) struct DelegatingPrecedence(pub(crate) PrecedenceInner);
+
+impl DelegatingPrecedence {
+    pub(crate) fn first(&self) -> u8 {
+        self.0.first()
+    }
+
+    pub(crate) fn second(&self) -> u8 {
+        self.0.second()
+    }
+}
+
+fn exercise_precedence() {
+    let value = DelegatingPrecedence(PrecedenceInner);
+    let _ = value.first();
+    let _ = value.second();
 }

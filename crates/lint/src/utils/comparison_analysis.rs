@@ -211,7 +211,7 @@ enum ComparisonFamilyOccupancy {
 
 impl ComparisonFamilyOccupancy {
     /// Converts local trait-table presence into explicit family occupancy.
-    fn from_entry<T>(entry: Option<T>) -> Self {
+    fn for_standard_trait_presence(entry: Option<&ComparisonFamilyKey>) -> Self {
         entry.map_or(Self::Available, |_| Self::Occupied)
     }
 
@@ -391,7 +391,8 @@ impl ComparisonAnalysis {
         // Classify each family once before emitting its individual candidate findings.
         let mut findings = Vec::new();
         for (key, family) in families {
-            let occupancy = ComparisonFamilyOccupancy::from_entry(self.occupied.get(&key));
+            let occupancy =
+                ComparisonFamilyOccupancy::for_standard_trait_presence(self.occupied.get(&key));
             let problem = ComparisonProblem::classify(family.len(), occupancy);
 
             // Suppress only direct delegation into an already occupied standard trait.

@@ -1,0 +1,39 @@
+warning: type `Wrapper` only delegates to its stored `Inner` value
+  --> $DIR/semantic.rs:22:8
+   |
+LL | struct Wrapper(Inner);
+   |        ^^^^^^^ ----- all behavior is delegated to this value
+...
+LL |     fn read(&self, value: u8) -> u8 {
+   |        ---- forwards unchanged
+...
+LL |     fn write(&self, value: u16) -> u16 {
+   |        ----- forwards unchanged
+   |
+   = note: every behavior-bearing method forwards receiver, arguments, return value, and error behavior unchanged; no trait contract, invariant, representation policy, or lifecycle behavior gives `Wrapper` distinct ownership
+   = help: use `Inner` directly, or move a real invariant or behavioral policy into `Wrapper`
+note: the lint level is defined here
+  --> $DIR/semantic.rs:1:9
+   |
+LL | #![warn(needless_delegating_types)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: type `RecordWrapper` only delegates to its stored `Inner` value
+  --> $DIR/semantic.rs:34:12
+   |
+LL | pub struct RecordWrapper {
+   |            ^^^^^^^^^^^^^
+LL |     inner: Inner,
+   |     ------------ all behavior is delegated to this value
+...
+LL |     fn read(&self, value: u8) -> u8 {
+   |        ---- forwards unchanged
+...
+LL |     fn write(&self, value: u16) -> u16 {
+   |        ----- forwards unchanged
+   |
+   = note: every behavior-bearing method forwards receiver, arguments, return value, and error behavior unchanged; no trait contract, invariant, representation policy, or lifecycle behavior gives `RecordWrapper` distinct ownership
+   = note: this public type is analyzed because the package declares `publish = false`
+   = help: use `Inner` directly, or move a real invariant or behavioral policy into `RecordWrapper`
+
+warning: 2 warnings emitted

@@ -135,6 +135,8 @@ pub struct GenericAbstractionFindingDeclaration {
     pub(crate) name: Symbol,
     /// Human-readable declaration category.
     pub(crate) kind: &'static str,
+    /// Whether the declaration is a callable rather than a nominal type.
+    pub(crate) is_callable: bool,
 }
 
 /// Parameter context retained for one finding.
@@ -369,6 +371,7 @@ impl GenericAbstractionAnalyzer {
             hir_id: declaration.hir_id,
             name: declaration.name,
             kind: declaration.kind,
+            is_callable: false,
         };
 
         // Package the independently diagnosed parameter context.

@@ -167,7 +167,7 @@ enum CollectionFamilyOccupancy {
 
 impl CollectionFamilyOccupancy {
     /// Converts local trait-table presence into explicit family occupancy.
-    fn from_entry<T>(entry: Option<T>) -> Self {
+    fn for_standard_trait_presence(entry: Option<&CollectionFamilyOccupancyKey>) -> Self {
         entry.map_or(Self::Available, |_| Self::Occupied)
     }
 
@@ -328,8 +328,11 @@ impl CollectionConstructionAnalysis {
                 target_def_id: key.target_def_id,
                 contract: key.contract,
             };
-            let occupancy =
-                CollectionFamilyOccupancy::from_entry(self.occupied.get(&occupancy_key));
+
+            // Classify standard-trait occupancy before selecting the family problem.
+            let occupancy = CollectionFamilyOccupancy::for_standard_trait_presence(
+                self.occupied.get(&occupancy_key),
+            );
             let problem = CollectionProblem::classify(family.len(), occupancy);
 
             // Suppress only direct delegation into an already occupied standard trait.

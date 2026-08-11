@@ -66,6 +66,7 @@ pub extern "Rust" fn register_lints(
     rules::core::missing_section_dividers::register_lints(sess, lint_store);
 
     // Register nesting, tuple, and adjacency policies.
+    rules::core::needless_delegating_types::register_lints(sess, lint_store);
     rules::core::needless_function_wrappers::register_lints(sess, lint_store);
     rules::core::needlessly_nested_control_flow::register_lints(sess, lint_store);
     rules::core::nested_tuple_types::register_lints(sess, lint_store);

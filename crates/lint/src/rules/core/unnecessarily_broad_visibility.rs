@@ -5,10 +5,11 @@ extern crate rustc_span;
 use std::borrow::Cow;
 
 use rustc_errors::{Applicability, DiagDecorator};
-use rustc_hir::{AmbigArg, FieldDef, HirId, ImplItem, Item, PolyTraitRef, Ty};
+use rustc_hir::{AmbigArg, Expr, FieldDef, HirId, ImplItem, Item, PolyTraitRef, Ty};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 
+use crate::utils::delegating_type_analysis::DelegatingTypeAnalyzer;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::single_implementation_trait_analysis::SingleImplementationTraitAnalyzer;
 use crate::utils::visibility_boundary::VisibilityBoundary;
@@ -182,6 +183,8 @@ struct UnnecessarilyBroadVisibility {
     analyzer: VisibilityUsageAnalyzer,
     /// Parallel trait analysis used to give the abstraction diagnostic precedence.
     trait_analyzer: SingleImplementationTraitAnalyzer,
+    /// Parallel wrapper analysis used to prefer removal over visibility narrowing.
+    delegating_type_analyzer: DelegatingTypeAnalyzer,
 }
 
 dylint_linting::impl_late_lint! {
@@ -236,10 +239,12 @@ impl<'tcx> LateLintPass<'tcx> for UnnecessarilyBroadVisibility {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.analyzer.record_item(cx, item);
         self.trait_analyzer.record_item(cx, item);
+        self.delegating_type_analyzer.record_item(cx, item);
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
         self.analyzer.record_impl_item(cx, item);
+        self.delegating_type_analyzer.record_impl_item(cx, item);
     }
 
     fn check_field_def(&mut self, cx: &LateContext<'tcx>, field: &'tcx FieldDef<'tcx>) {
@@ -258,14 +263,26 @@ impl<'tcx> LateLintPass<'tcx> for UnnecessarilyBroadVisibility {
         self.trait_analyzer.record_ty(cx, ty);
     }
 
+    fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        self.delegating_type_analyzer
+            .record_expression(cx, expression);
+    }
+
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         let abstraction_findings = std::mem::take(&mut self.trait_analyzer).findings(cx);
         let abstraction_traits = abstraction_findings
             .into_iter()
             .map(|finding| finding.declaration.def_id)
             .collect::<std::collections::HashSet<_>>();
+        let delegating_findings = std::mem::take(&mut self.delegating_type_analyzer).findings(cx);
+        let mut delegating_declarations = std::collections::HashSet::new();
+        for finding in delegating_findings {
+            delegating_declarations.insert(finding.declaration.def_id);
+            delegating_declarations.extend(finding.owned_declarations);
+        }
         for finding in std::mem::take(&mut self.analyzer).findings(cx) {
             if abstraction_traits.contains(&finding.declaration.hir_id.owner.def_id)
+                || delegating_declarations.contains(&finding.declaration.hir_id.owner.def_id)
                 || finding.boundary.effective_current <= finding.boundary.required
                 || finding.is_test_constrained()
             {

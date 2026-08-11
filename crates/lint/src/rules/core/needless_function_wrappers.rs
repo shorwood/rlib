@@ -8,41 +8,19 @@ use std::borrow::Cow;
 
 use rustc_abi::ExternAbi;
 use rustc_errors::DiagDecorator;
-use rustc_hir::def::{DefKind, Res};
+use rustc_hir::def::DefKind;
 use rustc_hir::def_id::LocalDefId;
-use rustc_hir::{
-    Body, Expr, ExprKind, FnHeader, HirId, ImplItem, ImplItemKind, Item, ItemKind, MatchSource,
-    Node, PatKind,
-};
+use rustc_hir::{Body, FnHeader, HirId, ImplItem, ImplItemKind, Item, ItemKind, Node};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty::{self, Ty};
-use rustc_span::{Span, Symbol, sym};
+use rustc_span::{Span, Symbol};
 
 use crate::utils::diagnostic::LateViolation;
+use crate::utils::direct_forwarding::DirectForwarding;
 
 // -----------------------------------------------------------------------------
 // RedundantWrapper: Forwarding wrapper model
 // -----------------------------------------------------------------------------
-
-/// The forwarding expression and parameter bindings found inside a wrapper.
-struct RedundantWrapperForwarding<'hir> {
-    /// Direct call expression remaining after transparent syntax is removed.
-    expression: &'hir Expr<'hir>,
-    /// Parameter binding identities in their declared order.
-    bindings: Vec<HirId>,
-    /// Body owner whose type-checking results apply to `expression`.
-    typeck_owner: LocalDefId,
-}
-
-/// The local call targeted by a possible forwarding wrapper.
-struct RedundantWrapperCall<'hir> {
-    /// Local function or method definition being forwarded to.
-    target: LocalDefId,
-    /// Receiver and arguments in signature order.
-    arguments: Vec<&'hir Expr<'hir>>,
-    /// Whether the target is invoked with method-call syntax.
-    is_method: bool,
-}
 
 /// Function identity and signature facts needed during wrapper discovery.
 struct RedundantWrapperIdentity {
@@ -81,35 +59,24 @@ impl RedundantWrapper {
         if identity.header.abi != ExternAbi::Rust
             || identity.header.is_unsafe()
             || identity.name_span.from_expansion()
-            || !Self::has_only_nonsemantic_attributes(cx, identity.hir_id)
+            || !DirectForwarding::has_only_nonsemantic_attributes(cx, identity.hir_id)
         {
             return None;
         }
 
         // Resolve plain parameter bindings and the function's one forwarding expression.
-        let mut parameter_bindings = Vec::with_capacity(body.params.len());
-        for parameter in body.params {
-            let PatKind::Binding(_, binding, _, None) = parameter.pat.kind else {
-                return None;
-            };
-            parameter_bindings.push(binding);
-        }
-        let forwarding = if identity.header.is_async() {
-            Self::async_forwarding_expression(cx, body, &parameter_bindings)?
-        } else {
-            RedundantWrapperForwarding {
-                expression: Self::single_body_expression(body.value)?,
-                bindings: parameter_bindings,
-                typeck_owner: identity.def_id,
-            }
-        };
+        let forwarding = DirectForwarding::expression(cx, identity.def_id, identity.header, body)?;
 
         // Require a distinct local call target with compatible async and receiver semantics.
-        let call = Self::direct_call(cx, forwarding.typeck_owner, forwarding.expression)?;
-        if call.target == identity.def_id
+        let call = DirectForwarding::call(cx, forwarding.typeck_owner, forwarding.forwarded)?;
+        if !matches!(cx.tcx.def_kind(call.target), DefKind::Fn | DefKind::AssocFn) {
+            return None;
+        }
+        let target = call.target.as_local()?;
+        if target == identity.def_id
             || call.arguments.len() != forwarding.bindings.len()
-            || (identity.header.is_async() && !Self::is_async_function(cx, call.target))
-            || (call.is_method && !Self::shares_inherent_type(cx, identity.def_id, call.target))
+            || (identity.header.is_async() && !Self::is_async_function(cx, target))
+            || (call.is_method && !Self::shares_inherent_type(cx, identity.def_id, target))
         {
             return None;
         }
@@ -125,15 +92,15 @@ impl RedundantWrapper {
         // Require the wrapper's arity and direct return type to match the forwarded call.
         if signature.inputs().len() != call.arguments.len()
             || (!identity.header.is_async()
-                && signature.output() != typeck.expr_ty(forwarding.expression))
+                && signature.output() != typeck.expr_ty(forwarding.forwarded))
         {
             return None;
         }
         if call.is_method {
             let target_signature = cx
                 .tcx
-                .fn_sig(call.target)
-                .instantiate(cx.tcx, typeck.node_args(forwarding.expression.hir_id))
+                .fn_sig(target)
+                .instantiate(cx.tcx, typeck.node_args(forwarding.forwarded.hir_id))
                 .skip_binder();
             if target_signature.inputs().len() != signature.inputs().len()
                 || !Self::same_receiver_type(target_signature.inputs()[0], signature.inputs()[0])
@@ -146,15 +113,10 @@ impl RedundantWrapper {
         let typed_arguments = bound_arguments.zip(signature.inputs());
         for (index, ((binding, argument), input)) in typed_arguments.enumerate() {
             // Require each forwarded argument to be its corresponding plain binding.
-            let ExprKind::Path(path) = argument.kind else {
-                return None;
-            };
-
             // Compare the binding identity and adjusted argument type in parameter order.
             let has_incompatible_type =
                 !(call.is_method && index == 0) && typeck.expr_ty_adjusted(argument) != *input;
-            let has_matching_binding =
-                matches!(cx.qpath_res(&path, argument.hir_id), Res::Local(id) if id == *binding);
+            let has_matching_binding = DirectForwarding::is_binding(cx, argument, *binding);
             if has_matching_binding && !has_incompatible_type {
                 continue;
             }
@@ -166,88 +128,8 @@ impl RedundantWrapper {
             hir_id: identity.hir_id,
             name: identity.name,
             name_span: identity.name_span,
-            target: call.target,
+            target,
         })
-    }
-
-    /// Finds the call inside the compiler lowering of `target(arguments).await`.
-    ///
-    /// Async functions first move their source parameters into the generated coroutine. Keeping
-    /// that explicit binding map lets the same exact-order check used for synchronous functions
-    /// apply without relying on parameter names.
-    fn async_forwarding_expression<'hir>(
-        cx: &LateContext<'hir>,
-        body: &'hir Body<'hir>,
-        outer_bindings: &[HirId],
-    ) -> Option<RedundantWrapperForwarding<'hir>> {
-        // Resolve the compiler-generated coroutine block for this async function.
-        let ExprKind::Closure(closure) = body.value.kind else {
-            return None;
-        };
-        let coroutine = cx.tcx.hir_body(closure.body);
-        let ExprKind::Block(block, None) = coroutine.value.kind else {
-            return None;
-        };
-        if block.stmts.len() != outer_bindings.len() {
-            return None;
-        }
-
-        let mut inner_bindings = Vec::with_capacity(outer_bindings.len());
-        for (statement, outer_binding) in block.stmts.iter().zip(outer_bindings) {
-            inner_bindings.push(Self::async_inner_binding(cx, statement, *outer_binding)?);
-        }
-
-        // Unwrap the compiler's await lowering to the one forwarded future.
-        let awaited = Self::single_body_expression(block.expr?)?;
-        let ExprKind::Match(scrutinee, _, MatchSource::AwaitDesugar) = awaited.kind else {
-            return None;
-        };
-        let ExprKind::Call(_, futures) = scrutinee.kind else {
-            return None;
-        };
-
-        // Require exactly the future passed through by the wrapper.
-        let [forwarded] = futures else {
-            return None;
-        };
-
-        // Reject await adapters that rely on a semantic type adjustment.
-        let owner = cx.tcx.hir_body_owner_def_id(closure.body);
-        let typeck = cx.tcx.typeck(owner);
-        if typeck.expr_ty(awaited) != typeck.expr_ty_adjusted(awaited) {
-            return None;
-        }
-
-        // Return the forwarded future with its remapped coroutine bindings.
-        Some(RedundantWrapperForwarding {
-            expression: forwarded,
-            bindings: inner_bindings,
-            typeck_owner: owner,
-        })
-    }
-
-    /// Maps one compiler-generated coroutine binding back to its authored parameter.
-    fn async_inner_binding(
-        cx: &LateContext<'_>,
-        statement: &rustc_hir::Stmt<'_>,
-        outer_binding: HirId,
-    ) -> Option<HirId> {
-        // Recover the compiler-generated local binding.
-        let rustc_hir::StmtKind::Let(local) = statement.kind else {
-            return None;
-        };
-
-        // Require a simple binding initialized from the authored parameter.
-        let PatKind::Binding(_, inner_binding, _, None) = local.pat.kind else {
-            return None;
-        };
-        let ExprKind::Path(path) = local.init?.kind else {
-            return None;
-        };
-
-        // Preserve the binding only when resolution confirms the forwarding relationship.
-        matches!(cx.qpath_res(&path, local.init?.hir_id), Res::Local(id) if id == outer_binding)
-            .then_some(inner_binding)
     }
 
     /// Returns whether a local free function or inherent method is asynchronous.
@@ -305,115 +187,6 @@ impl RedundantWrapper {
             }
             _ => left == right,
         }
-    }
-
-    /// Allows only documentation and lint-level attributes that do not change execution.
-    fn has_only_nonsemantic_attributes(cx: &LateContext<'_>, hir_id: HirId) -> bool {
-        cx.tcx.hir_attrs(hir_id).iter().all(|attribute| {
-            attribute.is_doc_comment().is_some()
-                || attribute.has_any_name(&[
-                    sym::doc,
-                    sym::allow,
-                    sym::warn,
-                    sym::deny,
-                    sym::forbid,
-                    sym::expect,
-                ])
-        })
-    }
-
-    /// Removes only syntax that does not alter the returned value.
-    fn single_body_expression<'hir>(mut expression: &'hir Expr<'hir>) -> Option<&'hir Expr<'hir>> {
-        loop {
-            expression = match expression.kind {
-                ExprKind::Block(block, None) if block.stmts.is_empty() => block.expr?,
-                ExprKind::Block(block, None) if block.expr.is_none() && block.stmts.len() == 1 => {
-                    Self::returned_expression(&block.stmts[0])?
-                }
-                ExprKind::DropTemps(inner) | ExprKind::Ret(Some(inner)) => inner,
-                _ => return Some(expression),
-            };
-        }
-    }
-
-    /// Extracts the value from a single explicit `return` statement.
-    const fn returned_expression<'hir>(
-        statement: &'hir rustc_hir::Stmt<'hir>,
-    ) -> Option<&'hir Expr<'hir>> {
-        let rustc_hir::StmtKind::Semi(expression) = statement.kind else {
-            return None;
-        };
-        let ExprKind::Ret(Some(expression)) = expression.kind else {
-            return None;
-        };
-        Some(expression)
-    }
-
-    /// Resolves a direct path call to a local function and its authored arguments.
-    fn direct_function_call<'hir>(
-        cx: &LateContext<'_>,
-        callee: &Expr<'_>,
-        arguments: &'hir [Expr<'hir>],
-    ) -> Option<RedundantWrapperCall<'hir>> {
-        // Resolve the direct callee path to a local function definition.
-        let ExprKind::Path(path) = callee.kind else {
-            return None;
-        };
-        let target = cx
-            .qpath_res(&path, callee.hir_id)
-            .opt_def_id()?
-            .as_local()?;
-
-        // Retain the authored argument order without adding a method receiver.
-        Some(RedundantWrapperCall {
-            target,
-            arguments: arguments.iter().collect(),
-            is_method: false,
-        })
-    }
-
-    /// Resolves a method call and prepends its receiver to the forwarded arguments.
-    fn direct_method_call<'hir>(
-        cx: &LateContext<'_>,
-        owner: LocalDefId,
-        expression: &Expr<'_>,
-        receiver: &'hir Expr<'hir>,
-        arguments: &'hir [Expr<'hir>],
-    ) -> Option<RedundantWrapperCall<'hir>> {
-        // Resolve the type-dependent method target under the wrapper's type context.
-        let target = cx
-            .tcx
-            .typeck(owner)
-            .type_dependent_def_id(expression.hir_id)?
-            .as_local()?;
-
-        // Prepend the receiver to the explicit arguments in semantic parameter order.
-        let mut forwarded = Vec::with_capacity(arguments.len() + 1);
-        forwarded.push(receiver);
-        forwarded.extend(arguments);
-
-        // Return the receiver followed by every explicit method argument.
-        Some(RedundantWrapperCall {
-            target,
-            arguments: forwarded,
-            is_method: true,
-        })
-    }
-
-    /// Recognizes a direct local function or associated-function call.
-    fn direct_call<'hir>(
-        cx: &LateContext<'_>,
-        owner: LocalDefId,
-        expression: &'hir Expr<'hir>,
-    ) -> Option<RedundantWrapperCall<'hir>> {
-        let call = match expression.kind {
-            ExprKind::Call(callee, arguments) => Self::direct_function_call(cx, callee, arguments)?,
-            ExprKind::MethodCall(_, receiver, arguments, _) => {
-                Self::direct_method_call(cx, owner, expression, receiver, arguments)?
-            }
-            _ => return None,
-        };
-        matches!(cx.tcx.def_kind(call.target), DefKind::Fn | DefKind::AssocFn).then_some(call)
     }
 }
 

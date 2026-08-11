@@ -31,6 +31,7 @@ pub mod misordered_type_declarations;
 pub mod mismatched_section_divider_prefixes;
 pub mod missing_code_phase_comments;
 pub mod missing_section_dividers;
+pub mod needless_delegating_types;
 pub mod needless_function_wrappers;
 pub mod needlessly_nested_control_flow;
 pub mod nested_tuple_types;
