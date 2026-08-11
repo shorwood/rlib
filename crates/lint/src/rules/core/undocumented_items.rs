@@ -10,6 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{Span, sym};
 
 use crate::utils::diagnostic::LateViolation;
+use crate::utils::source_provenance::is_build_generated;
 
 // -----------------------------------------------------------------------------
 // Violation: Undocumented declaration diagnostic
@@ -33,7 +34,10 @@ impl Violation {
         span: Span,
         kind: &'static str,
     ) -> Option<Self> {
-        if Self::has_documentation(cx, hir_id) || span.in_external_macro(cx.sess().source_map()) {
+        if Self::has_documentation(cx, hir_id)
+            || span.in_external_macro(cx.sess().source_map())
+            || is_build_generated(cx, span)
+        {
             return None;
         }
         Some(Self { hir_id, span, kind })

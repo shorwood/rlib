@@ -11,6 +11,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{Span, Symbol};
 
 use crate::utils::diagnostic::LateViolation;
+use crate::utils::source_provenance::is_build_generated;
 
 // -----------------------------------------------------------------------------
 // Violation: Boolean field naming diagnostic
@@ -104,7 +105,10 @@ impl LateLintPass<'_> for BoolFieldsWithoutPredicatePrefix {
     fn check_field_def(&mut self, cx: &LateContext<'_>, field: &FieldDef<'_>) {
         // Tuple fields cannot carry a meaningful predicate name, while code from external macros
         // is outside the crate author's control. Local macro expansions remain lintable.
-        if field.is_positional() || field.span.in_external_macro(cx.sess().source_map()) {
+        if field.is_positional()
+            || field.span.in_external_macro(cx.sess().source_map())
+            || is_build_generated(cx, field.span)
+        {
             return;
         }
 

@@ -13,6 +13,7 @@ use rustc_span::def_id::LocalDefId;
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::function_structure::FunctionStructureAnalyzer;
+use crate::utils::source_provenance::is_build_generated;
 
 // -----------------------------------------------------------------------------
 // Violation: Malformed code phase explanation diagnostic
@@ -144,7 +145,8 @@ impl<'tcx> LateLintPass<'tcx> for MalformedCodePhaseComments {
         span: Span,
         _: LocalDefId,
     ) {
-        if matches!(kind, FnKind::Closure) || span.from_expansion() {
+        if matches!(kind, FnKind::Closure) || span.from_expansion() || is_build_generated(cx, span)
+        {
             return;
         }
         for finding in self.analyzer.analyze_layout(cx, body).malformed {

@@ -30,6 +30,11 @@ pub(super) fn to_upper_snake(value: &str) -> String {
     value.to_case(Case::UpperSnake)
 }
 
+/// Checks whether identifier text is canonical `snake_case`.
+pub(super) fn is_snake(value: &str) -> bool {
+    !value.is_empty() && value.to_case(Case::Snake) == value
+}
+
 /// Checks whether identifier text is canonical `PascalCase`.
 pub(super) fn is_pascal(value: &str) -> bool {
     !value.is_empty() && to_pascal(value) == value
@@ -82,7 +87,9 @@ pub(super) fn longest_common_pascal_prefix(names: &[&str]) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_pascal, longest_common_pascal_prefix, pascal_words, to_upper_snake, words};
+    use super::{
+        is_pascal, is_snake, longest_common_pascal_prefix, pascal_words, to_upper_snake, words,
+    };
 
     #[test]
     fn understands_rust_identifier_boundaries() {
@@ -98,6 +105,12 @@ mod tests {
         assert!(is_pascal("HttpServerConfig"));
         assert!(!is_pascal("HTTPServerConfig"));
         assert!(!is_pascal("http_server_config"));
+    }
+
+    #[test]
+    fn validates_canonical_snake_case() {
+        assert!(is_snake("http_server_config"));
+        assert!(!is_snake("HttpServerConfig"));
     }
 
     #[test]

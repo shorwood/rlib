@@ -33,6 +33,7 @@ mod control_flow_analysis;
 pub mod function_structure;
 pub mod reorder_declarations;
 pub mod result_loss_analysis;
+pub mod source_provenance;
 pub mod section_analysis;
 pub mod family_name_analysis;
 mod string_domain_vocabulary;

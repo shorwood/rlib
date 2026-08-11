@@ -18,6 +18,7 @@ use rustc_middle::ty::{self, TyCtxt};
 use rustc_session::config::CrateType;
 use rustc_span::{Span, Symbol, sym};
 
+use super::source_provenance::is_framework_generated_item;
 use super::visibility_boundary::VisibilityBoundary;
 use super::visibility_package_policy::VisibilityPackagePolicy;
 
@@ -228,6 +229,7 @@ impl VisibilityUsageAnalyzer {
 
         // Retain only semantic named declarations with authored visibility.
         if !item.span.from_expansion()
+            && !is_framework_generated_item(item)
             && let Some(kind) = Self::item_kind(item)
             && let Some(identifier) = item.kind.ident()
         {

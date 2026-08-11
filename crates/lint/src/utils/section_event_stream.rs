@@ -15,6 +15,7 @@ use crate::utils::identifier_case;
 use crate::utils::section_analysis::{
     SectionAnalysis, SectionAnalyzer, SectionEventDivider, SectionFinding, SectionParticipant,
 };
+use crate::utils::source_provenance::is_framework_generated_item;
 
 // -----------------------------------------------------------------------------
 // SectionEventCandidate: Section events and participants
@@ -45,7 +46,7 @@ impl SectionEventCandidate {
     /// Converts a section-relevant module item into a source candidate.
     pub(super) fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         // Ignore declarations whose source was synthesized by expansion.
-        if item.span.from_expansion() {
+        if item.span.from_expansion() || is_framework_generated_item(item) {
             return None;
         }
 

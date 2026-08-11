@@ -14,6 +14,7 @@ use rustc_span::Span;
 use super::identifier_case;
 use super::item_dependencies::DependenciesExt;
 use super::section_analysis::{SectionAnalyzer, SectionGroup, SectionParticipant};
+use super::source_provenance::is_framework_generated_item;
 
 // -----------------------------------------------------------------------------
 // Threshold: Inference reporting thresholds
@@ -735,7 +736,7 @@ impl ModuleNamingAnalysis {
 
         // Retain nominal declarations written directly in the module.
         let authored = resolved
-            .filter(|item| !item.span.from_expansion())
+            .filter(|item| !item.span.from_expansion() && !is_framework_generated_item(item))
             .filter_map(|item| {
                 Self::nominal_name(cx, item.kind, item.owner_id.def_id).map(|name| {
                     SectionParticipant {

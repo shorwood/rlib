@@ -37,7 +37,10 @@ impl FunctionLayoutProse {
 
     /// Builds a canonical first-line replacement for safely repairable prose.
     pub(super) fn replacement(content: Option<&str>, prefix: &str) -> Option<String> {
-        let repairable = content.map(str::trim).filter(|content| !content.is_empty());
+        let repairable = content
+            .map(str::trim)
+            .map(|content| content.trim_start_matches('-').trim_start())
+            .filter(|content| !content.is_empty());
         repairable
             .and_then(Self::safe_sentence_replacement)
             .map(|content| format!("{prefix} {content}"))
@@ -165,6 +168,14 @@ mod tests {
         assert_eq!(
             FunctionLayoutProse::safe_sentence_replacement("Preserve `u8`"),
             None
+        );
+        assert_eq!(
+            FunctionLayoutProse::replacement(Some("--- READ THE INPUT"), "//"),
+            Some("// Read the input".to_owned())
+        );
+        assert_eq!(
+            FunctionLayoutProse::replacement(Some("    read the input."), "//"),
+            Some("// Read the input.".to_owned())
         );
     }
 }

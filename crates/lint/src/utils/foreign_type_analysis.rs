@@ -14,6 +14,8 @@ use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol};
 
+use super::identifier_case;
+
 // -----------------------------------------------------------------------------
 // NominalTypeExt: Nominal type resolution
 // -----------------------------------------------------------------------------
@@ -92,6 +94,9 @@ impl ForeignTypeAnalyzer {
         let Some(ident) = item.kind.ident() else {
             return;
         };
+        if !identifier_case::is_snake(ident.name.as_str()) {
+            return;
+        }
         let def_id = item.owner_id.def_id;
 
         // Associated and nested functions are already colocated with an owning declaration.
