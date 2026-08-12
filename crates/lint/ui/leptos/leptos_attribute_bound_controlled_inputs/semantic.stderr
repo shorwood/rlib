@@ -1,0 +1,21 @@
+warning: writable state is passed through the `value` HTML attribute
+  --> $DIR/semantic.rs:9:34
+   |
+LL |     let _ = view! { <input value=name/> };
+   |                                  ^^^^ this sets an attribute rather than the live property
+   |
+   = note: the HTML attribute sets initial state, while the DOM property holds the value after user interaction
+   = help: use `bind:value` for two-way state, or `prop:value` with an explicit event handler
+   = note: `#[warn(leptos_attribute_bound_controlled_inputs)]` on by default
+
+warning: writable state is passed through the `checked` HTML attribute
+  --> $DIR/semantic.rs:14:52
+   |
+LL |     let _ = view! { <input type="checkbox" checked=enabled/> };
+   |                                                    ^^^^^^^ this sets an attribute rather than the live property
+   |
+   = note: the HTML attribute sets initial state, while the DOM property holds the value after user interaction
+   = help: use `bind:checked` for two-way state, or `prop:checked` with an explicit event handler
+
+warning: 2 warnings emitted
+

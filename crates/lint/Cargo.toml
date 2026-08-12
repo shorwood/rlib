@@ -23,6 +23,11 @@ leptos = { version = "=0.8.20", features = ["ssr"] }
 reactive_stores = "=0.4.3"
 
 [[example]]
+name = "leptos_attribute_bound_controlled_inputs"
+path = "ui/leptos/leptos_attribute_bound_controlled_inputs/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_boolean_component_props"
 path = "ui/leptos/leptos_boolean_component_props/semantic.rs"
 required-features = ["leptos"]
