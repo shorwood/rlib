@@ -9,8 +9,8 @@ use rustc_lexer::{FrontmatterAllowed, TokenKind, tokenize};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::{BytePos, Span};
 
-use super::config::FunctionStructureConfig;
 use super::function_layout_comments::{FunctionLayoutEntryGap, FunctionLayoutFinding};
+use super::function_structure::FunctionStructureConfig;
 
 // -----------------------------------------------------------------------------
 // FunctionLayout: Analyze direct code phases

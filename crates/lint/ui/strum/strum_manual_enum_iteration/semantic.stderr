@@ -1,0 +1,40 @@
+warning: `Stage` variants are manually exposed as an iterator
+  --> $DIR/semantic.rs:21:5
+   |
+LL |     [Stage::Planned, Stage::Running, Stage::Complete].into_iter()
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: the exhaustive declaration-order sequence duplicates the enum definition and can become stale
+   = help: derive `strum::EnumIter`, import `strum::IntoEnumIterator`, and migrate callers to `Type::iter()`
+   = note: `#[warn(strum_manual_enum_iteration)]` on by default
+
+warning: `Stage` variants are manually exposed as an iterator
+  --> $DIR/semantic.rs:25:5
+   |
+LL |     vec![Stage::Planned, Stage::Running, Stage::Complete].into_iter()
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: the exhaustive declaration-order sequence duplicates the enum definition and can become stale
+   = help: derive `strum::EnumIter`, import `strum::IntoEnumIterator`, and migrate callers to `Type::iter()`
+
+warning: `Stage` variants are manually exposed as an iterator
+  --> $DIR/semantic.rs:29:5
+   |
+LL |     STAGES.into_iter()
+   |     ^^^^^^
+   |
+   = note: the exhaustive declaration-order sequence duplicates the enum definition and can become stale
+   = help: derive `strum::EnumIter`, import `strum::IntoEnumIterator`, and migrate callers to `Type::iter()`
+
+warning: `Stage` variants are manually exposed as an iterator
+  --> $DIR/semantic.rs:45:9
+   |
+LL |         [Stage::Planned, Stage::Running, Stage::Complete].into_iter()
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: the exhaustive declaration-order sequence duplicates the enum definition and can become stale
+   = note: this API is public, so changing its return type or generated iterator name requires a compatibility review
+   = help: derive `strum::EnumIter`, import `strum::IntoEnumIterator`, and migrate callers to `Type::iter()`
+
+warning: 4 warnings emitted
+

@@ -18,6 +18,16 @@ pub extern "Rust" fn register_lints(
     sess: &rustc_session::Session,
     lint_store: &mut rustc_lint::LintStore,
 ) {
+    #[cfg(feature = "framework")]
+    rules::framework::framework_resolution_required::register_lints(sess, lint_store);
+
+    #[cfg(feature = "strum")]
+    {
+        rules::strum::strum_manual_enum_counts::register_lints(sess, lint_store);
+        rules::strum::strum_manual_enum_iteration::register_lints(sess, lint_store);
+        rules::strum::strum_manual_variant_arrays::register_lints(sess, lint_store);
+    }
+
     // Register standard trait protocol policies.
     rules::core::ad_hoc_collection_construction::register_lints(sess, lint_store);
     rules::core::ad_hoc_conversions::register_lints(sess, lint_store);

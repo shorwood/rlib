@@ -9,9 +9,9 @@ use rustc_lint::LateContext;
 use rustc_middle::ty::Ty;
 use rustc_span::Span;
 
-use super::config::FunctionStructureConfig;
 use super::control_flow_loop::LoopBodyExt;
 use super::control_flow_metrics::{ControlFlowArmExt, ControlFlowExpressionExt};
+use super::function_structure::FunctionStructureConfig;
 
 // -----------------------------------------------------------------------------
 // ControlFlow: Analyze semantic function structure

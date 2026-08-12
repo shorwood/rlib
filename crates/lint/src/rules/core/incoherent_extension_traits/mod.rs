@@ -8,10 +8,39 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, TraitItem};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{Span, Symbol};
+use serde::Deserialize;
 
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::extension_trait_analysis::{ExtensionTraitAnalyzer, ExtensionTraitProblem};
+
+// -----------------------------------------------------------------------------
+// ExtensionTraitConfig: Focused extension trait limits
+// -----------------------------------------------------------------------------
+
+/// Limits that prevent extension traits from becoming catch-all APIs.
+#[derive(Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+#[allow(clippy::redundant_pub_crate)]
+pub(crate) struct ExtensionTraitConfig {
+    /// Maximum methods permitted in one focused extension trait.
+    pub(crate) max_methods: usize,
+}
+
+impl Default for ExtensionTraitConfig {
+    fn default() -> Self {
+        Self { max_methods: 8 }
+    }
+}
+
+impl ExtensionTraitConfig {
+    fn validate(&self) -> Result<(), String> {
+        if self.max_methods == 0 {
+            return Err("extension_traits.max_methods must be greater than zero".to_owned());
+        }
+        Ok(())
+    }
+}
 
 // -----------------------------------------------------------------------------
 // Violation: Incoherent extension trait diagnostic
@@ -145,5 +174,20 @@ impl LateLintPass<'_> for IncoherentExtensionTraits {
             }
             .emit(cx);
         }
+    }
+}
+
+#[cfg(test)]
+mod config_tests {
+    use super::ExtensionTraitConfig;
+
+    #[test]
+    fn uses_eight_methods_by_default() {
+        assert_eq!(ExtensionTraitConfig::default().max_methods, 8);
+    }
+
+    #[test]
+    fn rejects_zero_methods() {
+        assert!(ExtensionTraitConfig { max_methods: 0 }.validate().is_err());
     }
 }

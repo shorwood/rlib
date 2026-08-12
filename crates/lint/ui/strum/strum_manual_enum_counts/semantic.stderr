@@ -1,0 +1,25 @@
+warning: `Stage` variant count is maintained manually
+  --> $DIR/semantic.rs:17:26
+   |
+LL |     const COUNT: usize = 3;
+   |                          ^
+   |
+   = note: the literal total duplicates the enum definition and can become stale
+   = help: derive `strum::EnumCount`, import its trait, and use `Type::COUNT`
+   = note: `#[warn(strum_manual_enum_counts)]` on by default
+
+warning: `Stage` variant count is maintained manually
+  --> $DIR/semantic.rs:19:37
+   |
+LL |       pub fn variant_count() -> usize {
+   |  _____________________________________^
+LL | |         3
+LL | |     }
+   | |_____^
+   |
+   = note: the literal total duplicates the enum definition and can become stale
+   = note: this API is public, so replacing it with the `EnumCount` trait requires a compatibility review
+   = help: derive `strum::EnumCount`, import its trait, and use `Type::COUNT`
+
+warning: 2 warnings emitted
+

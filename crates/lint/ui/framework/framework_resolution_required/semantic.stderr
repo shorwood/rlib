@@ -1,0 +1,12 @@
+warning: enum variant collection has multiple eligible framework resolutions
+  --> $DIR/semantic.rs:13:28
+   |
+LL |     const ALL: [Self; 3] = [Self::Planned, Self::Running, Self::Complete];
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `EnumIter` exposes an iterator protocol while `VariantArray` exposes a shared static slice; dependency presence cannot choose that API policy
+   = help: set `derive_resolution.enum_variant_collection` to `strum_enum_iter` or `strum_variant_array` in the `rlib-lint` Dylint table
+   = note: `#[warn(framework_resolution_required)]` on by default
+
+warning: 1 warning emitted
+

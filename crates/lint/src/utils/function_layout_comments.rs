@@ -6,9 +6,9 @@ use std::ops::RangeInclusive;
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::Span;
 
-use super::config::FunctionStructureConfig;
 use super::function_layout_prose::FunctionLayoutProse;
 use super::function_layout_source::{Comment, SourcePositionExt, SourceSpanExt};
+use super::function_structure::FunctionStructureConfig;
 
 // -----------------------------------------------------------------------------
 // FunctionLayoutFinding: Layout diagnostic

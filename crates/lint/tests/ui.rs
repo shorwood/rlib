@@ -132,9 +132,72 @@ const LEPTOS_FIXTURE_LINT_ALLOWS: [&str; 20] = [
 /// Runs every standalone and dependency-aware UI fixture against the lint library.
 #[test]
 fn ui() {
+    #[cfg(feature = "strum")]
+    if rerun_with_feature_aware_cargo_wrapper() {
+        return;
+    }
     run_standalone_fixtures();
+    #[cfg(feature = "strum")]
+    run_strum_fixtures();
     #[cfg(feature = "leptos")]
-    run_dependency_aware_fixtures();
+    run_leptos_fixtures();
+}
+
+/// Makes Dylint's internal `cargo build` preserve the test process's feature set.
+#[cfg(all(feature = "strum", unix))]
+fn rerun_with_feature_aware_cargo_wrapper() -> bool {
+    use std::env::{current_exe, join_paths, split_paths, temp_dir, var, var_os};
+    use std::fs::{create_dir_all, set_permissions, write};
+    use std::iter::once;
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::{Command, id};
+
+    if var_os("RLIB_LINT_ALL_FEATURE_UI_CHILD").is_some() {
+        return false;
+    }
+
+    let directory = temp_dir().join(format!("rlib-lint-cargo-wrapper-{}", id()));
+    create_dir_all(&directory).expect("Cargo wrapper directory should be creatable");
+    let wrapper = directory.join("cargo");
+    let feature_flags = if cfg!(feature = "leptos") {
+        "--all-features"
+    } else {
+        "--no-default-features --features strum"
+    };
+    write(
+        &wrapper,
+        format!(
+            "#!/bin/sh\nif [ \"$1\" = build ]; then\n  exec \"$RLIB_LINT_REAL_CARGO\" \"$@\" {feature_flags}\nfi\nexec \"$RLIB_LINT_REAL_CARGO\" \"$@\"\n"
+        ),
+    )
+    .expect("Cargo wrapper should be writable");
+    let mut permissions = wrapper
+        .metadata()
+        .expect("Cargo wrapper metadata should be readable")
+        .permissions();
+    permissions.set_mode(0o755);
+    set_permissions(&wrapper, permissions).expect("Cargo wrapper should be executable");
+
+    let cargo = var("CARGO").expect("Cargo should expose its own executable path");
+    let path = join_paths(once(directory).chain(split_paths(
+        &var_os("PATH").expect("test process should have PATH"),
+    )))
+    .expect("Cargo wrapper PATH should be valid");
+    let status = Command::new(current_exe().expect("UI test executable should be available"))
+        .args(["ui", "--exact", "--nocapture"])
+        .env("RLIB_LINT_ALL_FEATURE_UI_CHILD", "1")
+        .env("RLIB_LINT_REAL_CARGO", cargo)
+        .env("PATH", path)
+        .status()
+        .expect("wrapped all-feature UI child should start");
+    assert!(status.success(), "wrapped all-feature UI child failed");
+    true
+}
+
+/// Rejects unsupported all-feature UI execution platforms explicitly.
+#[cfg(all(feature = "strum", not(unix)))]
+fn rerun_with_feature_aware_cargo_wrapper() -> bool {
+    panic!("all-feature Dylint UI tests currently require a Unix Cargo wrapper");
 }
 
 /// Runs fixtures that rustc can compile directly without Cargo dependency metadata.
@@ -146,9 +209,47 @@ fn run_standalone_fixtures() {
 
 /// Runs all Cargo examples that need dependency linking or macro expansion.
 #[cfg(feature = "leptos")]
-fn run_dependency_aware_fixtures() {
-    Test::examples(env!("CARGO_PKG_NAME"))
+fn run_leptos_fixtures() {
+    for example in [
+        "leptos_attribute_bound_controlled_inputs",
+        "leptos_boolean_component_props",
+        "leptos_effects_synchronizing_signals",
+        "leptos_manual_resource_refetch_signals",
+        "leptos_needlessly_cloned_signal_values",
+        "leptos_read_then_replace_signals",
+        "leptos_reactive_writes_during_view_construction",
+        "leptos_reactive_writes_in_resource_fetchers",
+        "leptos_unsanitized_inner_html",
+        "leptos_unkeyed_reactive_collections",
+        "leptos_unreactive_signal_reads_in_views",
+        "leptos_writable_signal_component_props",
+    ] {
+        Test::example(env!("CARGO_PKG_NAME"), example)
+            .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+            .rustc_flags(LEPTOS_FIXTURE_LINT_ALLOWS)
+            .run();
+    }
+}
+
+/// Runs each Strum fixture with the provider policy its expected diagnostic requires.
+#[cfg(feature = "strum")]
+fn run_strum_fixtures() {
+    for example in [
+        "framework_resolution_required",
+        "strum_manual_enum_counts",
+        "strum_manual_enum_iteration",
+    ] {
+        Test::example(env!("CARGO_PKG_NAME"), example)
+            .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+            .run();
+    }
+    Test::example(env!("CARGO_PKG_NAME"), "strum_manual_variant_arrays")
         .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
-        .rustc_flags(LEPTOS_FIXTURE_LINT_ALLOWS)
+        .dylint_toml(
+            r#"
+                [rlib-lint.derive_resolution]
+                enum_variant_collection = "strum_variant_array"
+            "#,
+        )
         .run();
 }

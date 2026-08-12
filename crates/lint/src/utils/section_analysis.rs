@@ -6,6 +6,7 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{HirId, Mod};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::{BytePos, Span};
+use serde::Deserialize;
 
 use super::config::LibraryConfig;
 
@@ -16,6 +17,47 @@ mod module_analysis;
 
 use module_analysis::ModuleAnalysis;
 use template::{Template, TemplateMatch};
+
+// -----------------------------------------------------------------------------
+// SectionDividerConfig: Module section divider rendering
+// -----------------------------------------------------------------------------
+
+/// Shared configuration for the section-divider lint family.
+#[derive(Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SectionDividerConfig {
+    /// Multiline divider template containing the required `{content}` placeholder.
+    pub(super) template: String,
+    /// Maximum rendered divider line width.
+    pub(super) max_line_length: usize,
+    /// Maximum declarations governed by one section divider.
+    pub(super) max_declarations_per_section: usize,
+}
+
+impl Default for SectionDividerConfig {
+    fn default() -> Self {
+        Self {
+            template: "// -----------------------------------------------------------------------------\n\
+                       // {content}\n\
+                       // -----------------------------------------------------------------------------"
+                .to_owned(),
+            max_line_length: 80,
+            max_declarations_per_section: 5,
+        }
+    }
+}
+
+impl SectionDividerConfig {
+    fn validate(&self) -> Result<(), String> {
+        if self.max_declarations_per_section == 0 {
+            return Err(
+                "section_dividers.max_declarations_per_section must be greater than zero"
+                    .to_owned(),
+            );
+        }
+        Ok(())
+    }
+}
 
 // -----------------------------------------------------------------------------
 // Section: Shared organization analysis data
@@ -202,5 +244,33 @@ impl SectionAnalyzer {
                 .collect::<Vec<_>>()
                 .join(&format!("\n{}", request.indentation))
         })
+    }
+}
+
+#[cfg(test)]
+mod config_tests {
+    use super::SectionDividerConfig;
+    use crate::utils::config::LibraryConfig;
+
+    #[test]
+    fn parses_custom_section_declaration_limit() {
+        let config = toml::from_str::<LibraryConfig>(
+            r"
+                [section_dividers]
+                max_declarations_per_section = 12
+            ",
+        )
+        .expect("custom section declaration limit should parse");
+        assert_eq!(config.section_dividers.max_declarations_per_section, 12);
+        assert!(config.section_dividers.validate().is_ok());
+    }
+
+    #[test]
+    fn rejects_zero_section_declaration_limit() {
+        let config = SectionDividerConfig {
+            max_declarations_per_section: 0,
+            ..SectionDividerConfig::default()
+        };
+        assert!(config.validate().is_err());
     }
 }
