@@ -37,3 +37,4 @@ LL |     fn write(&self, value: u16) -> u16 {
    = help: use `Inner` directly, or move a real invariant or behavioral policy into `RecordWrapper`
 
 warning: 2 warnings emitted
+

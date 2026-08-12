@@ -7,6 +7,7 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_session::config::CrateType;
 use rustc_span::{Span, Symbol};
 
 use crate::utils::diagnostic::LateViolation;
@@ -146,6 +147,10 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for ForeignTypeMethodLikeFreeFunctions {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Public functions in a proc-macro crate are compiler entry points with fixed signatures.
+        if cx.sess().opts.crate_types.contains(&CrateType::ProcMacro) {
+            return;
+        }
         self.analyzer.record_item(cx, item);
     }
 

@@ -8,6 +8,7 @@ use rustc_ast::ast::{Inline, Item, ItemKind, ModKind};
 use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
+use rustc_span::symbol::sym;
 
 use crate::utils::diagnostic::EarlyViolation;
 
@@ -132,7 +133,8 @@ dylint_linting::impl_pre_expansion_lint! {
     ///
     /// Keeps every physical `mod.rs` and `lib.rs` file focused exclusively on declaring its module
     /// tree. Child module visibility belongs on the module declaration itself; imports,
-    /// reexports, macros, inline modules, and implementation code are rejected.
+    /// reexports, macros, inline modules, and implementation code are rejected. Compiler-mandated
+    /// proc-macro entry functions remain at the crate root.
     ///
     /// ### Why is this bad?
     ///
@@ -186,6 +188,11 @@ impl EarlyLintPass for InvalidBarrelFileItems {
             return;
         }
 
+        // Rust requires proc-macro entry functions to remain at the physical crate root.
+        if Self::is_proc_macro_entry(item) {
+            return;
+        }
+
         // Classifies the item and returns a violation if it is not a valid barrel entry.
         let Some(kind) = ViolationKind::from_item(item) else {
             return;
@@ -211,6 +218,16 @@ impl EarlyLintPass for InvalidBarrelFileItems {
 }
 
 impl InvalidBarrelFileItems {
+    /// Returns whether rustc requires this function to remain in the crate root.
+    fn is_proc_macro_entry(item: &Item) -> bool {
+        matches!(item.kind, ItemKind::Fn { .. })
+            && item.attrs.iter().any(|attribute| {
+                attribute.has_name(sym::proc_macro)
+                    || attribute.has_name(sym::proc_macro_attribute)
+                    || attribute.has_name(sym::proc_macro_derive)
+            })
+    }
+
     /// Returns whether an item is an inline `mod child { ... }` definition.
     const fn is_inline_module(item: &Item) -> bool {
         matches!(

@@ -4,6 +4,7 @@
 #![allow(misordered_inherent_impl_items)]
 #![allow(misordered_type_declarations)]
 #![warn(misordered_module_declarations)]
+#![allow(needless_function_wrappers)]
 
 use std::mem::size_of;
 

@@ -121,7 +121,7 @@ LL +      fn use_crate_boundary() {
    |
 
 warning: function `unused_public_function` has unnecessarily broad `pub` visibility
-  --> $DIR/semantic.rs:69:1
+  --> $DIR/semantic.rs:91:1
    |
 LL | pub fn unused_public_function() {}
    | ^^^

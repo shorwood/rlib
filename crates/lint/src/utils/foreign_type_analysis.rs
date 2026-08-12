@@ -15,6 +15,7 @@ use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol};
 
 use super::identifier_case;
+use super::source_provenance::is_framework_generated_item;
 
 // -----------------------------------------------------------------------------
 // NominalTypeExt: Nominal type resolution
@@ -109,6 +110,7 @@ impl ForeignTypeAnalyzer {
 
         // Ignore generated APIs and functions that cannot be named outside this module.
         if item.span.in_external_macro(cx.sess().source_map())
+            || is_framework_generated_item(item)
             || !Self::is_visible_outside_module(cx, item)
             || Self::has_external_symbol(cx, item)
         {

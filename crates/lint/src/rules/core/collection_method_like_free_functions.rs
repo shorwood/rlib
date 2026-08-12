@@ -15,6 +15,7 @@ use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol, sym};
 
 use crate::utils::diagnostic::LateViolation;
+use crate::utils::source_provenance::is_framework_generated_item;
 
 // -----------------------------------------------------------------------------
 // Collection: Collection receiver forms
@@ -165,7 +166,9 @@ impl Candidate {
     /// Vec<Item>` are treated the same as spelling `Vec<Item>` directly.
     fn discover(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         // Require an authored free function body before extracting its syntax.
-        if !matches!(item.kind, ItemKind::Fn { has_body: true, .. }) {
+        if is_framework_generated_item(item)
+            || !matches!(item.kind, ItemKind::Fn { has_body: true, .. })
+        {
             return None;
         }
 

@@ -18,7 +18,7 @@ use rustc_middle::ty::{self, TyCtxt};
 use rustc_session::config::CrateType;
 use rustc_span::{Span, Symbol, sym};
 
-use super::source_provenance::is_framework_generated_item;
+use super::source_provenance::{is_framework_generated_field, is_framework_generated_item};
 use super::visibility_boundary::VisibilityBoundary;
 use super::visibility_package_policy::VisibilityPackagePolicy;
 
@@ -305,7 +305,7 @@ impl VisibilityUsageAnalyzer {
         }
 
         // Generated fields do not own an independently editable boundary.
-        if field.span.from_expansion() {
+        if field.span.from_expansion() || is_framework_generated_field(cx, field) {
             return;
         }
 

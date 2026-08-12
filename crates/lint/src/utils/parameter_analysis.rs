@@ -16,7 +16,7 @@ use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 
 use super::parameter_kind::{ParameterKind, ParameterTypeExt};
-use super::parameter_role;
+use super::{identifier_case, parameter_role};
 
 /// Smallest family that can contain interchangeable parameter roles.
 const MIN_AMBIGUOUS_PARAMETER_COUNT: usize = 2;
@@ -81,6 +81,23 @@ impl ParameterSignature {
         // Exclude repeated trait implementations and source owned by external generators.
         if Self::belongs_to_trait_impl(cx, def_id)
             || name.span.in_external_macro(cx.sess().source_map())
+            || name.name.as_str().starts_with("__component_")
+            || cx
+                .tcx
+                .item_name(def_id.to_def_id())
+                .as_str()
+                .starts_with("__component_")
+            || !identifier_case::is_snake(name.name.as_str())
+            || cx
+                .sess()
+                .source_map()
+                .span_to_snippet(name.span)
+                .is_ok_and(|source| identifier_case::is_pascal(source.trim()))
+            || cx
+                .sess()
+                .source_map()
+                .span_to_snippet(cx.tcx.def_span(def_id))
+                .is_ok_and(|source| source.contains("#[component]"))
         {
             return None;
         }

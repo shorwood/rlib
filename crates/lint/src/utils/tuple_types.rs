@@ -4,7 +4,7 @@ extern crate rustc_span;
 
 use rustc_hir::intravisit::{self, Visitor};
 use rustc_hir::{AmbigArg, Node, Ty, TyKind};
-use rustc_lint::LateContext;
+use rustc_lint::{LateContext, LintContext};
 use rustc_span::Span;
 
 // -----------------------------------------------------------------------------
@@ -36,7 +36,27 @@ impl ExplicitTupleType {
         if ty.span.from_expansion() || matches!(cx.tcx.parent_hir_node(ty.hir_id), Node::Ty(_)) {
             return None;
         }
+        // Rust represents callable-trait arguments as a tuple internally even when the author
+        // wrote ordinary `Fn(A, B)` syntax. That compiler encoding is not an authored tuple API.
+        if cx
+            .sess()
+            .source_map()
+            .span_to_snippet(ty.span)
+            .is_ok_and(|source| {
+                source.contains("Fn(") || source.contains("FnMut(") || source.contains("FnOnce(")
+            })
+        {
+            return None;
+        }
         if Self::is_non_unit_tuple(ty) {
+            if cx
+                .sess()
+                .source_map()
+                .span_to_snippet(ty.span)
+                .is_ok_and(|source| !source.trim_start().starts_with('('))
+            {
+                return None;
+            }
             return Some(Self {
                 root_span: ty.span,
                 tuple_span: ty.span,
@@ -46,10 +66,17 @@ impl ExplicitTupleType {
 
         let mut finder = NestedTupleFinder::default();
         intravisit::walk_ty(&mut finder, ty);
-        finder.tuple_span.map(|tuple_span| Self {
-            root_span: ty.span,
-            tuple_span,
-            kind: ExplicitTupleKind::Nested,
+        finder.tuple_span.and_then(|tuple_span| {
+            let is_authored_tuple = cx
+                .sess()
+                .source_map()
+                .span_to_snippet(tuple_span)
+                .is_ok_and(|source| source.trim_start().starts_with('('));
+            is_authored_tuple.then_some(Self {
+                root_span: ty.span,
+                tuple_span,
+                kind: ExplicitTupleKind::Nested,
+            })
         })
     }
 

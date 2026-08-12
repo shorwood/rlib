@@ -89,3 +89,4 @@ LL | type WithLifetimeAndConstUse = WithLifetimeAndConst<'static, Concrete, 1>;
    = help: replace `T` with `Concrete` until a second real substitution is required
 
 warning: 7 warnings emitted
+

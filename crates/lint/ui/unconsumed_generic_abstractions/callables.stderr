@@ -69,3 +69,4 @@ LL |     let _ = service.method(7_u64);
    = help: specialize `T` as `u64` in the signature and remove the generic parameter until another substitution is required
 
 warning: 5 warnings emitted
+

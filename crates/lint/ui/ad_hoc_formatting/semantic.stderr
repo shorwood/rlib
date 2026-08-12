@@ -52,3 +52,4 @@ LL | fn render_free_value(value: &FreeValue) -> String {
    = help: implement `std::fmt::Display` for `FreeValue` and retain a named helper only when it adds a distinct format or policy
 
 warning: 5 warnings emitted
+
