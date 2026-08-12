@@ -222,6 +222,7 @@ fn run_leptos_fixtures() {
         "leptos_unsanitized_inner_html",
         "leptos_unkeyed_reactive_collections",
         "leptos_unreactive_signal_reads_in_views",
+        "leptos_unstable_for_keys",
         "leptos_writable_signal_component_props",
     ] {
         Test::example(env!("CARGO_PKG_NAME"), example)

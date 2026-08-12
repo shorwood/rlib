@@ -11,4 +11,5 @@ pub mod leptos_reactive_writes_in_resource_fetchers;
 pub mod leptos_unsanitized_inner_html;
 pub mod leptos_unkeyed_reactive_collections;
 pub mod leptos_unreactive_signal_reads_in_views;
+pub mod leptos_unstable_for_keys;
 pub mod leptos_writable_signal_component_props;

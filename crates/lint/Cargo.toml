@@ -41,6 +41,11 @@ path = "ui/leptos/leptos_effects_synchronizing_signals/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
+name = "leptos_unstable_for_keys"
+path = "ui/leptos/leptos_unstable_for_keys/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_writable_signal_component_props"
 path = "ui/leptos/leptos_writable_signal_component_props/semantic.rs"
 required-features = ["leptos"]
