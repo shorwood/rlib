@@ -1,5 +1,5 @@
 warning: tracked signal value is frozen into the initial view
-  --> $DIR/semantic.rs:24:16
+  --> $DIR/semantic.rs:25:16
    |
 LL |         <span>{count.get()}</span>
    |                ^^^^^^^^^^^ this read happens only during view construction
@@ -9,7 +9,7 @@ LL |         <span>{count.get()}</span>
    = note: `#[warn(leptos_unreactive_signal_reads_in_views)]` on by default
 
 warning: tracked signal value is frozen into the initial view
-  --> $DIR/semantic.rs:25:20
+  --> $DIR/semantic.rs:26:20
    |
 LL |         <div class=count.get().to_string()>"value"</div>
    |                    ^^^^^^^^^^^ this read happens only during view construction

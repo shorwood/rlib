@@ -6,6 +6,7 @@
     leptos_implicit_default_component_props,
     leptos_manual_resource_refetch_signals,
     leptos_needlessly_cloned_signal_values,
+    leptos_read_then_replace_signals,
     leptos_reactive_writes_during_view_construction,
     leptos_reactive_writes_in_resource_fetchers,
     leptos_unkeyed_reactive_collections,
