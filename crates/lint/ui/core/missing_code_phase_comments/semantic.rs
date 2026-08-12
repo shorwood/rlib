@@ -222,4 +222,28 @@ fn guarded_mapping(value: u8) -> &'static str {
     }
 }
 
+struct DeclarativeRecord {
+    one: usize,
+    two: usize,
+    three: usize,
+    four: usize,
+    five: usize,
+    six: usize,
+    seven: usize,
+    eight: usize,
+}
+
+fn declarative_struct_is_one_operation() -> DeclarativeRecord {
+    DeclarativeRecord {
+        one: 1,
+        two: 2,
+        three: 3,
+        four: 4,
+        five: 5,
+        six: 6,
+        seven: 7,
+        eight: 8,
+    }
+}
+
 fn main() {}

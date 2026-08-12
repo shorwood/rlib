@@ -149,7 +149,9 @@ dylint_linting::impl_late_lint! {
     /// Checks visible free functions that take foreign nominal types and recommends a focused
     /// extension trait when one foreign parameter remains the clear semantic subject. Repeated
     /// foreign dependencies are treated as ambient infrastructure only when they occur in at
-    /// least two functions beside at least two different nominal co-parameters.
+    /// least two functions beside at least two different nominal co-parameters. Functions with a
+    /// local nominal input or a local direct, optional, or fallible success return are left to that
+    /// stronger local owner instead.
     ///
     /// ### Why is this bad?
     ///

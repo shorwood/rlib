@@ -20,10 +20,16 @@ toml = "0.9"
 [dev-dependencies]
 dylint_testing = "=6.0.1"
 leptos = { version = "=0.8.20", features = ["ssr"] }
+reactive_stores = "=0.4.3"
 
 [[example]]
 name = "boolean_component_props"
 path = "ui/leptos/boolean_component_props/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "writable_signal_component_props"
+path = "ui/leptos/writable_signal_component_props/semantic.rs"
 required-features = ["leptos"]
 
 [lints]

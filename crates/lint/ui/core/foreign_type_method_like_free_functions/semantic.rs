@@ -60,3 +60,9 @@ mod restricted_api {
 }
 
 fn main() {}
+
+// False-positive boundaries: local inputs and local success returns provide a stronger owner.
+pub fn combine_local(local: &LocalSubject, external: &ExternalItem) {}
+pub fn load_local(external: &ExternalItem) -> Result<LocalSubject, ()> {
+    Ok(LocalSubject)
+}

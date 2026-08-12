@@ -79,8 +79,9 @@ dylint_linting::impl_late_lint! {
     /// ### What it does
     ///
     /// Finds conditional structure that can be flattened through an early exit: useful work in an
-    /// `else` beside a diverging branch, or a final `if`/`if let` that can use `return` or a
-    /// loop-local `continue` as a guard.
+    /// `else` beside a diverging branch, or a final `if`/`if let` with a non-diverging body that can
+    /// use `return` or a loop-local `continue` as a guard. Final error handlers that already exit
+    /// are not treated as wrapped useful work.
     ///
     /// ### Why is this bad?
     ///

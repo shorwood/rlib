@@ -1697,6 +1697,7 @@ dependencies = [
  "dylint_linting",
  "dylint_testing",
  "leptos",
+ "reactive_stores",
  "serde",
  "toml 0.9.12+spec-1.1.0",
 ]

@@ -206,14 +206,15 @@ impl FunctionLayoutEntry {
         }
     }
 
-    /// Recognizes authored matches that only map patterns to literal values.
+    /// Recognizes declarative expressions whose physical layout does not represent sequential work.
     fn is_declarative_mapping(expression: &Expr<'_>) -> bool {
-        let ExprKind::Match(_, arms, MatchSource::Normal | MatchSource::Postfix) = expression.kind
-        else {
-            return false;
-        };
-        arms.iter()
-            .all(|arm| arm.guard.is_none() && Self::is_literal_value(arm.body))
+        match expression.kind {
+            ExprKind::Struct(..) => true,
+            ExprKind::Match(_, arms, MatchSource::Normal | MatchSource::Postfix) => arms
+                .iter()
+                .all(|arm| arm.guard.is_none() && Self::is_literal_value(arm.body)),
+            _ => false,
+        }
     }
 
     /// Counts authored code on the containing block's surface.

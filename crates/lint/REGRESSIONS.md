@@ -30,6 +30,8 @@ while this file records why a semantic boundary exists and where its regression 
 | Active test implementations or consumers prove substitution | False positive: evidence mistake | compilation-local test evidence | `ui/core/single_implementation_traits/active_tests.rs`, `ui/core/unconsumed_generic_abstractions/active_tests.rs` |
 | Generated Leptos props must map back to authored component fields without treating arbitrary wrappers as boolean state | False positive or false negative: identity gap | semantic `Leptos::Props` resolution and accepted-wrapper recursion | `ui/leptos/boolean_component_props/semantic.rs` |
 | Standard HTML and ARIA states already give `disabled` and `invalid` booleans a stable binary vocabulary | False positive: evidence mistake | exact platform-state vocabulary in `boolean_component_props` | `boolean_component_props` unit test, downstream `leptos-pencil` dogfood |
+| Infrastructure parameters must not displace a local input or local success return as the stronger API owner | False positive: evidence mistake | local ownership precedence in `foreign_type_analysis` | `ui/core/foreign_type_method_like_free_functions/semantic.rs`, downstream `flowgraph` dogfood |
+| A terminal conditional whose body already diverges is an exit handler, not wrapped main-path work | False positive: evidence mistake | divergence-aware trailing-condition analysis | `ui/core/needlessly_nested_control_flow/semantic.rs`, downstream `flowgraph` dogfood |
 
 ## Triage workflow
 

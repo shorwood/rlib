@@ -4,7 +4,7 @@ extern crate rustc_middle;
 extern crate rustc_span;
 
 use convert_case::{Case, Casing};
-use rustc_hir::{HirId, Item, ItemKind};
+use rustc_hir::{HirId, Item, ItemKind, PatKind};
 use rustc_lint::LateContext;
 use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol};
@@ -17,6 +17,8 @@ use rustc_span::{Span, Symbol};
 pub struct ComponentProp<'tcx> {
     /// Component function node used to honor lint levels written on `#[component]`.
     pub owner: HirId,
+    /// Authored parameter binding used to analyze how the capability flows through the component.
+    pub binding: HirId,
     /// Authored property name.
     pub name: Symbol,
     /// Property identifier mapped back through the component macro.
@@ -63,23 +65,28 @@ impl ComponentProps {
             .as_str()
             .strip_suffix("Props")?
             .to_owned();
+
+        // Resolve the authored function body and align generated fields with its parameters.
         let owner = Self::component_owner(cx, component_name.as_str())?;
+        let ItemKind::Fn { body, .. } = owner.kind else {
+            return None;
+        };
+        let parameters = cx.tcx.hir_body(body).params;
+        if definition.all_fields().count() != parameters.len() {
+            return None;
+        }
 
         // Preserve every authored prop name, span, and resolved semantic type.
-        Some(
-            definition
-                .all_fields()
-                .map(|field| ComponentProp {
-                    owner,
-                    name: field.name,
-                    span: cx
-                        .tcx
-                        .def_ident_span(field.did)
-                        .unwrap_or_else(|| cx.tcx.def_span(field.did)),
-                    ty: field.ty(cx.tcx, arguments),
-                })
-                .collect(),
-        )
+        let mut properties = Vec::with_capacity(parameters.len());
+        for (field, parameter) in definition.all_fields().zip(parameters) {
+            // Require direct authored bindings so generated fields cannot be misaligned.
+            let PatKind::Binding(_, binding, _, None) = parameter.pat.kind else {
+                return None;
+            };
+
+            properties.push(Self::property(cx, owner, field, arguments, binding));
+        }
+        Some(properties)
     }
 
     /// Returns whether a prop directly or through an accepted wrapper carries boolean state.
@@ -102,15 +109,47 @@ impl ComponentProps {
             .is_some_and(|inner| Self::carries_boolean(cx, inner))
     }
 
+    /// Builds one property after generated-to-authored field alignment has been proven.
+    fn property<'tcx>(
+        cx: &LateContext<'tcx>,
+        owner: &Item<'tcx>,
+        field: &rustc_middle::ty::FieldDef,
+        arguments: rustc_middle::ty::GenericArgsRef<'tcx>,
+        binding: HirId,
+    ) -> ComponentProp<'tcx> {
+        // Prefer the authored identifier span while retaining generated-span fallback.
+        let span = cx
+            .tcx
+            .def_ident_span(field.did)
+            .unwrap_or_else(|| cx.tcx.def_span(field.did));
+
+        // Pair authored identity with the generated field's resolved semantic type.
+        let ty = field.ty(cx.tcx, arguments);
+
+        // Assemble the stable property record consumed by policy lints.
+        ComponentProp {
+            owner: owner.hir_id(),
+            binding,
+
+            // Retain authored-facing metadata beside semantic type evidence.
+            name: field.name,
+            span,
+            ty,
+        }
+    }
+
     /// Finds the generated body function that retains attributes from the authored component.
-    fn component_owner(cx: &LateContext<'_>, component_name: &str) -> Option<HirId> {
+    fn component_owner<'tcx>(
+        cx: &LateContext<'tcx>,
+        component_name: &str,
+    ) -> Option<&'tcx Item<'tcx>> {
         let body_name = format!("__component_{}", component_name.to_case(Case::Snake));
         cx.tcx.hir_free_items().find_map(|item_id| {
             let item = cx.tcx.hir_item(item_id);
             let ItemKind::Fn { .. } = item.kind else {
                 return None;
             };
-            (item.kind.ident()?.name.as_str() == body_name).then_some(item.hir_id())
+            (item.kind.ident()?.name.as_str() == body_name).then_some(item)
         })
     }
 

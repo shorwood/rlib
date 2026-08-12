@@ -22,6 +22,9 @@ use super::identifier_case;
 pub(super) trait NominalTypeExt {
     /// Follows references and aliases to a concrete nominal definition.
     fn nominal_def_id(self) -> Option<DefId>;
+
+    /// Returns whether this output exposes a local owner directly or through a success wrapper.
+    fn has_local_output_owner(self, cx: &LateContext<'_>) -> bool;
 }
 
 impl NominalTypeExt for Ty<'_> {
@@ -33,6 +36,28 @@ impl NominalTypeExt for Ty<'_> {
             ty::Adt(definition, _) => Some(definition.did()),
             _ => None,
         }
+    }
+
+    fn has_local_output_owner(self, cx: &LateContext<'_>) -> bool {
+        // Resolve direct ownership before inspecting supported success wrappers.
+        let ty::Adt(definition, arguments) = self.kind() else {
+            return false;
+        };
+        if definition.did().is_local() {
+            return true;
+        }
+
+        // Descend through the represented success value of standard wrappers.
+        let crate_name = cx.tcx.crate_name(definition.did().krate);
+        let item_name = cx.tcx.item_name(definition.did());
+
+        // Require a standard success wrapper before following its represented value.
+        crate_name.as_str() == "core"
+            && matches!(item_name.as_str(), "Option" | "Result")
+            && arguments
+                .types()
+                .next()
+                .is_some_and(|inner| inner.has_local_output_owner(cx))
     }
 }
 
@@ -131,6 +156,16 @@ impl ForeignTypeAnalyzer {
                 def_id,
                 span: source.span,
             });
+        }
+
+        // A local input or local success return is a stronger semantic owner than infrastructure
+        // received through a foreign parameter.
+        if nominal_parameters
+            .iter()
+            .any(|parameter| parameter.def_id.is_local())
+            || signature.output().has_local_output_owner(cx)
+        {
+            return;
         }
         if !nominal_parameters
             .iter()

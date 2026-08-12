@@ -268,6 +268,18 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         self.analysis.needless_nesting.push(finding);
     }
 
+    /// Returns whether an expression exits its current control-flow path.
+    fn expression_diverges(&self, expression: &Expr<'_>) -> bool {
+        if matches!(
+            expression.kind,
+            ExprKind::Break(..) | ExprKind::Continue(..) | ExprKind::Ret(..) | ExprKind::Become(..)
+        ) {
+            return true;
+        }
+        let owner = self.cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+        self.cx.tcx.typeck(owner).expr_ty(expression).is_never()
+    }
+
     /// Checks a block's trailing conditional before walking its contents.
     fn visit_block_with_exit(
         &mut self,
@@ -276,7 +288,8 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
     ) {
         if !block.span.from_expansion()
             && let Some(expression) = Self::block_last_expression(block)
-            && matches!(expression.kind, ExprKind::If(_, _, None))
+            && let ExprKind::If(_, then, None) = expression.kind
+            && !self.expression_diverges(then)
             && !matches!(exit, ControlFlowAnalyzerGuardExit::None)
         {
             // Name the guard exit that can replace the trailing branch.
@@ -323,18 +336,6 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         self.visit_block_with_exit(block, ControlFlowAnalyzerGuardExit::Continue);
         self.state.depth = previous_depth;
         self.state.is_inside_excessive_depth = previous_excessive;
-    }
-
-    /// Returns whether an expression exits its current control-flow path.
-    fn expression_diverges(&self, expression: &Expr<'_>) -> bool {
-        if matches!(
-            expression.kind,
-            ExprKind::Break(..) | ExprKind::Continue(..) | ExprKind::Ret(..) | ExprKind::Become(..)
-        ) {
-            return true;
-        }
-        let owner = self.cx.tcx.hir_enclosing_body_owner(expression.hir_id);
-        self.cx.tcx.typeck(owner).expr_ty(expression).is_never()
     }
 
     /// Traverses an if/else-if chain at one shared conditional depth.

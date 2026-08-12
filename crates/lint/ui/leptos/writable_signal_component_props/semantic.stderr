@@ -1,0 +1,129 @@
+warning: writable component prop `write` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:48:5
+   |
+LL |     write: WriteSignal<String>,
+   |     ^^^^^ resolves to writable type `leptos::prelude::WriteSignal<std::string::String>`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+   = note: `#[warn(writable_signal_component_props)]` on by default
+
+warning: writable component prop `rw` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:49:5
+   |
+LL |     rw: RwSignal<String>,
+   |     ^^ resolves to writable type `leptos::prelude::RwSignal<std::string::String>`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+
+warning: writable component prop `arc_write` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:50:5
+   |
+LL |     arc_write: ArcWriteSignal<String>,
+   |     ^^^^^^^^^ resolves to writable type `leptos::prelude::ArcWriteSignal<std::string::String>`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+
+warning: writable component prop `arc_rw` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:51:5
+   |
+LL |     arc_rw: ArcRwSignal<String>,
+   |     ^^^^^^ resolves to writable type `leptos::prelude::ArcRwSignal<std::string::String>`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+
+warning: writable component prop `alias` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:52:5
+   |
+LL |     alias: Writer<String>,
+   |     ^^^^^ resolves to writable type `leptos::prelude::WriteSignal<std::string::String>`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+
+warning: writable component prop `store` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:53:5
+   |
+LL |     store: Store<String>,
+   |     ^^^^^ resolves to writable type `reactive_stores::Store<std::string::String>`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+
+warning: writable component prop `custom` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:54:5
+   |
+LL |     custom: CustomWriter<String>,
+   |     ^^^^^^ resolves to writable type `CustomWriter<std::string::String>`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+
+warning: writable component prop `optional` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:55:5
+   |
+LL |     optional: Option<Option<RwSignal<String>>>,
+   |     ^^^^^^^^ resolves to writable type `std::option::Option<std::option::Option<leptos::prelude::RwSignal<std::string::String>>>`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+
+warning: writable component prop `writer` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:61:15
+   |
+LL | fn Generic<W>(writer: W) -> impl IntoView
+   |               ^^^^^^ resolves to writable type `W`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+
+warning: writable component prop `value` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:90:16
+   |
+LL | fn ReadAndBind(value: RwSignal<String>) -> impl IntoView {
+   |                ^^^^^ resolves to writable type `leptos::prelude::RwSignal<std::string::String>`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+
+warning: writable component prop `value` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:96:19
+   |
+LL | fn CaptureAndBind(value: RwSignal<String>) -> impl IntoView {
+   |                   ^^^^^ resolves to writable type `leptos::prelude::RwSignal<std::string::String>`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+
+warning: writable component prop `value` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:104:21
+   |
+LL | fn MultipleBindings(value: RwSignal<String>) -> impl IntoView {
+   |                     ^^^^^ resolves to writable type `leptos::prelude::RwSignal<std::string::String>`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+
+warning: writable component prop `value` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:109:21
+   |
+LL | fn ProjectedBinding(value: RwSignal<String>) -> impl IntoView {
+   |                     ^^^^^ resolves to writable type `leptos::prelude::RwSignal<std::string::String>`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+
+warning: writable component prop `value` exposes unrestricted reactive mutation
+  --> $DIR/semantic.rs:119:21
+   |
+LL | fn ForwardedToChild(value: RwSignal<String>) -> impl IntoView {
+   |                     ^^^^^ resolves to writable type `leptos::prelude::RwSignal<std::string::String>`
+   |
+   = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
+   = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
+
+warning: 14 warnings emitted
+

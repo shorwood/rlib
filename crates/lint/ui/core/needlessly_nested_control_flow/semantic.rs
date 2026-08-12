@@ -66,3 +66,10 @@ fn explicitly_allowed(valid: bool) {
 }
 
 fn main() {}
+
+// A final error handler already exits and does not hide useful work behind a condition.
+fn terminal_error(result: Result<(), ()>) {
+    if let Err(()) = result {
+        panic!("failed");
+    }
+}

@@ -101,7 +101,10 @@ const CROSS_CUTTING_LINT_ALLOWS: [&str; 98] = [
     "visibility_required_only_by_tests",
 ];
 
-const FIXTURE_LOCAL_LINT_ALLOWS: [&str; 20] = [
+// Leptos macro expansion intentionally produces shapes covered by these core lints. Keeping the
+// exceptions here lets each core lint's own standalone fixture continue to exercise the warning.
+#[cfg(feature = "leptos")]
+const LEPTOS_FIXTURE_LINT_ALLOWS: [&str; 20] = [
     "-A",
     "bool_fields_without_predicate_prefix",
     "-A",
@@ -124,20 +127,26 @@ const FIXTURE_LOCAL_LINT_ALLOWS: [&str; 20] = [
     "non_adjacent_struct_impls",
 ];
 
-/// Runs every default-configuration UI fixture against the lint library.
+/// Runs every standalone and dependency-aware UI fixture against the lint library.
 #[test]
 fn ui() {
+    run_standalone_fixtures();
+    #[cfg(feature = "leptos")]
+    run_dependency_aware_fixtures();
+}
+
+/// Runs fixtures that rustc can compile directly without Cargo dependency metadata.
+fn run_standalone_fixtures() {
     dylint_testing::ui::Test::src_base(env!("CARGO_PKG_NAME"), "ui/core")
         .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
         .run();
 }
 
-/// Runs dependency-aware Leptos fixtures against a library built with its default features.
+/// Runs all Cargo examples that need dependency linking or macro expansion.
 #[cfg(feature = "leptos")]
-#[test]
-fn leptos_ui() {
-    dylint_testing::ui::Test::example(env!("CARGO_PKG_NAME"), "boolean_component_props")
+fn run_dependency_aware_fixtures() {
+    dylint_testing::ui::Test::examples(env!("CARGO_PKG_NAME"))
         .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
-        .rustc_flags(FIXTURE_LOCAL_LINT_ALLOWS)
+        .rustc_flags(LEPTOS_FIXTURE_LINT_ALLOWS)
         .run();
 }
