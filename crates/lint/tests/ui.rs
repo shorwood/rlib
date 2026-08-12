@@ -231,6 +231,7 @@ fn run_leptos_fixtures() {
         "leptos_read_then_replace_signals",
         "leptos_reactive_writes_during_view_construction",
         "leptos_reactive_writes_in_resource_fetchers",
+        "leptos_resource_fetchers_rereading_sources",
         "leptos_unsanitized_inner_html",
         "leptos_unkeyed_reactive_collections",
         "leptos_unreactive_signal_reads_in_views",

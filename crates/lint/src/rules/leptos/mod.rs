@@ -14,6 +14,7 @@ pub mod leptos_primitive_context_values;
 pub mod leptos_read_then_replace_signals;
 pub mod leptos_reactive_writes_during_view_construction;
 pub mod leptos_reactive_writes_in_resource_fetchers;
+pub mod leptos_resource_fetchers_rereading_sources;
 pub mod leptos_unsanitized_inner_html;
 pub mod leptos_unkeyed_reactive_collections;
 pub mod leptos_unreactive_signal_reads_in_views;
