@@ -50,7 +50,7 @@ impl LateViolation for Violation {
 
     fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
-            IMPLICIT_DEFAULT_COMPONENT_PROPS,
+            LEPTOS_IMPLICIT_DEFAULT_COMPONENT_PROPS,
             self.owner,
             self.span,
             DiagDecorator(|diag| {
@@ -64,21 +64,21 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// ImplicitDefaultComponentProps: Component api policy
+// LeptosImplicitDefaultComponentProps: Component api policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that requires visible defaults for non-optional Leptos properties.
-struct ImplicitDefaultComponentProps;
+struct LeptosImplicitDefaultComponentProps;
 
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
-    pub IMPLICIT_DEFAULT_COMPONENT_PROPS,
+    pub LEPTOS_IMPLICIT_DEFAULT_COMPONENT_PROPS,
     Warn,
     "requires explicit defaults for implicitly optional Leptos component properties",
-    ImplicitDefaultComponentProps
+    LeptosImplicitDefaultComponentProps
 }
 
-impl ImplicitDefaultComponentProps {
+impl LeptosImplicitDefaultComponentProps {
     /// Returns whether the resolved property type represents meaningful absence.
     fn is_option(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
         let ty::Adt(definition, _) = ty.kind() else {
@@ -108,10 +108,13 @@ impl ImplicitDefaultComponentProps {
 
     /// Recognizes `prop` attributes whose argument list contains the `optional` option.
     fn is_optional_prop_attribute(attribute: &str) -> bool {
+        // Normalize formatting before extracting the attribute's top-level arguments.
         let compact: String = attribute
             .chars()
             .filter(|character| !character.is_whitespace())
             .collect();
+
+        // Isolate a `prop` argument list before checking its individual options.
         let Some(arguments) = compact
             .strip_prefix("prop(")
             .and_then(|attribute| attribute.strip_suffix(')'))
@@ -122,7 +125,7 @@ impl ImplicitDefaultComponentProps {
     }
 }
 
-impl<'tcx> LateLintPass<'tcx> for ImplicitDefaultComponentProps {
+impl<'tcx> LateLintPass<'tcx> for LeptosImplicitDefaultComponentProps {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         let Some(properties) = ComponentProps::from_impl(cx, item) else {
             return;
@@ -149,22 +152,20 @@ impl<'tcx> LateLintPass<'tcx> for ImplicitDefaultComponentProps {
 
 #[cfg(test)]
 mod tests {
-    use super::ImplicitDefaultComponentProps;
+    use super::LeptosImplicitDefaultComponentProps;
 
     #[test]
     fn recognizes_optional_prop_attributes() {
-        assert!(ImplicitDefaultComponentProps::is_optional_prop_attribute(
-            "prop(optional)"
-        ));
-        assert!(ImplicitDefaultComponentProps::is_optional_prop_attribute(
-            "prop(into, optional)"
-        ));
-        assert!(!ImplicitDefaultComponentProps::is_optional_prop_attribute(
-            "prop(default = 100)"
-        ));
-        assert!(!ImplicitDefaultComponentProps::is_optional_prop_attribute(
-            "allow(dead_code)"
-        ));
+        assert!(LeptosImplicitDefaultComponentProps::is_optional_prop_attribute("prop(optional)"));
+        assert!(
+            LeptosImplicitDefaultComponentProps::is_optional_prop_attribute("prop(into, optional)")
+        );
+        assert!(
+            !LeptosImplicitDefaultComponentProps::is_optional_prop_attribute("prop(default = 100)")
+        );
+        assert!(
+            !LeptosImplicitDefaultComponentProps::is_optional_prop_attribute("allow(dead_code)")
+        );
     }
 }
 

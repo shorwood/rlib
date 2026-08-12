@@ -1,4 +1,4 @@
-# writable_signal_component_props
+# leptos_writable_signal_component_props
 
 ## What it does
 

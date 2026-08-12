@@ -1,5 +1,10 @@
 #![feature(register_tool)]
-#![allow(dead_code, deprecated, unknown_lints, writable_signal_component_props)]
+#![allow(unknown_lints)]
+#![allow(
+    dead_code,
+    deprecated,
+    leptos_writable_signal_component_props
+)]
 #![register_tool(rlib_lint)]
 
 use leptos::prelude::*;
@@ -31,7 +36,7 @@ fn Explicit(
     view! { <span/> }
 }
 
-#[allow(implicit_default_component_props)]
+#[allow(leptos_implicit_default_component_props)]
 #[component]
 fn Suppressed(#[prop(optional)] count: usize) -> impl IntoView {
     view! { <span>{count}</span> }

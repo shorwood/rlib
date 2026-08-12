@@ -74,9 +74,12 @@ dylint_linting::impl_late_lint! {
 impl LeptosReactiveWritesDuringViewConstruction {
     /// Returns whether this method is a mutation operation from the reactive graph.
     fn is_reactive_write(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // Resolve the authored method call to its defining trait.
         let ExprKind::MethodCall(_, _, _, _) = expression.kind else {
             return false;
         };
+
+        // Look up the method selected by type checking this body.
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
         let Some(method) = cx
             .tcx
@@ -85,9 +88,13 @@ impl LeptosReactiveWritesDuringViewConstruction {
         else {
             return false;
         };
+
+        // Discard identically named methods outside the reactive graph crate.
         if cx.tcx.crate_name(method.krate).as_str() != "reactive_graph" {
             return false;
         }
+
+        // Restrict mutation evidence to the reactive graph's write traits.
         cx.tcx.trait_of_assoc(method).is_some_and(|trait_id| {
             matches!(
                 cx.tcx.item_name(trait_id).as_str(),
@@ -98,15 +105,22 @@ impl LeptosReactiveWritesDuringViewConstruction {
 
     /// Returns whether the call resolves to `tachys::Suspend::new`.
     fn is_suspend_new(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // Resolve the called associated function and its implementing type.
         let ExprKind::Call(callee, _) = expression.kind else {
             return false;
         };
+
+        // Require a direct path to an associated function.
         let ExprKind::Path(path) = callee.kind else {
             return false;
         };
+
+        // Resolve that path to its function definition.
         let Res::Def(_, method) = cx.qpath_res(&path, callee.hir_id) else {
             return false;
         };
+
+        // Recover the implementation and its concrete self type.
         let Some(implementation) = cx.tcx.impl_of_assoc(method) else {
             return false;
         };
@@ -118,6 +132,8 @@ impl LeptosReactiveWritesDuringViewConstruction {
         else {
             return false;
         };
+
+        // Match only the framework's suspend constructor.
         cx.tcx.crate_name(method.krate).as_str() == "tachys"
             && cx.tcx.item_name(method).as_str() == "new"
             && cx.tcx.item_name(definition.did()).as_str() == "Suspend"

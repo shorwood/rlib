@@ -1,4 +1,4 @@
-# implicit_default_component_props
+# leptos_implicit_default_component_props
 
 ## What it does
 

@@ -1,7 +1,12 @@
 #![feature(register_tool)]
 #![allow(clippy::option_option)] // Nested transparent wrappers are intentional lint coverage.
 #![allow(unknown_lints)]
-#![allow(boolean_component_props, dead_code, deprecated, unused_variables)]
+#![allow(
+    leptos_boolean_component_props,
+    dead_code,
+    deprecated,
+    unused_variables
+)]
 #![register_tool(rlib_lint)]
 
 use std::ops::DerefMut;
@@ -131,7 +136,7 @@ fn Valid(
     view! { <span/> }
 }
 
-#[allow(writable_signal_component_props)]
+#[allow(leptos_writable_signal_component_props)]
 #[component]
 fn Suppressed(value: RwSignal<String>) -> impl IntoView {
     view! { <span/> }

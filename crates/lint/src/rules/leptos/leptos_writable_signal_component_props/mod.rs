@@ -52,7 +52,7 @@ impl LateViolation for Violation {
 
     fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
-            WRITABLE_SIGNAL_COMPONENT_PROPS,
+            LEPTOS_WRITABLE_SIGNAL_COMPONENT_PROPS,
             self.owner,
             self.span,
             DiagDecorator(|diag| {
@@ -69,21 +69,21 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// WritableSignalComponentProps: Component capability policy
+// LeptosWritableSignalComponentProps: Component capability policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that rejects writable reactive authority in Leptos component properties.
-struct WritableSignalComponentProps;
+struct LeptosWritableSignalComponentProps;
 
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
-    pub WRITABLE_SIGNAL_COMPONENT_PROPS,
+    pub LEPTOS_WRITABLE_SIGNAL_COMPONENT_PROPS,
     Warn,
     "rejects writable reactive authority in Leptos component properties",
-    WritableSignalComponentProps
+    LeptosWritableSignalComponentProps
 }
 
-impl<'tcx> LateLintPass<'tcx> for WritableSignalComponentProps {
+impl<'tcx> LateLintPass<'tcx> for LeptosWritableSignalComponentProps {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         let Some(properties) = ComponentProps::from_impl(cx, item) else {
             return;

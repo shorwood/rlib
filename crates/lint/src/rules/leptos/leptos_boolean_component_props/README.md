@@ -1,4 +1,4 @@
-# boolean_component_props
+# leptos_boolean_component_props
 
 ## What it does
 

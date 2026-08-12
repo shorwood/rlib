@@ -23,13 +23,13 @@ leptos = { version = "=0.8.20", features = ["ssr"] }
 reactive_stores = "=0.4.3"
 
 [[example]]
-name = "boolean_component_props"
-path = "ui/leptos/boolean_component_props/semantic.rs"
+name = "leptos_boolean_component_props"
+path = "ui/leptos/leptos_boolean_component_props/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
-name = "writable_signal_component_props"
-path = "ui/leptos/writable_signal_component_props/semantic.rs"
+name = "leptos_writable_signal_component_props"
+path = "ui/leptos/leptos_writable_signal_component_props/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]

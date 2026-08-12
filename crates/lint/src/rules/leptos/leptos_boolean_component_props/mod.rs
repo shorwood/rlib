@@ -50,7 +50,7 @@ impl LateViolation for Violation {
 
     fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
-            BOOLEAN_COMPONENT_PROPS,
+            LEPTOS_BOOLEAN_COMPONENT_PROPS,
             self.owner,
             self.span,
             DiagDecorator(|diag| {
@@ -67,13 +67,13 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// BooleanComponentProps: Component api policy
+// LeptosBooleanComponentProps: Component api policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that rejects boolean state in Leptos component properties.
-struct BooleanComponentProps;
+struct LeptosBooleanComponentProps;
 
-impl BooleanComponentProps {
+impl LeptosBooleanComponentProps {
     /// Recognizes boolean state whose name already carries a standard platform meaning.
     fn is_platform_state(name: &str) -> bool {
         matches!(name, "disabled" | "invalid")
@@ -82,13 +82,13 @@ impl BooleanComponentProps {
 
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
-    pub BOOLEAN_COMPONENT_PROPS,
+    pub LEPTOS_BOOLEAN_COMPONENT_PROPS,
     Warn,
     "rejects boolean state in Leptos component properties",
-    BooleanComponentProps
+    LeptosBooleanComponentProps
 }
 
-impl<'tcx> LateLintPass<'tcx> for BooleanComponentProps {
+impl<'tcx> LateLintPass<'tcx> for LeptosBooleanComponentProps {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         let Some(properties) = ComponentProps::from_impl(cx, item) else {
             return;
@@ -121,15 +121,17 @@ impl<'tcx> LateLintPass<'tcx> for BooleanComponentProps {
 
 #[cfg(test)]
 mod tests {
-    use super::BooleanComponentProps;
+    use super::LeptosBooleanComponentProps;
 
     #[test]
     fn accepts_only_established_platform_states() {
-        assert!(BooleanComponentProps::is_platform_state("disabled"));
-        assert!(BooleanComponentProps::is_platform_state("invalid"));
-        assert!(!BooleanComponentProps::is_platform_state("active"));
-        assert!(!BooleanComponentProps::is_platform_state("compact"));
-        assert!(!BooleanComponentProps::is_platform_state("featured"));
-        assert!(!BooleanComponentProps::is_platform_state("is_disabled"));
+        assert!(LeptosBooleanComponentProps::is_platform_state("disabled"));
+        assert!(LeptosBooleanComponentProps::is_platform_state("invalid"));
+        assert!(!LeptosBooleanComponentProps::is_platform_state("active"));
+        assert!(!LeptosBooleanComponentProps::is_platform_state("compact"));
+        assert!(!LeptosBooleanComponentProps::is_platform_state("featured"));
+        assert!(!LeptosBooleanComponentProps::is_platform_state(
+            "is_disabled"
+        ));
     }
 }
