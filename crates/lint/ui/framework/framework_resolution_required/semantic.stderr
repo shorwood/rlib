@@ -8,5 +8,14 @@ LL |     const ALL: [Self; 3] = [Self::Planned, Self::Running, Self::Complete];
    = help: set `derive_resolution.enum_variant_collection` to `strum_enum_iter` or `strum_variant_array` in the `rlib-lint` Dylint table
    = note: `#[warn(framework_resolution_required)]` on by default
 
-warning: 1 warning emitted
+warning: enum variant predicates have multiple eligible framework resolutions
+  --> $DIR/semantic.rs:23:9
+   |
+LL |         matches!(self, Self::Write(_))
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: Strum `EnumIs` and derive_more `IsVariant` generate the same predicate family; dependency presence cannot choose that provider policy
+   = help: set `derive_resolution.enum_variant_predicates` to `strum_enum_is` or `derive_more_is_variant` in the `rlib-lint` Dylint table
+
+warning: 2 warnings emitted
 

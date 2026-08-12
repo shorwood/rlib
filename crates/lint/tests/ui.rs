@@ -237,8 +237,10 @@ fn run_leptos_fixtures() {
 fn run_strum_fixtures() {
     for example in [
         "framework_resolution_required",
+        "strum_manual_enum_accessors",
         "strum_manual_enum_counts",
         "strum_manual_enum_iteration",
+        "strum_manual_repr_conversions",
     ] {
         Test::example(env!("CARGO_PKG_NAME"), example)
             .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
@@ -250,6 +252,15 @@ fn run_strum_fixtures() {
             r#"
                 [rlib-lint.derive_resolution]
                 enum_variant_collection = "strum_variant_array"
+            "#,
+        )
+        .run();
+    Test::example(env!("CARGO_PKG_NAME"), "strum_manual_enum_predicates")
+        .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+        .dylint_toml(
+            r#"
+                [rlib-lint.derive_resolution]
+                enum_variant_predicates = "strum_enum_is"
             "#,
         )
         .run();

@@ -20,6 +20,7 @@ serde = { version = "1", features = ["derive"] }
 toml = "0.9"
 
 [dev-dependencies]
+derive_more = { version = "=2.1.1", features = ["is_variant"] }
 dylint_testing = "=6.0.1"
 leptos = { version = "=0.8.20", features = ["ssr"] }
 reactive_stores = "=0.4.3"
@@ -103,6 +104,21 @@ required-features = ["strum"]
 [[example]]
 name = "strum_manual_enum_iteration"
 path = "ui/strum/strum_manual_enum_iteration/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_manual_enum_predicates"
+path = "ui/strum/strum_manual_enum_predicates/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_manual_enum_accessors"
+path = "ui/strum/strum_manual_enum_accessors/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_manual_repr_conversions"
+path = "ui/strum/strum_manual_repr_conversions/semantic.rs"
 required-features = ["strum"]
 
 [[example]]

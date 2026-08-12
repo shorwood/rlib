@@ -25,4 +25,5 @@ Select the intended provider explicitly in the workspace-root `dylint.toml`:
 ```rust,ignore
 // dylint.toml: [rlib-lint.derive_resolution]
 // enum_variant_collection = "strum_variant_array"
+// enum_variant_predicates = "strum_enum_is"
 ```

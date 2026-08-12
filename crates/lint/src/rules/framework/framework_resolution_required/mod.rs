@@ -21,6 +21,8 @@ use super::config::DeriveResolutionConfig;
 #[cfg(feature = "strum")]
 use crate::rules::strum::utils::enumeration::CollectionCandidate;
 #[cfg(feature = "strum")]
+use crate::rules::strum::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer};
+#[cfg(feature = "strum")]
 use crate::utils::config::LibraryConfig;
 #[cfg(feature = "strum")]
 use crate::utils::diagnostic::LateViolation;
@@ -31,12 +33,12 @@ use crate::utils::diagnostic::LateViolation;
 
 /// Exhaustive enum collection whose two compatible Strum APIs need explicit policy.
 #[cfg(feature = "strum")]
-struct Violation {
+struct CollectionViolation {
     span: Span,
 }
 
 #[cfg(feature = "strum")]
-impl LateViolation for Violation {
+impl LateViolation for CollectionViolation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("enum variant collection has multiple eligible framework resolutions")
     }
@@ -66,6 +68,43 @@ impl LateViolation for Violation {
     }
 }
 
+/// Complete enum predicate family whose two derive providers need explicit policy.
+#[cfg(feature = "strum")]
+struct PredicateViolation {
+    span: Span,
+}
+
+#[cfg(feature = "strum")]
+impl LateViolation for PredicateViolation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed("enum variant predicates have multiple eligible framework resolutions")
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "Strum `EnumIs` and derive_more `IsVariant` generate the same predicate family; dependency presence cannot choose that provider policy",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "set `derive_resolution.enum_variant_predicates` to `strum_enum_is` or `derive_more_is_variant` in the `rlib-lint` Dylint table",
+        )
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.emit_span_lint(
+            FRAMEWORK_RESOLUTION_REQUIRED,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
+
 // -----------------------------------------------------------------------------
 // FrameworkResolutionRequired: Provider arbitration
 // -----------------------------------------------------------------------------
@@ -74,6 +113,8 @@ impl LateViolation for Violation {
 struct FrameworkResolutionRequired {
     #[cfg(feature = "strum")]
     config: DeriveResolutionConfig,
+    #[cfg(feature = "strum")]
+    predicates: PredicateFamilyAnalyzer,
 }
 
 impl FrameworkResolutionRequired {
@@ -81,6 +122,8 @@ impl FrameworkResolutionRequired {
         Self {
             #[cfg(feature = "strum")]
             config: LibraryConfig::load().derive_resolution,
+            #[cfg(feature = "strum")]
+            predicates: PredicateFamilyAnalyzer::default(),
         }
     }
 
@@ -90,10 +133,21 @@ impl FrameworkResolutionRequired {
             return;
         };
         if candidate.providers().len() > 1 && self.config.enum_variant_collection().is_none() {
-            Violation {
+            CollectionViolation {
                 span: candidate.span,
             }
             .emit(cx);
+        }
+    }
+
+    #[cfg(feature = "strum")]
+    fn emit_unresolved_predicates(&self, cx: &LateContext<'_>) {
+        for family in self.predicates.complete_families(cx) {
+            if PredicateFamily::providers(cx).len() > 1
+                && self.config.enum_variant_predicates().is_none()
+            {
+                PredicateViolation { span: family.span }.emit(cx);
+            }
         }
     }
 }
@@ -116,9 +170,19 @@ impl LateLintPass<'_> for FrameworkResolutionRequired {
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         #[cfg(feature = "strum")]
-        self.check_candidate(cx, CollectionCandidate::from_impl_item(cx, item));
+        {
+            self.check_candidate(cx, CollectionCandidate::from_impl_item(cx, item));
+            self.predicates.check_impl_item(cx, item);
+        }
         #[cfg(not(feature = "strum"))]
         let _ = (cx, item);
+    }
+
+    fn check_crate_post(&mut self, cx: &LateContext<'_>) {
+        #[cfg(feature = "strum")]
+        self.emit_unresolved_predicates(cx);
+        #[cfg(not(feature = "strum"))]
+        let _ = cx;
     }
 }
 
@@ -131,6 +195,9 @@ mod tests {
         let config = toml::from_str::<DeriveResolutionConfig>("")
             .expect("empty resolution config should parse");
         #[cfg(feature = "strum")]
-        assert!(config.enum_variant_collection().is_none());
+        {
+            assert!(config.enum_variant_collection().is_none());
+            assert!(config.enum_variant_predicates().is_none());
+        }
     }
 }

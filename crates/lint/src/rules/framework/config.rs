@@ -2,6 +2,8 @@ use serde::Deserialize;
 
 #[cfg(feature = "strum")]
 use crate::rules::strum::utils::enumeration::CollectionProvider;
+#[cfg(feature = "strum")]
+use crate::rules::strum::utils::variant_methods::PredicateProvider;
 
 // -----------------------------------------------------------------------------
 // DeriveResolutionConfig: Explicit framework provider policy
@@ -15,6 +17,9 @@ pub(crate) struct DeriveResolutionConfig {
     /// Provider selected for exhaustive enum variant collections.
     #[cfg(feature = "strum")]
     enum_variant_collection: Option<CollectionProvider>,
+    /// Provider selected for generated enum variant predicates.
+    #[cfg(feature = "strum")]
+    enum_variant_predicates: Option<PredicateProvider>,
 }
 
 impl DeriveResolutionConfig {
@@ -23,6 +28,12 @@ impl DeriveResolutionConfig {
     pub(crate) const fn enum_variant_collection(&self) -> Option<CollectionProvider> {
         self.enum_variant_collection
     }
+
+    /// Returns the configured provider for enum variant predicates.
+    #[cfg(feature = "strum")]
+    pub(crate) const fn enum_variant_predicates(&self) -> Option<PredicateProvider> {
+        self.enum_variant_predicates
+    }
 }
 
 #[cfg(test)]
@@ -30,6 +41,8 @@ mod tests {
     use super::DeriveResolutionConfig;
     #[cfg(feature = "strum")]
     use crate::rules::strum::utils::enumeration::CollectionProvider;
+    #[cfg(feature = "strum")]
+    use crate::rules::strum::utils::variant_methods::PredicateProvider;
 
     #[cfg(feature = "strum")]
     #[test]
@@ -50,6 +63,30 @@ mod tests {
         assert!(
             toml::from_str::<DeriveResolutionConfig>(
                 r#"enum_variant_collection = "dependency_order""#
+            )
+            .is_err()
+        );
+    }
+
+    #[cfg(feature = "strum")]
+    #[test]
+    fn parses_explicit_strum_predicate_provider() {
+        let config = toml::from_str::<DeriveResolutionConfig>(
+            r#"enum_variant_predicates = "strum_enum_is""#,
+        )
+        .expect("known predicate provider should parse");
+        assert_eq!(
+            config.enum_variant_predicates,
+            Some(PredicateProvider::StrumEnumIs)
+        );
+    }
+
+    #[cfg(feature = "strum")]
+    #[test]
+    fn rejects_implicit_predicate_provider_order() {
+        assert!(
+            toml::from_str::<DeriveResolutionConfig>(
+                r#"enum_variant_predicates = "dependency_order""#
             )
             .is_err()
         );

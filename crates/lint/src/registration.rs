@@ -23,8 +23,11 @@ pub extern "Rust" fn register_lints(
 
     #[cfg(feature = "strum")]
     {
+        rules::strum::strum_manual_enum_accessors::register_lints(sess, lint_store);
         rules::strum::strum_manual_enum_counts::register_lints(sess, lint_store);
         rules::strum::strum_manual_enum_iteration::register_lints(sess, lint_store);
+        rules::strum::strum_manual_enum_predicates::register_lints(sess, lint_store);
+        rules::strum::strum_manual_repr_conversions::register_lints(sess, lint_store);
         rules::strum::strum_manual_variant_arrays::register_lints(sess, lint_store);
     }
 

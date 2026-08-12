@@ -1,0 +1,16 @@
+warning: `Message` tuple-variant accessors are maintained manually
+  --> $DIR/semantic.rs:18:9
+   |
+LL | /         match self {
+LL | |             Self::Write(value) => Some(value),
+LL | |             _ => None,
+LL | |         }
+   | |_________^
+   |
+   = note: the complete owned, shared, and mutable accessor family duplicates tuple field extraction and `Option` failure behavior
+   = note: these accessors are public; generated names, visibility, and return types require a compatibility review
+   = help: derive `strum::EnumTryAs` and remove the equivalent inherent accessor family
+   = note: `#[warn(strum_manual_enum_accessors)]` on by default
+
+warning: 1 warning emitted
+
