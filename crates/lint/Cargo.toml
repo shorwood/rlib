@@ -33,6 +33,11 @@ path = "ui/leptos/writable_signal_component_props/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
+name = "leptos_manual_resource_refetch_signals"
+path = "ui/leptos/leptos_manual_resource_refetch_signals/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_reactive_writes_during_view_construction"
 path = "ui/leptos/leptos_reactive_writes_during_view_construction/semantic.rs"
 required-features = ["leptos"]
