@@ -136,11 +136,11 @@ fn ui() {
     if rerun_with_feature_aware_cargo_wrapper() {
         return;
     }
-    #[cfg(feature = "strum")]
-    if selected_strum_fixture().is_none() {
+    #[cfg(any(feature = "strum", feature = "leptos"))]
+    if selected_framework_fixture().is_none() {
         run_standalone_fixtures();
     }
-    #[cfg(not(feature = "strum"))]
+    #[cfg(not(any(feature = "strum", feature = "leptos")))]
     run_standalone_fixtures();
     #[cfg(feature = "strum")]
     run_strum_fixtures();
@@ -215,10 +215,12 @@ fn run_standalone_fixtures() {
 /// Runs all Cargo examples that need dependency linking or macro expansion.
 #[cfg(feature = "leptos")]
 fn run_leptos_fixtures() {
+    let selected = selected_framework_fixture();
     for example in [
         "leptos_markup_repeating_view_comments",
         "leptos_duplicate_view_section_comments",
         "leptos_oversized_view_sections",
+        "leptos_primitive_context_values",
         "leptos_malformed_view_section_comments",
         "leptos_attribute_bound_controlled_inputs",
         "leptos_boolean_component_props",
@@ -235,6 +237,12 @@ fn run_leptos_fixtures() {
         "leptos_unstable_for_keys",
         "leptos_writable_signal_component_props",
     ] {
+        if selected
+            .as_deref()
+            .is_some_and(|selected| selected != example)
+        {
+            continue;
+        }
         Test::example(env!("CARGO_PKG_NAME"), example)
             .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
             .rustc_flags(LEPTOS_FIXTURE_LINT_ALLOWS)
@@ -245,7 +253,7 @@ fn run_leptos_fixtures() {
 /// Runs each Strum fixture with the provider policy its expected diagnostic requires.
 #[cfg(feature = "strum")]
 fn run_strum_fixtures() {
-    let selected = selected_strum_fixture();
+    let selected = selected_framework_fixture();
     for example in [
         "framework_resolution_required",
         "strum_manual_enum_accessors",
@@ -335,9 +343,11 @@ fn run_strum_fixtures() {
     }
 }
 
-#[cfg(feature = "strum")]
-fn selected_strum_fixture() -> Option<String> {
+#[cfg(any(feature = "strum", feature = "leptos"))]
+fn selected_framework_fixture() -> Option<String> {
     use std::env::var;
 
-    var("RLIB_LINT_STRUM_FIXTURE").ok()
+    var("RLIB_LINT_FRAMEWORK_FIXTURE")
+        .or_else(|_| var("RLIB_LINT_STRUM_FIXTURE"))
+        .ok()
 }

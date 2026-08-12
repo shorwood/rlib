@@ -10,6 +10,7 @@ pub mod leptos_markup_repeating_view_comments;
 pub mod leptos_missing_view_section_comments;
 pub mod leptos_needlessly_cloned_signal_values;
 pub mod leptos_oversized_view_sections;
+pub mod leptos_primitive_context_values;
 pub mod leptos_read_then_replace_signals;
 pub mod leptos_reactive_writes_during_view_construction;
 pub mod leptos_reactive_writes_in_resource_fetchers;
