@@ -5,4 +5,5 @@ pub mod leptos_manual_resource_refetch_signals;
 pub mod leptos_needlessly_cloned_signal_values;
 pub mod leptos_reactive_writes_during_view_construction;
 pub mod leptos_unsanitized_inner_html;
+pub mod leptos_unkeyed_reactive_collections;
 pub mod leptos_writable_signal_component_props;
