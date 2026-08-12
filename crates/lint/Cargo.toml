@@ -41,6 +41,11 @@ path = "ui/leptos/leptos_boolean_component_props/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
+name = "leptos_duplicate_view_section_comments"
+path = "ui/leptos/leptos_duplicate_view_section_comments/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_effects_synchronizing_signals"
 path = "ui/leptos/leptos_effects_synchronizing_signals/semantic.rs"
 required-features = ["leptos"]
