@@ -88,6 +88,15 @@ LL | include!("included.rs");
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: move the macro elsewhere and spell this barrel's module declarations explicitly
 
+warning: implementation code does not belong in a barrel file
+  --> $DIR/auxiliary/directory_bad/mod.rs:3:1
+   |
+LL | fn implementation_beside_directory_child() {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
+   = help: move this code into a dedicated module and leave only its module declaration here
+
 warning: imports do not belong in a barrel file
   --> $DIR/auxiliary/lib_bad/lib.rs:1:1
    |
@@ -106,5 +115,5 @@ LL | fn crate_root_implementation() {}
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: move this code into a dedicated module and leave only its module declaration here
 
-warning: 11 warnings emitted
+warning: 12 warnings emitted
 

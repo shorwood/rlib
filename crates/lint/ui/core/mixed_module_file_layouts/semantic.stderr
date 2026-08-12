@@ -1,0 +1,12 @@
+warning: module `split` splits its files across two source roots
+  --> $DIR/auxiliary/mixed_parent.rs:1:1
+   |
+LL | mod split;
+   | ^^^^^^^^^^
+   |
+   = note: `split.rs` and `split/` make readers check two locations for one module
+   = help: move `split.rs` to `split/mod.rs` so the module and its companion files share one directory
+   = note: `#[warn(mixed_module_file_layouts)]` on by default
+
+warning: 1 warning emitted
+

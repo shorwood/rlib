@@ -8,6 +8,10 @@
 // filename, so an inline module in this test driver would not exercise the policy.
 #[path = "auxiliary/bad/mod.rs"]
 mod bad;
+#[path = "auxiliary/directory_bad/mod.rs"]
+mod directory_bad;
+#[path = "auxiliary/documented_leaf/mod.rs"]
+mod documented_leaf;
 #[path = "auxiliary/empty/mod.rs"]
 mod empty;
 #[path = "auxiliary/good/mod.rs"]

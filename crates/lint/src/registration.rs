@@ -68,6 +68,7 @@ pub extern "Rust" fn register_lints(
     rules::core::mismatched_section_divider_prefixes::register_lints(sess, lint_store);
     rules::core::missing_code_phase_comments::register_lints(sess, lint_store);
     rules::core::missing_section_dividers::register_lints(sess, lint_store);
+    rules::core::mixed_module_file_layouts::register_lints(sess, lint_store);
 
     // Register nesting, tuple, and adjacency policies.
     rules::core::needless_delegating_types::register_lints(sess, lint_store);
