@@ -126,6 +126,7 @@ pub extern "Rust" fn register_lints(
         rules::leptos::leptos_implicit_default_component_props::register_lints(sess, lint_store);
         rules::leptos::leptos_manual_resource_refetch_signals::register_lints(sess, lint_store);
         rules::leptos::leptos_malformed_view_section_comments::register_lints(sess, lint_store);
+        rules::leptos::leptos_markup_repeating_view_comments::register_lints(sess, lint_store);
         rules::leptos::leptos_missing_view_section_comments::register_lints(sess, lint_store);
         rules::leptos::leptos_needlessly_cloned_signal_values::register_lints(sess, lint_store);
         rules::leptos::leptos_oversized_view_sections::register_lints(sess, lint_store);

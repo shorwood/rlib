@@ -1,0 +1,36 @@
+warning: this view section heading only repeats its markup
+  --> $DIR/semantic.rs:20:13
+   |
+LL |             // Navigation
+   |             ^^^^^^^^^^^^^ repeats this node
+LL |             <Navigation/>
+   |             ------------- the markup already says this
+   |
+   = note: a heading should explain the region's role rather than translate its tag
+   = help: remove the heading, or name the user-facing responsibility of this region
+   = note: `#[warn(leptos_markup_repeating_view_comments)]` on by default
+
+warning: this view section heading only repeats its markup
+  --> $DIR/semantic.rs:23:13
+   |
+LL |             // Submit button
+   |             ^^^^^^^^^^^^^^^^ repeats this node
+LL |             <button>"Submit"</button>
+   |             ------------------------- the markup already says this
+   |
+   = note: a heading should explain the region's role rather than translate its tag
+   = help: remove the heading, or name the user-facing responsibility of this region
+
+warning: this view section heading only repeats its markup
+  --> $DIR/semantic.rs:26:13
+   |
+LL |             // Navigation
+   |             ^^^^^^^^^^^^^ repeats this node
+LL |             <nav/>
+   |             ------ the markup already says this
+   |
+   = note: a heading should explain the region's role rather than translate its tag
+   = help: remove the heading, or name the user-facing responsibility of this region
+
+warning: 3 warnings emitted
+

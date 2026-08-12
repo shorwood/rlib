@@ -88,7 +88,7 @@ pub(crate) struct ViewNode {
     /// Exact authored source range of the construct.
     pub(crate) span: Span,
     /// Source-relative range used to associate comments.
-    range: Range<usize>,
+    pub(crate) range: Range<usize>,
     /// Direct navigation complexity contributed by the construct.
     pub(crate) complexity: usize,
     /// Authored opening-tag name, when this is an element or component.
@@ -338,6 +338,9 @@ impl ViewScopeBuilder<'_> {
     fn collect_headings(&self, nodes: &[ViewNode], bounds: &Range<usize>) -> Vec<ViewHeading> {
         self.comments
             .iter()
+            .filter(|comment| {
+                comment.range.start >= bounds.start && comment.range.end <= bounds.end
+            })
             .filter_map(|comment| {
                 let node = nodes
                     .iter()
