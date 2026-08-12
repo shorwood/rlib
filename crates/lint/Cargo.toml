@@ -47,6 +47,11 @@ name = "leptos_reactive_writes_during_view_construction"
 path = "ui/leptos/leptos_reactive_writes_during_view_construction/semantic.rs"
 required-features = ["leptos"]
 
+[[example]]
+name = "leptos_unsanitized_inner_html"
+path = "ui/leptos/leptos_unsanitized_inner_html/semantic.rs"
+required-features = ["leptos"]
+
 [lints]
 workspace = true
 

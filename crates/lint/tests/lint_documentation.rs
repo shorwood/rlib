@@ -20,7 +20,7 @@ fn active_lints_have_canonical_public_documentation() {
 
     assert_eq!(
         lint_directories.len(),
-        66,
+        67,
         "update the documented active-lint count"
     );
     for directory in lint_directories {
