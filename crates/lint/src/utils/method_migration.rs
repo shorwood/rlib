@@ -2,6 +2,7 @@ extern crate rustc_hir;
 extern crate rustc_lint;
 extern crate rustc_span;
 
+use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 
 use rustc_hir::HirId;
@@ -53,8 +54,7 @@ impl MigrationEdits {
     /// Editing from right to left ensures that an earlier replacement cannot move the text used by
     /// a later one.
     fn apply_to(&mut self, source: &mut String, outer: Span) -> Option<()> {
-        self.0
-            .sort_unstable_by_key(|edit| std::cmp::Reverse(edit.span.lo()));
+        self.0.sort_unstable_by_key(|edit| Reverse(edit.span.lo()));
         for edit in &self.0 {
             let Ok(start) = usize::try_from((edit.span.lo() - outer.lo()).to_u32()) else {
                 return None;

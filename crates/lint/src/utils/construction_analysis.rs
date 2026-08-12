@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 
 use rustc_abi::ExternAbi;
 use rustc_hir::def::{DefKind, Res};
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::intravisit::{self, FnKind, Visitor};
 use rustc_hir::{Body, Expr, ExprKind, HirId, Item, ItemKind, Node, PatKind};
 use rustc_lint::{LateContext, LintContext};
@@ -555,10 +555,7 @@ impl ConstructionAnalysis {
         };
         let resolutions = [path.res.type_ns, path.res.value_ns, path.res.macro_ns];
         for resolution in resolutions.into_iter().flatten() {
-            let Some(def_id) = resolution
-                .opt_def_id()
-                .and_then(rustc_hir::def_id::DefId::as_local)
-            else {
+            let Some(def_id) = resolution.opt_def_id().and_then(DefId::as_local) else {
                 continue;
             };
             if cx.tcx.def_kind(def_id) != DefKind::Fn {

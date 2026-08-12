@@ -4,11 +4,13 @@ extern crate rustc_middle;
 extern crate rustc_span;
 
 use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
+use std::iter::once;
 
 use rustc_errors::{Applicability, DiagDecorator};
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir::intravisit::FnKind;
-use rustc_hir::{Body, Expr, FnDecl, Item, ItemKind, Node};
+use rustc_hir::{Body, Expr, FnDecl, HirId, Item, ItemKind, Node};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
 use rustc_span::Span;
@@ -47,7 +49,7 @@ struct Migration {
 /// Constructor-like free function and its precise ownership remediation.
 struct Violation {
     /// HIR owner used for lint-level configuration.
-    hir_id: rustc_hir::HirId,
+    hir_id: HirId,
     /// Authored constructor identifier.
     span: Span,
     /// Free-function name shown in the diagnostic.
@@ -112,7 +114,7 @@ impl LateViolation for Violation {
                 diag.primary_message(primary);
                 diag.note(rationale);
                 if let Some(migration) = self.migration {
-                    let edits = std::iter::once(migration.definition)
+                    let edits = once(migration.definition)
                         .chain(migration.references)
                         .map(|edit| (edit.span, edit.replacement))
                         .collect();
@@ -183,7 +185,7 @@ impl<'tcx> LateLintPass<'tcx> for ConstructorLikeFreeFunctions {
         let conversion_definitions = reportable_conversions
             .into_iter()
             .map(|candidate| candidate.identity.def_id)
-            .collect::<std::collections::HashSet<_>>();
+            .collect::<HashSet<_>>();
         let collection_definitions = self.collections.reportable_definitions();
         for candidate in &self.constructions.candidates {
             // Leave receiver-shaped functions and canonical parsers to their stronger rules.
@@ -272,7 +274,7 @@ impl ConstructorLikeFreeFunctions {
     /// Returns whether a stronger unique-parser diagnostic owns this candidate.
     fn parser_has_precedence(
         analysis: &ConstructionAnalysis,
-        families: &std::collections::HashMap<LocalDefId, Vec<&ConstructionCandidate>>,
+        families: &HashMap<LocalDefId, Vec<&ConstructionCandidate>>,
         candidate: &ConstructionCandidate,
     ) -> bool {
         families

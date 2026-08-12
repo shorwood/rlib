@@ -6,8 +6,8 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::def::Res;
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::def::{DefKind, Res};
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
@@ -136,15 +136,12 @@ impl LateLintPass<'_> for BidirectionalModuleDependencies {
             .flatten()
         {
             // Resolve one imported namespace to a local definition.
-            let Some(target_definition) = resolution
-                .opt_def_id()
-                .and_then(rustc_span::def_id::DefId::as_local)
-            else {
+            let Some(target_definition) = resolution.opt_def_id().and_then(DefId::as_local) else {
                 continue;
             };
 
             // Normalize imported items to the module that owns them.
-            let target = if matches!(resolution, Res::Def(rustc_hir::def::DefKind::Mod, _)) {
+            let target = if matches!(resolution, Res::Def(DefKind::Mod, _)) {
                 target_definition
             } else {
                 cx.tcx

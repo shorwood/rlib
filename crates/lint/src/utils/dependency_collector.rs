@@ -3,7 +3,7 @@ extern crate rustc_middle;
 
 use std::collections::HashSet;
 
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::{BodyId, intravisit};
 use rustc_middle::ty::TyCtxt;
 
@@ -39,11 +39,7 @@ impl<'tcx> DependencyCollector<'tcx> {
 
 impl<'tcx> intravisit::Visitor<'tcx> for DependencyCollector<'tcx> {
     fn visit_path(&mut self, path: &rustc_hir::Path<'tcx>, _: rustc_hir::HirId) {
-        if let Some(definition) = path
-            .res
-            .opt_def_id()
-            .and_then(rustc_hir::def_id::DefId::as_local)
-        {
+        if let Some(definition) = path.res.opt_def_id().and_then(DefId::as_local) {
             self.definitions.insert(definition);
         }
         intravisit::walk_path(self, path);
@@ -63,7 +59,7 @@ impl<'tcx> intravisit::Visitor<'tcx> for DependencyCollector<'tcx> {
                 .tcx
                 .typeck(owner)
                 .type_dependent_def_id(expression.hir_id)
-                .and_then(rustc_hir::def_id::DefId::as_local)
+                .and_then(DefId::as_local)
         {
             self.definitions.insert(definition);
         }

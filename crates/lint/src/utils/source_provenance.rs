@@ -4,6 +4,7 @@ extern crate rustc_span;
 
 use std::env;
 
+use rustc_hir::def::DefKind;
 use rustc_hir::{FieldDef, Item};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::Span;
@@ -66,7 +67,7 @@ impl FieldProvenanceExt for FieldDef<'_> {
     fn is_framework_generated(&self, cx: &LateContext<'_>) -> bool {
         // Require the conventional generated props container before inspecting mapped source.
         let parent = cx.tcx.parent(self.def_id.to_def_id());
-        if cx.tcx.def_kind(parent) != rustc_hir::def::DefKind::Struct {
+        if cx.tcx.def_kind(parent) != DefKind::Struct {
             return false;
         }
         let parent_name = cx.tcx.item_name(parent);

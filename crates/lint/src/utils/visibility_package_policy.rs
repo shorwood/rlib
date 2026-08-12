@@ -1,3 +1,5 @@
+use std::env::var;
+use std::fs::read_to_string;
 use std::path::Path;
 
 use serde::Deserialize;
@@ -37,7 +39,7 @@ impl VisibilityPackagePolicy {
     /// Loads the target package policy, preserving public APIs when metadata is unavailable.
     pub(super) fn for_current_package() -> Self {
         // Resolve the manifest supplied to the target compiler invocation.
-        let Ok(manifest_directory) = std::env::var("CARGO_MANIFEST_DIR") else {
+        let Ok(manifest_directory) = var("CARGO_MANIFEST_DIR") else {
             return Self::Publishable;
         };
         Self::from_manifest_path(&Path::new(&manifest_directory).join("Cargo.toml"))
@@ -45,7 +47,7 @@ impl VisibilityPackagePolicy {
 
     /// Interprets one package manifest without treating malformed metadata as permission to narrow.
     fn from_manifest_path(path: &Path) -> Self {
-        let Ok(source) = std::fs::read_to_string(path) else {
+        let Ok(source) = read_to_string(path) else {
             return Self::Publishable;
         };
         Self::from_manifest_source(&source)

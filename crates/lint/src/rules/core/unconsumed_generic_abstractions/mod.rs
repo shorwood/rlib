@@ -2,6 +2,7 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 
 use std::borrow::Cow;
+use std::mem::take;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::{AmbigArg, Expr, ImplItem, Item, Ty};
@@ -133,8 +134,8 @@ impl<'tcx> LateLintPass<'tcx> for UnconsumedGenericAbstractions {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        let mut findings = std::mem::take(&mut self.analyzer).findings(cx);
-        findings.extend(std::mem::take(&mut self.callable_analyzer).findings(cx));
+        let mut findings = take(&mut self.analyzer).findings(cx);
+        findings.extend(take(&mut self.callable_analyzer).findings(cx));
         findings.sort_by_key(|finding| finding.parameter.span.lo());
         for finding in findings {
             Violation(finding).emit(cx);

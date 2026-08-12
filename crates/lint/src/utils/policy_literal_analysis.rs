@@ -15,7 +15,7 @@ use rustc_hir::{
 };
 use rustc_lint::LateContext;
 use rustc_middle::ty;
-use rustc_span::Span;
+use rustc_span::{Span, sym};
 
 use super::policy_api_catalog::PolicyApi;
 use super::policy_literal_kind::PolicyCategory;
@@ -366,7 +366,7 @@ impl<'tcx> Visitor<'tcx> for ControlFlowEvidenceVisitor<'_, 'tcx> {
             && self
                 .cx
                 .tcx
-                .is_diagnostic_item(rustc_span::sym::Result, definition.did())
+                .is_diagnostic_item(sym::Result, definition.did())
         {
             self.evidence.has_fallible_operation = true;
         }

@@ -14,6 +14,7 @@ use rustc_hir::{
     ItemKind, QPath, Ty, TyKind,
 };
 use rustc_lint::{LateContext, LintContext};
+use rustc_middle::ty;
 use rustc_session::config::CrateType;
 use rustc_span::{Span, Symbol};
 
@@ -554,21 +555,13 @@ impl GenericAbstractionAnalyzer {
         let generic_parameters = generics
             .own_params
             .iter()
-            .filter(|parameter| {
-                !matches!(
-                    parameter.kind,
-                    rustc_middle::ty::GenericParamDefKind::Lifetime
-                )
-            })
+            .filter(|parameter| !matches!(parameter.kind, ty::GenericParamDefKind::Lifetime))
             .enumerate();
 
         // Record each type parameter independently from declaration visitation order.
         for (argument_position, parameter) in generic_parameters {
             // Const parameters retain their position but have no substitution finding yet.
-            if !matches!(
-                parameter.kind,
-                rustc_middle::ty::GenericParamDefKind::Type { .. }
-            ) {
+            if !matches!(parameter.kind, ty::GenericParamDefKind::Type { .. }) {
                 continue;
             }
 

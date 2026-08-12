@@ -7,7 +7,7 @@ extern crate rustc_span;
 use std::collections::{HashMap, HashSet};
 
 use rustc_hir::def::DefKind;
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::{
     AmbigArg, GenericBound, ImplPolarity, IsAuto, Item, ItemKind, PolyTraitRef, RestrictionKind,
     Ty, TyKind,
@@ -93,10 +93,7 @@ pub struct SingleImplementationTraitAnalyzer {
 
 impl SingleImplementationTraitAnalyzer {
     /// Resolves an associated item to its local trait container.
-    fn projection_trait(
-        cx: &LateContext<'_>,
-        associated_item: rustc_hir::def_id::DefId,
-    ) -> Option<LocalDefId> {
+    fn projection_trait(cx: &LateContext<'_>, associated_item: DefId) -> Option<LocalDefId> {
         if !matches!(cx.tcx.def_kind(associated_item), DefKind::AssocTy) {
             return None;
         }
@@ -113,11 +110,7 @@ impl SingleImplementationTraitAnalyzer {
         trait_ref: &PolyTraitRef<'_>,
     ) {
         // Resolve only local traits because foreign abstractions are never candidates.
-        let Some(def_id) = trait_ref
-            .trait_ref
-            .trait_def_id()
-            .and_then(rustc_hir::def_id::DefId::as_local)
-        else {
+        let Some(def_id) = trait_ref.trait_ref.trait_def_id().and_then(DefId::as_local) else {
             return;
         };
         self.consumers.insert(def_id);
@@ -234,7 +227,7 @@ impl SingleImplementationTraitAnalyzer {
             poly_trait
                 .trait_ref
                 .trait_def_id()
-                .and_then(rustc_hir::def_id::DefId::as_local)
+                .and_then(DefId::as_local)
                 .is_some_and(|id| !cx.tcx.effective_visibilities(()).is_exported(id))
         });
 
@@ -268,11 +261,7 @@ impl SingleImplementationTraitAnalyzer {
         };
 
         // Foreign traits cannot match a candidate declared by this compilation.
-        let Some(local_trait) = trait_ref
-            .trait_ref
-            .trait_def_id()
-            .and_then(rustc_hir::def_id::DefId::as_local)
-        else {
+        let Some(local_trait) = trait_ref.trait_ref.trait_def_id().and_then(DefId::as_local) else {
             return;
         };
 

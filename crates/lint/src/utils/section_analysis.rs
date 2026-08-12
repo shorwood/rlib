@@ -2,6 +2,7 @@ extern crate rustc_hir;
 extern crate rustc_lint;
 extern crate rustc_span;
 
+use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{HirId, Mod};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::{BytePos, Span};
@@ -45,7 +46,7 @@ pub struct SectionFinding {
 /// One distinct declaration covered by a valid section.
 pub struct SectionParticipant {
     /// Local definition represented by this declaration or implementation.
-    pub(super) def_id: rustc_hir::def_id::LocalDefId,
+    pub(super) def_id: LocalDefId,
     /// Authored declaration name used for family inference and diagnostics.
     pub(super) name: String,
     /// Source range occupied by the declaration.

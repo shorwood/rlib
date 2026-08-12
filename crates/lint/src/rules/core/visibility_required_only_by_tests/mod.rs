@@ -3,6 +3,7 @@ extern crate rustc_hir;
 extern crate rustc_span;
 
 use std::borrow::Cow;
+use std::mem::take;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::{FieldDef, HirId, ImplItem, Item};
@@ -183,7 +184,7 @@ impl<'tcx> LateLintPass<'tcx> for VisibilityRequiredOnlyByTests {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for finding in std::mem::take(&mut self.analyzer).findings(cx) {
+        for finding in take(&mut self.analyzer).findings(cx) {
             if !finding.is_test_constrained() {
                 continue;
             }

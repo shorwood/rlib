@@ -1,5 +1,7 @@
 //! UI regression tests for every default-configuration lint fixture.
 
+use dylint_testing::ui::Test;
+
 const CROSS_CUTTING_LINT_ALLOWS: [&str; 98] = [
     "-A",
     "ad_hoc_collection_construction",
@@ -137,7 +139,7 @@ fn ui() {
 
 /// Runs fixtures that rustc can compile directly without Cargo dependency metadata.
 fn run_standalone_fixtures() {
-    dylint_testing::ui::Test::src_base(env!("CARGO_PKG_NAME"), "ui/core")
+    Test::src_base(env!("CARGO_PKG_NAME"), "ui/core")
         .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
         .run();
 }
@@ -145,7 +147,7 @@ fn run_standalone_fixtures() {
 /// Runs all Cargo examples that need dependency linking or macro expansion.
 #[cfg(feature = "leptos")]
 fn run_dependency_aware_fixtures() {
-    dylint_testing::ui::Test::examples(env!("CARGO_PKG_NAME"))
+    Test::examples(env!("CARGO_PKG_NAME"))
         .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
         .rustc_flags(LEPTOS_FIXTURE_LINT_ALLOWS)
         .run();

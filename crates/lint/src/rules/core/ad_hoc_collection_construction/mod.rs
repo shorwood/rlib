@@ -12,7 +12,8 @@ use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 
 use crate::utils::collection_construction_analysis::{
-    CollectionConstructionAnalysis, CollectionFamilyFinding, CollectionProblem,
+    CollectionConstructionAnalysis, CollectionFamilyCandidate, CollectionFamilyFinding,
+    CollectionProblem,
 };
 use crate::utils::diagnostic::LateViolation;
 
@@ -23,7 +24,7 @@ use crate::utils::diagnostic::LateViolation;
 /// Proven sequence-to-storage operation with exact trait-family context.
 struct Violation {
     /// Complete collection and remediation context discovered by the analyzer.
-    candidate: crate::utils::collection_construction_analysis::CollectionFamilyCandidate,
+    candidate: CollectionFamilyCandidate,
     /// Missing, ambiguous, or competing trait ownership.
     problem: CollectionProblem,
 }

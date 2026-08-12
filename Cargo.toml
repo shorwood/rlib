@@ -18,6 +18,7 @@ all = { level = "warn", priority = -1 }
 cargo = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
+absolute_paths = { level = "warn", priority = 1 }
 
 # Dylint's transitive graph currently needs proc-macro consumers on both syn major versions.
 multiple-crate-versions = { level = "allow", priority = 1 }

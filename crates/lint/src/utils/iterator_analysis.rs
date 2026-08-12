@@ -5,7 +5,7 @@ extern crate rustc_span;
 
 use std::collections::{HashMap, HashSet};
 
-use rustc_hir::def::Res;
+use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir::intravisit::{self, FnKind, Visitor};
 use rustc_hir::{Body, Expr, ExprKind, HirId, Item, ItemKind, Mutability, PatKind};
@@ -265,12 +265,9 @@ fn iterator_classification_local_adt(ty: Ty<'_>) -> Option<LocalDefId> {
 
 /// Returns whether an associated function belongs to a trait implementation.
 fn iterator_classification_is_trait_method(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
-    cx.tcx.opt_local_parent(def_id).is_some_and(|parent| {
-        matches!(
-            cx.tcx.def_kind(parent),
-            rustc_hir::def::DefKind::Impl { of_trait: true }
-        )
-    })
+    cx.tcx
+        .opt_local_parent(def_id)
+        .is_some_and(|parent| matches!(cx.tcx.def_kind(parent), DefKind::Impl { of_trait: true }))
 }
 
 /// Extracts the item from an exact standard `Option<Item>` return.

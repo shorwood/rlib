@@ -5,6 +5,7 @@ extern crate rustc_span;
 use std::borrow::Cow;
 
 use rustc_errors::{Applicability, DiagDecorator};
+use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{HirId, Item, ItemKind, Mod};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
@@ -129,11 +130,7 @@ impl MisorderedTypeDeclarations {
     }
 
     /// Returns whether an item directly implements the expected local type.
-    fn is_direct_impl_of(
-        cx: &LateContext<'_>,
-        item: &Item<'_>,
-        expected: rustc_hir::def_id::LocalDefId,
-    ) -> bool {
+    fn is_direct_impl_of(cx: &LateContext<'_>, item: &Item<'_>, expected: LocalDefId) -> bool {
         if !matches!(item.kind, ItemKind::Impl(_)) {
             return false;
         }

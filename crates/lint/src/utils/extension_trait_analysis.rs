@@ -9,7 +9,7 @@ use rustc_hir::def::DefKind;
 use rustc_hir::{Item, ItemKind, TraitItem, TraitItemKind};
 use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty::{self, Ty, TypeVisitableExt};
-use rustc_span::def_id::LocalDefId;
+use rustc_span::def_id::{DefId, LocalDefId};
 use rustc_span::{Span, Symbol};
 
 use crate::utils::foreign_type_analysis::NominalTypeExt;
@@ -100,7 +100,7 @@ struct ExtensionTraitAnalyzerDefinition {
     /// Number of declared methods, including receiver-only accessors.
     method_count: usize,
     /// Concrete nonreceiver nominal parameter types.
-    subjects: HashSet<rustc_span::def_id::DefId>,
+    subjects: HashSet<DefId>,
 }
 
 /// One authored impl that makes a local trait an extension trait.

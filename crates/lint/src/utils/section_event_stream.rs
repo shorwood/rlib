@@ -5,6 +5,7 @@ extern crate rustc_span;
 
 use std::collections::HashMap;
 
+use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty;
@@ -35,7 +36,7 @@ enum SectionEventCandidateKind {
 /// Module declaration that may participate in the current section.
 pub(super) struct SectionEventCandidate {
     /// Local definition represented by the declaration.
-    def_id: rustc_hir::def_id::LocalDefId,
+    def_id: LocalDefId,
     /// Authored declaration name used for family inference.
     name: String,
     /// Complete declaration source range.
@@ -176,7 +177,7 @@ pub(super) struct SectionEventStreamCandidates(
 impl SectionEventStreamCandidates {
     /// Collapses a declaration and its impls into one nominal participant.
     fn record_distinct_declaration(
-        positions: &mut HashMap<rustc_hir::def_id::LocalDefId, usize>,
+        positions: &mut HashMap<LocalDefId, usize>,
         declarations: &mut Vec<SectionParticipant>,
         candidate: SectionParticipant,
     ) {
@@ -221,7 +222,7 @@ impl SectionEventStreamCandidates {
 
     /// Collapses supporting impls and returns distinct declarations in source order.
     pub(super) fn distinct_declarations(&self) -> Vec<SectionParticipant> {
-        let mut positions = HashMap::<rustc_hir::def_id::LocalDefId, usize>::new();
+        let mut positions = HashMap::<LocalDefId, usize>::new();
         let mut declarations = Vec::<SectionParticipant>::new();
         for participant in &self.0 {
             let candidate = SectionParticipant {

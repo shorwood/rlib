@@ -12,7 +12,8 @@ use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 
 use crate::utils::comparison_analysis::{
-    ComparisonAnalysis, ComparisonFamilyFinding, ComparisonFamilySelection, ComparisonProblem,
+    ComparisonAnalysis, ComparisonFamilyCandidate, ComparisonFamilyFinding,
+    ComparisonFamilySelection, ComparisonProblem,
 };
 use crate::utils::diagnostic::LateViolation;
 
@@ -23,7 +24,7 @@ use crate::utils::diagnostic::LateViolation;
 /// Canonical-looking equality with complete relation and family context.
 struct Violation {
     /// Complete relation and remediation context discovered by the analyzer.
-    candidate: crate::utils::comparison_analysis::ComparisonFamilyCandidate,
+    candidate: ComparisonFamilyCandidate,
     /// Missing, ambiguous, or competing trait ownership.
     problem: ComparisonProblem,
 }

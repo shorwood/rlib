@@ -6,7 +6,8 @@ extern crate rustc_span;
 use convert_case::{Case, Casing};
 use rustc_hir::{HirId, Item, ItemKind, PatKind};
 use rustc_lint::LateContext;
-use rustc_middle::ty::{self, Ty};
+use rustc_middle::ty::{self, FieldDef, GenericArgsRef, Ty};
+use rustc_span::def_id::DefId;
 use rustc_span::{Span, Symbol};
 
 // -----------------------------------------------------------------------------
@@ -113,8 +114,8 @@ impl ComponentProps {
     fn property<'tcx>(
         cx: &LateContext<'tcx>,
         owner: &Item<'tcx>,
-        field: &rustc_middle::ty::FieldDef,
-        arguments: rustc_middle::ty::GenericArgsRef<'tcx>,
+        field: &FieldDef,
+        arguments: GenericArgsRef<'tcx>,
         binding: HirId,
     ) -> ComponentProp<'tcx> {
         // Prefer the authored identifier span while retaining generated-span fallback.
@@ -154,7 +155,7 @@ impl ComponentProps {
     }
 
     /// Recognizes only wrappers whose first type argument is the represented value.
-    fn is_boolean_wrapper(cx: &LateContext<'_>, def_id: rustc_span::def_id::DefId) -> bool {
+    fn is_boolean_wrapper(cx: &LateContext<'_>, def_id: DefId) -> bool {
         let crate_symbol = cx.tcx.crate_name(def_id.krate);
         let item_symbol = cx.tcx.item_name(def_id);
         let crate_name = crate_symbol.as_str();

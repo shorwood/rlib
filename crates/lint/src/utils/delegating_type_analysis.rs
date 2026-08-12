@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 
 use rustc_abi::ExternAbi;
 use rustc_hir::def::{DefKind, Res};
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::{Expr, ExprKind, HirId, ImplItem, ImplItemKind, Item, ItemKind, Node};
 use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty::{self, TypeVisitableExt};
@@ -148,7 +148,7 @@ impl DelegatingTypeAnalyzer {
     }
 
     /// Returns whether a local target is authored as an asynchronous function.
-    fn is_async_target(cx: &LateContext<'_>, target: rustc_hir::def_id::DefId) -> bool {
+    fn is_async_target(cx: &LateContext<'_>, target: DefId) -> bool {
         let Some(target) = target.as_local() else {
             return false;
         };

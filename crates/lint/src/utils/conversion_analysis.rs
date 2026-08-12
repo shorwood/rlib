@@ -6,7 +6,7 @@ extern crate rustc_span;
 use std::collections::{HashMap, HashSet};
 
 use rustc_hir::def::{DefKind, Res};
-use rustc_hir::def_id::LocalDefId;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::intravisit::{self, FnKind, Visitor};
 use rustc_hir::{
     Body, Expr, ExprKind, HirId, Item, ItemKind, Mutability, Pat, PatKind, Stmt, StmtKind,
@@ -29,7 +29,7 @@ enum ConversionType {
     /// Nominal type with every concrete type and constant argument retained.
     Adt {
         /// Compiler identity of the nominal definition.
-        definition: rustc_hir::def_id::DefId,
+        definition: DefId,
         /// Lifetime-erased concrete arguments in declaration order.
         arguments: Vec<ConversionTypeArgument>,
     },
@@ -665,7 +665,7 @@ struct ConversionEvidenceEffectDefinition {
     /// Compiler classification used to recognize ambient static state.
     kind: DefKind,
     /// Resolved definition used to inspect the standard-library path.
-    def_id: rustc_hir::def_id::DefId,
+    def_id: DefId,
 }
 
 /// Finds one reference to a currently source-derived local.

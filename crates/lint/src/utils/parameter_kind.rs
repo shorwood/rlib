@@ -4,6 +4,7 @@ extern crate rustc_span;
 
 use rustc_lint::LateContext;
 use rustc_middle::ty::{self, Ty};
+use rustc_span::def_id::DefId;
 
 // -----------------------------------------------------------------------------
 // ParameterKind: Interchangeable primitive representations
@@ -72,11 +73,7 @@ impl ParameterKind {
     }
 
     /// Classifies standard textual ADTs after resolving re-exported definition paths.
-    fn adt(
-        cx: &LateContext<'_>,
-        def_id: rustc_span::def_id::DefId,
-        arguments: ty::GenericArgsRef<'_>,
-    ) -> Option<Self> {
+    fn adt(cx: &LateContext<'_>, def_id: DefId, arguments: ty::GenericArgsRef<'_>) -> Option<Self> {
         let path = cx.tcx.def_path_str(def_id);
         if path.ends_with("::string::String") {
             return Some(Self::Text);

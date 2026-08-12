@@ -7,7 +7,7 @@ extern crate rustc_span;
 use std::collections::{HashMap, HashSet};
 
 use rustc_hir::def::{DefKind, Res};
-use rustc_hir::def_id::{CRATE_DEF_ID, LocalDefId};
+use rustc_hir::def_id::{CRATE_DEF_ID, DefId, LocalDefId};
 use rustc_hir::intravisit::{self, Visitor};
 use rustc_hir::{
     Expr, ExprField, ExprKind, FieldDef, HirId, ImplItem, ImplItemImplKind, Item, ItemKind, Pat,
@@ -910,10 +910,7 @@ impl<'analysis, 'tcx> VisibilityReferenceCollector<'analysis, 'tcx> {
 
     /// Records one local resolution after normalizing constructor definitions.
     fn record_resolution(&mut self, resolution: Res, span: Span) {
-        let Some(mut definition) = resolution
-            .opt_def_id()
-            .and_then(rustc_hir::def_id::DefId::as_local)
-        else {
+        let Some(mut definition) = resolution.opt_def_id().and_then(DefId::as_local) else {
             return;
         };
         if matches!(self.cx.tcx.def_kind(definition), DefKind::Ctor(..)) {
@@ -932,7 +929,7 @@ impl<'analysis, 'tcx> VisibilityReferenceCollector<'analysis, 'tcx> {
             .tcx
             .typeck(owner)
             .type_dependent_def_id(expression.hir_id)
-            .and_then(rustc_hir::def_id::DefId::as_local)
+            .and_then(DefId::as_local)
     }
 
     /// Records a field definition selected through typed member access.

@@ -13,6 +13,7 @@ use rustc_hir::{Body, HirId, PatKind, TraitFn, TraitItem, TraitItemKind};
 use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty::Ty;
 use rustc_span::def_id::LocalDefId;
+use rustc_span::symbol::kw;
 use rustc_span::{Span, Symbol};
 
 use super::parameter_kind::{ParameterKind, ParameterTypeExt};
@@ -197,7 +198,7 @@ impl ParameterSignature {
             let PatKind::Binding(_, hir_id, ident, None) = parameter.pat.kind else {
                 continue;
             };
-            if ident.name == rustc_span::symbol::kw::SelfLower {
+            if ident.name == kw::SelfLower {
                 continue;
             }
             parameters.push(Self::parameter(cx, hir_id, ident.span, ident.name, ty));
@@ -216,7 +217,7 @@ impl ParameterSignature {
         for (name, ty) in names.iter().zip(types) {
             // Ignore omitted names and the receiver before recording authored bindings.
             let Some(ident) = name else { continue };
-            if ident.name == rustc_span::symbol::kw::SelfLower {
+            if ident.name == kw::SelfLower {
                 continue;
             }
 

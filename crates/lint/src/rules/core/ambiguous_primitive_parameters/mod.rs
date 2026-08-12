@@ -3,6 +3,7 @@ extern crate rustc_hir;
 extern crate rustc_span;
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::intravisit::FnKind;
@@ -149,7 +150,7 @@ impl AmbiguousPrimitiveParameters {
     fn emit_signature(
         cx: &LateContext<'_>,
         signature: &ParameterSignature,
-        superseded: &std::collections::HashSet<LocalDefId>,
+        superseded: &HashSet<LocalDefId>,
     ) {
         for group in signature.ambiguous_groups() {
             let is_superseded_text =

@@ -4,6 +4,7 @@ extern crate rustc_middle;
 extern crate rustc_span;
 
 use rustc_hir::def::{CtorOf, DefKind, Res};
+use rustc_hir::def_id::DefId;
 use rustc_hir::{Expr, ExprKind};
 use rustc_lint::LateContext;
 use rustc_middle::ty::{self, Ty};
@@ -99,7 +100,7 @@ impl ResultOperation {
 /// Syntax-independent components of one candidate result operation.
 struct ResultCallParts<'hir> {
     /// Associated operation selected by method resolution or UFCS.
-    definition: rustc_hir::def_id::DefId,
+    definition: DefId,
     /// First semantic argument acting as the result receiver.
     receiver: &'hir Expr<'hir>,
     /// Remaining explicit arguments in semantic order.
@@ -215,7 +216,7 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
     }
 
     /// Resolves a direct call expression to the invoked definition.
-    fn resolved_path_definition(&self, expression: &Expr<'_>) -> Option<rustc_hir::def_id::DefId> {
+    fn resolved_path_definition(&self, expression: &Expr<'_>) -> Option<DefId> {
         let ExprKind::Path(path) = expression.kind else {
             return None;
         };
@@ -332,7 +333,7 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
     }
 
     /// Returns whether an associated item belongs to standard result's inherent impl.
-    fn is_result_inherent_method(&self, definition: rustc_hir::def_id::DefId) -> bool {
+    fn is_result_inherent_method(&self, definition: DefId) -> bool {
         let Some(implementation) = self.cx.tcx.impl_of_assoc(definition) else {
             return false;
         };

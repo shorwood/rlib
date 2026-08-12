@@ -2,6 +2,7 @@ extern crate rustc_errors;
 extern crate rustc_hir;
 
 use std::borrow::Cow;
+use std::mem::take;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Expr, ImplItem, Item};
@@ -107,7 +108,7 @@ impl<'tcx> LateLintPass<'tcx> for NeedlessDelegatingTypes {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for finding in std::mem::take(&mut self.analyzer).findings(cx) {
+        for finding in take(&mut self.analyzer).findings(cx) {
             Violation(finding).emit(cx);
         }
     }

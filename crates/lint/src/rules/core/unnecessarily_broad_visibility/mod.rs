@@ -3,6 +3,8 @@ extern crate rustc_hir;
 extern crate rustc_span;
 
 use std::borrow::Cow;
+use std::collections::HashSet;
+use std::mem::take;
 
 use rustc_errors::{Applicability, DiagDecorator};
 use rustc_hir::{AmbigArg, Expr, FieldDef, HirId, ImplItem, Item, PolyTraitRef, Ty};
@@ -229,18 +231,18 @@ impl<'tcx> LateLintPass<'tcx> for UnnecessarilyBroadVisibility {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        let abstraction_findings = std::mem::take(&mut self.trait_analyzer).findings(cx);
+        let abstraction_findings = take(&mut self.trait_analyzer).findings(cx);
         let abstraction_traits = abstraction_findings
             .into_iter()
             .map(|finding| finding.declaration.def_id)
-            .collect::<std::collections::HashSet<_>>();
-        let delegating_findings = std::mem::take(&mut self.delegating_type_analyzer).findings(cx);
-        let mut delegating_declarations = std::collections::HashSet::new();
+            .collect::<HashSet<_>>();
+        let delegating_findings = take(&mut self.delegating_type_analyzer).findings(cx);
+        let mut delegating_declarations = HashSet::new();
         for finding in delegating_findings {
             delegating_declarations.insert(finding.declaration.def_id);
             delegating_declarations.extend(finding.owned_declarations);
         }
-        for finding in std::mem::take(&mut self.analyzer).findings(cx) {
+        for finding in take(&mut self.analyzer).findings(cx) {
             if abstraction_traits.contains(&finding.declaration.hir_id.owner.def_id)
                 || delegating_declarations.contains(&finding.declaration.hir_id.owner.def_id)
                 || finding.boundary.effective_current <= finding.boundary.required
