@@ -1,5 +1,5 @@
 warning: discarded signal value is used as a resource refetch trigger
-  --> $DIR/semantic.rs:22:9
+  --> $DIR/semantic.rs:23:9
    |
 LL |         revision.get();
    |         ^^^^^^^^^^^^^^ this tracked value is immediately discarded

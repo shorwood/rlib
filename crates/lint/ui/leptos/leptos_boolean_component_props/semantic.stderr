@@ -1,5 +1,5 @@
 warning: boolean component prop `active` hides the state selected by its value
-  --> $DIR/semantic.rs:17:11
+  --> $DIR/semantic.rs:22:11
    |
 LL | fn Direct(active: bool, aliased: Flag) -> impl IntoView {
    |           ^^^^^^ resolves to boolean-bearing type `bool`
@@ -9,7 +9,7 @@ LL | fn Direct(active: bool, aliased: Flag) -> impl IntoView {
    = note: `#[warn(leptos_boolean_component_props)]` on by default
 
 warning: boolean component prop `aliased` hides the state selected by its value
-  --> $DIR/semantic.rs:17:25
+  --> $DIR/semantic.rs:22:25
    |
 LL | fn Direct(active: bool, aliased: Flag) -> impl IntoView {
    |                         ^^^^^^^ resolves to boolean-bearing type `bool`
@@ -18,7 +18,7 @@ LL | fn Direct(active: bool, aliased: Flag) -> impl IntoView {
    = help: replace the boolean with a domain enum whose variants name the component states
 
 warning: boolean component prop `optional` hides the state selected by its value
-  --> $DIR/semantic.rs:23:5
+  --> $DIR/semantic.rs:28:5
    |
 LL |     optional: Option<bool>,
    |     ^^^^^^^^ resolves to boolean-bearing type `std::option::Option<bool>`
@@ -27,7 +27,7 @@ LL |     optional: Option<bool>,
    = help: replace the boolean with a domain enum whose variants name the component states
 
 warning: boolean component prop `signal` hides the state selected by its value
-  --> $DIR/semantic.rs:24:5
+  --> $DIR/semantic.rs:29:5
    |
 LL |     signal: Signal<bool>,
    |     ^^^^^^ resolves to boolean-bearing type `leptos::prelude::Signal<bool>`
@@ -36,7 +36,7 @@ LL |     signal: Signal<bool>,
    = help: replace the boolean with a domain enum whose variants name the component states
 
 warning: boolean component prop `read_signal` hides the state selected by its value
-  --> $DIR/semantic.rs:25:5
+  --> $DIR/semantic.rs:30:5
    |
 LL |     read_signal: ReadSignal<bool>,
    |     ^^^^^^^^^^^ resolves to boolean-bearing type `leptos::prelude::ReadSignal<bool>`
@@ -45,7 +45,7 @@ LL |     read_signal: ReadSignal<bool>,
    = help: replace the boolean with a domain enum whose variants name the component states
 
 warning: boolean component prop `rw_signal` hides the state selected by its value
-  --> $DIR/semantic.rs:26:5
+  --> $DIR/semantic.rs:31:5
    |
 LL |     rw_signal: RwSignal<bool>,
    |     ^^^^^^^^^ resolves to boolean-bearing type `leptos::prelude::RwSignal<bool>`
@@ -54,7 +54,7 @@ LL |     rw_signal: RwSignal<bool>,
    = help: replace the boolean with a domain enum whose variants name the component states
 
 warning: boolean component prop `maybe_signal` hides the state selected by its value
-  --> $DIR/semantic.rs:27:5
+  --> $DIR/semantic.rs:32:5
    |
 LL |     maybe_signal: MaybeSignal<bool>,
    |     ^^^^^^^^^^^^ resolves to boolean-bearing type `leptos::prelude::MaybeSignal<bool>`
@@ -63,7 +63,7 @@ LL |     maybe_signal: MaybeSignal<bool>,
    = help: replace the boolean with a domain enum whose variants name the component states
 
 warning: boolean component prop `nested` hides the state selected by its value
-  --> $DIR/semantic.rs:28:5
+  --> $DIR/semantic.rs:33:5
    |
 LL |     nested: Option<Signal<bool>>,
    |     ^^^^^^ resolves to boolean-bearing type `std::option::Option<leptos::prelude::Signal<bool>>`
@@ -72,3 +72,4 @@ LL |     nested: Option<Signal<bool>>,
    = help: replace the boolean with a domain enum whose variants name the component states
 
 warning: 8 warnings emitted
+
