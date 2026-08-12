@@ -32,6 +32,11 @@ name = "writable_signal_component_props"
 path = "ui/leptos/writable_signal_component_props/semantic.rs"
 required-features = ["leptos"]
 
+[[example]]
+name = "leptos_reactive_writes_during_view_construction"
+path = "ui/leptos/leptos_reactive_writes_during_view_construction/semantic.rs"
+required-features = ["leptos"]
+
 [lints]
 workspace = true
 
