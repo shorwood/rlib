@@ -227,6 +227,8 @@ pub(crate) enum ViewAttributeCategory {
 /// One direct attribute in an authored opening tag.
 #[derive(Clone)]
 pub(crate) struct ViewAttribute {
+    pub(crate) name: String,
+    pub(crate) span: Span,
     pub(crate) range: Range<usize>,
     pub(crate) category: ViewAttributeCategory,
     pub(crate) complexity: usize,
@@ -238,6 +240,12 @@ pub(crate) struct ViewElement {
     pub(crate) span: Span,
     pub(crate) attributes: Vec<ViewAttribute>,
     pub(crate) headings: Vec<ViewHeading>,
+}
+
+/// Consecutive attributes introduced by one canonical heading.
+pub(crate) struct ViewAttributeGroup<'element> {
+    pub(crate) heading: &'element ViewHeading,
+    pub(crate) attributes: &'element [ViewAttribute],
 }
 
 impl ViewElement {
@@ -266,6 +274,31 @@ impl ViewElement {
                     .and_then(|_| heading.node.map(|attribute| (heading, attribute)))
             })
             .count()
+    }
+
+    pub(crate) fn groups(&self, config: &LeptosViewStructureConfig) -> Vec<ViewAttributeGroup<'_>> {
+        let starts = self
+            .headings
+            .iter()
+            .filter_map(|heading| {
+                heading
+                    .canonical_content(config)
+                    .and_then(|_| heading.node.map(|attribute| (heading, attribute)))
+            })
+            .collect::<Vec<_>>();
+        starts
+            .iter()
+            .enumerate()
+            .map(|(index, (heading, start))| {
+                let end = starts
+                    .get(index + 1)
+                    .map_or(self.attributes.len(), |(_, attribute)| *attribute);
+                ViewAttributeGroup {
+                    heading,
+                    attributes: &self.attributes[*start..end],
+                }
+            })
+            .collect()
     }
 }
 
@@ -384,19 +417,21 @@ impl ViewScopeBuilder<'_> {
                 if range.start >= range.end || range.end > self.source.len() {
                     return None;
                 }
-                let (category, complexity) = match attribute {
+                let (name, category, complexity) = match attribute {
                     NodeAttribute::Attribute(attribute) => {
                         let name = attribute.key.to_string();
                         let category = attribute_category(&name);
                         let complexity =
                             1 + usize::from(category == ViewAttributeCategory::Behavior);
-                        (category, complexity)
+                        (name, category, complexity)
                     }
                     NodeAttribute::Block(_) => {
-                        (ViewAttributeCategory::Integration, 2)
+                        ("spread".to_owned(), ViewAttributeCategory::Integration, 2)
                     }
                 };
                 Some(ViewAttribute {
+                    name,
+                    span: self.to_rustc_span(&range),
                     range,
                     category,
                     complexity,

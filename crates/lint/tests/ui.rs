@@ -218,6 +218,7 @@ fn run_leptos_fixtures() {
     let selected = selected_framework_fixture();
     for example in [
         "leptos_markup_repeating_view_comments",
+        "leptos_mismatched_view_attribute_groups",
         "leptos_duplicate_view_section_comments",
         "leptos_oversized_view_sections",
         "leptos_primitive_context_values",

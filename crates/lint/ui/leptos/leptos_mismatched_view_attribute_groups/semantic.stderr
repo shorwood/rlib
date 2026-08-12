@@ -1,0 +1,12 @@
+warning: attribute `on:click` contradicts group heading `Submission presentation`
+  --> $DIR/semantic.rs:11:13
+   |
+LL |             on:click=move |_| {}
+   |             ^^^^^^^^^^^^^^^^^^^^ this attribute has a different responsibility
+   |
+   = note: attribute-group headings must accurately describe the responsibility they own
+   = help: move this attribute to a matching group or rename a genuinely shared responsibility
+   = note: `#[warn(leptos_mismatched_view_attribute_groups)]` on by default
+
+warning: 1 warning emitted
+

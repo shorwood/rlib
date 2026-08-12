@@ -87,6 +87,11 @@ path = "ui/leptos/leptos_markup_repeating_view_comments/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
+name = "leptos_mismatched_view_attribute_groups"
+path = "ui/leptos/leptos_mismatched_view_attribute_groups/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_needlessly_cloned_signal_values"
 path = "ui/leptos/leptos_needlessly_cloned_signal_values/semantic.rs"
 required-features = ["leptos"]

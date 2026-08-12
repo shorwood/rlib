@@ -7,6 +7,7 @@ pub mod leptos_implicit_default_component_props;
 pub mod leptos_manual_resource_refetch_signals;
 pub mod leptos_malformed_view_section_comments;
 pub mod leptos_markup_repeating_view_comments;
+pub mod leptos_mismatched_view_attribute_groups;
 pub mod leptos_missing_view_section_comments;
 pub mod leptos_missing_view_attribute_group_comments;
 pub mod leptos_needlessly_cloned_signal_values;
