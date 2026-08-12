@@ -10,13 +10,17 @@ crate-type = ["cdylib"]
 [features]
 default = ["leptos"]
 framework = []
-leptos = []
+leptos = ["dep:proc-macro2", "dep:quote", "dep:rstml", "dep:syn"]
 strum = ["framework"]
 
 [dependencies]
 convert_case = "0.11"
 dylint_linting = { version = "=6.0.1", features = ["constituent"] }
+proc-macro2 = { version = "1", features = ["span-locations"], optional = true }
+quote = { version = "1", optional = true }
+rstml = { version = "=0.12.1", optional = true }
 serde = { version = "1", features = ["derive"] }
+syn = { version = "2", features = ["full", "parsing"], optional = true }
 toml = "0.9"
 
 [dev-dependencies]
@@ -54,6 +58,11 @@ required-features = ["leptos"]
 [[example]]
 name = "leptos_manual_resource_refetch_signals"
 path = "ui/leptos/leptos_manual_resource_refetch_signals/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "leptos_missing_view_section_comments"
+path = "ui/leptos/leptos_missing_view_section_comments/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]

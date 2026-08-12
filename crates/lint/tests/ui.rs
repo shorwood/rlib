@@ -215,6 +215,7 @@ fn run_leptos_fixtures() {
         "leptos_boolean_component_props",
         "leptos_effects_synchronizing_signals",
         "leptos_manual_resource_refetch_signals",
+        "leptos_missing_view_section_comments",
         "leptos_needlessly_cloned_signal_values",
         "leptos_read_then_replace_signals",
         "leptos_reactive_writes_during_view_construction",

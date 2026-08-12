@@ -4,6 +4,8 @@ use super::function_structure::FunctionStructureConfig;
 use super::section_analysis::SectionDividerConfig;
 use crate::rules::core::incoherent_extension_traits::ExtensionTraitConfig;
 use crate::rules::framework::config::DeriveResolutionConfig;
+#[cfg(feature = "leptos")]
+use crate::rules::leptos::utils::view_structure::LeptosViewStructureConfig;
 
 // -----------------------------------------------------------------------------
 // LibraryConfig: Complete lint library configuration
@@ -19,6 +21,9 @@ pub struct LibraryConfig {
     pub(crate) extension_traits: ExtensionTraitConfig,
     /// Limits and syntax used by the function-structure lint family.
     pub(super) function_structure: FunctionStructureConfig,
+    /// Complexity and heading policy used by Leptos view-structure lints.
+    #[cfg(feature = "leptos")]
+    pub(crate) leptos_view_structure: LeptosViewStructureConfig,
     /// Rendering and width policy used by section-divider lints.
     pub(super) section_dividers: SectionDividerConfig,
 }

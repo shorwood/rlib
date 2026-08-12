@@ -1,0 +1,16 @@
+warning: this view region has direct complexity 5 without a section heading
+  --> $DIR/semantic.rs:10:13
+   |
+LL | /             <header>"Account"</header>
+LL | |             <nav>"Navigation"</nav>
+LL | |             <section>"Summary"</section>
+LL | |             <section>"Activity"</section>
+LL | |             <footer>"Actions"</footer>
+   | |______________________________________^ the first region starts without a heading
+   |
+   = note: unnamed visual and behavioral regions make a large declarative view difficult to scan
+   = help: name the stable regions with concise `//` comments, or extract a component whose name carries the responsibility
+   = note: `#[warn(leptos_missing_view_section_comments)]` on by default
+
+warning: 1 warning emitted
+
