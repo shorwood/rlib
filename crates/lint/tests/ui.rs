@@ -211,6 +211,7 @@ fn run_standalone_fixtures() {
 #[cfg(feature = "leptos")]
 fn run_leptos_fixtures() {
     for example in [
+        "leptos_oversized_view_sections",
         "leptos_malformed_view_section_comments",
         "leptos_attribute_bound_controlled_inputs",
         "leptos_boolean_component_props",

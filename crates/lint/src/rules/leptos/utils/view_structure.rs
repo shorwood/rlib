@@ -19,6 +19,7 @@ use syn::ExprMacro;
 use syn::spanned::Spanned;
 
 use crate::utils::config::LibraryConfig;
+use crate::utils::function_layout_prose::FunctionLayoutProse;
 
 // -----------------------------------------------------------------------------
 // LeptosViewStructureConfig: Authored view layout policy
@@ -111,6 +112,28 @@ pub(crate) struct ViewHeading {
     pub(crate) immediately_precedes: bool,
 }
 
+impl ViewHeading {
+    /// Returns canonical section prose after the configured comment marker.
+    pub(crate) fn canonical_content<'heading>(
+        &'heading self,
+        config: &LeptosViewStructureConfig,
+    ) -> Option<&'heading str> {
+        let content = self
+            .text
+            .strip_prefix(&config.view_section_comment_prefix)?
+            .strip_prefix(' ')?;
+        (self.text.starts_with("//")
+            && !self.text.contains('\n')
+            && !content.ends_with([':', '.', ';', '!', '?', ',', '-'])
+            && !content.starts_with(['-', '*', '#'])
+            && FunctionLayoutProse::is_canonical(Some(content))
+            && self.node.is_some()
+            && self.immediately_precedes
+            && (self.node == Some(0) || self.blank_before))
+            .then_some(content)
+    }
+}
+
 /// One independently analyzed direct sibling list.
 #[derive(Default)]
 pub(crate) struct ViewScope {
@@ -120,10 +143,51 @@ pub(crate) struct ViewScope {
     pub(crate) headings: Vec<ViewHeading>,
 }
 
+/// Nodes introduced by one canonical heading in a direct sibling scope.
+pub(crate) struct ViewSection<'scope> {
+    /// Canonical heading that names this section.
+    pub(crate) heading: &'scope ViewHeading,
+    /// Consecutive direct nodes owned by the heading.
+    pub(crate) nodes: &'scope [ViewNode],
+}
+
+impl ViewSection<'_> {
+    /// Returns the direct-navigation complexity owned by this section.
+    pub(crate) fn complexity(&self) -> usize {
+        self.nodes.iter().map(|node| node.complexity).sum()
+    }
+}
+
 impl ViewScope {
     /// Returns the total direct complexity of this scope.
     pub(crate) fn complexity(&self) -> usize {
         self.nodes.iter().map(|node| node.complexity).sum()
+    }
+
+    /// Partitions canonical named regions without reinterpreting rstml structure.
+    pub(crate) fn sections(&self, config: &LeptosViewStructureConfig) -> Vec<ViewSection<'_>> {
+        let starts = self
+            .headings
+            .iter()
+            .filter_map(|heading| {
+                heading
+                    .canonical_content(config)
+                    .and_then(|_| heading.node.map(|node| (heading, node)))
+            })
+            .collect::<Vec<_>>();
+        starts
+            .iter()
+            .enumerate()
+            .map(|(index, (heading, start))| {
+                let end = starts
+                    .get(index + 1)
+                    .map_or(self.nodes.len(), |(_, node)| *node);
+                ViewSection {
+                    heading,
+                    nodes: &self.nodes[*start..end],
+                }
+            })
+            .collect()
     }
 }
 
