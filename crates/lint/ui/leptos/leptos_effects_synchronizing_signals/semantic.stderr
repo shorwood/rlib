@@ -1,0 +1,47 @@
+warning: effect synchronizes one reactive value into another
+  --> $DIR/semantic.rs:22:9
+   |
+LL |         target.set(source.get() * 2);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this effect writes reactive state
+   |
+note: the same effect tracks reactive state here
+  --> $DIR/semantic.rs:22:20
+   |
+LL |         target.set(source.get() * 2);
+   |                    ^^^^^^^^^^^^
+   = note: derived state stored by an effect creates a second source of truth, an extra propagation step, and a possible reactive cycle
+   = help: derive the value with a closure or `Memo`, or update related state together at the originating event
+   = note: `#[warn(leptos_effects_synchronizing_signals)]` on by default
+
+warning: effect synchronizes one reactive value into another
+  --> $DIR/semantic.rs:35:9
+   |
+LL |         target.set(selected);
+   |         ^^^^^^^^^^^^^^^^^^^^ this effect writes reactive state
+   |
+note: the same effect tracks reactive state here
+  --> $DIR/semantic.rs:30:24
+   |
+LL |           let selected = source
+   |  ________________________^
+LL | |             .get()
+   | |__________________^
+   = note: derived state stored by an effect creates a second source of truth, an extra propagation step, and a possible reactive cycle
+   = help: derive the value with a closure or `Memo`, or update related state together at the originating event
+
+warning: effect synchronizes one reactive value into another
+  --> $DIR/semantic.rs:44:28
+   |
+LL |         move |value, _, _| target.set(*value),
+   |                            ^^^^^^^^^^^^^^^^^^ this effect writes reactive state
+   |
+note: the same effect tracks reactive state here
+  --> $DIR/semantic.rs:43:17
+   |
+LL |         move || source.get(),
+   |                 ^^^^^^^^^^^^
+   = note: derived state stored by an effect creates a second source of truth, an extra propagation step, and a possible reactive cycle
+   = help: derive the value with a closure or `Memo`, or update related state together at the originating event
+
+warning: 3 warnings emitted
+

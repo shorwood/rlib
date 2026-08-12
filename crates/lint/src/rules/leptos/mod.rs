@@ -1,5 +1,6 @@
 mod utils;
 pub mod leptos_boolean_component_props;
+pub mod leptos_effects_synchronizing_signals;
 pub mod leptos_implicit_default_component_props;
 pub mod leptos_manual_resource_refetch_signals;
 pub mod leptos_needlessly_cloned_signal_values;
