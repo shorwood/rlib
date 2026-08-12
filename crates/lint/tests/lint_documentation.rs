@@ -26,7 +26,7 @@ fn active_lints_have_canonical_public_documentation() {
     let expected = 60
         + 19 * usize::from(cfg!(feature = "leptos"))
         + usize::from(cfg!(feature = "framework"))
-        + 6 * usize::from(cfg!(feature = "strum"));
+        + 19 * usize::from(cfg!(feature = "strum"));
     assert_eq!(
         lint_directories.len(),
         expected,

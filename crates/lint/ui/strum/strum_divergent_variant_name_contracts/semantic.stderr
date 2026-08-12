@@ -1,0 +1,12 @@
+warning: `Pending` has divergent Strum name contracts
+  --> $DIR/semantic.rs:6:5
+   |
+LL |     Pending,
+   |     ^^^^^^^
+   |
+   = note: `VariantNames` advertises one preferred name while `EnumString` accepts additional aliases
+   = help: separate canonical names from parser aliases in the surrounding API
+   = note: `#[warn(strum_divergent_variant_name_contracts)]` on by default
+
+warning: 1 warning emitted
+

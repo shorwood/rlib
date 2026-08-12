@@ -1,0 +1,15 @@
+warning: `EventKind` manually mirrors `Event`
+  --> $DIR/semantic.rs:15:9
+   |
+LL | /         match event {
+LL | |             Event::Created(_) => Self::Created,
+LL | |             Event::Deleted(_) => Self::Deleted,
+LL | |         }
+   | |_________^
+   |
+   = note: the private unit enum and conversion duplicate every source variant one-for-one
+   = help: derive `strum::EnumDiscriminants` and configure its generated name as `EventKind`
+   = note: `#[warn(strum_manual_discriminant_enums)]` on by default
+
+warning: 1 warning emitted
+

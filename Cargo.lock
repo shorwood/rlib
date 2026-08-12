@@ -1734,6 +1734,7 @@ dependencies = [
  "derive_more",
  "dylint_linting",
  "dylint_testing",
+ "heck",
  "leptos",
  "proc-macro2",
  "quote",

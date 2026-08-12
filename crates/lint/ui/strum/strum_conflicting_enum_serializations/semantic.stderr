@@ -1,0 +1,12 @@
+warning: this Strum enum has conflicting serialization names
+  --> $DIR/semantic.rs:8:5
+   |
+LL |     Resume,
+   |     ^^^^^^
+   |
+   = note: `run` is accepted by both `Start` and `Resume`
+   = help: assign unique aliases and an explicit `to_string` spelling
+   = note: `#[warn(strum_conflicting_enum_serializations)]` on by default
+
+warning: 1 warning emitted
+

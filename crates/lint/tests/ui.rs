@@ -136,6 +136,11 @@ fn ui() {
     if rerun_with_feature_aware_cargo_wrapper() {
         return;
     }
+    #[cfg(feature = "strum")]
+    if selected_strum_fixture().is_none() {
+        run_standalone_fixtures();
+    }
+    #[cfg(not(feature = "strum"))]
     run_standalone_fixtures();
     #[cfg(feature = "strum")]
     run_strum_fixtures();
@@ -240,33 +245,99 @@ fn run_leptos_fixtures() {
 /// Runs each Strum fixture with the provider policy its expected diagnostic requires.
 #[cfg(feature = "strum")]
 fn run_strum_fixtures() {
+    let selected = selected_strum_fixture();
     for example in [
         "framework_resolution_required",
         "strum_manual_enum_accessors",
         "strum_manual_enum_counts",
         "strum_manual_enum_iteration",
         "strum_manual_repr_conversions",
+        "strum_conflicting_enum_serializations",
+        "strum_declaration_order_domain_contracts",
+        "strum_defaulted_payload_enum_construction",
+        "strum_divergent_discriminant_contracts",
+        "strum_divergent_variant_name_contracts",
+        "strum_documentation_used_as_enum_messages",
+        "strum_filtered_enum_count_contracts",
+        "strum_manual_discriminant_enums",
+        "strum_manual_enum_metadata",
+        "strum_manual_variant_names",
+        "strum_non_roundtripping_enum_strings",
     ] {
+        if selected
+            .as_deref()
+            .is_some_and(|selected| selected != example)
+        {
+            continue;
+        }
         Test::example(env!("CARGO_PKG_NAME"), example)
             .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
             .run();
     }
-    Test::example(env!("CARGO_PKG_NAME"), "strum_manual_variant_arrays")
-        .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
-        .dylint_toml(
-            r#"
+    if selected
+        .as_deref()
+        .is_none_or(|selected| selected == "strum_manual_variant_arrays")
+    {
+        Test::example(env!("CARGO_PKG_NAME"), "strum_manual_variant_arrays")
+            .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+            .dylint_toml(
+                r#"
                 [rlib-lint.derive_resolution]
                 enum_variant_collection = "strum_variant_array"
             "#,
+            )
+            .run();
+    }
+    if selected
+        .as_deref()
+        .is_none_or(|selected| selected == "strum_manual_enum_predicates")
+    {
+        Test::example(env!("CARGO_PKG_NAME"), "strum_manual_enum_predicates")
+            .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+            .dylint_toml(
+                r#"
+                [rlib-lint.derive_resolution]
+                enum_variant_predicates = "strum_enum_is"
+            "#,
+            )
+            .run();
+    }
+    if selected
+        .as_deref()
+        .is_none_or(|selected| selected == "strum_manual_enum_string_conversions")
+    {
+        Test::example(
+            env!("CARGO_PKG_NAME"),
+            "strum_manual_enum_string_conversions",
         )
-        .run();
-    Test::example(env!("CARGO_PKG_NAME"), "strum_manual_enum_predicates")
         .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
         .dylint_toml(
             r#"
                 [rlib-lint.derive_resolution]
-                enum_variant_predicates = "strum_enum_is"
+                enum_display = "strum_display"
             "#,
         )
         .run();
+    }
+    if selected
+        .as_deref()
+        .is_none_or(|selected| selected == "strum_manual_enum_string_parsers")
+    {
+        Test::example(env!("CARGO_PKG_NAME"), "strum_manual_enum_string_parsers")
+            .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+            .dylint_toml(
+                r#"
+                    [rlib-lint.derive_resolution]
+                    enum_string_parsing = "strum_enum_string"
+                "#,
+            )
+            .run();
+    }
+}
+
+#[cfg(feature = "strum")]
+fn selected_strum_fixture() -> Option<String> {
+    use std::env::var;
+
+    var("RLIB_LINT_STRUM_FIXTURE").ok()
 }

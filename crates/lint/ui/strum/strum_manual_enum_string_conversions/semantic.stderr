@@ -1,0 +1,15 @@
+warning: `Stage` string conversion is maintained manually
+  --> $DIR/semantic.rs:10:9
+   |
+LL | /         match self {
+LL | |             Self::Planned => "Planned",
+LL | |             Self::Complete => "Complete",
+LL | |         }
+   | |_________^
+   |
+   = note: the exhaustive match duplicates the enum's canonical static string mapping
+   = help: derive `strum::AsRefStr` and migrate callers to `AsRef<str>`
+   = note: `#[warn(strum_manual_enum_string_conversions)]` on by default
+
+warning: 1 warning emitted
+

@@ -1,8 +1,21 @@
 #[allow(clippy::redundant_pub_crate)]
 pub(crate) mod utils;
+pub mod strum_conflicting_enum_serializations;
+pub mod strum_defaulted_payload_enum_construction;
+pub mod strum_declaration_order_domain_contracts;
+pub mod strum_divergent_discriminant_contracts;
+pub mod strum_divergent_variant_name_contracts;
+pub mod strum_documentation_used_as_enum_messages;
+pub mod strum_filtered_enum_count_contracts;
 pub mod strum_manual_enum_accessors;
+pub mod strum_manual_discriminant_enums;
 pub mod strum_manual_enum_counts;
 pub mod strum_manual_enum_iteration;
+pub mod strum_manual_enum_metadata;
 pub mod strum_manual_enum_predicates;
+pub mod strum_manual_enum_string_conversions;
+pub mod strum_manual_enum_string_parsers;
 pub mod strum_manual_repr_conversions;
 pub mod strum_manual_variant_arrays;
+pub mod strum_manual_variant_names;
+pub mod strum_non_roundtripping_enum_strings;

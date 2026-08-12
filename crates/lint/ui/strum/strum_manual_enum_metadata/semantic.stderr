@@ -1,0 +1,15 @@
+warning: `Severity` metadata is maintained manually
+  --> $DIR/semantic.rs:10:9
+   |
+LL | /         match self {
+LL | |             Self::Info => "informational",
+LL | |             Self::Error => "operation failed",
+LL | |         }
+   | |_________^
+   |
+   = note: the exhaustive match selects only static metadata by variant
+   = help: derive `strum::EnumMessage` and move the values onto their variants
+   = note: `#[warn(strum_manual_enum_metadata)]` on by default
+
+warning: 1 warning emitted
+

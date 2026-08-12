@@ -1,0 +1,17 @@
+warning: `Stage` string parser is maintained manually
+  --> $DIR/semantic.rs:14:9
+   |
+LL | /         match value {
+LL | |             "Planned" => Ok(Self::Planned),
+LL | |             "Complete" => Ok(Self::Complete),
+LL | |             _ => Err(()),
+LL | |         }
+   | |_________^
+   |
+   = note: the exhaustive string match duplicates unit-variant names and failure handling
+   = note: this trait implementation is public API; compare the generated error type before migration
+   = help: derive `strum::EnumString` and remove the equivalent `FromStr` implementation
+   = note: `#[warn(strum_manual_enum_string_parsers)]` on by default
+
+warning: 1 warning emitted
+

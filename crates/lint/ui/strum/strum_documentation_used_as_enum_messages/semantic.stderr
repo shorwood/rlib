@@ -1,0 +1,12 @@
+warning: enum documentation is used as externally observed message text
+  --> $DIR/semantic.rs:19:18
+   |
+LL |     show_message(failure.get_documentation().unwrap());
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: developer documentation flows directly into `show_message`
+   = help: use explicit Strum message metadata or a dedicated presentation/localization key
+   = note: `#[warn(strum_documentation_used_as_enum_messages)]` on by default
+
+warning: 1 warning emitted
+

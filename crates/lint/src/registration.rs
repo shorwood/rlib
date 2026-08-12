@@ -22,14 +22,7 @@ pub extern "Rust" fn register_lints(
     rules::framework::framework_resolution_required::register_lints(sess, lint_store);
 
     #[cfg(feature = "strum")]
-    {
-        rules::strum::strum_manual_enum_accessors::register_lints(sess, lint_store);
-        rules::strum::strum_manual_enum_counts::register_lints(sess, lint_store);
-        rules::strum::strum_manual_enum_iteration::register_lints(sess, lint_store);
-        rules::strum::strum_manual_enum_predicates::register_lints(sess, lint_store);
-        rules::strum::strum_manual_repr_conversions::register_lints(sess, lint_store);
-        rules::strum::strum_manual_variant_arrays::register_lints(sess, lint_store);
-    }
+    register_strum_lints(sess, lint_store);
 
     // Register standard trait protocol policies.
     rules::core::ad_hoc_collection_construction::register_lints(sess, lint_store);
@@ -143,4 +136,27 @@ pub extern "Rust" fn register_lints(
         rules::leptos::leptos_unstable_for_keys::register_lints(sess, lint_store);
         rules::leptos::leptos_writable_signal_component_props::register_lints(sess, lint_store);
     }
+}
+
+#[cfg(feature = "strum")]
+fn register_strum_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint::LintStore) {
+    rules::strum::strum_conflicting_enum_serializations::register_lints(sess, lint_store);
+    rules::strum::strum_declaration_order_domain_contracts::register_lints(sess, lint_store);
+    rules::strum::strum_defaulted_payload_enum_construction::register_lints(sess, lint_store);
+    rules::strum::strum_divergent_discriminant_contracts::register_lints(sess, lint_store);
+    rules::strum::strum_divergent_variant_name_contracts::register_lints(sess, lint_store);
+    rules::strum::strum_documentation_used_as_enum_messages::register_lints(sess, lint_store);
+    rules::strum::strum_filtered_enum_count_contracts::register_lints(sess, lint_store);
+    rules::strum::strum_manual_enum_accessors::register_lints(sess, lint_store);
+    rules::strum::strum_manual_discriminant_enums::register_lints(sess, lint_store);
+    rules::strum::strum_manual_enum_counts::register_lints(sess, lint_store);
+    rules::strum::strum_manual_enum_iteration::register_lints(sess, lint_store);
+    rules::strum::strum_manual_enum_metadata::register_lints(sess, lint_store);
+    rules::strum::strum_manual_enum_predicates::register_lints(sess, lint_store);
+    rules::strum::strum_manual_enum_string_conversions::register_lints(sess, lint_store);
+    rules::strum::strum_manual_enum_string_parsers::register_lints(sess, lint_store);
+    rules::strum::strum_manual_repr_conversions::register_lints(sess, lint_store);
+    rules::strum::strum_manual_variant_arrays::register_lints(sess, lint_store);
+    rules::strum::strum_manual_variant_names::register_lints(sess, lint_store);
+    rules::strum::strum_non_roundtripping_enum_strings::register_lints(sess, lint_store);
 }

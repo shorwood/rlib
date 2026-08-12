@@ -1,0 +1,12 @@
+warning: `Stage` variant names are maintained manually
+  --> $DIR/semantic.rs:9:38
+   |
+LL |     const NAMES: [&'static str; 2] = ["Planned", "Complete"];
+   |                                      ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: the static table duplicates canonical names and declaration order
+   = help: derive `strum::VariantNames` and use its `VARIANTS` constant
+   = note: `#[warn(strum_manual_variant_names)]` on by default
+
+warning: 1 warning emitted
+

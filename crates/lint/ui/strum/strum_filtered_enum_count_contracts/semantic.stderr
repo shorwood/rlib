@@ -1,0 +1,12 @@
+warning: `Capability::COUNT` is a total, not a filtered count
+  --> $DIR/semantic.rs:13:5
+   |
+LL |     Capability::COUNT
+   |     ^^^^^^^^^^^^^^^^^
+   |
+   = note: the surrounding API promises a subset while `EnumCount` includes every declared variant
+   = help: count the declared subset explicitly or rename the API as a total count
+   = note: `#[warn(strum_filtered_enum_count_contracts)]` on by default
+
+warning: 1 warning emitted
+

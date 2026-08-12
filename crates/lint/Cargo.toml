@@ -11,11 +11,12 @@ crate-type = ["cdylib"]
 default = ["leptos"]
 framework = []
 leptos = ["dep:proc-macro2", "dep:quote", "dep:rstml", "dep:syn"]
-strum = ["framework"]
+strum = ["framework", "dep:syn"]
 
 [dependencies]
 convert_case = "0.11"
 dylint_linting = { version = "=6.0.1", features = ["constituent"] }
+heck = "0.5"
 proc-macro2 = { version = "1", features = ["span-locations"], optional = true }
 quote = { version = "1", optional = true }
 rstml = { version = "=0.12.1", optional = true }
@@ -153,6 +154,71 @@ required-features = ["strum"]
 [[example]]
 name = "strum_manual_variant_arrays"
 path = "ui/strum/strum_manual_variant_arrays/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_conflicting_enum_serializations"
+path = "ui/strum/strum_conflicting_enum_serializations/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_declaration_order_domain_contracts"
+path = "ui/strum/strum_declaration_order_domain_contracts/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_defaulted_payload_enum_construction"
+path = "ui/strum/strum_defaulted_payload_enum_construction/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_divergent_discriminant_contracts"
+path = "ui/strum/strum_divergent_discriminant_contracts/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_divergent_variant_name_contracts"
+path = "ui/strum/strum_divergent_variant_name_contracts/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_documentation_used_as_enum_messages"
+path = "ui/strum/strum_documentation_used_as_enum_messages/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_filtered_enum_count_contracts"
+path = "ui/strum/strum_filtered_enum_count_contracts/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_manual_discriminant_enums"
+path = "ui/strum/strum_manual_discriminant_enums/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_manual_enum_metadata"
+path = "ui/strum/strum_manual_enum_metadata/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_manual_enum_string_conversions"
+path = "ui/strum/strum_manual_enum_string_conversions/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_manual_enum_string_parsers"
+path = "ui/strum/strum_manual_enum_string_parsers/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_manual_variant_names"
+path = "ui/strum/strum_manual_variant_names/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
+name = "strum_non_roundtripping_enum_strings"
+path = "ui/strum/strum_non_roundtripping_enum_strings/semantic.rs"
 required-features = ["strum"]
 
 [lints]

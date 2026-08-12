@@ -1,0 +1,12 @@
+warning: `Pending` receives a defaulted payload
+  --> $DIR/semantic.rs:5:5
+   |
+LL |     Pending(String),
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `EnumIter` constructs this variant without domain payload input
+   = help: disable this variant for those derives or use an explicit payload constructor
+   = note: `#[warn(strum_defaulted_payload_enum_construction)]` on by default
+
+warning: 1 warning emitted
+

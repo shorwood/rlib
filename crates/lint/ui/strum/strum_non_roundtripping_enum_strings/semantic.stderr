@@ -1,0 +1,12 @@
+warning: `Pending` does not round-trip through Strum text
+  --> $DIR/semantic.rs:6:5
+   |
+LL |     Pending,
+   |     ^^^^^^^
+   |
+   = note: the generated output `state-Pending` is not parsed back into this variant
+   = help: align `serialize` and `to_string` names or remove the unintended text contract
+   = note: `#[warn(strum_non_roundtripping_enum_strings)]` on by default
+
+warning: 1 warning emitted
+
