@@ -1,2 +1,3 @@
 pub mod core;
-mod leptos;
+#[cfg(feature = "leptos")]
+pub mod leptos;

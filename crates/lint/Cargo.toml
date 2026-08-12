@@ -7,6 +7,10 @@ publish = false
 [lib]
 crate-type = ["cdylib"]
 
+[features]
+default = ["leptos"]
+leptos = []
+
 [dependencies]
 convert_case = "0.11"
 dylint_linting = { version = "=6.0.1", features = ["constituent"] }
@@ -15,6 +19,12 @@ toml = "0.9"
 
 [dev-dependencies]
 dylint_testing = "=6.0.1"
+leptos = { version = "=0.8.20", features = ["ssr"] }
+
+[[example]]
+name = "boolean_component_props"
+path = "ui/leptos/boolean_component_props/semantic.rs"
+required-features = ["leptos"]
 
 [lints]
 workspace = true

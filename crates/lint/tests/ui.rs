@@ -101,10 +101,43 @@ const CROSS_CUTTING_LINT_ALLOWS: [&str; 98] = [
     "visibility_required_only_by_tests",
 ];
 
+const FIXTURE_LOCAL_LINT_ALLOWS: [&str; 20] = [
+    "-A",
+    "bool_fields_without_predicate_prefix",
+    "-A",
+    "collection_method_like_free_functions",
+    "-A",
+    "cross_file_struct_impls",
+    "-A",
+    "invalid_barrel_file_items",
+    "-A",
+    "method_like_free_functions",
+    "-A",
+    "misordered_inherent_impl_items",
+    "-A",
+    "misordered_module_declarations",
+    "-A",
+    "misordered_type_declarations",
+    "-A",
+    "needless_function_wrappers",
+    "-A",
+    "non_adjacent_struct_impls",
+];
+
 /// Runs every default-configuration UI fixture against the lint library.
 #[test]
 fn ui() {
-    dylint_testing::ui::Test::src_base(env!("CARGO_PKG_NAME"), "ui")
+    dylint_testing::ui::Test::src_base(env!("CARGO_PKG_NAME"), "ui/core")
         .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+        .run();
+}
+
+/// Runs dependency-aware Leptos fixtures against a library built with its default features.
+#[cfg(feature = "leptos")]
+#[test]
+fn leptos_ui() {
+    dylint_testing::ui::Test::example(env!("CARGO_PKG_NAME"), "boolean_component_props")
+        .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+        .rustc_flags(FIXTURE_LOCAL_LINT_ALLOWS)
         .run();
 }
