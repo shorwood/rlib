@@ -107,6 +107,7 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "leptos")]
     {
         rules::leptos::boolean_component_props::register_lints(sess, lint_store);
+        rules::leptos::implicit_default_component_props::register_lints(sess, lint_store);
         rules::leptos::writable_signal_component_props::register_lints(sess, lint_store);
     }
 }

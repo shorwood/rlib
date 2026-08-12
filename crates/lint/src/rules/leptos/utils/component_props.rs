@@ -18,6 +18,8 @@ use rustc_span::{Span, Symbol};
 pub struct ComponentProp<'tcx> {
     /// Component function node used to honor lint levels written on `#[component]`.
     pub owner: HirId,
+    /// Authored component span used to recover property-level source annotations.
+    pub owner_span: Span,
     /// Authored parameter binding used to analyze how the capability flows through the component.
     pub binding: HirId,
     /// Authored property name.
@@ -130,6 +132,7 @@ impl ComponentProps {
         // Assemble the stable property record consumed by policy lints.
         ComponentProp {
             owner: owner.hir_id(),
+            owner_span: owner.span,
             binding,
 
             // Retain authored-facing metadata beside semantic type evidence.
