@@ -16,7 +16,7 @@ use crate::utils::diagnostic::LateViolation;
 use crate::utils::item_dependencies::DependenciesExt;
 use crate::utils::reorder_declarations::{DeclarationOrder, DeclarationOrderEdit};
 use crate::utils::section_analysis::SectionAnalyzer;
-use crate::utils::source_provenance::is_framework_generated_item;
+use crate::utils::source_provenance::ItemProvenanceExt;
 
 // -----------------------------------------------------------------------------
 // Violation: Misordered type declaration diagnostic
@@ -203,7 +203,7 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedTypeDeclarations {
         let resolved = module.item_ids.iter().map(|id| cx.tcx.hir_item(*id));
         let items = resolved
             .filter(|item| {
-                !item.span.in_external_macro(source_map) && !is_framework_generated_item(item)
+                !item.span.in_external_macro(source_map) && !item.is_framework_generated()
             })
             .collect::<Vec<_>>();
 

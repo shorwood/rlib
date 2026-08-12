@@ -76,6 +76,9 @@ external_struct!();
 
 fn for_external_struct(value: &ExternalStruct) {}
 
+// False-positive boundary: framework-generated component glue is not an authored ownership API.
+fn __component_generated(value: &Unit) {}
+
 // These forms cannot map directly to a receiver and remain valid free functions.
 fn second_parameter(count: usize, item: &Item<u8>) {}
 fn boxed(item: Box<Item<u8>>) {}

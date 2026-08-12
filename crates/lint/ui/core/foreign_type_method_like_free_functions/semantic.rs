@@ -2,13 +2,20 @@
 // edition:2024
 
 #![warn(foreign_type_method_like_free_functions)]
-#![allow(dead_code, misordered_module_declarations, unused_variables)]
+#![allow(
+    dead_code,
+    method_like_free_functions,
+    misordered_module_declarations,
+    unused_variables
+)]
 
 extern crate foreign_types;
 
 use foreign_types::{Ambient, Document, ExternalItem, ExternalType, Registry, external_helper};
 
 type ItemAlias = ExternalItem;
+
+pub struct LocalSubject;
 
 // `Ambient` recurs beside distinct subjects and must not become the proposed owner.
 pub fn inspect_item(ambient: &Ambient, item: &ExternalItem) {}
@@ -17,9 +24,14 @@ pub(crate) fn inspect_type(ambient: &Ambient, ty: &ExternalType) {}
 // Both foreign types remain plausible, so the lint must report without guessing.
 pub fn register_document(registry: &Registry, document: &Document) {}
 
-// A single foreign nominal parameter is an unambiguous extension subject.
+// False-negative boundary: direct, aliased, and repeated parameters resolve to one foreign owner.
 pub fn inspect(item: &ExternalItem) {}
 pub fn inspect_alias(item: &ItemAlias) {}
+pub fn inspect_repeated(item: &ExternalItem, duplicate: &ExternalItem) {}
+
+// False-positive boundaries: local and primitive parameters do not imply a foreign owner.
+pub fn inspect_local(item: &LocalSubject) {}
+pub fn inspect_count(count: usize) {}
 
 macro_rules! local_helper {
     () => {

@@ -17,7 +17,7 @@ use super::{
     SectionAnalysis, SectionAnalyzer, SectionAnalyzerRenderRequest, SectionFinding, SectionGroup,
 };
 use crate::utils::identifier_case;
-use crate::utils::source_provenance::is_framework_generated_item;
+use crate::utils::source_provenance::ItemProvenanceExt;
 
 // -----------------------------------------------------------------------------
 // Module: Complete module analysis
@@ -74,7 +74,7 @@ impl ModuleAnalysis {
         let mut items = source_items
             .filter(|item| {
                 !item.span.from_expansion()
-                    && !is_framework_generated_item(item)
+                    && !item.is_framework_generated()
                     && source_map.span_to_filename(item.span) == module_file
             })
             .collect::<Vec<_>>();

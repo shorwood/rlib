@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{Span, sym};
 
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::{is_build_generated, is_framework_generated_field};
+use crate::utils::source_provenance::{FieldProvenanceExt, SpanProvenanceExt};
 
 // -----------------------------------------------------------------------------
 // Violation: Undocumented declaration diagnostic
@@ -36,7 +36,7 @@ impl Violation {
     ) -> Option<Self> {
         if Self::has_documentation(cx, hir_id)
             || span.in_external_macro(cx.sess().source_map())
-            || is_build_generated(cx, span)
+            || span.is_build_generated(cx)
         {
             return None;
         }
@@ -220,7 +220,7 @@ impl<'tcx> LateLintPass<'tcx> for UndocumentedItems {
     }
 
     fn check_field_def(&mut self, cx: &LateContext<'tcx>, field: &'tcx FieldDef<'tcx>) {
-        if is_framework_generated_field(cx, field) {
+        if field.is_framework_generated(cx) {
             return;
         }
         let span = if field.is_positional() {

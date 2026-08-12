@@ -1,4 +1,3 @@
-extern crate rustc_abi;
 extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_middle;
@@ -6,7 +5,6 @@ extern crate rustc_span;
 
 use std::borrow::Cow;
 
-use rustc_abi::ExternAbi;
 use rustc_errors::DiagDecorator;
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{BindingMode, HirId, Item, ItemKind, Mod, Mutability, PatKind};
@@ -15,7 +13,7 @@ use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol, sym};
 
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::is_framework_generated_item;
+use crate::utils::free_function_analysis::FreeFunctionExt;
 
 // -----------------------------------------------------------------------------
 // Collection: Collection receiver forms
@@ -166,22 +164,15 @@ impl Candidate {
     /// Vec<Item>` are treated the same as spelling `Vec<Item>` directly.
     fn discover(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         // Require an authored free function body before extracting its syntax.
-        if is_framework_generated_item(item)
-            || !matches!(item.kind, ItemKind::Fn { has_body: true, .. })
-        {
+        if !item.is_authored_rust_free_function(cx) {
             return None;
         }
 
         // Extract the signature and body from the validated function.
-        let ItemKind::Fn { sig, body, .. } = item.kind else {
+        let ItemKind::Fn { body, .. } = item.kind else {
             return None;
         };
         let ident = item.kind.ident()?;
-
-        // Require the ordinary Rust ABI before inspecting parameter semantics.
-        if sig.header.abi != ExternAbi::Rust {
-            return None;
-        }
 
         // Resolve the first parameter's collection receiver and element semantics.
         let function_def_id = item.owner_id.def_id;

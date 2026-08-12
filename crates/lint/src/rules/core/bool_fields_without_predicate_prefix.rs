@@ -11,7 +11,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{Span, Symbol};
 
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::{is_build_generated, is_framework_generated_field};
+use crate::utils::source_provenance::{FieldProvenanceExt, SpanProvenanceExt};
 
 // -----------------------------------------------------------------------------
 // Violation: Boolean field naming diagnostic
@@ -107,8 +107,8 @@ impl LateLintPass<'_> for BoolFieldsWithoutPredicatePrefix {
         // is outside the crate author's control. Local macro expansions remain lintable.
         if field.is_positional()
             || field.span.in_external_macro(cx.sess().source_map())
-            || is_build_generated(cx, field.span)
-            || is_framework_generated_field(cx, field)
+            || field.span.is_build_generated(cx)
+            || field.is_framework_generated(cx)
         {
             return;
         }

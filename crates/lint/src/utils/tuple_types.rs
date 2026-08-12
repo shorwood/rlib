@@ -33,28 +33,15 @@ pub struct ExplicitTupleType {
 impl ExplicitTupleType {
     /// Classifies an authored root type and locates its first non-unit tuple.
     pub(crate) fn classify(cx: &LateContext<'_>, ty: &Ty<'_, AmbigArg>) -> Option<Self> {
-        if ty.span.from_expansion() || matches!(cx.tcx.parent_hir_node(ty.hir_id), Node::Ty(_)) {
+        // Reject generated, nested, and compiler-encoded roots before tuple discovery.
+        let nested = matches!(cx.tcx.parent_hir_node(ty.hir_id), Node::Ty(_));
+        if ty.span.from_expansion() || nested || Self::has_callable_trait_syntax(cx, ty.span) {
             return None;
         }
-        // Rust represents callable-trait arguments as a tuple internally even when the author
-        // wrote ordinary `Fn(A, B)` syntax. That compiler encoding is not an authored tuple API.
-        if cx
-            .sess()
-            .source_map()
-            .span_to_snippet(ty.span)
-            .is_ok_and(|source| {
-                source.contains("Fn(") || source.contains("FnMut(") || source.contains("FnOnce(")
-            })
-        {
-            return None;
-        }
+
+        // Classify an explicit root tuple without descending into its component types.
         if Self::is_non_unit_tuple(ty) {
-            if cx
-                .sess()
-                .source_map()
-                .span_to_snippet(ty.span)
-                .is_ok_and(|source| !source.trim_start().starts_with('('))
-            {
+            if !Self::has_tuple_syntax(cx, ty.span) {
                 return None;
             }
             return Some(Self {
@@ -64,19 +51,32 @@ impl ExplicitTupleType {
             });
         }
 
+        // Find the first nested tuple and confirm that its source uses actual tuple syntax.
         let mut finder = NestedTupleFinder::default();
         intravisit::walk_ty(&mut finder, ty);
         finder.tuple_span.and_then(|tuple_span| {
-            let is_authored_tuple = cx
-                .sess()
-                .source_map()
-                .span_to_snippet(tuple_span)
-                .is_ok_and(|source| source.trim_start().starts_with('('));
+            let is_authored_tuple = Self::has_tuple_syntax(cx, tuple_span);
             is_authored_tuple.then_some(Self {
                 root_span: ty.span,
                 tuple_span,
                 kind: ExplicitTupleKind::Nested,
             })
+        })
+    }
+
+    /// Returns whether a source span begins with authored tuple syntax.
+    fn has_tuple_syntax(cx: &LateContext<'_>, span: Span) -> bool {
+        let source_map = cx.sess().source_map();
+        source_map
+            .span_to_snippet(span)
+            .is_ok_and(|source| source.trim_start().starts_with('('))
+    }
+
+    /// Returns whether callable-trait syntax produced the compiler's internal tuple encoding.
+    fn has_callable_trait_syntax(cx: &LateContext<'_>, span: Span) -> bool {
+        let source_map = cx.sess().source_map();
+        source_map.span_to_snippet(span).is_ok_and(|source| {
+            source.contains("Fn(") || source.contains("FnMut(") || source.contains("FnOnce(")
         })
     }
 

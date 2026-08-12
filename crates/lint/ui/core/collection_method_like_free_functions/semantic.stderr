@@ -112,7 +112,7 @@ LL | local_vector_function!();
    = note: this warning originates in the macro `local_vector_function` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 warning: free function `different_module` should be a method on `OtherList`
-  --> $DIR/semantic.rs:119:4
+  --> $DIR/semantic.rs:122:4
    |
 LL | fn different_module(items: Vec<elsewhere::Other>) {}
    |    ^^^^^^^^^^^^^^^^ ---------------------------- this collection of `Other` needs a named wrapper
@@ -121,7 +121,7 @@ LL | fn different_module(items: Vec<elsewhere::Other>) {}
    = help: beside `Other` in `semantic.rs`, define `struct OtherList { items: Vec<elsewhere::Other> }` and implement `different_module` there with `self`
 
 warning: free function `reuse_different_module` should be a method on `ReusableList`
-  --> $DIR/semantic.rs:120:4
+  --> $DIR/semantic.rs:123:4
    |
 LL | fn reuse_different_module(items: &[elsewhere::Reusable]) {}
    |    ^^^^^^^^^^^^^^^^^^^^^^ ----------------------------- this collection of `Reusable` needs a named wrapper
@@ -130,7 +130,7 @@ LL | fn reuse_different_module(items: &[elsewhere::Reusable]) {}
    = help: move `reuse_different_module` into the existing `impl ReusableList` block beside `Reusable` in `semantic.rs` and use `&self`
 
 warning: free function `conflict_different_module` should be a method on `OccupiedList`
-  --> $DIR/semantic.rs:121:4
+  --> $DIR/semantic.rs:124:4
    |
 LL | fn conflict_different_module(items: Vec<elsewhere::Occupied>) {}
    |    ^^^^^^^^^^^^^^^^^^^^^^^^^ ------------------------------- this collection of `Occupied` needs a named wrapper
@@ -139,7 +139,7 @@ LL | fn conflict_different_module(items: Vec<elsewhere::Occupied>) {}
    = help: `OccupiedList` already names another type beside `Occupied` in `semantic.rs`; choose a dedicated wrapper there with an `items: Vec<Occupied>` field and implement `conflict_different_module` with `self`
 
 warning: free function `different_file` should be a method on `RemoteList`
-  --> $DIR/semantic.rs:122:4
+  --> $DIR/semantic.rs:125:4
    |
 LL | fn different_file(items: &[remote::Remote]) {}
    |    ^^^^^^^^^^^^^^ ------------------------ this collection of `Remote` needs a named wrapper
@@ -148,7 +148,7 @@ LL | fn different_file(items: &[remote::Remote]) {}
    = help: move `different_file` into the existing `impl RemoteList` block beside `Remote` in `remote.inc` and use `&self`
 
 warning: free function `different_module` should be a method on `ItemList`
-  --> $DIR/semantic.rs:125:8
+  --> $DIR/semantic.rs:128:8
    |
 LL |     fn different_module(items: Vec<super::Item>) {}
    |        ^^^^^^^^^^^^^^^^ ----------------------- this collection of `Item` needs a named wrapper

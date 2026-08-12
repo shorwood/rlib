@@ -30,6 +30,10 @@ pub(super) fn to_upper_snake(value: &str) -> String {
     value.to_case(Case::UpperSnake)
 }
 
+// -----------------------------------------------------------------------------
+// Is: Rust identifier validation
+// -----------------------------------------------------------------------------
+
 /// Checks whether identifier text is canonical `snake_case`.
 pub(super) fn is_snake(value: &str) -> bool {
     !value.is_empty() && value.to_case(Case::Snake) == value
@@ -39,6 +43,10 @@ pub(super) fn is_snake(value: &str) -> bool {
 pub(super) fn is_pascal(value: &str) -> bool {
     !value.is_empty() && to_pascal(value) == value
 }
+
+// -----------------------------------------------------------------------------
+// Words: Rust identifier decomposition
+// -----------------------------------------------------------------------------
 
 /// Splits an authored Rust identifier into canonical `PascalCase` words.
 pub(super) fn words(value: &str) -> Vec<String> {
@@ -51,7 +59,7 @@ pub(super) fn words(value: &str) -> Vec<String> {
 }
 
 /// Splits a known `PascalCase` identifier into canonical words.
-pub(super) fn pascal_words(value: &str) -> Vec<String> {
+pub(super) fn words_from_pascal(value: &str) -> Vec<String> {
     IdentifierWords::from_case(value, Case::Pascal)
 }
 
@@ -88,13 +96,13 @@ pub(super) fn longest_common_pascal_prefix(names: &[&str]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        is_pascal, is_snake, longest_common_pascal_prefix, pascal_words, to_upper_snake, words,
+        is_pascal, is_snake, longest_common_pascal_prefix, to_upper_snake, words, words_from_pascal,
     };
 
     #[test]
     fn understands_rust_identifier_boundaries() {
         assert_eq!(
-            pascal_words("HttpServerConfig"),
+            words_from_pascal("HttpServerConfig"),
             ["Http", "Server", "Config"]
         );
         assert_eq!(words("http_server_config"), ["Http", "Server", "Config"]);

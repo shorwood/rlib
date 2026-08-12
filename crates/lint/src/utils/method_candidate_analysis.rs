@@ -1,11 +1,8 @@
-extern crate rustc_abi;
 extern crate rustc_hir;
 extern crate rustc_lint;
 extern crate rustc_middle;
 extern crate rustc_span;
 
-use rustc_abi::ExternAbi;
-use rustc_hir::def::DefKind;
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{
     GenericParamKind, Generics, HirId, Item, ItemKind, Mutability, Param, PatKind, Ty as HirTy,
@@ -14,6 +11,8 @@ use rustc_hir::{
 use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty;
 use rustc_span::{Span, Symbol};
+
+use super::free_function_analysis::FreeFunctionExt;
 
 #[path = "method_migration.rs"]
 pub mod migration;
@@ -149,7 +148,7 @@ impl MethodCandidate {
     /// ```
     pub(crate) fn discover(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         // Require an authored free function body before extracting its syntax.
-        if !matches!(item.kind, ItemKind::Fn { has_body: true, .. }) {
+        if !item.is_authored_rust_free_function(cx) {
             return None;
         }
 
@@ -164,19 +163,7 @@ impl MethodCandidate {
             unreachable!();
         };
 
-        // Associated items, nested functions, and foreign ABIs cannot become the inherent method
-        // described by this rule without changing what the program means.
         let def_id = item.owner_id.def_id;
-        let parent = cx.tcx.opt_local_parent(def_id)?;
-        if cx.tcx.def_kind(parent) != DefKind::Mod || sig.header.abi != ExternAbi::Rust {
-            return None;
-        }
-
-        // External generators are not under the crate author's control. Local macros remain in
-        // scope because their definitions can be changed with the rest of the crate.
-        if item.span.in_external_macro(cx.sess().source_map()) {
-            return None;
-        }
 
         // Resolve the semantic receiver and require its struct to share the module.
         let semantic_receiver = Self::semantic_receiver(cx, def_id)?;

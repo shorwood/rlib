@@ -76,6 +76,9 @@ external_struct!();
 
 fn external_element(items: Vec<ExternalItem>) {}
 
+// False-positive boundary: framework-generated component glue is not an authored ownership API.
+fn __component_generated(items: Vec<Item>) {}
+
 // Only a direct collection in the first parameter is governed by this rule.
 fn second_parameter(count: usize, items: Vec<Item>) {}
 fn boxed_elements(items: Vec<Box<Item>>) {}

@@ -81,23 +81,8 @@ impl ParameterSignature {
         // Exclude repeated trait implementations and source owned by external generators.
         if Self::belongs_to_trait_impl(cx, def_id)
             || name.span.in_external_macro(cx.sess().source_map())
-            || name.name.as_str().starts_with("__component_")
-            || cx
-                .tcx
-                .item_name(def_id.to_def_id())
-                .as_str()
-                .starts_with("__component_")
             || !identifier_case::is_snake(name.name.as_str())
-            || cx
-                .sess()
-                .source_map()
-                .span_to_snippet(name.span)
-                .is_ok_and(|source| identifier_case::is_pascal(source.trim()))
-            || cx
-                .sess()
-                .source_map()
-                .span_to_snippet(cx.tcx.def_span(def_id))
-                .is_ok_and(|source| source.contains("#[component]"))
+            || Self::is_framework_generated(cx, name, def_id)
         {
             return None;
         }
@@ -141,6 +126,33 @@ impl ParameterSignature {
             span: item.ident.span,
             parameters,
         })
+    }
+
+    /// Returns whether a callable boundary is framework glue rather than authored API syntax.
+    fn is_framework_generated(
+        cx: &LateContext<'_>,
+        name: rustc_span::Ident,
+        def_id: LocalDefId,
+    ) -> bool {
+        // Prefer semantic generated names that remain stable across source remapping.
+        let semantic_name = cx.tcx.item_name(def_id.to_def_id());
+        if name.name.as_str().starts_with("__component_")
+            || semantic_name.as_str().starts_with("__component_")
+        {
+            return true;
+        }
+
+        // Attribute macros may preserve PascalCase call-site syntax on generated functions.
+        let source_map = cx.sess().source_map();
+        let pascal_call_site = source_map
+            .span_to_snippet(name.span)
+            .is_ok_and(|source| identifier_case::is_pascal(source.trim()));
+
+        // Retain the authored component attribute as independent generation evidence.
+        let component_definition = source_map
+            .span_to_snippet(cx.tcx.def_span(def_id))
+            .is_ok_and(|source| source.contains("#[component]"));
+        pascal_call_site || component_definition
     }
 
     /// Resolves instantiated function inputs without late-bound binder syntax.

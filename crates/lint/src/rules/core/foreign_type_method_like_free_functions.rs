@@ -1,6 +1,5 @@
 extern crate rustc_errors;
 extern crate rustc_hir;
-extern crate rustc_span;
 
 use std::borrow::Cow;
 
@@ -8,10 +7,11 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_session::config::CrateType;
-use rustc_span::{Span, Symbol};
 
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::foreign_type_analysis::ForeignTypeAnalyzer;
+use crate::utils::foreign_type_analysis::{
+    ForeignTypeAnalyzer, ForeignTypeFunctionFinding, ForeignTypeParameterEvidence,
+};
 
 // -----------------------------------------------------------------------------
 // Violation: Foreign type operation ownership diagnostic
@@ -21,40 +21,58 @@ use crate::utils::foreign_type_analysis::ForeignTypeAnalyzer;
 enum Violation {
     /// One foreign type is the clear semantic receiver.
     ClearOwner {
-        /// Function name span used as the primary diagnostic location.
-        span: Span,
+        /// Complete crate-wide ownership evidence.
+        finding: ForeignTypeFunctionFinding,
         /// Foreign type that should receive a focused extension trait.
-        owner: Symbol,
+        owner: ForeignTypeParameterEvidence,
     },
     /// Several foreign types remain plausible semantic receivers.
     AmbiguousOwner {
-        /// Function name span used as the primary diagnostic location.
-        span: Span,
-        /// Foreign types whose competing ownership must be resolved explicitly.
-        candidates: Vec<Symbol>,
+        /// Complete crate-wide ownership evidence.
+        finding: ForeignTypeFunctionFinding,
     },
+}
+
+impl Violation {
+    /// Renders a source-ordered list of nominal type names.
+    fn type_names(parameters: &[ForeignTypeParameterEvidence]) -> String {
+        let names = parameters
+            .iter()
+            .map(|parameter| format!("`{}`", parameter.name))
+            .collect::<Vec<_>>();
+        names.join(", ")
+    }
+
+    /// Returns the complete finding shared by both ownership classifications.
+    const fn finding(&self) -> &ForeignTypeFunctionFinding {
+        match self {
+            Self::ClearOwner { finding, .. } | Self::AmbiguousOwner { finding } => finding,
+        }
+    }
 }
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         match self {
-            Self::ClearOwner { owner, .. } => Cow::Owned(format!(
-                "this visible free function behaves like an extension method on `{owner}`"
+            Self::ClearOwner { finding, owner } => Cow::Owned(format!(
+                "visible free function `{}` behaves like an extension method on `{}`",
+                finding.name, owner.name
             )),
-            Self::AmbiguousOwner { .. } => Cow::Borrowed(
-                "this visible free function exposes behavior through foreign types without a clear owner",
-            ),
+            Self::AmbiguousOwner { finding } => Cow::Owned(format!(
+                "visible free function `{}` exposes foreign behavior without a clear owner",
+                finding.name
+            )),
         }
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
         match self {
             Self::ClearOwner { owner, .. } => Cow::Owned(format!(
-                "callers must discover this `{owner}` operation in a helper namespace instead of through the type it extends"
+                "`{}` is the only non-ambient foreign parameter, so callers must discover its operation in a helper namespace instead of through the type it extends",
+                owner.name
             )),
-            Self::AmbiguousOwner { candidates, .. } => {
-                let rendered = candidates.iter().map(|candidate| format!("`{candidate}`"));
-                let candidates = rendered.collect::<Vec<_>>().join(", ");
+            Self::AmbiguousOwner { finding } => {
+                let candidates = Self::type_names(&finding.candidates);
                 Cow::Owned(format!(
                     "foreign parameter candidates {candidates} compete for ownership, so the API does not reveal which concept owns the operation"
                 ))
@@ -65,7 +83,8 @@ impl LateViolation for Violation {
     fn remediation_message(&self) -> Cow<'_, str> {
         match self {
             Self::ClearOwner { owner, .. } => Cow::Owned(format!(
-                "define a focused local extension trait for `{owner}` and colocate this operation with its impl"
+                "define a focused local extension trait for `{}` and colocate this operation with its impl",
+                owner.name
             )),
             Self::AmbiguousOwner { .. } => Cow::Borrowed(
                 "choose one semantic subject and define a focused extension trait, or introduce a domain object that owns the operation",
@@ -75,9 +94,7 @@ impl LateViolation for Violation {
 
     fn emit(self, cx: &LateContext<'_>) {
         // Resolve the shared diagnostic anchor before rendering variant-specific messages.
-        let span = match &self {
-            Self::ClearOwner { span, .. } | Self::AmbiguousOwner { span, .. } => *span,
-        };
+        let span = self.finding().span;
 
         // Emit only after the variant-specific diagnostic anchor is resolved.
         cx.emit_span_lint(
@@ -85,7 +102,30 @@ impl LateViolation for Violation {
             span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
+                match &self {
+                    Self::ClearOwner { owner, .. } => {
+                        diag.span_label(
+                            owner.span,
+                            format!("`{}` is the inferred semantic owner", owner.name),
+                        );
+                    }
+                    Self::AmbiguousOwner { finding } => {
+                        for candidate in &finding.candidates {
+                            diag.span_label(
+                                candidate.span,
+                                format!("`{}` remains a plausible owner", candidate.name),
+                            );
+                        }
+                    }
+                }
                 diag.note(self.rationale_message().into_owned());
+                let ambient = &self.finding().ambient;
+                if !ambient.is_empty() {
+                    diag.note(format!(
+                        "excluded {} as ambient infrastructure because it recurs beside distinct nominal subjects in this crate",
+                        Self::type_names(ambient)
+                    ));
+                }
                 diag.help(self.remediation_message().into_owned());
             }),
         );
@@ -155,17 +195,12 @@ impl LateLintPass<'_> for ForeignTypeMethodLikeFreeFunctions {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for finding in self.analyzer.findings(cx) {
-            let violation = if let [owner] = finding.owners.as_slice() {
-                Violation::ClearOwner {
-                    span: finding.span,
-                    owner: *owner,
-                }
+        for mut finding in self.analyzer.findings(cx) {
+            let violation = if finding.owners.len() == 1 {
+                let owner = finding.owners.remove(0);
+                Violation::ClearOwner { finding, owner }
             } else {
-                Violation::AmbiguousOwner {
-                    span: finding.span,
-                    candidates: finding.candidates,
-                }
+                Violation::AmbiguousOwner { finding }
             };
             violation.emit(cx);
         }

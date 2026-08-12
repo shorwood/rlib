@@ -18,7 +18,7 @@ use rustc_middle::ty::{self, TyCtxt};
 use rustc_session::config::CrateType;
 use rustc_span::{Span, Symbol, sym};
 
-use super::source_provenance::{is_framework_generated_field, is_framework_generated_item};
+use super::source_provenance::{FieldProvenanceExt, ItemProvenanceExt};
 use super::visibility_boundary::VisibilityBoundary;
 use super::visibility_package_policy::VisibilityPackagePolicy;
 
@@ -231,7 +231,7 @@ impl VisibilityUsageAnalyzer {
 
         // Retain only semantic named declarations with authored visibility.
         if !item.span.from_expansion()
-            && !is_framework_generated_item(item)
+            && !item.is_framework_generated()
             && let Some(kind) = Self::item_kind(item)
             && let Some(identifier) = item.kind.ident()
         {
@@ -305,7 +305,7 @@ impl VisibilityUsageAnalyzer {
         }
 
         // Generated fields do not own an independently editable boundary.
-        if field.span.from_expansion() || is_framework_generated_field(cx, field) {
+        if field.span.from_expansion() || field.is_framework_generated(cx) {
             return;
         }
 
@@ -458,6 +458,32 @@ impl VisibilityUsageAnalyzer {
             .or_else(|| Self::abstract_item_kind(item))
     }
 
+    /// Adds normalized local types from a trait associated-type assignment.
+    fn add_semantic_associated_types(
+        cx: &LateContext<'_>,
+        item: &ImplItem<'_>,
+        definitions: &mut HashSet<LocalDefId>,
+    ) {
+        if !matches!(item.kind, rustc_hir::ImplItemKind::Type(..)) {
+            return;
+        }
+        let assigned = cx.tcx.type_of(item.owner_id).instantiate_identity();
+
+        // Add every concrete local type named by the normalized assigned value.
+        for component in assigned.walk() {
+            let Some(component) = component.as_type() else {
+                continue;
+            };
+            let ty::Adt(definition, _) = component.kind() else {
+                continue;
+            };
+            let Some(definition) = definition.did().as_local() else {
+                continue;
+            };
+            definitions.insert(definition);
+        }
+    }
+
     /// Records one candidate after parsing and validating its authored visibility.
     fn record_candidate(
         &mut self,
@@ -573,12 +599,37 @@ impl VisibilityUsageAnalyzer {
             .insert(item.owner_id.def_id, collector.definitions());
     }
 
+    /// Attaches trait-interface dependencies to the concrete local implementation target.
+    fn record_trait_target_interface(
+        &mut self,
+        cx: &LateContext<'_>,
+        item: &ImplItem<'_>,
+        definitions: HashSet<LocalDefId>,
+    ) {
+        // Resolve the concrete local target that owns this trait implementation surface.
+        let parent = cx.tcx.local_parent(item.owner_id.def_id);
+        let self_type = cx.tcx.type_of(parent).instantiate_identity();
+        let ty::Adt(definition, _) = self_type.kind() else {
+            return;
+        };
+        let Some(target) = definition.did().as_local() else {
+            return;
+        };
+
+        // Merge the complete trait surface into the local target's visibility evidence.
+        self.interface_dependencies
+            .entry(target)
+            .or_default()
+            .extend(definitions);
+    }
+
     /// Records types named by an inherent associated item's authored interface.
     fn record_impl_item_interface<'tcx>(
         &mut self,
         cx: &LateContext<'tcx>,
         item: &'tcx ImplItem<'tcx>,
     ) {
+        // Collect authored signature types and explicit associated-type syntax.
         let mut collector = VisibilityReferenceCollector::for_interface(cx);
         collector.visit_impl_item(item);
         if let rustc_hir::ImplItemKind::Type(assigned) = item.kind
@@ -595,40 +646,15 @@ impl VisibilityUsageAnalyzer {
             return;
         }
 
-        // HIR traversal does not expose the normalized right-hand side of every trait
-        // associated-type binding, so supplement it from the semantic assigned type.
-        if matches!(item.kind, rustc_hir::ImplItemKind::Type(..)) {
-            let assigned = cx.tcx.type_of(item.owner_id).instantiate_identity();
-            for component in assigned.walk() {
-                let Some(component) = component.as_type() else {
-                    continue;
-                };
-                let ty::Adt(definition, _) = component.kind() else {
-                    continue;
-                };
-                if let Some(definition) = definition.did().as_local() {
-                    definitions.insert(definition);
-                }
-            }
-        }
+        // Supplement trait associated-type syntax with its normalized semantic value.
+        Self::add_semantic_associated_types(cx, item, &mut definitions);
         self.trait_interface_types
             .extend(definitions.iter().copied());
 
         // Trait associated types are exposed wherever the concrete implementing type is usable.
         // Rust rejects narrowing such a type below the target even when no consumer names the
         // associated type directly, so attach the dependency to that local target declaration.
-        let parent = cx.tcx.local_parent(item.owner_id.def_id);
-        let self_type = cx.tcx.type_of(parent).instantiate_identity();
-        let ty::Adt(definition, _) = self_type.kind() else {
-            return;
-        };
-        let Some(target) = definition.did().as_local() else {
-            return;
-        };
-        self.interface_dependencies
-            .entry(target)
-            .or_default()
-            .extend(definitions);
+        self.record_trait_target_interface(cx, item, definitions);
     }
 
     /// Returns whether a module lies within a canonical in-source test module.
