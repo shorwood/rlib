@@ -1,0 +1,21 @@
+warning: resource fetcher writes unrelated reactive state
+  --> $DIR/semantic.rs:22:9
+   |
+LL |         status.set(String::from("loaded"));
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this write depends on the fetcher executing
+   |
+   = note: resource fetchers do not necessarily execute in every server-rendering, hydration, and client-rendering stage, so this mutation has stage-dependent behavior
+   = help: return the loaded state as part of the resource value, or move event-driven mutation to the event that initiated the load
+   = note: `#[warn(leptos_reactive_writes_in_resource_fetchers)]` on by default
+
+warning: resource fetcher writes unrelated reactive state
+  --> $DIR/semantic.rs:33:13
+   |
+LL |             selected.set(value);
+   |             ^^^^^^^^^^^^^^^^^^^ this write depends on the fetcher executing
+   |
+   = note: resource fetchers do not necessarily execute in every server-rendering, hydration, and client-rendering stage, so this mutation has stage-dependent behavior
+   = help: return the loaded state as part of the resource value, or move event-driven mutation to the event that initiated the load
+
+warning: 2 warnings emitted
+
