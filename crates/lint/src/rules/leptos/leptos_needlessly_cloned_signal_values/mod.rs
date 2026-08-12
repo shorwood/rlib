@@ -1,0 +1,158 @@
+extern crate rustc_errors;
+extern crate rustc_hir;
+extern crate rustc_middle;
+extern crate rustc_span;
+
+use std::borrow::Cow;
+
+use rustc_errors::DiagDecorator;
+use rustc_hir::{Expr, ExprKind};
+use rustc_lint::{LateContext, LateLintPass};
+use rustc_middle::ty::TypingEnv;
+use rustc_span::{Span, Symbol};
+
+use crate::utils::diagnostic::LateViolation;
+
+// -----------------------------------------------------------------------------
+// Violation: Needlessly cloned signal value diagnostic
+// -----------------------------------------------------------------------------
+
+/// Cloning reactive read whose value is only inspected through a shared borrow.
+struct Violation {
+    /// Borrowing consumer used to honor local lint attributes.
+    owner: rustc_hir::HirId,
+    /// Authored cloning read highlighted by the diagnostic.
+    span: Span,
+    /// Borrowing operation that consumes the cloned value.
+    operation: Symbol,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "signal value is cloned only to call `{}`",
+            self.operation
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "tracked `get()` clones the complete stored value, while this operation only needs a temporary shared borrow",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed("borrow the signal value with `read()` or a bounded `with(...)` closure")
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.tcx.emit_node_span_lint(
+            LEPTOS_NEEDLESSLY_CLONED_SIGNAL_VALUES,
+            self.owner,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.span_label(self.span, "this tracked read clones the stored value");
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
+
+// -----------------------------------------------------------------------------
+// LeptosNeedlesslyClonedSignalValues: Reactive read policy
+// -----------------------------------------------------------------------------
+
+/// Late lint pass that borrows non-copy signal values for immediate inspection.
+struct LeptosNeedlesslyClonedSignalValues;
+
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub LEPTOS_NEEDLESSLY_CLONED_SIGNAL_VALUES,
+    Warn,
+    "rejects cloned signal values used only by an immediate borrowing operation",
+    LeptosNeedlesslyClonedSignalValues
+}
+
+impl LeptosNeedlesslyClonedSignalValues {
+    /// Returns whether the receiver resolves to tracked reactive `get()`.
+    fn is_reactive_get(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
+            return false;
+        };
+        if !arguments.is_empty() {
+            return false;
+        }
+        let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+        let Some(method) = cx
+            .tcx
+            .typeck(owner)
+            .type_dependent_def_id(expression.hir_id)
+        else {
+            return false;
+        };
+        cx.tcx.crate_name(method.krate).as_str() == "reactive_graph"
+            && cx.tcx.item_name(method).as_str() == "get"
+            && cx
+                .tcx
+                .trait_of_assoc(method)
+                .is_some_and(|trait_id| cx.tcx.item_name(trait_id).as_str() == "Get")
+    }
+
+    /// Returns whether the cloned result type has inexpensive copy semantics.
+    fn is_copy(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+        let ty = cx.tcx.typeck(owner).expr_ty(expression);
+        cx.tcx
+            .type_is_copy_modulo_regions(TypingEnv::post_analysis(cx.tcx, owner), ty)
+    }
+
+    /// Accepts only operations whose receiver is borrowed for the duration of the call.
+    fn borrowing_operation(name: &str, argument_count: usize) -> bool {
+        matches!((name, argument_count), ("len" | "is_empty", 0))
+    }
+}
+
+impl<'tcx> LateLintPass<'tcx> for LeptosNeedlesslyClonedSignalValues {
+    fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        let ExprKind::MethodCall(segment, receiver, arguments, _) = expression.kind else {
+            return;
+        };
+        if !Self::borrowing_operation(segment.ident.name.as_str(), arguments.len())
+            || !Self::is_reactive_get(cx, receiver)
+            || Self::is_copy(cx, receiver)
+        {
+            return;
+        }
+        Violation {
+            owner: expression.hir_id,
+            span: receiver.span,
+            operation: segment.ident.name,
+        }
+        .emit(cx);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Tests: Unit tests
+// -----------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::LeptosNeedlesslyClonedSignalValues;
+
+    #[test]
+    fn recognizes_borrow_only_operations() {
+        assert!(LeptosNeedlesslyClonedSignalValues::borrowing_operation(
+            "len", 0
+        ));
+        assert!(LeptosNeedlesslyClonedSignalValues::borrowing_operation(
+            "is_empty", 0
+        ));
+        assert!(!LeptosNeedlesslyClonedSignalValues::borrowing_operation(
+            "into_iter",
+            0
+        ));
+    }
+}
