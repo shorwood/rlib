@@ -66,6 +66,11 @@ path = "ui/leptos/leptos_missing_view_section_comments/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
+name = "leptos_malformed_view_section_comments"
+path = "ui/leptos/leptos_malformed_view_section_comments/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_needlessly_cloned_signal_values"
 path = "ui/leptos/leptos_needlessly_cloned_signal_values/semantic.rs"
 required-features = ["leptos"]

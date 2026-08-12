@@ -1,0 +1,38 @@
+warning: this view section comment is not canonical
+  --> $DIR/semantic.rs:10:13
+   |
+LL |             // ACCOUNT NAVIGATION:
+   |             ^^^^^^^^^^^^^^^^^^^^^^ help: render this view heading canonically: `// Account navigation`
+   |
+   = note: consistent headings make view boundaries predictable for readers and related lints
+   = note: `#[warn(leptos_malformed_view_section_comments)]` on by default
+
+warning: this view section comment must be preceded by a blank line
+  --> $DIR/semantic.rs:12:13
+   |
+LL |             // Account content
+   |             ^^^^^^^^^^^^^^^^^^
+   |
+   = note: consistent headings make view boundaries predictable for readers and related lints
+   = help: use concise sentence-style prose immediately before the first owned node
+
+warning: this view section comment is not canonical
+  --> $DIR/semantic.rs:15:13
+   |
+LL |             /* Account actions */
+   |             ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: consistent headings make view boundaries predictable for readers and related lints
+   = help: use concise sentence-style prose immediately before the first owned node
+
+warning: this view section comment must immediately precede its region
+  --> $DIR/semantic.rs:19:13
+   |
+LL |             // Stranded heading
+   |             ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: consistent headings make view boundaries predictable for readers and related lints
+   = help: use concise sentence-style prose immediately before the first owned node
+
+warning: 4 warnings emitted
+

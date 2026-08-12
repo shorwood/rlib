@@ -27,16 +27,16 @@ impl FunctionLayoutProsePosition {
 }
 
 /// Validates and safely normalizes authored phase-comment prose.
-pub(super) struct FunctionLayoutProse;
+pub(crate) struct FunctionLayoutProse;
 
 impl FunctionLayoutProse {
     /// Validates presence, spacing, and sentence style of phase-comment prose.
-    pub(super) fn is_canonical(content: Option<&str>) -> bool {
+    pub(crate) fn is_canonical(content: Option<&str>) -> bool {
         content.is_some_and(|content| content == content.trim() && Self::is_sentence_style(content))
     }
 
     /// Builds a canonical first-line replacement for safely repairable prose.
-    pub(super) fn replacement(content: Option<&str>, prefix: &str) -> Option<String> {
+    pub(crate) fn replacement(content: Option<&str>, prefix: &str) -> Option<String> {
         let repairable = content
             .map(str::trim)
             .map(|content| content.trim_start_matches('-').trim_start())

@@ -277,19 +277,25 @@ impl ViewScopeBuilder<'_> {
             .filter_map(|comment| {
                 let node = nodes
                     .iter()
-                    .position(|node| comment.range.end <= node.range.start)?;
-                let previous_end = node
-                    .checked_sub(1)
-                    .map_or(bounds.start, |previous| nodes[previous].range.end);
+                    .position(|node| comment.range.end <= node.range.start);
+                let previous_end = node.map_or_else(
+                    || nodes.last().map_or(bounds.start, |node| node.range.end),
+                    |node| {
+                        node.checked_sub(1)
+                            .map_or(bounds.start, |previous| nodes[previous].range.end)
+                    },
+                );
                 (comment.range.start >= previous_end).then(|| {
                     let before = &self.source[previous_end..comment.range.start];
-                    let after = &self.source[comment.range.end..nodes[node].range.start];
+                    let next_start = node.map_or(bounds.end, |node| nodes[node].range.start);
+                    let after = &self.source[comment.range.end..next_start];
                     ViewHeading {
                         span: self.to_rustc_span(&comment.range),
                         text: comment.text.clone(),
-                        node: after.trim().is_empty().then_some(node),
-                        blank_before: node == 0 || before.matches('\n').count() >= 2,
-                        immediately_precedes: after.trim().is_empty()
+                        node: node.filter(|_| after.trim().is_empty()),
+                        blank_before: node == Some(0) || before.matches('\n').count() >= 2,
+                        immediately_precedes: node.is_some()
+                            && after.trim().is_empty()
                             && after.matches('\n').count() <= 1,
                     }
                 })
@@ -387,7 +393,10 @@ impl SourceComment {
         for token in tokenize(source, FrontmatterAllowed::No) {
             let length = usize::try_from(token.len).expect("token length fits");
             let end = offset + length;
-            if matches!(token.kind, TokenKind::LineComment { doc_style: None }) {
+            if matches!(
+                token.kind,
+                TokenKind::LineComment { .. } | TokenKind::BlockComment { .. }
+            ) {
                 comments.push(Self {
                     range: offset..end,
                     text: source[offset..end].to_owned(),
@@ -438,6 +447,15 @@ mod tests {
         let parsed = parse("view! { <>// Account navigation\n<Nav/><Crumbs/></> }");
         assert_eq!(parsed.scopes[0].nodes.len(), 2);
         assert_eq!(parsed.scopes[0].headings[0].node, Some(0));
+    }
+
+    #[test]
+    fn retains_stranded_direct_boundary_comments() {
+        let parsed = parse("view! { <main><Content/> // Stranded heading\n</main> }");
+        let scope = &parsed.scopes[1];
+        assert_eq!(scope.headings.len(), 1);
+        assert_eq!(scope.headings[0].node, None);
+        assert!(!scope.headings[0].immediately_precedes);
     }
 
     #[test]
