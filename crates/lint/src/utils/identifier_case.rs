@@ -93,6 +93,10 @@ pub(super) fn longest_common_pascal_prefix(names: &[&str]) -> Option<String> {
     Some(prefix.concat())
 }
 
+// -----------------------------------------------------------------------------
+// Tests: Unit tests
+// -----------------------------------------------------------------------------
+
 #[cfg(test)]
 mod tests {
     use super::{

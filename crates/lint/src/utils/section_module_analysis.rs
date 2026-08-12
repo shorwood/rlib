@@ -209,7 +209,12 @@ impl ModuleAnalysis {
         parsed: &ParsedContent,
         analysis: &mut SectionAnalysis,
     ) {
-        if section.participants.is_empty() {
+        // A test module is absent from non-test HIR even though its authored divider remains.
+        let is_inactive_test_section = parsed
+            .prefix
+            .as_deref()
+            .is_some_and(|prefix| prefix == "Tests");
+        if section.participants.is_empty() && !is_inactive_test_section {
             analysis.malformed.push(SectionFinding {
                 span: section.divider.span,
                 message: "section divider does not contain any module declarations".to_owned(),

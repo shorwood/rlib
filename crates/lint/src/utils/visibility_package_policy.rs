@@ -74,6 +74,10 @@ impl VisibilityPackagePolicy {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Tests: Unit tests
+// -----------------------------------------------------------------------------
+
 #[cfg(test)]
 mod tests {
     use super::VisibilityPackagePolicy;

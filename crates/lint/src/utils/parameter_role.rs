@@ -87,6 +87,10 @@ pub(super) fn names_are_conventional(
     all_roles_are_generic || (operation_is_generic && operation_roles_are_generic)
 }
 
+// -----------------------------------------------------------------------------
+// Tests: Unit tests
+// -----------------------------------------------------------------------------
+
 #[cfg(test)]
 mod tests {
     extern crate rustc_middle;

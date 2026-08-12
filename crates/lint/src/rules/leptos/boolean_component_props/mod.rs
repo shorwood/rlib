@@ -115,6 +115,10 @@ impl<'tcx> LateLintPass<'tcx> for BooleanComponentProps {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Tests: Unit tests
+// -----------------------------------------------------------------------------
+
 #[cfg(test)]
 mod tests {
     use super::BooleanComponentProps;

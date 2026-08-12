@@ -95,6 +95,10 @@ impl fmt::Display for VisibilityBoundary {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Tests: Unit tests
+// -----------------------------------------------------------------------------
+
 #[cfg(test)]
 mod tests {
     use super::VisibilityBoundary;

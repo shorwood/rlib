@@ -6,7 +6,7 @@ extern crate rustc_span;
 use std::collections::HashMap;
 
 use rustc_hir::{Item, ItemKind};
-use rustc_lint::LateContext;
+use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty;
 use rustc_span::{BytePos, Span};
 
@@ -28,6 +28,8 @@ enum SectionEventCandidateKind {
     Nominal,
     /// A value declaration that supports a surrounding concept.
     Supporting,
+    /// An in-source test module that always needs an explicit boundary.
+    TestModule,
 }
 
 /// Module declaration that may participate in the current section.
@@ -40,6 +42,8 @@ pub(super) struct SectionEventCandidate {
     span: Span,
     /// Whether this candidate introduces a nominal type.
     is_nominal_declaration: bool,
+    /// Whether this declaration requires a divider even when it stands alone.
+    is_standalone_divider_required: bool,
 }
 
 impl SectionEventCandidate {
@@ -74,6 +78,21 @@ impl SectionEventCandidate {
             ));
         }
 
+        // Give every active in-source test module an explicit source boundary.
+        if cx.sess().opts.test
+            && matches!(item.kind, ItemKind::Mod(..))
+            && item
+                .kind
+                .ident()
+                .is_some_and(|ident| matches!(ident.name.as_str(), "test" | "tests"))
+        {
+            return Some(Self::from_named_item(
+                cx,
+                item,
+                SectionEventCandidateKind::TestModule,
+            ));
+        }
+
         // Classify value declarations and supporting inherent implementations.
         match item.kind {
             ItemKind::Const(..) | ItemKind::Static(..) | ItemKind::Fn { .. } => Some(
@@ -95,6 +114,7 @@ impl SectionEventCandidate {
             name: cx.tcx.item_name(item.owner_id.to_def_id()).to_string(),
             span: item.span,
             is_nominal_declaration: matches!(kind, SectionEventCandidateKind::Nominal),
+            is_standalone_divider_required: matches!(kind, SectionEventCandidateKind::TestModule),
         }
     }
 
@@ -113,6 +133,7 @@ impl SectionEventCandidate {
             name: cx.tcx.item_name(definition.to_def_id()).to_string(),
             span: item.span,
             is_nominal_declaration: false,
+            is_standalone_divider_required: false,
         })
     }
 }
@@ -230,10 +251,9 @@ impl SectionEventStreamCandidates {
     /// Returns whether the accumulated declarations require an authored section.
     fn requires_divider(&self) -> bool {
         self.0.len() > 1
-            || self
-                .0
-                .iter()
-                .any(|participant| participant.is_nominal_declaration)
+            || self.0.iter().any(|participant| {
+                participant.is_nominal_declaration || participant.is_standalone_divider_required
+            })
     }
 
     /// Produces naming-first guidance for a declaration group without a divider.

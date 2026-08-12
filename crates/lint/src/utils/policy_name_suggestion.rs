@@ -96,6 +96,10 @@ impl ConfigurationNameContext<'_> {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Tests: Unit tests
+// -----------------------------------------------------------------------------
+
 #[cfg(test)]
 mod tests {
     use super::{ConfigurationNameContext, for_authored_name};

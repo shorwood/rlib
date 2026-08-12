@@ -5,7 +5,9 @@
 Requires module-level declaration groups to be covered by a configured section divider.
 Nominal types and their direct impls always participate. Free functions, constants, and
 statics also participate when they form a group or occur inside an authored section; an
-isolated value declaration does not require a divider by itself.
+isolated value declaration does not require a divider by itself. A conventional in-source
+`#[cfg(test)] mod test` or `mod tests` always requires a divider, even when it is the only
+declaration in its group.
 
 ## Why is this bad?
 
@@ -21,6 +23,11 @@ For example, these declarations have no stated family:
 ```rust
 struct Request;
 impl Request {}
+
+#[cfg(test)]
+mod tests {
+    // ...
+}
 ```
 
 ## Use instead
@@ -35,4 +42,13 @@ A divider establishes the naming contract:
 
 struct Request;
 impl Request {}
+
+// -----------------------------------------------------------------------------
+// Tests: In-source tests
+// -----------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    // ...
+}
 ```

@@ -9,6 +9,10 @@ pub(super) fn sentence(value: &str) -> String {
     value.to_case(Case::Sentence)
 }
 
+// -----------------------------------------------------------------------------
+// Tests: Unit tests
+// -----------------------------------------------------------------------------
+
 #[cfg(test)]
 mod tests {
     use super::sentence;

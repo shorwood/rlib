@@ -1,0 +1,19 @@
+warning: module declarations are not covered by a section divider
+  --> $DIR/active_tests.rs:8:5
+   |
+LL | /     mod tests {
+LL | |         #[test]
+LL | |         fn works() {}
+LL | |     }
+   | |_____^
+   |
+   = note: without an explicit boundary, neighboring declarations do not reveal whether they intentionally form one naming family
+   = help: add a divider for `Tests`, after first checking whether any outlier should be renamed into that family
+note: the lint level is defined here
+  --> $DIR/active_tests.rs:4:9
+   |
+LL | #![warn(missing_section_dividers)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: 1 warning emitted
+

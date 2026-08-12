@@ -174,6 +174,10 @@ impl StringDomainSymbolExt for Symbol {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Tests: Unit tests
+// -----------------------------------------------------------------------------
+
 #[cfg(test)]
 mod tests {
     use super::rustc_span::{Symbol, create_default_session_globals_then};
