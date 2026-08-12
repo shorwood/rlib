@@ -67,6 +67,11 @@ name = "leptos_unkeyed_reactive_collections"
 path = "ui/leptos/leptos_unkeyed_reactive_collections/semantic.rs"
 required-features = ["leptos"]
 
+[[example]]
+name = "leptos_unreactive_signal_reads_in_views"
+path = "ui/leptos/leptos_unreactive_signal_reads_in_views/semantic.rs"
+required-features = ["leptos"]
+
 [lints]
 workspace = true
 
