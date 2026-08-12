@@ -248,6 +248,15 @@ pub(crate) struct ViewAttributeGroup<'element> {
     pub(crate) attributes: &'element [ViewAttribute],
 }
 
+impl ViewAttributeGroup<'_> {
+    pub(crate) fn complexity(&self) -> usize {
+        self.attributes
+            .iter()
+            .map(|attribute| attribute.complexity)
+            .sum()
+    }
+}
+
 impl ViewElement {
     pub(crate) fn complexity(&self) -> usize {
         self.attributes

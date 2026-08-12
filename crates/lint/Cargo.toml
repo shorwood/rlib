@@ -102,6 +102,11 @@ path = "ui/leptos/leptos_oversized_view_sections/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
+name = "leptos_oversized_view_attribute_groups"
+path = "ui/leptos/leptos_oversized_view_attribute_groups/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_read_then_replace_signals"
 path = "ui/leptos/leptos_read_then_replace_signals/semantic.rs"
 required-features = ["leptos"]

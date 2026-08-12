@@ -221,6 +221,7 @@ fn run_leptos_fixtures() {
         "leptos_mismatched_view_attribute_groups",
         "leptos_duplicate_view_section_comments",
         "leptos_oversized_view_sections",
+        "leptos_oversized_view_attribute_groups",
         "leptos_primitive_context_values",
         "leptos_malformed_view_section_comments",
         "leptos_attribute_bound_controlled_inputs",

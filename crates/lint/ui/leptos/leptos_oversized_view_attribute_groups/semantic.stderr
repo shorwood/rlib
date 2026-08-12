@@ -1,0 +1,17 @@
+warning: attribute group complexity 5 exceeds configured maximum 4
+  --> $DIR/semantic.rs:9:13
+   |
+LL | /             // Button configuration
+LL | |             id="save"
+LL | |             type="submit"
+LL | |             form="profile"
+LL | |             class="primary"
+LL | |             disabled=false
+   | |__________________________^ this named group still owns too much complexity
+   |
+   = note: oversized groups make a heading decorative instead of a bounded navigation aid
+   = help: split this group by stable responsibility or extract a narrower component interface
+   = note: `#[warn(leptos_oversized_view_attribute_groups)]` on by default
+
+warning: 1 warning emitted
+

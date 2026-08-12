@@ -12,6 +12,7 @@ pub mod leptos_missing_view_section_comments;
 pub mod leptos_missing_view_attribute_group_comments;
 pub mod leptos_needlessly_cloned_signal_values;
 pub mod leptos_oversized_view_sections;
+pub mod leptos_oversized_view_attribute_groups;
 pub mod leptos_primitive_context_values;
 pub mod leptos_read_then_replace_signals;
 pub mod leptos_reactive_writes_during_view_construction;
