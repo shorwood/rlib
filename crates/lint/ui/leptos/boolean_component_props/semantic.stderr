@@ -72,3 +72,4 @@ LL |     nested: Option<Signal<bool>>,
    = help: replace the boolean with a domain enum whose variants name the component states
 
 warning: 8 warnings emitted
+

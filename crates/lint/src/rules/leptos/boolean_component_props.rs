@@ -73,19 +73,51 @@ impl LateViolation for Violation {
 /// Late lint pass that rejects boolean state in Leptos component properties.
 struct BooleanComponentProps;
 
+impl BooleanComponentProps {
+    /// Recognizes boolean state whose name already carries a standard platform meaning.
+    fn is_platform_state(name: &str) -> bool {
+        matches!(name, "disabled" | "invalid")
+    }
+}
+
 dylint_linting::impl_late_lint! {
     /// ### What it does
     ///
-    /// Rejects direct, optional, and reactive boolean properties on Leptos components.
-    /// Booleans nested inside callback signatures or unknown application wrappers are not treated
-    /// as component state by this rule.
+    /// Rejects direct, optional, and reactive boolean properties on Leptos components when their
+    /// names do not communicate a standard binary state. The platform states `disabled` and
+    /// `invalid` are accepted because HTML and ARIA already define their meaning and conventional
+    /// opposite. Booleans nested inside callback signatures or unknown application wrappers are
+    /// not treated as component state by this rule.
     ///
     /// ### Why is this bad?
     ///
     /// Component calls read as declarative markup. A boolean value does not name the selected
     /// state at the call site, makes the opposite state implicit, and cannot grow to represent
     /// another state without changing the property type. A domain enum keeps the component's
-    /// vocabulary visible in both its declaration and its uses.
+    /// vocabulary visible in both its declaration and its uses. This does not apply to conventional
+    /// platform states such as `disabled`: replacing that established binary contract with an enum
+    /// would obscure interoperability rather than clarify domain vocabulary.
+    ///
+    /// For example, presentation flags leave the selected design variant implicit:
+    ///
+    /// ```rust,ignore
+    /// #[component]
+    /// fn Badge(compact: bool, featured: bool) -> impl IntoView {
+    ///     // ...
+    /// }
+    /// ```
+    ///
+    /// Prefer a domain type that names every supported presentation:
+    ///
+    /// ```rust,ignore
+    /// enum BadgeDensity { Comfortable, Compact }
+    /// enum BadgeEmphasis { Standard, Featured }
+    ///
+    /// #[component]
+    /// fn Badge(density: BadgeDensity, emphasis: BadgeEmphasis) -> impl IntoView {
+    ///     // ...
+    /// }
+    /// ```
     pub BOOLEAN_COMPONENT_PROPS,
     Warn,
     "rejects boolean state in Leptos component properties",
@@ -101,7 +133,9 @@ impl<'tcx> LateLintPass<'tcx> for BooleanComponentProps {
         // Report every authored property whose resolved API type carries boolean state.
         for property in properties {
             // Ignore props whose resolved wrapper tree carries no boolean state.
-            if !ComponentProps::carries_boolean(cx, property.ty) {
+            if Self::is_platform_state(property.name.as_str())
+                || !ComponentProps::carries_boolean(cx, property.ty)
+            {
                 continue;
             }
 
@@ -114,5 +148,20 @@ impl<'tcx> LateLintPass<'tcx> for BooleanComponentProps {
             }
             .emit(cx);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BooleanComponentProps;
+
+    #[test]
+    fn accepts_only_established_platform_states() {
+        assert!(BooleanComponentProps::is_platform_state("disabled"));
+        assert!(BooleanComponentProps::is_platform_state("invalid"));
+        assert!(!BooleanComponentProps::is_platform_state("active"));
+        assert!(!BooleanComponentProps::is_platform_state("compact"));
+        assert!(!BooleanComponentProps::is_platform_state("featured"));
+        assert!(!BooleanComponentProps::is_platform_state("is_disabled"));
     }
 }

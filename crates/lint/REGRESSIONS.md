@@ -29,6 +29,7 @@ while this file records why a semantic boundary exists and where its regression 
 | Local macro output is editable but external macro output is not | False positive or false negative: scope mismatch | expansion provenance in `free_function_analysis` | all three `ui/core/*_method_like_free_functions/semantic.rs` fixtures |
 | Active test implementations or consumers prove substitution | False positive: evidence mistake | compilation-local test evidence | `ui/core/single_implementation_traits/active_tests.rs`, `ui/core/unconsumed_generic_abstractions/active_tests.rs` |
 | Generated Leptos props must map back to authored component fields without treating arbitrary wrappers as boolean state | False positive or false negative: identity gap | semantic `Leptos::Props` resolution and accepted-wrapper recursion | `ui/leptos/boolean_component_props/semantic.rs` |
+| Standard HTML and ARIA states already give `disabled` and `invalid` booleans a stable binary vocabulary | False positive: evidence mistake | exact platform-state vocabulary in `boolean_component_props` | `boolean_component_props` unit test, downstream `leptos-pencil` dogfood |
 
 ## Triage workflow
 
