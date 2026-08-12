@@ -72,6 +72,11 @@ path = "ui/leptos/leptos_missing_view_section_comments/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
+name = "leptos_missing_view_attribute_group_comments"
+path = "ui/leptos/leptos_missing_view_attribute_group_comments/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_malformed_view_section_comments"
 path = "ui/leptos/leptos_malformed_view_section_comments/semantic.rs"
 required-features = ["leptos"]

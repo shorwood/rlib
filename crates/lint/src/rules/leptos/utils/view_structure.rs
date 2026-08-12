@@ -35,6 +35,10 @@ pub(crate) struct LeptosViewStructureConfig {
     pub(crate) max_unnamed_view_complexity: usize,
     /// Maximum direct complexity permitted in one named section.
     pub(crate) max_view_section_complexity: usize,
+    /// Maximum direct attribute complexity permitted without named groups.
+    pub(crate) max_unnamed_view_attribute_complexity: usize,
+    /// Maximum complexity permitted in one named attribute group.
+    pub(crate) max_view_attribute_group_complexity: usize,
 }
 
 impl Default for LeptosViewStructureConfig {
@@ -43,6 +47,8 @@ impl Default for LeptosViewStructureConfig {
             view_section_comment_prefix: "//".to_owned(),
             max_unnamed_view_complexity: 4,
             max_view_section_complexity: 4,
+            max_unnamed_view_attribute_complexity: 6,
+            max_view_attribute_group_complexity: 4,
         }
     }
 }
@@ -59,7 +65,11 @@ impl LeptosViewStructureConfig {
 
     /// Rejects ineffective limits and prefixes that are not ordinary comments.
     fn validate(&self) -> Result<(), String> {
-        if self.max_unnamed_view_complexity == 0 || self.max_view_section_complexity == 0 {
+        if self.max_unnamed_view_complexity == 0
+            || self.max_view_section_complexity == 0
+            || self.max_unnamed_view_attribute_complexity == 0
+            || self.max_view_attribute_group_complexity == 0
+        {
             return Err("Leptos view structure complexity limits must be greater than zero".into());
         }
         let prefix = &self.view_section_comment_prefix;
@@ -197,6 +207,66 @@ pub(crate) struct ViewStructureAnalysis {
     pub(crate) owner: HirId,
     /// Direct sibling scopes found in the authored view.
     pub(crate) scopes: Vec<ViewScope>,
+    /// Opening tags and their authored attributes.
+    pub(crate) elements: Vec<ViewElement>,
+}
+
+/// Stable semantic category for an authored attribute or component prop.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(crate) enum ViewAttributeCategory {
+    Identity,
+    Accessibility,
+    State,
+    Presentation,
+    Data,
+    Behavior,
+    Integration,
+    Other,
+}
+
+/// One direct attribute in an authored opening tag.
+#[derive(Clone)]
+pub(crate) struct ViewAttribute {
+    pub(crate) range: Range<usize>,
+    pub(crate) category: ViewAttributeCategory,
+    pub(crate) complexity: usize,
+}
+
+/// One opening tag with its direct attributes and boundary comments.
+pub(crate) struct ViewElement {
+    pub(crate) name: String,
+    pub(crate) span: Span,
+    pub(crate) attributes: Vec<ViewAttribute>,
+    pub(crate) headings: Vec<ViewHeading>,
+}
+
+impl ViewElement {
+    pub(crate) fn complexity(&self) -> usize {
+        self.attributes
+            .iter()
+            .map(|attribute| attribute.complexity)
+            .sum()
+    }
+
+    pub(crate) fn category_count(&self) -> usize {
+        self.attributes
+            .iter()
+            .map(|attribute| attribute.category)
+            .collect::<HashSet<_>>()
+            .len()
+    }
+
+    pub(crate) fn group_count(&self, config: &LeptosViewStructureConfig) -> usize {
+        self
+            .headings
+            .iter()
+            .filter_map(|heading| {
+                heading
+                    .canonical_content(config)
+                    .and_then(|_| heading.node.map(|attribute| (heading, attribute)))
+            })
+            .count()
+    }
 }
 
 /// Stateful deduplication shared by individual view lint passes.
@@ -244,11 +314,13 @@ impl ViewStructureAnalysis {
             span,
             comments: &comments,
             scopes: Vec::new(),
+            elements: Vec::new(),
         };
         builder.collect_scope(&nodes, bounds);
         Some(Self {
             owner,
             scopes: builder.scopes,
+            elements: builder.elements,
         })
     }
 }
@@ -267,6 +339,8 @@ struct ViewScopeBuilder<'source> {
     comments: &'source [SourceComment],
     /// Completed sibling scopes.
     scopes: Vec<ViewScope>,
+    /// Completed authored opening tags.
+    elements: Vec<ViewElement>,
 }
 
 impl ViewScopeBuilder<'_> {
@@ -286,17 +360,67 @@ impl ViewScopeBuilder<'_> {
 
         // Every element child list is an independent direct sibling scope.
         for node in direct {
-            if let Node::Element(element) = node
-                && !element.children.is_empty()
-            {
-                let start = element.open_tag.span().byte_range().end;
-                let end = element
-                    .close_tag
-                    .as_ref()
-                    .map_or(start, |tag| tag.span().byte_range().start);
-                self.collect_scope(&element.children, start..end);
+            if let Node::Element(element) = node {
+                self.collect_element(element);
+                if !element.children.is_empty() {
+                    let start = element.open_tag.span().byte_range().end;
+                    let end = element
+                        .close_tag
+                        .as_ref()
+                        .map_or(start, |tag| tag.span().byte_range().start);
+                    self.collect_scope(&element.children, start..end);
+                }
             }
         }
+    }
+
+    /// Projects one opening tag into the shared attribute-group model.
+    fn collect_element(&mut self, element: &NodeElement<rstml::Infallible>) {
+        let attributes = element
+            .attributes()
+            .iter()
+            .filter_map(|attribute| {
+                let range = attribute.span().byte_range();
+                if range.start >= range.end || range.end > self.source.len() {
+                    return None;
+                }
+                let (category, complexity) = match attribute {
+                    NodeAttribute::Attribute(attribute) => {
+                        let name = attribute.key.to_string();
+                        let category = attribute_category(&name);
+                        let complexity =
+                            1 + usize::from(category == ViewAttributeCategory::Behavior);
+                        (category, complexity)
+                    }
+                    NodeAttribute::Block(_) => {
+                        (ViewAttributeCategory::Integration, 2)
+                    }
+                };
+                Some(ViewAttribute {
+                    range,
+                    category,
+                    complexity,
+                })
+            })
+            .collect::<Vec<_>>();
+        if attributes.is_empty() {
+            return;
+        }
+        let opening = element.open_tag.span().byte_range();
+        let bounds = opening.clone();
+        let headings = self.collect_headings_for_ranges(
+            &attributes
+                .iter()
+                .map(|attribute| attribute.range.clone())
+                .collect::<Vec<_>>(),
+            &bounds,
+        );
+        self.elements.push(ViewElement {
+            name: element.name().to_string(),
+            span: self.to_rustc_span(&opening),
+            attributes,
+            headings,
+        });
     }
 
     /// Converts one structural rstml node into a direct-view participant.
@@ -336,25 +460,40 @@ impl ViewScopeBuilder<'_> {
 
     /// Associates ordinary comments found in direct-node gaps with the following node.
     fn collect_headings(&self, nodes: &[ViewNode], bounds: &Range<usize>) -> Vec<ViewHeading> {
+        self.collect_headings_for_ranges(
+            &nodes
+                .iter()
+                .map(|node| node.range.clone())
+                .collect::<Vec<_>>(),
+            bounds,
+        )
+    }
+
+    /// Associates ordinary comments with the next authored range in one structural scope.
+    fn collect_headings_for_ranges(
+        &self,
+        ranges: &[Range<usize>],
+        bounds: &Range<usize>,
+    ) -> Vec<ViewHeading> {
         self.comments
             .iter()
             .filter(|comment| {
                 comment.range.start >= bounds.start && comment.range.end <= bounds.end
             })
             .filter_map(|comment| {
-                let node = nodes
+                let node = ranges
                     .iter()
-                    .position(|node| comment.range.end <= node.range.start);
+                    .position(|range| comment.range.end <= range.start);
                 let previous_end = node.map_or_else(
-                    || nodes.last().map_or(bounds.start, |node| node.range.end),
+                    || ranges.last().map_or(bounds.start, |range| range.end),
                     |node| {
                         node.checked_sub(1)
-                            .map_or(bounds.start, |previous| nodes[previous].range.end)
+                            .map_or(bounds.start, |previous| ranges[previous].end)
                     },
                 );
                 (comment.range.start >= previous_end).then(|| {
                     let before = &self.source[previous_end..comment.range.start];
-                    let next_start = node.map_or(bounds.end, |node| nodes[node].range.start);
+                    let next_start = node.map_or(bounds.end, |node| ranges[node].start);
                     let after = &self.source[comment.range.end..next_start];
                     ViewHeading {
                         span: self.to_rustc_span(&comment.range),
@@ -377,6 +516,38 @@ impl ViewScopeBuilder<'_> {
         self.span
             .with_lo(self.span.lo() + lo)
             .with_hi(self.span.lo() + hi)
+    }
+}
+
+/// Classifies stable Leptos/HTML attribute namespaces without guessing value semantics.
+fn attribute_category(name: &str) -> ViewAttributeCategory {
+    if name == "role" || name == "alt" || name.starts_with("aria-") || name.starts_with("aria:") {
+        ViewAttributeCategory::Accessibility
+    } else if name == "class"
+        || name == "style"
+        || name.starts_with("class:")
+        || name.starts_with("style:")
+    {
+        ViewAttributeCategory::Presentation
+    } else if name.starts_with("on:") || name.starts_with("on_") {
+        ViewAttributeCategory::Behavior
+    } else if name.starts_with("data-") || name.starts_with("data:") {
+        ViewAttributeCategory::Data
+    } else if name == "node_ref" || name.starts_with("use:") || name.starts_with("attr:") {
+        ViewAttributeCategory::Integration
+    } else if matches!(
+        name,
+        "value" | "checked" | "disabled" | "hidden" | "selected" | "readonly" | "required"
+    ) || name.starts_with("prop:")
+    {
+        ViewAttributeCategory::State
+    } else if matches!(
+        name,
+        "id" | "name" | "type" | "href" | "action" | "form" | "method"
+    ) {
+        ViewAttributeCategory::Identity
+    } else {
+        ViewAttributeCategory::Other
     }
 }
 

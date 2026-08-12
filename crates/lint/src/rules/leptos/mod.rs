@@ -8,6 +8,7 @@ pub mod leptos_manual_resource_refetch_signals;
 pub mod leptos_malformed_view_section_comments;
 pub mod leptos_markup_repeating_view_comments;
 pub mod leptos_missing_view_section_comments;
+pub mod leptos_missing_view_attribute_group_comments;
 pub mod leptos_needlessly_cloned_signal_values;
 pub mod leptos_oversized_view_sections;
 pub mod leptos_primitive_context_values;

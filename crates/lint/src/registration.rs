@@ -121,6 +121,9 @@ pub extern "Rust" fn register_lints(
         rules::leptos::leptos_malformed_view_section_comments::register_lints(sess, lint_store);
         rules::leptos::leptos_markup_repeating_view_comments::register_lints(sess, lint_store);
         rules::leptos::leptos_missing_view_section_comments::register_lints(sess, lint_store);
+        rules::leptos::leptos_missing_view_attribute_group_comments::register_lints(
+            sess, lint_store,
+        );
         rules::leptos::leptos_needlessly_cloned_signal_values::register_lints(sess, lint_store);
         rules::leptos::leptos_oversized_view_sections::register_lints(sess, lint_store);
         rules::leptos::leptos_primitive_context_values::register_lints(sess, lint_store);
@@ -131,9 +134,7 @@ pub extern "Rust" fn register_lints(
         rules::leptos::leptos_reactive_writes_in_resource_fetchers::register_lints(
             sess, lint_store,
         );
-        rules::leptos::leptos_resource_fetchers_rereading_sources::register_lints(
-            sess, lint_store,
-        );
+        rules::leptos::leptos_resource_fetchers_rereading_sources::register_lints(sess, lint_store);
         rules::leptos::leptos_unsanitized_inner_html::register_lints(sess, lint_store);
         rules::leptos::leptos_unkeyed_reactive_collections::register_lints(sess, lint_store);
         rules::leptos::leptos_unreactive_signal_reads_in_views::register_lints(sess, lint_store);

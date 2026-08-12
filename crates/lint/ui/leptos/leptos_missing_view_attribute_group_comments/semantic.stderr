@@ -1,0 +1,18 @@
+warning: `button` has attribute complexity 8 across 5 responsibilities without named groups
+  --> $DIR/semantic.rs:9:9
+   |
+LL | /         <button
+LL | |             type="submit"
+LL | |             form="profile"
+LL | |             class="primary"
+...  |
+LL | |             on:click=move |_| pending.set(true)
+LL | |         >
+   | |_________^ this opening tag mixes unnamed responsibilities
+   |
+   = note: dense opening tags hide the element's identity, state, presentation, accessibility, and behavior contracts
+   = help: separate stable responsibilities with concise `//` headings, or extract a component with a narrower interface
+   = note: `#[warn(leptos_missing_view_attribute_group_comments)]` on by default
+
+warning: 1 warning emitted
+
