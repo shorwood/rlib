@@ -55,13 +55,20 @@ impl LateViolation for Violation {
             self.selection.span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
-                diag.span_label(self.selection.span, "derive_more equality is configured here");
+                diag.span_label(
+                    self.selection.span,
+                    "derive_more equality is configured here",
+                );
                 diag.span_label(
                     self.selection.span,
                     format!(
                         "{} field{} omitted only from equality",
                         self.selection.skipped,
-                        if self.selection.skipped == 1 { " is" } else { "s are" }
+                        if self.selection.skipped == 1 {
+                            " is"
+                        } else {
+                            "s are"
+                        }
                     ),
                 );
                 diag.note(self.rationale_message().into_owned());
@@ -113,11 +120,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreInconsistentDerivedEquality {
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         for (definition, selection) in self.selections.drain() {
-            if self
-                .catalog
-                .derived_type(definition, "PartialEq")
-                .is_none()
-            {
+            if self.catalog.derived_type(definition, "PartialEq").is_none() {
                 continue;
             }
             let Some(contracts) = self.law_traits.get(&definition) else {
@@ -149,7 +152,14 @@ fn equality_skip_count(cx: &LateContext<'_>, item: &Item<'_>) -> usize {
         .iter()
         .filter(|field| {
             field.attrs.iter().any(|attribute| {
-                if !matches!(attribute.path().get_ident().map(ToString::to_string).as_deref(), Some("partial_eq" | "eq")) {
+                if !matches!(
+                    attribute
+                        .path()
+                        .get_ident()
+                        .map(ToString::to_string)
+                        .as_deref(),
+                    Some("partial_eq" | "eq")
+                ) {
                     return false;
                 }
                 attribute.meta.require_list().is_ok_and(|list| {

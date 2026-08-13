@@ -1,10 +1,6 @@
 #![feature(register_tool)]
 #![allow(unknown_lints)]
-#![allow(
-    dead_code,
-    deprecated,
-    leptos_writable_signal_component_props
-)]
+#![allow(dead_code, deprecated, leptos_writable_signal_component_props)]
 #![register_tool(rlib_lint)]
 
 use leptos::prelude::*;

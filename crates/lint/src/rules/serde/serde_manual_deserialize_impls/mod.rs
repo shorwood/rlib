@@ -47,7 +47,10 @@ impl LateViolation for Violation {
             self.span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
-                diag.span_label(self.span, "this deserializer is exact transparent forwarding");
+                diag.span_label(
+                    self.span,
+                    "this deserializer is exact transparent forwarding",
+                );
                 diag.note(self.rationale_message().into_owned());
                 diag.help(self.remediation_message().into_owned());
             }),
@@ -80,7 +83,10 @@ impl LateLintPass<'_> for SerdeManualDeserializeImpls {
             return;
         };
         if cx.tcx.item_name(trait_id).as_str() != "Deserialize"
-            || !matches!(cx.tcx.crate_name(trait_id.krate).as_str(), "serde" | "serde_core")
+            || !matches!(
+                cx.tcx.crate_name(trait_id.krate).as_str(),
+                "serde" | "serde_core"
+            )
         {
             return;
         }

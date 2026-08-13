@@ -48,8 +48,14 @@ impl LateViolation for Violation {
             self.type_span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
-                diag.span_label(self.type_span, "direct field deserialization is derived here");
-                diag.span_label(self.constructor_span, "this constructor establishes fallible validation");
+                diag.span_label(
+                    self.type_span,
+                    "direct field deserialization is derived here",
+                );
+                diag.span_label(
+                    self.constructor_span,
+                    "this constructor establishes fallible validation",
+                );
                 diag.note(self.rationale_message().into_owned());
                 diag.help(self.remediation_message().into_owned());
             }),
@@ -90,7 +96,8 @@ impl<'tcx> LateLintPass<'tcx> for SerdeDeserializationBypassingInvariants {
         span: Span,
         def_id: LocalDefId,
     ) {
-        self.constructions.record_function(cx, kind, body, span, def_id);
+        self.constructions
+            .record_function(cx, kind, body, span, def_id);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {

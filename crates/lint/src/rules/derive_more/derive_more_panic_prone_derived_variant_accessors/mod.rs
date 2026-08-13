@@ -118,10 +118,7 @@ fn receiver_constructs_expected_variant(
     let variant = cx.tcx.parent(constructor);
     let expected = format!(
         "unwrap_{}",
-        cx.tcx
-            .item_name(variant)
-            .as_str()
-            .to_case(Case::Snake)
+        cx.tcx.item_name(variant).as_str().to_case(Case::Snake)
     );
     method == expected || method == format!("{expected}_ref") || method == format!("{expected}_mut")
 }

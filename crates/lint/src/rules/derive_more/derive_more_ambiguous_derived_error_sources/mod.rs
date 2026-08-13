@@ -7,8 +7,8 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
-use rustc_span::def_id::LocalDefId;
 use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
 
 use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::diagnostic::LateViolation;
@@ -86,11 +86,12 @@ impl LateLintPass<'_> for DeriveMoreAmbiguousDerivedErrorSources {
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
-        if structure
-            .fields
-            .iter()
-            .any(|field| field.attrs.iter().any(|attribute| attribute.path().is_ident("error")))
-        {
+        if structure.fields.iter().any(|field| {
+            field
+                .attrs
+                .iter()
+                .any(|attribute| attribute.path().is_ident("error"))
+        }) {
             return;
         }
         let has_implicit_source = structure

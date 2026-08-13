@@ -8,8 +8,8 @@ use std::collections::{HashMap, HashSet};
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
-use rustc_span::def_id::LocalDefId;
 use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
 
 use super::contracts::{SerdeContractCatalog, SerdeDirection, apply_case, serde_attributes};
 use crate::utils::diagnostic::LateViolation;

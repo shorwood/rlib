@@ -47,7 +47,10 @@ impl LateViolation for Violation {
             self.span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
-                diag.span_label(self.span, "this environment branch changes the authored node shape");
+                diag.span_label(
+                    self.span,
+                    "this environment branch changes the authored node shape",
+                );
                 diag.note(self.rationale_message().into_owned());
                 diag.help(self.remediation_message().into_owned());
             }),

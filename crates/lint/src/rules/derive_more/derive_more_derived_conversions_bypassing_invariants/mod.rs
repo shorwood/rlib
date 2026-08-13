@@ -51,7 +51,10 @@ impl LateViolation for Violation {
             self.struct_span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
-                diag.span_label(self.struct_span, "unchecked structural conversion is derived here");
+                diag.span_label(
+                    self.struct_span,
+                    "unchecked structural conversion is derived here",
+                );
                 diag.span_label(
                     self.constructor_span,
                     "this constructor establishes fallible validation",

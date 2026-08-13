@@ -7,8 +7,8 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Expr, ExprKind, Item};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
-use rustc_span::def_id::LocalDefId;
 use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
 
 use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::diagnostic::LateViolation;
@@ -89,8 +89,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
         };
         let path = cx.tcx.def_path_str(target);
         if cx.tcx.item_name(target).as_str() != "insert"
-            || (!path.contains("collections::HashMap")
-                && !path.contains("collections::BTreeMap"))
+            || (!path.contains("collections::HashMap") && !path.contains("collections::BTreeMap"))
         {
             return;
         }

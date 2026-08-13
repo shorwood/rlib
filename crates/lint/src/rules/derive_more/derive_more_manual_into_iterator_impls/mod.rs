@@ -10,8 +10,8 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{ExprKind, ImplItem, ImplItemKind, ItemKind, Mutability, Node};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
-use rustc_span::def_id::LocalDefId;
 use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
@@ -50,9 +50,7 @@ impl LateViolation for Violation {
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
-        Cow::Borrowed(
-            "each implementation delegates unchanged to the wrapper's sole field",
-        )
+        Cow::Borrowed("each implementation delegates unchanged to the wrapper's sole field")
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
@@ -118,10 +116,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualIntoIteratorImpls {
     }
 }
 
-fn exact_delegation(
-    cx: &LateContext<'_>,
-    item: &ImplItem<'_>,
-) -> Option<(LocalDefId, Receiver)> {
+fn exact_delegation(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<(LocalDefId, Receiver)> {
     let ImplItemKind::Fn(signature, body_id) = item.kind else {
         return None;
     };
@@ -153,7 +148,8 @@ fn exact_delegation(
         return None;
     }
     let body = cx.tcx.hir_body(body_id);
-    let forwarding = DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
+    let forwarding =
+        DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
     let [binding] = forwarding.bindings.as_slice() else {
         return None;
     };

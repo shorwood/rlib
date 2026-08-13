@@ -7,8 +7,8 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
-use rustc_span::def_id::LocalDefId;
 use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
 
 use super::contracts::{SerdeContractCatalog, serde_attributes};
 use crate::utils::diagnostic::LateViolation;
@@ -89,7 +89,10 @@ impl LateLintPass<'_> for SerdeDefaultsHidingMissingData {
             let Some(name) = field.ident.as_ref() else {
                 continue;
             };
-            if field.attrs.iter().any(|attribute| attribute.path().is_ident("doc"))
+            if field
+                .attrs
+                .iter()
+                .any(|attribute| attribute.path().is_ident("doc"))
                 || is_option(&field.ty)
                 || !serde_attributes(&field.attrs).implicit_default
             {

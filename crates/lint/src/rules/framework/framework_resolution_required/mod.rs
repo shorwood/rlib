@@ -27,11 +27,11 @@ use crate::rules::strum::utils::contracts::ContractCatalog;
 #[cfg(feature = "strum")]
 use crate::rules::strum::utils::enumeration::CollectionCandidate;
 #[cfg(feature = "strum")]
-use crate::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer};
-#[cfg(feature = "strum")]
 use crate::utils::config::LibraryConfig;
 #[cfg(feature = "strum")]
 use crate::utils::diagnostic::LateViolation;
+#[cfg(feature = "strum")]
+use crate::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer};
 
 // -----------------------------------------------------------------------------
 // Violation: Missing provider resolution

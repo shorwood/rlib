@@ -274,8 +274,7 @@ impl ViewElement {
     }
 
     pub(crate) fn group_count(&self, config: &LeptosViewStructureConfig) -> usize {
-        self
-            .headings
+        self.headings
             .iter()
             .filter_map(|heading| {
                 heading

@@ -10,8 +10,8 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{BinOpKind, Expr, ExprKind, ImplItem, ImplItemKind, Item, ItemKind, Node, PatKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
-use rustc_span::def_id::LocalDefId;
 use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
@@ -39,7 +39,11 @@ impl LateViolation for Violation {
         Cow::Owned(format!(
             "the implementation compares {} corresponding field{} without normalization, adaptation, or external state",
             self.candidate.field_count,
-            if self.candidate.field_count == 1 { "" } else { "s" }
+            if self.candidate.field_count == 1 {
+                ""
+            } else {
+                "s"
+            }
         ))
     }
 
@@ -143,10 +147,7 @@ fn trait_target(cx: &LateContext<'_>, item: &Item<'_>) -> Option<(&'static str, 
     Some((name, definition.did().as_local()?))
 }
 
-fn structural_equality(
-    cx: &LateContext<'_>,
-    item: &ImplItem<'_>,
-) -> Option<(LocalDefId, usize)> {
+fn structural_equality(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<(LocalDefId, usize)> {
     let ImplItemKind::Fn(_, body_id) = item.kind else {
         return None;
     };
@@ -176,13 +177,7 @@ fn structural_equality(
     let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
         return None;
     };
-    if !definition.is_struct()
-        || !cx
-            .tcx
-            .generics_of(definition.did())
-            .own_params
-            .is_empty()
-    {
+    if !definition.is_struct() || !cx.tcx.generics_of(definition.did()).own_params.is_empty() {
         return None;
     }
     let body = cx.tcx.hir_body(body_id);

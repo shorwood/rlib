@@ -7,8 +7,8 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
-use rustc_span::def_id::LocalDefId;
 use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
 
 use super::contracts::{SerdeContractCatalog, serde_attributes};
 use crate::utils::diagnostic::LateViolation;
@@ -95,7 +95,9 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
                 structure
                     .fields
                     .iter()
-                    .filter_map(|field| Some((field.ident.as_ref()?.to_string(), field.attrs.clone())))
+                    .filter_map(|field| {
+                        Some((field.ident.as_ref()?.to_string(), field.attrs.clone()))
+                    })
                     .collect::<Vec<_>>()
             }
             ItemKind::Enum(..) => {
@@ -111,14 +113,16 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
             _ => return,
         };
         for (declaration, attributes) in members {
-            if attributes.iter().any(|attribute| attribute.path().is_ident("doc")) {
+            if attributes
+                .iter()
+                .any(|attribute| attribute.path().is_ident("doc"))
+            {
                 continue;
             }
             let attributes = serde_attributes(&attributes);
-            let (Some(serialize), Some(deserialize)) = (
-                attributes.rename_serialize,
-                attributes.rename_deserialize,
-            ) else {
+            let (Some(serialize), Some(deserialize)) =
+                (attributes.rename_serialize, attributes.rename_deserialize)
+            else {
                 continue;
             };
             if serialize == deserialize {

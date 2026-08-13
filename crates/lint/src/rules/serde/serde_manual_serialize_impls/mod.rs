@@ -80,7 +80,10 @@ impl LateLintPass<'_> for SerdeManualSerializeImpls {
             return;
         };
         if cx.tcx.item_name(trait_id).as_str() != "Serialize"
-            || !matches!(cx.tcx.crate_name(trait_id.krate).as_str(), "serde" | "serde_core")
+            || !matches!(
+                cx.tcx.crate_name(trait_id.krate).as_str(),
+                "serde" | "serde_core"
+            )
         {
             return;
         }
@@ -120,7 +123,8 @@ fn exact_transparent_serializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
     if method.sig.ident != "serialize" {
         return false;
     }
-    let [_, syn::FnArg::Typed(serializer)] = method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
+    let [_, syn::FnArg::Typed(serializer)] =
+        method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
     else {
         return false;
     };

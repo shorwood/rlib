@@ -54,7 +54,10 @@ impl LateViolation for Violation {
             self.span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
-                diag.span_label(self.span, "this sets an attribute rather than the live property");
+                diag.span_label(
+                    self.span,
+                    "this sets an attribute rather than the live property",
+                );
                 diag.note(self.rationale_message().into_owned());
                 diag.help(self.remediation_message().into_owned());
             }),
@@ -84,17 +87,11 @@ impl LeptosAttributeBoundControlledInputs {
             return None;
         }
         let callsite = expression.span.source_callsite();
-        let prefix = Span::with_root_ctxt(
-            BytePos(callsite.lo().0.saturating_sub(128)),
-            callsite.lo(),
-        );
+        let prefix =
+            Span::with_root_ctxt(BytePos(callsite.lo().0.saturating_sub(128)), callsite.lo());
         let source = cx.sess().source_map().span_to_snippet(prefix).ok()?;
         let source = source.trim_end();
-        let tag = source
-            .rsplit_once('<')?
-            .1
-            .split_ascii_whitespace()
-            .next()?;
+        let tag = source.rsplit_once('<')?.1.split_ascii_whitespace().next()?;
         if !matches!(tag, "input" | "select" | "textarea") {
             return None;
         }

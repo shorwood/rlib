@@ -22,7 +22,10 @@ struct Violation {
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
-        Cow::Owned(format!("manual error implementation for `{}` is derivable", self.name))
+        Cow::Owned(format!(
+            "manual error implementation for `{}` is derivable",
+            self.name
+        ))
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {

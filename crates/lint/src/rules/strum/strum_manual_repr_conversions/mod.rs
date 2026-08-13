@@ -9,8 +9,8 @@ use rustc_hir::ImplItem;
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::{Span, Symbol};
 
-use crate::utils::variant_methods::ReprConversionCandidate;
 use crate::utils::diagnostic::LateViolation;
+use crate::utils::variant_methods::ReprConversionCandidate;
 
 // -----------------------------------------------------------------------------
 // Violation: Authored representation conversion

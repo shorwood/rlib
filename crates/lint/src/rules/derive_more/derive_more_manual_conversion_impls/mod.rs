@@ -145,8 +145,8 @@ fn exact_wrapping<'tcx>(
         return None;
     };
     let field = definition.non_enum_variant().fields.iter().next()?;
-    let is_wrapper_constructor = call.target == definition.did()
-        || cx.tcx.opt_parent(call.target) == Some(definition.did());
+    let is_wrapper_constructor =
+        call.target == definition.did() || cx.tcx.opt_parent(call.target) == Some(definition.did());
     (is_wrapper_constructor
         && DirectForwarding::is_binding(cx, argument, binding)
         && field.ty(cx.tcx, arguments) == inner)

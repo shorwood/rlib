@@ -161,17 +161,18 @@ fn exact_field_assembly(
                     })
                 })
         }
-        ExprKind::Call(_, arguments) => DirectForwarding::call(cx, owner, expression)
-        .is_some_and(|call| {
-            call.target == definition
-                && arguments.len() == bindings.len()
-                && arguments
-                    .iter()
-                    .zip(bindings)
-                    .all(|(argument, (binding, _))| {
-                        DirectForwarding::is_binding(cx, argument, *binding)
-                    })
-        }),
+        ExprKind::Call(_, arguments) => {
+            DirectForwarding::call(cx, owner, expression).is_some_and(|call| {
+                call.target == definition
+                    && arguments.len() == bindings.len()
+                    && arguments
+                        .iter()
+                        .zip(bindings)
+                        .all(|(argument, (binding, _))| {
+                            DirectForwarding::is_binding(cx, argument, *binding)
+                        })
+            })
+        }
         _ => false,
     }
 }

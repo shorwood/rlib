@@ -7,8 +7,8 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
-use rustc_span::def_id::LocalDefId;
 use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
 
 use super::contracts::{SerdeContractCatalog, serde_attributes};
 use crate::utils::diagnostic::LateViolation;
@@ -31,7 +31,10 @@ struct Violation {
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
-        Cow::Owned(format!("Serde adapters for `{}` do not round-trip", self.field))
+        Cow::Owned(format!(
+            "Serde adapters for `{}` do not round-trip",
+            self.field
+        ))
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
@@ -144,7 +147,12 @@ fn provably_incompatible(serialize: &str, deserialize: &str) -> bool {
 
 fn named_contract(path: &str) -> Option<(String, &'static str)> {
     const CONTRACTS: &[&str] = &[
-        "milliseconds", "microseconds", "nanoseconds", "seconds", "base64", "hex",
+        "milliseconds",
+        "microseconds",
+        "nanoseconds",
+        "seconds",
+        "base64",
+        "hex",
     ];
     let name = path.rsplit("::").next()?;
     CONTRACTS.iter().find_map(|&contract| {

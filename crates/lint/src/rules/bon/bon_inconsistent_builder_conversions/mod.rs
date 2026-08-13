@@ -44,7 +44,10 @@ impl EarlyViolation for Violation {
             self.span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
-                diag.span_label(self.span, "this member remains strict while its peer accepts `Into`");
+                diag.span_label(
+                    self.span,
+                    "this member remains strict while its peer accepts `Into`",
+                );
                 diag.note(self.rationale_message().into_owned());
                 diag.help(self.remediation_message().into_owned());
             }),

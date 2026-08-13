@@ -30,7 +30,13 @@ impl Default for LeptosServerAuthorizationConfig {
     fn default() -> Self {
         Self {
             sensitive_call_terms: [
-                "create", "delete", "remove", "update", "upload", "credential", "private",
+                "create",
+                "delete",
+                "remove",
+                "update",
+                "upload",
+                "credential",
+                "private",
                 "admin",
             ]
             .into_iter()
@@ -132,11 +138,9 @@ impl LeptosServerFunctionsWithoutAuthorizationBoundaries {
     }
 
     fn is_server_function(item: &Item) -> bool {
-        item.attrs
-            .iter()
-            .any(|attribute| {
-                Self::attribute_name(attribute).is_some_and(|name| name.as_str() == "server")
-            })
+        item.attrs.iter().any(|attribute| {
+            Self::attribute_name(attribute).is_some_and(|name| name.as_str() == "server")
+        })
     }
 
     fn has_marker(&self, item: &Item) -> bool {

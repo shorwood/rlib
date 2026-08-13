@@ -17,9 +17,29 @@ use crate::utils::construction_analysis::{ConstructionAnalysis, ConstructionOrig
 use crate::utils::diagnostic::LateViolation;
 
 const OPERATIONS: &[&str] = &[
-    "Add", "AddAssign", "Sub", "SubAssign", "Mul", "MulAssign", "Div", "DivAssign",
-    "Rem", "RemAssign", "BitAnd", "BitAndAssign", "BitOr", "BitOrAssign", "BitXor",
-    "BitXorAssign", "Shl", "ShlAssign", "Shr", "ShrAssign", "Neg", "Not", "Sum",
+    "Add",
+    "AddAssign",
+    "Sub",
+    "SubAssign",
+    "Mul",
+    "MulAssign",
+    "Div",
+    "DivAssign",
+    "Rem",
+    "RemAssign",
+    "BitAnd",
+    "BitAndAssign",
+    "BitOr",
+    "BitOrAssign",
+    "BitXor",
+    "BitXorAssign",
+    "Shl",
+    "ShlAssign",
+    "Shr",
+    "ShrAssign",
+    "Neg",
+    "Not",
+    "Sum",
     "Product",
 ];
 
@@ -59,7 +79,10 @@ impl LateViolation for Violation {
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
                 diag.span_label(self.struct_span, "unchecked operations are derived here");
-                diag.span_label(self.constructor_span, "this constructor establishes fallible validation");
+                diag.span_label(
+                    self.constructor_span,
+                    "this constructor establishes fallible validation",
+                );
                 diag.note(self.rationale_message().into_owned());
                 diag.help(self.remediation_message().into_owned());
             }),
@@ -100,7 +123,8 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOperatorDerivesBypassingInvariants {
         span: Span,
         def_id: LocalDefId,
     ) {
-        self.constructions.record_function(cx, kind, body, span, def_id);
+        self.constructions
+            .record_function(cx, kind, body, span, def_id);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {

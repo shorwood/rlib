@@ -10,8 +10,8 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{Expr, ExprKind, ImplItem, ImplItemKind, ItemKind, Mutability, Node};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
-use rustc_span::def_id::{DefId, LocalDefId};
 use rustc_span::Span;
+use rustc_span::def_id::{DefId, LocalDefId};
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
@@ -113,10 +113,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualForwardingInterfaces {
     }
 }
 
-fn exact_contract(
-    cx: &LateContext<'_>,
-    item: &ImplItem<'_>,
-) -> Option<(LocalDefId, Contract)> {
+fn exact_contract(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<(LocalDefId, Contract)> {
     let ImplItemKind::Fn(signature, body_id) = item.kind else {
         return None;
     };
@@ -141,8 +138,13 @@ fn exact_contract(
         return None;
     }
     let body = cx.tcx.hir_body(body_id);
-    let forwarding = DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
-    let expected_bindings = if matches!(derive, "Index" | "IndexMut") { 2 } else { 1 };
+    let forwarding =
+        DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
+    let expected_bindings = if matches!(derive, "Index" | "IndexMut") {
+        2
+    } else {
+        1
+    };
     if forwarding.bindings.len() != expected_bindings {
         return None;
     }
@@ -181,11 +183,7 @@ fn exact_contract(
     )
 }
 
-fn supported_trait(
-    cx: &LateContext<'_>,
-    trait_id: DefId,
-    method: &str,
-) -> Option<&'static str> {
+fn supported_trait(cx: &LateContext<'_>, trait_id: DefId, method: &str) -> Option<&'static str> {
     if cx.tcx.crate_name(trait_id.krate).as_str() != "core" {
         return None;
     }

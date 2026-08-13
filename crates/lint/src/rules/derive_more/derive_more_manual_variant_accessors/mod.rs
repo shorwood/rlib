@@ -29,9 +29,7 @@ impl LateViolation for Violation {
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
-        Cow::Borrowed(
-            "the complete one-variant predicate family duplicates enum variant identity",
-        )
+        Cow::Borrowed("the complete one-variant predicate family duplicates enum variant identity")
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {

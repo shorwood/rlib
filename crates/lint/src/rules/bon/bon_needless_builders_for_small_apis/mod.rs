@@ -73,7 +73,9 @@ impl BonNeedlessBuildersForSmallApis {
         for parameter in inputs {
             types.push(source_map.span_to_snippet(parameter.ty.span).ok()?);
         }
-        if types.iter().any(|ty| ty.trim_start().starts_with("Option<"))
+        if types
+            .iter()
+            .any(|ty| ty.trim_start().starts_with("Option<"))
             || (types.len() == 2 && types[0] == types[1])
             || inputs.iter().any(|parameter| !parameter.attrs.is_empty())
         {

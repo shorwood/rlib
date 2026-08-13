@@ -10,8 +10,8 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{Expr, ExprKind, ImplItem, ImplItemKind, ItemKind, Mutability, Node};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
-use rustc_span::def_id::LocalDefId;
 use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
 use syn::parse::Parser;
 
 use crate::utils::diagnostic::LateViolation;
@@ -133,7 +133,8 @@ fn exact_formatting(
     }
     let definition = definition.did().as_local()?;
     let body = cx.tcx.hir_body(body_id);
-    let forwarding = DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
+    let forwarding =
+        DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
     let [self_binding, formatter_binding] = forwarding.bindings.as_slice() else {
         return None;
     };
@@ -186,11 +187,7 @@ fn direct_trait_delegation(
         && DirectForwarding::is_binding(cx, formatter, formatter_binding)
 }
 
-fn field_reference(
-    cx: &LateContext<'_>,
-    expression: &Expr<'_>,
-    binding: rustc_hir::HirId,
-) -> bool {
+fn field_reference(cx: &LateContext<'_>, expression: &Expr<'_>, binding: rustc_hir::HirId) -> bool {
     let expression = match expression.kind {
         ExprKind::AddrOf(_, Mutability::Not, inner) => inner,
         _ => expression,
@@ -215,7 +212,10 @@ fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
         return false;
     }
     let inputs = method.sig.inputs.iter().collect::<Vec<_>>();
-    let [syn::FnArg::Receiver(_), syn::FnArg::Typed(formatter_parameter)] = inputs.as_slice()
+    let [
+        syn::FnArg::Receiver(_),
+        syn::FnArg::Typed(formatter_parameter),
+    ] = inputs.as_slice()
     else {
         return false;
     };

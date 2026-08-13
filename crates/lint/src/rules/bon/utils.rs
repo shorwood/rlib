@@ -10,14 +10,8 @@ pub(super) fn attribute_name(attribute: &Attribute) -> Option<Symbol> {
     attribute.path().last().copied()
 }
 
-pub(super) fn attribute_source(
-    cx: &EarlyContext<'_>,
-    attribute: &Attribute,
-) -> Option<String> {
-    cx.sess()
-        .source_map()
-        .span_to_snippet(attribute.span)
-        .ok()
+pub(super) fn attribute_source(cx: &EarlyContext<'_>, attribute: &Attribute) -> Option<String> {
+    cx.sess().source_map().span_to_snippet(attribute.span).ok()
 }
 
 pub(super) fn builder_attribute(attributes: &[Attribute]) -> Option<&Attribute> {
@@ -54,8 +48,7 @@ pub(super) fn has_attribute(attributes: &[Attribute], name: &str) -> bool {
 pub(super) fn derives_bon_builder(cx: &EarlyContext<'_>, attributes: &[Attribute]) -> bool {
     attributes.iter().any(|attribute| {
         attribute_name(attribute).is_some_and(|name| name.as_str() == "derive")
-            && attribute_source(cx, attribute)
-                .is_some_and(|source| source.contains("bon::Builder"))
+            && attribute_source(cx, attribute).is_some_and(|source| source.contains("bon::Builder"))
     })
 }
 

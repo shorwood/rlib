@@ -5,8 +5,8 @@ extern crate rustc_span;
 use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{Body, FnDecl};
 use rustc_hir::intravisit::FnKind;
+use rustc_hir::{Body, FnDecl};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;

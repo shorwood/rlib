@@ -83,9 +83,7 @@ impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
         };
         let derive_name = cx.tcx.item_name(trait_id);
         let derive = derive_name.as_str();
-        if cx.tcx.crate_name(trait_id.krate).as_str() != "core"
-            || operator(derive).is_none()
-        {
+        if cx.tcx.crate_name(trait_id.krate).as_str() != "core" || operator(derive).is_none() {
             return;
         }
         let trait_ref = cx
@@ -210,9 +208,13 @@ fn operator(derive: &str) -> Option<Operator> {
         "MulAssign" => Operator::Assignment(|value| matches!(value, syn::BinOp::MulAssign(_))),
         "DivAssign" => Operator::Assignment(|value| matches!(value, syn::BinOp::DivAssign(_))),
         "RemAssign" => Operator::Assignment(|value| matches!(value, syn::BinOp::RemAssign(_))),
-        "BitAndAssign" => Operator::Assignment(|value| matches!(value, syn::BinOp::BitAndAssign(_))),
+        "BitAndAssign" => {
+            Operator::Assignment(|value| matches!(value, syn::BinOp::BitAndAssign(_)))
+        }
         "BitOrAssign" => Operator::Assignment(|value| matches!(value, syn::BinOp::BitOrAssign(_))),
-        "BitXorAssign" => Operator::Assignment(|value| matches!(value, syn::BinOp::BitXorAssign(_))),
+        "BitXorAssign" => {
+            Operator::Assignment(|value| matches!(value, syn::BinOp::BitXorAssign(_)))
+        }
         "ShlAssign" => Operator::Assignment(|value| matches!(value, syn::BinOp::ShlAssign(_))),
         "ShrAssign" => Operator::Assignment(|value| matches!(value, syn::BinOp::ShrAssign(_))),
         _ => return None,

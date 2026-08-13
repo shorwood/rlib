@@ -39,7 +39,9 @@ impl LateViolation for Violation {
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
-        Cow::Borrowed("use a unique domain identifier that remains stable across inserts and reordering")
+        Cow::Borrowed(
+            "use a unique domain identifier that remains stable across inserts and reordering",
+        )
     }
 
     fn emit(self, cx: &LateContext<'_>) {
@@ -115,7 +117,10 @@ impl LeptosUnstableForKeys {
             let attribute = cursor + relative;
             let before = &source[..attribute];
             let is_for = before.rsplit_once('<').is_some_and(|(_, tag)| {
-                matches!(tag.split_ascii_whitespace().next(), Some("For" | "ForEnumerate"))
+                matches!(
+                    tag.split_ascii_whitespace().next(),
+                    Some("For" | "ForEnumerate")
+                )
             });
             let value = attribute + "key=".len();
             let whitespace = source[value..]
@@ -123,9 +128,7 @@ impl LeptosUnstableForKeys {
                 .take_while(u8::is_ascii_whitespace)
                 .count();
             let start = value + whitespace;
-            if is_for
-                && let Some((length, reason)) = Self::unstable_key(&source[start..])
-            {
+            if is_for && let Some((length, reason)) = Self::unstable_key(&source[start..]) {
                 findings.push((start, length, reason));
             }
             cursor = value;

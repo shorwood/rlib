@@ -2,24 +2,12 @@
 
 use std::path::PathBuf;
 
-pub fn render(
-    path: PathBuf,
-    width: u32,
-    height: u32,
-    cache: bool,
-    color: bool,
-) {
+pub fn render(path: PathBuf, width: u32, height: u32, cache: bool, color: bool) {
     let _ = (path, width, height, cache, color);
 }
 
 #[bon::builder]
-pub fn export(
-    path: PathBuf,
-    width: u32,
-    height: u32,
-    cache: bool,
-    color: bool,
-) {
+pub fn export(path: PathBuf, width: u32, height: u32, cache: bool, color: bool) {
     let _ = (path, width, height, cache, color);
 }
 
