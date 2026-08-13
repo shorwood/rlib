@@ -9,7 +9,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::DiagnosticCatalog;
+use super::utils::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------

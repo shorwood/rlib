@@ -41,7 +41,7 @@ pub struct DiagnosticFieldRoles {
 
 impl DiagnosticFieldRoles {
     /// Returns whether the field carries a particular presentation role.
-    pub(super) fn contains(&self, role: DiagnosticFieldRole) -> bool {
+    pub fn contains(&self, role: DiagnosticFieldRole) -> bool {
         self.values.contains(&role)
     }
 
@@ -83,13 +83,49 @@ impl DiagnosticFieldRoles {
 #[derive(Clone)]
 pub struct DiagnosticField {
     /// Authored field declaration.
-    pub(super) span: Span,
+    pub span: Span,
     /// Named field or tuple position.
-    pub(super) name: String,
+    pub name: String,
     /// Presentation roles assigned to the field.
-    pub(super) roles: DiagnosticFieldRoles,
+    pub roles: DiagnosticFieldRoles,
     /// Local named type referenced directly by the field, when available.
-    pub(super) target: Option<LocalDefId>,
+    pub target: Option<LocalDefId>,
+}
+
+impl DiagnosticField {
+    /// Correlates authored field attributes with resolved HIR field types.
+    fn from_fields(
+        cx: &LateContext<'_>,
+        fields: &syn::Fields,
+        hir_fields: &[rustc_hir::FieldDef<'_>],
+    ) -> Vec<Self> {
+        fields
+            .iter()
+            .zip(hir_fields)
+            .enumerate()
+            .map(|(index, (field, hir_field))| {
+                let name = field
+                    .ident
+                    .as_ref()
+                    .map_or_else(|| index.to_string(), ToString::to_string);
+                let mut roles = DiagnosticFieldRoles::from_attributes(&field.attrs);
+                if name == "source" {
+                    roles.insert(DiagnosticFieldRole::Source);
+                }
+                Self {
+                    span: hir_field.span,
+                    name,
+                    roles,
+                    target: cx
+                        .tcx
+                        .type_of(hir_field.def_id)
+                        .instantiate_identity()
+                        .ty_adt_def()
+                        .and_then(|definition| definition.did().as_local()),
+                }
+            })
+            .collect()
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -100,15 +136,15 @@ pub struct DiagnosticField {
 #[derive(Clone, Default)]
 pub struct DiagnosticMetadata {
     /// Stable machine identifier, when declared.
-    pub(super) code: Option<String>,
+    pub code: Option<String>,
     /// Static recovery guidance, when declared.
-    pub(super) help: Option<String>,
+    pub help: Option<String>,
     /// Declared Miette severity, when overridden.
-    pub(super) severity: Option<String>,
+    pub severity: Option<String>,
     /// External documentation link, when declared.
-    pub(super) url: Option<String>,
+    pub url: Option<String>,
     /// Whether presentation delegates to a nested diagnostic.
-    pub(super) is_transparent: bool,
+    pub is_transparent: bool,
 }
 
 impl DiagnosticMetadata {
@@ -163,47 +199,13 @@ impl DiagnosticMetadata {
 #[derive(Clone)]
 pub struct DiagnosticMember {
     /// Authored variant declaration.
-    pub(super) span: Span,
+    pub span: Span,
     /// Variant name.
-    pub(super) name: String,
+    pub name: String,
     /// Metadata declared directly on the variant.
-    pub(super) metadata: DiagnosticMetadata,
+    pub metadata: DiagnosticMetadata,
     /// Variant fields and their presentation roles.
-    pub(super) fields: Vec<DiagnosticField>,
-}
-
-/// Correlates authored field attributes with resolved HIR field types.
-fn diagnostic_fields(
-    cx: &LateContext<'_>,
-    fields: &syn::Fields,
-    hir_fields: &[rustc_hir::FieldDef<'_>],
-) -> Vec<DiagnosticField> {
-    fields
-        .iter()
-        .zip(hir_fields)
-        .enumerate()
-        .map(|(index, (field, hir_field))| {
-            let name = field
-                .ident
-                .as_ref()
-                .map_or_else(|| index.to_string(), ToString::to_string);
-            let mut roles = DiagnosticFieldRoles::from_attributes(&field.attrs);
-            if name == "source" {
-                roles.insert(DiagnosticFieldRole::Source);
-            }
-            DiagnosticField {
-                span: hir_field.span,
-                name,
-                roles,
-                target: cx
-                    .tcx
-                    .type_of(hir_field.def_id)
-                    .instantiate_identity()
-                    .ty_adt_def()
-                    .and_then(|definition| definition.did().as_local()),
-            }
-        })
-        .collect()
+    pub fields: Vec<DiagnosticField>,
 }
 
 // -----------------------------------------------------------------------------
@@ -214,15 +216,15 @@ fn diagnostic_fields(
 #[derive(Clone)]
 pub struct DiagnosticContract {
     /// Authored type declaration.
-    pub(super) span: Span,
+    pub span: Span,
     /// Diagnostic type name.
-    pub(super) name: String,
+    pub name: String,
     /// Metadata shared by the complete type.
-    pub(super) metadata: DiagnosticMetadata,
+    pub metadata: DiagnosticMetadata,
     /// Fields on a diagnostic struct.
-    pub(super) fields: Vec<DiagnosticField>,
+    pub fields: Vec<DiagnosticField>,
     /// Variant contracts on a diagnostic enum.
-    pub(super) members: Vec<DiagnosticMember>,
+    pub members: Vec<DiagnosticMember>,
 }
 
 impl DiagnosticContract {
@@ -246,7 +248,11 @@ impl DiagnosticContract {
                 span: hir_variant.span,
                 name: variant.ident.to_string(),
                 metadata: DiagnosticMetadata::from_attributes(&variant.attrs),
-                fields: diagnostic_fields(cx, &variant.fields, hir_variant.data.fields()),
+                fields: DiagnosticField::from_fields(
+                    cx,
+                    &variant.fields,
+                    hir_variant.data.fields(),
+                ),
             })
             .collect();
 
@@ -275,7 +281,7 @@ pub struct DiagnosticCatalog {
 
 impl DiagnosticCatalog {
     /// Iterates confirmed derived contracts in source order.
-    pub(super) fn derived_contracts(&self) -> impl Iterator<Item = &DiagnosticContract> {
+    pub fn derived_contracts(&self) -> impl Iterator<Item = &DiagnosticContract> {
         let mut contracts = self
             .derives
             .iter()
@@ -286,7 +292,7 @@ impl DiagnosticCatalog {
     }
 
     /// Resolves a local type only when Miette generated its implementation.
-    pub(super) fn derived_type(&self, definition: LocalDefId) -> Option<&DiagnosticContract> {
+    pub fn derived_type(&self, definition: LocalDefId) -> Option<&DiagnosticContract> {
         self.derives
             .contains(&definition)
             .then(|| self.contracts.get(&definition))
@@ -320,7 +326,7 @@ impl DiagnosticCatalog {
     }
 
     /// Records authored diagnostic types and generated derive evidence.
-    pub(super) fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+    pub fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         if item.span.from_expansion() {
             self.record_generated_impl(cx, item);
             return;
@@ -338,7 +344,7 @@ impl DiagnosticCatalog {
                     span: item.span,
                     name: identifier.name.to_string(),
                     metadata: DiagnosticMetadata::from_attributes(&structure.attrs),
-                    fields: diagnostic_fields(cx, &structure.fields, data.fields()),
+                    fields: DiagnosticField::from_fields(cx, &structure.fields, data.fields()),
                     members: Vec::new(),
                 }
             }

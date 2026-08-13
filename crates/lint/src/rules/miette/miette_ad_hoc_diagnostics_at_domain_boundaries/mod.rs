@@ -88,98 +88,6 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// StaticMessageVisitor: Static anonymous Miette messages
-// -----------------------------------------------------------------------------
-
-/// Returns whether a macro argument gives the diagnostic a stable code.
-fn is_code_assignment(expression: &syn::Expr) -> bool {
-    matches!(
-        expression,
-        syn::Expr::Assign(assignment)
-            if matches!(assignment.left.as_ref(), syn::Expr::Path(path) if path.path.is_ident("code"))
-    )
-}
-
-/// Extracts literal text with no formatting placeholders.
-fn static_string(expression: &syn::Expr) -> Option<String> {
-    let syn::Expr::Lit(syn::ExprLit {
-        lit: syn::Lit::Str(literal),
-        ..
-    }) = expression
-    else {
-        return None;
-    };
-
-    let value = literal.value();
-    (!value.contains('{') && !value.contains('}')).then_some(value)
-}
-
-/// Finds uncoded literal messages in Miette macros and wrapping calls.
-#[derive(Default)]
-struct StaticMessageVisitor {
-    /// Distinct static messages found in one function.
-    messages: BTreeSet<String>,
-}
-
-impl<'ast> Visit<'ast> for StaticMessageVisitor {
-    fn visit_macro(&mut self, invocation: &'ast syn::Macro) {
-        let Some(name) = invocation
-            .path
-            .segments
-            .last()
-            .map(|segment| &segment.ident)
-        else {
-            return;
-        };
-        if name != "miette" && name != "diagnostic" {
-            return;
-        }
-        let parser = Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
-
-        let Ok(arguments) = parser.parse2(invocation.tokens.clone()) else {
-            return;
-        };
-        if arguments.iter().any(is_code_assignment) {
-            return;
-        }
-
-        let literals = arguments
-            .iter()
-            .filter_map(static_string)
-            .collect::<Vec<_>>();
-        if literals.len() != 1 {
-            return;
-        }
-        self.messages.insert(literals[0].clone());
-    }
-
-    fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
-        if call.method == "wrap_err"
-            && call.args.len() == 1
-            && let Some(message) = call.args.first().and_then(static_string)
-        {
-            self.messages.insert(message);
-        }
-        visit_expr_method_call(self, call);
-    }
-}
-
-/// Finds a Miette report directly or in a result error position.
-fn contains_miette_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
-    let ty::Adt(definition, arguments) = ty.kind() else {
-        return false;
-    };
-    if cx.tcx.crate_name(definition.did().krate).as_str() == "miette"
-        && cx.tcx.item_name(definition.did()).as_str() == "Report"
-    {
-        return true;
-    }
-    cx.tcx.is_diagnostic_item(sym::Result, definition.did())
-        && arguments.len() == 2
-        && contains_miette_report(cx, arguments.type_at(1))
-}
-
-// -----------------------------------------------------------------------------
 // MietteAdHocDiagnosticsAtDomainBoundaries: Typed domain failure policy
 // -----------------------------------------------------------------------------
 
@@ -198,6 +106,45 @@ dylint_linting::impl_late_lint! {
     MietteAdHocDiagnosticsAtDomainBoundaries::default()
 }
 
+impl MietteAdHocDiagnosticsAtDomainBoundaries {
+    /// Returns whether a macro argument gives the diagnostic a stable code.
+    fn is_code_assignment(expression: &syn::Expr) -> bool {
+        matches!(
+            expression,
+            syn::Expr::Assign(assignment)
+                if matches!(assignment.left.as_ref(), syn::Expr::Path(path) if path.path.is_ident("code"))
+        )
+    }
+
+    /// Extracts literal text with no formatting placeholders.
+    fn static_string(expression: &syn::Expr) -> Option<String> {
+        let syn::Expr::Lit(syn::ExprLit {
+            lit: syn::Lit::Str(literal),
+            ..
+        }) = expression
+        else {
+            return None;
+        };
+
+        let value = literal.value();
+        (!value.contains('{') && !value.contains('}')).then_some(value)
+    }
+
+    /// Finds a Miette report directly or in a result error position.
+    fn contains_miette_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+        let ty::Adt(definition, arguments) = ty.kind() else {
+            return false;
+        };
+        if cx.tcx.crate_name(definition.did().krate).as_str() == "miette"
+            && cx.tcx.item_name(definition.did()).as_str() == "Report"
+        {
+            return true;
+        }
+        cx.tcx.is_diagnostic_item(sym::Result, definition.did())
+            && arguments.len() == 2
+            && Self::contains_miette_report(cx, arguments.type_at(1))
+    }
+}
 impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Fn { .. }) {
@@ -211,7 +158,7 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
             .skip_binder()
             .output();
 
-        if !contains_miette_report(cx, output) {
+        if !Self::contains_miette_report(cx, output) {
             return;
         }
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
@@ -246,7 +193,7 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
             .skip_binder()
             .output();
 
-        if !contains_miette_report(cx, output) {
+        if !Self::contains_miette_report(cx, output) {
             return;
         }
         let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
@@ -283,7 +230,6 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
         }
     }
 }
-
 impl MietteAdHocDiagnosticsAtDomainBoundaries {
     /// Associates every message found in a function with that boundary.
     fn record_messages(&mut self, messages: BTreeSet<String>, usage: &ViolationUse) {
@@ -293,5 +239,60 @@ impl MietteAdHocDiagnosticsAtDomainBoundaries {
                 .or_default()
                 .push(usage.clone());
         }
+    }
+}
+/// Finds uncoded literal messages in Miette macros and wrapping calls.
+#[derive(Default)]
+struct StaticMessageVisitor {
+    /// Distinct static messages found in one function.
+    messages: BTreeSet<String>,
+}
+
+impl<'ast> Visit<'ast> for StaticMessageVisitor {
+    fn visit_macro(&mut self, invocation: &'ast syn::Macro) {
+        let Some(name) = invocation
+            .path
+            .segments
+            .last()
+            .map(|segment| &segment.ident)
+        else {
+            return;
+        };
+        if name != "miette" && name != "diagnostic" {
+            return;
+        }
+        let parser = Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
+
+        let Ok(arguments) = parser.parse2(invocation.tokens.clone()) else {
+            return;
+        };
+        if arguments
+            .iter()
+            .any(MietteAdHocDiagnosticsAtDomainBoundaries::is_code_assignment)
+        {
+            return;
+        }
+
+        let literals = arguments
+            .iter()
+            .filter_map(MietteAdHocDiagnosticsAtDomainBoundaries::static_string)
+            .collect::<Vec<_>>();
+        if literals.len() != 1 {
+            return;
+        }
+        self.messages.insert(literals[0].clone());
+    }
+
+    fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
+        if call.method == "wrap_err"
+            && call.args.len() == 1
+            && let Some(message) = call
+                .args
+                .first()
+                .and_then(MietteAdHocDiagnosticsAtDomainBoundaries::static_string)
+        {
+            self.messages.insert(message);
+        }
+        visit_expr_method_call(self, call);
     }
 }

@@ -63,35 +63,13 @@ impl LateViolation for Violation {
         );
     }
 }
-/// Returns whether the current crate produces any library artifact.
-fn library_crate(cx: &LateContext<'_>) -> bool {
-    cx.sess()
-        .opts
-        .crate_types
-        .iter()
-        .any(|kind| !matches!(kind, CrateType::Executable))
-}
-/// Finds `miette::Report` directly or in a result error position.
-fn contains_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
-    let ty::Adt(definition, arguments) = ty.kind() else {
-        return false;
-    };
-    if cx.tcx.crate_name(definition.did().krate).as_str() == "miette"
-        && cx.tcx.item_name(definition.did()).as_str() == "Report"
-    {
-        return true;
-    }
-    cx.tcx.is_diagnostic_item(sym::Result, definition.did())
-        && arguments.len() == 2
-        && contains_report(cx, arguments.type_at(1))
-}
-
 // -----------------------------------------------------------------------------
 // MietteReportsInLibraryInterfaces: Concrete library error vocabulary
 // -----------------------------------------------------------------------------
 
 /// Rejects application-oriented reports at public library boundaries.
 struct MietteReportsInLibraryInterfaces;
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MIETTE_REPORTS_IN_LIBRARY_INTERFACES,
@@ -99,11 +77,37 @@ dylint_linting::impl_late_lint! {
     "finds Miette reports in public library APIs",
     MietteReportsInLibraryInterfaces
 }
+
+impl MietteReportsInLibraryInterfaces {
+    /// Returns whether the current crate produces any library artifact.
+    fn library_crate(cx: &LateContext<'_>) -> bool {
+        cx.sess()
+            .opts
+            .crate_types
+            .iter()
+            .any(|kind| !matches!(kind, CrateType::Executable))
+    }
+
+    /// Finds `miette::Report` directly or in a result error position.
+    fn contains_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+        let ty::Adt(definition, arguments) = ty.kind() else {
+            return false;
+        };
+        if cx.tcx.crate_name(definition.did().krate).as_str() == "miette"
+            && cx.tcx.item_name(definition.did()).as_str() == "Report"
+        {
+            return true;
+        }
+        cx.tcx.is_diagnostic_item(sym::Result, definition.did())
+            && arguments.len() == 2
+            && Self::contains_report(cx, arguments.type_at(1))
+    }
+}
 impl LateLintPass<'_> for MietteReportsInLibraryInterfaces {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Executables may choose their final rendering boundary freely.
         if item.span.from_expansion()
-            || !library_crate(cx)
+            || !Self::library_crate(cx)
             || !matches!(item.kind, ItemKind::Fn { .. })
             || !cx.tcx.visibility(item.owner_id.def_id).is_public()
         {
@@ -117,7 +121,7 @@ impl LateLintPass<'_> for MietteReportsInLibraryInterfaces {
             .skip_binder()
             .output();
 
-        if !contains_report(cx, output) {
+        if !Self::contains_report(cx, output) {
             return;
         }
 

@@ -5,7 +5,7 @@ use serde::Deserialize;
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct MietteHelpConfig {
     /// Case-insensitive phrases that should be replaced by concrete recovery steps.
-    pub(super) generic_phrases: Vec<String>,
+    pub generic_phrases: Vec<String>,
 }
 
 impl Default for MietteHelpConfig {

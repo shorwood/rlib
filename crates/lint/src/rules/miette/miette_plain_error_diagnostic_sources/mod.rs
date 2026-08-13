@@ -8,7 +8,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
+use super::utils::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -55,27 +55,6 @@ impl LateViolation for Violation {
         );
     }
 }
-/// Reports nested diagnostics marked only as standard error sources.
-fn check_fields(cx: &LateContext<'_>, catalog: &DiagnosticCatalog, fields: &[DiagnosticField]) {
-    for field in fields.iter().filter(|field| {
-        field.roles.contains(DiagnosticFieldRole::Source)
-            && !field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
-    }) {
-        let Some(target) = field.target else {
-            continue;
-        };
-        if catalog.derived_type(target).is_none() {
-            continue;
-        }
-
-        Violation {
-            span: field.span,
-            field: field.name.clone(),
-        }
-        .emit(cx);
-    }
-}
-
 // -----------------------------------------------------------------------------
 // MiettePlainErrorDiagnosticSources: Structured source forwarding
 // -----------------------------------------------------------------------------
@@ -86,12 +65,36 @@ struct MiettePlainErrorDiagnosticSources {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MIETTE_PLAIN_ERROR_DIAGNOSTIC_SOURCES,
     Warn,
     "finds diagnostic sources forwarded only as standard errors",
     MiettePlainErrorDiagnosticSources::default()
+}
+
+impl MiettePlainErrorDiagnosticSources {
+    /// Reports nested diagnostics marked only as standard error sources.
+    fn check_fields(cx: &LateContext<'_>, catalog: &DiagnosticCatalog, fields: &[DiagnosticField]) {
+        for field in fields.iter().filter(|field| {
+            field.roles.contains(DiagnosticFieldRole::Source)
+                && !field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
+        }) {
+            let Some(target) = field.target else {
+                continue;
+            };
+            if catalog.derived_type(target).is_none() {
+                continue;
+            }
+
+            Violation {
+                span: field.span,
+                field: field.name.clone(),
+            }
+            .emit(cx);
+        }
+    }
 }
 impl LateLintPass<'_> for MiettePlainErrorDiagnosticSources {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
@@ -100,9 +103,9 @@ impl LateLintPass<'_> for MiettePlainErrorDiagnosticSources {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.derived_contracts() {
-            check_fields(cx, &self.catalog, &contract.fields);
+            Self::check_fields(cx, &self.catalog, &contract.fields);
             for member in &contract.members {
-                check_fields(cx, &self.catalog, &member.fields);
+                Self::check_fields(cx, &self.catalog, &member.fields);
             }
         }
     }

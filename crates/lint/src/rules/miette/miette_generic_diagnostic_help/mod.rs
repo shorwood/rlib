@@ -9,7 +9,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::DiagnosticCatalog;
+use super::utils::contracts::DiagnosticCatalog;
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 
@@ -68,6 +68,14 @@ struct MietteGenericDiagnosticHelp {
     generic_phrases: Vec<String>,
 }
 
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub MIETTE_GENERIC_DIAGNOSTIC_HELP,
+    Warn,
+    "finds non-actionable static Miette help text",
+    MietteGenericDiagnosticHelp::new()
+}
+
 impl MietteGenericDiagnosticHelp {
     /// Loads the project policy and creates an empty diagnostic catalog.
     fn new() -> Self {
@@ -77,15 +85,6 @@ impl MietteGenericDiagnosticHelp {
         }
     }
 }
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub MIETTE_GENERIC_DIAGNOSTIC_HELP,
-    Warn,
-    "finds non-actionable static Miette help text",
-    MietteGenericDiagnosticHelp::new()
-}
-
 impl LateLintPass<'_> for MietteGenericDiagnosticHelp {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -100,7 +99,6 @@ impl LateLintPass<'_> for MietteGenericDiagnosticHelp {
         }
     }
 }
-
 impl MietteGenericDiagnosticHelp {
     /// Reports one configured generic phrase used as static help text.
     fn check_help(&self, cx: &LateContext<'_>, span: Span, help: Option<&str>) {

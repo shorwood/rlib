@@ -8,7 +8,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
+use super::utils::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -77,48 +77,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Recognizes field names that explicitly claim a causal role.
-fn causal_name(name: &str) -> bool {
-    matches!(
-        name,
-        "source" | "cause" | "error" | "root_error" | "source_error" | "source_errors"
-    )
-}
-
-/// Recognizes field names that explicitly claim a sibling role.
-fn sibling_name(name: &str) -> bool {
-    matches!(
-        name,
-        "related" | "findings" | "warnings" | "suppressed" | "alternatives"
-    )
-}
-
-/// Reports field names and Miette roles that point in opposite directions.
-fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
-    for field in fields {
-        let name = field.name.to_ascii_lowercase();
-        let kind = if field.roles.contains(DiagnosticFieldRole::Related) && causal_name(&name) {
-            Some(ViolationKind::CauseAsRelated)
-        } else if field.roles.contains(DiagnosticFieldRole::DiagnosticSource) && sibling_name(&name)
-        {
-            Some(ViolationKind::SiblingAsCause)
-        } else {
-            None
-        };
-
-        let Some(kind) = kind else {
-            continue;
-        };
-
-        Violation {
-            span: field.span,
-            field: field.name.clone(),
-            kind,
-        }
-        .emit(cx);
-    }
-}
-
 // -----------------------------------------------------------------------------
 // MietteMisclassifiedRelatedDiagnostics: Causal-tree relationship policy
 // -----------------------------------------------------------------------------
@@ -129,12 +87,59 @@ struct MietteMisclassifiedRelatedDiagnostics {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MIETTE_MISCLASSIFIED_RELATED_DIAGNOSTICS,
     Warn,
     "finds inverted Miette causal and related roles",
     MietteMisclassifiedRelatedDiagnostics::default()
+}
+
+impl MietteMisclassifiedRelatedDiagnostics {
+    /// Recognizes field names that explicitly claim a causal role.
+    fn causal_name(name: &str) -> bool {
+        matches!(
+            name,
+            "source" | "cause" | "error" | "root_error" | "source_error" | "source_errors"
+        )
+    }
+
+    /// Recognizes field names that explicitly claim a sibling role.
+    fn sibling_name(name: &str) -> bool {
+        matches!(
+            name,
+            "related" | "findings" | "warnings" | "suppressed" | "alternatives"
+        )
+    }
+
+    /// Reports field names and Miette roles that point in opposite directions.
+    fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
+        for field in fields {
+            let name = field.name.to_ascii_lowercase();
+            let kind =
+                if field.roles.contains(DiagnosticFieldRole::Related) && Self::causal_name(&name) {
+                    Some(ViolationKind::CauseAsRelated)
+                } else if field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
+                    && Self::sibling_name(&name)
+                {
+                    Some(ViolationKind::SiblingAsCause)
+                } else {
+                    None
+                };
+
+            let Some(kind) = kind else {
+                continue;
+            };
+
+            Violation {
+                span: field.span,
+                field: field.name.clone(),
+                kind,
+            }
+            .emit(cx);
+        }
+    }
 }
 impl LateLintPass<'_> for MietteMisclassifiedRelatedDiagnostics {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
@@ -143,9 +148,9 @@ impl LateLintPass<'_> for MietteMisclassifiedRelatedDiagnostics {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.derived_contracts() {
-            check_fields(cx, &contract.fields);
+            Self::check_fields(cx, &contract.fields);
             for member in &contract.members {
-                check_fields(cx, &member.fields);
+                Self::check_fields(cx, &member.fields);
             }
         }
     }

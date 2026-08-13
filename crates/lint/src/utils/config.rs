@@ -11,7 +11,7 @@ use crate::rules::leptos::leptos_server_functions_without_authorization_boundari
 #[cfg(feature = "leptos")]
 use crate::rules::leptos::utils::view_structure::LeptosViewStructureConfig;
 #[cfg(feature = "miette")]
-use crate::rules::miette::config::MietteHelpConfig;
+use crate::rules::miette::utils::config::MietteHelpConfig;
 
 // -----------------------------------------------------------------------------
 // LibraryConfig: Complete lint library configuration

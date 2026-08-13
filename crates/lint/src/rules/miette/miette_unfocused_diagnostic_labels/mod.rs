@@ -8,7 +8,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
+use super::utils::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -59,32 +59,6 @@ impl LateViolation for Violation {
         );
     }
 }
-/// Reports multi-label diagnostics that do not select a primary label.
-fn check_fields(cx: &LateContext<'_>, span: Span, fields: &[DiagnosticField]) {
-    let labels = fields
-        .iter()
-        .filter(|field| field.roles.contains(DiagnosticFieldRole::Label))
-        .collect::<Vec<_>>();
-
-    // A single label needs no ranking; an explicit primary resolves competition.
-    if labels.len() < Violation::MINIMUM_COMPETING_LABELS
-        || labels
-            .iter()
-            .any(|field| field.roles.contains(DiagnosticFieldRole::Primary))
-    {
-        return;
-    }
-
-    Violation {
-        span,
-        labels: labels
-            .into_iter()
-            .map(|field| format!("`{}`", field.name))
-            .collect(),
-    }
-    .emit(cx);
-}
-
 // -----------------------------------------------------------------------------
 // MietteUnfocusedDiagnosticLabels: Explicit label focus policy
 // -----------------------------------------------------------------------------
@@ -95,12 +69,41 @@ struct MietteUnfocusedDiagnosticLabels {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MIETTE_UNFOCUSED_DIAGNOSTIC_LABELS,
     Warn,
     "finds multi-label Miette diagnostics without a primary label",
     MietteUnfocusedDiagnosticLabels::default()
+}
+
+impl MietteUnfocusedDiagnosticLabels {
+    /// Reports multi-label diagnostics that do not select a primary label.
+    fn check_fields(cx: &LateContext<'_>, span: Span, fields: &[DiagnosticField]) {
+        let labels = fields
+            .iter()
+            .filter(|field| field.roles.contains(DiagnosticFieldRole::Label))
+            .collect::<Vec<_>>();
+
+        // A single label needs no ranking; an explicit primary resolves competition.
+        if labels.len() < Violation::MINIMUM_COMPETING_LABELS
+            || labels
+                .iter()
+                .any(|field| field.roles.contains(DiagnosticFieldRole::Primary))
+        {
+            return;
+        }
+
+        Violation {
+            span,
+            labels: labels
+                .into_iter()
+                .map(|field| format!("`{}`", field.name))
+                .collect(),
+        }
+        .emit(cx);
+    }
 }
 impl LateLintPass<'_> for MietteUnfocusedDiagnosticLabels {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
@@ -109,9 +112,9 @@ impl LateLintPass<'_> for MietteUnfocusedDiagnosticLabels {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.derived_contracts() {
-            check_fields(cx, contract.span, &contract.fields);
+            Self::check_fields(cx, contract.span, &contract.fields);
             for member in &contract.members {
-                check_fields(cx, member.span, &member.fields);
+                Self::check_fields(cx, member.span, &member.fields);
             }
         }
     }

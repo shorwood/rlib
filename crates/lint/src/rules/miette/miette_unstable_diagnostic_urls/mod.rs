@@ -9,7 +9,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::DiagnosticCatalog;
+use super::utils::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -56,32 +56,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Returns whether a URL is a static public HTTPS address.
-fn stable_url(url: &str) -> bool {
-    url.starts_with("https://")
-        && !url.contains('{')
-        && !url.contains('}')
-        && !url.contains("localhost")
-        && !url.contains("127.0.0.1")
-        && url[8..].contains('.')
-}
-
-/// Reports a present URL that is unsuitable for durable documentation.
-fn check_url(cx: &LateContext<'_>, span: Span, url: Option<&str>) {
-    let Some(url) = url else {
-        return;
-    };
-    if stable_url(url) {
-        return;
-    }
-
-    Violation {
-        span,
-        url: url.to_owned(),
-    }
-    .emit(cx);
-}
-
 // -----------------------------------------------------------------------------
 // MietteUnstableDiagnosticUrls: Durable documentation links
 // -----------------------------------------------------------------------------
@@ -101,6 +75,33 @@ dylint_linting::impl_late_lint! {
     MietteUnstableDiagnosticUrls::default()
 }
 
+impl MietteUnstableDiagnosticUrls {
+    /// Returns whether a URL is a static public HTTPS address.
+    fn stable_url(url: &str) -> bool {
+        url.starts_with("https://")
+            && !url.contains('{')
+            && !url.contains('}')
+            && !url.contains("localhost")
+            && !url.contains("127.0.0.1")
+            && url[8..].contains('.')
+    }
+
+    /// Reports a present URL that is unsuitable for durable documentation.
+    fn check_url(cx: &LateContext<'_>, span: Span, url: Option<&str>) {
+        let Some(url) = url else {
+            return;
+        };
+        if Self::stable_url(url) {
+            return;
+        }
+
+        Violation {
+            span,
+            url: url.to_owned(),
+        }
+        .emit(cx);
+    }
+}
 impl LateLintPass<'_> for MietteUnstableDiagnosticUrls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -108,9 +109,9 @@ impl LateLintPass<'_> for MietteUnstableDiagnosticUrls {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.derived_contracts() {
-            check_url(cx, contract.span, contract.metadata.url.as_deref());
+            Self::check_url(cx, contract.span, contract.metadata.url.as_deref());
             for member in &contract.members {
-                check_url(cx, member.span, member.metadata.url.as_deref());
+                Self::check_url(cx, member.span, member.metadata.url.as_deref());
             }
         }
     }

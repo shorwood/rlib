@@ -72,85 +72,88 @@ impl LateViolation for Violation {
     }
 }
 
-/// Extracts the sole value wrapped by `Some`.
-fn some_argument(expression: &syn::Expr) -> Option<&syn::Expr> {
-    let syn::Expr::Call(call) = expression else {
-        return None;
-    };
-    if !matches!(call.func.as_ref(), syn::Expr::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "Some"))
-        || call.args.len() != 1
-    {
-        return None;
-    }
-    call.args.first()
-}
-
-/// Recognizes boxed static text used by code, help, and URL methods.
-fn static_box(expression: &syn::Expr) -> bool {
-    let Some(syn::Expr::Call(boxed)) = some_argument(expression) else {
-        return false;
-    };
-    matches!(boxed.func.as_ref(), syn::Expr::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "new"))
-        && matches!(boxed.args.first(), Some(syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(_), .. })) if boxed.args.len() == 1)
-}
-
-/// Recognizes a static Miette severity variant wrapped by `Some`.
-fn static_severity(expression: &syn::Expr) -> bool {
-    matches!(some_argument(expression), Some(syn::Expr::Path(path)) if path.path.segments.last().is_some_and(|segment| matches!(segment.ident.to_string().as_str(), "Error" | "Warning" | "Advice")))
-}
-
-/// Recognizes a direct reference to one field on `self`.
-fn direct_reference(expression: &syn::Expr) -> bool {
-    let Some(syn::Expr::Reference(reference)) = some_argument(expression) else {
-        return false;
-    };
-    matches!(reference.expr.as_ref(), syn::Expr::Field(field) if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self")))
-}
-
-/// Returns all methods when the complete implementation is derive-equivalent.
-fn derivable_methods(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Vec<String>> {
-    let source = AuthoredItemSource::for_item(cx, item)?;
-    let implementation = match syn::parse_str::<syn::ItemImpl>(&source) {
-        Ok(implementation) => implementation,
-        Err(_error) => return None,
-    };
-    let mut names = Vec::new();
-    for member in implementation.items {
-        let syn::ImplItem::Fn(method) = member else {
-            return None;
-        };
-        let name = method.sig.ident.to_string();
-        let [syn::Stmt::Expr(expression, _)] = method.block.stmts.as_slice() else {
-            return None;
-        };
-
-        let derivable = match name.as_str() {
-            "code" | "help" | "url" => static_box(expression),
-            "severity" => static_severity(expression),
-            "source_code" | "diagnostic_source" => direct_reference(expression),
-            _ => false,
-        };
-
-        if !derivable {
-            return None;
-        }
-        names.push(name);
-    }
-    Some(names)
-}
-
 // -----------------------------------------------------------------------------
 // MietteManualDiagnosticImpls: Declarative diagnostic implementation policy
 // -----------------------------------------------------------------------------
 
 /// Detects complete manual implementations that Miette can derive.
 struct MietteManualDiagnosticImpls;
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MIETTE_MANUAL_DIAGNOSTIC_IMPLS,
     Warn,
     "finds Miette Diagnostic implementations reproducible by derive",
     MietteManualDiagnosticImpls
+}
+
+impl MietteManualDiagnosticImpls {
+    /// Extracts the sole value wrapped by `Some`.
+    fn some_argument(expression: &syn::Expr) -> Option<&syn::Expr> {
+        let syn::Expr::Call(call) = expression else {
+            return None;
+        };
+        if !matches!(call.func.as_ref(), syn::Expr::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "Some"))
+            || call.args.len() != 1
+        {
+            return None;
+        }
+        call.args.first()
+    }
+
+    /// Recognizes boxed static text used by code, help, and URL methods.
+    fn static_box(expression: &syn::Expr) -> bool {
+        let Some(syn::Expr::Call(boxed)) = Self::some_argument(expression) else {
+            return false;
+        };
+        matches!(boxed.func.as_ref(), syn::Expr::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "new"))
+            && matches!(boxed.args.first(), Some(syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(_), .. })) if boxed.args.len() == 1)
+    }
+
+    /// Recognizes a static Miette severity variant wrapped by `Some`.
+    fn static_severity(expression: &syn::Expr) -> bool {
+        matches!(Self::some_argument(expression), Some(syn::Expr::Path(path)) if path.path.segments.last().is_some_and(|segment| matches!(segment.ident.to_string().as_str(), "Error" | "Warning" | "Advice")))
+    }
+
+    /// Recognizes a direct reference to one field on `self`.
+    fn direct_reference(expression: &syn::Expr) -> bool {
+        let Some(syn::Expr::Reference(reference)) = Self::some_argument(expression) else {
+            return false;
+        };
+        matches!(reference.expr.as_ref(), syn::Expr::Field(field) if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self")))
+    }
+
+    /// Returns all methods when the complete implementation is derive-equivalent.
+    fn derivable_methods(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Vec<String>> {
+        let source = AuthoredItemSource::for_item(cx, item)?;
+        let implementation = match syn::parse_str::<syn::ItemImpl>(&source) {
+            Ok(implementation) => implementation,
+            Err(_error) => return None,
+        };
+        let mut names = Vec::new();
+        for member in implementation.items {
+            let syn::ImplItem::Fn(method) = member else {
+                return None;
+            };
+            let name = method.sig.ident.to_string();
+            let [syn::Stmt::Expr(expression, _)] = method.block.stmts.as_slice() else {
+                return None;
+            };
+
+            let derivable = match name.as_str() {
+                "code" | "help" | "url" => Self::static_box(expression),
+                "severity" => Self::static_severity(expression),
+                "source_code" | "diagnostic_source" => Self::direct_reference(expression),
+                _ => false,
+            };
+
+            if !derivable {
+                return None;
+            }
+            names.push(name);
+        }
+        Some(names)
+    }
 }
 impl LateLintPass<'_> for MietteManualDiagnosticImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
@@ -188,7 +191,7 @@ impl LateLintPass<'_> for MietteManualDiagnosticImpls {
             return;
         }
 
-        let Some(methods) = derivable_methods(cx, item) else {
+        let Some(methods) = Self::derivable_methods(cx, item) else {
             return;
         };
 

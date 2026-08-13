@@ -9,7 +9,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::DiagnosticCatalog;
+use super::utils::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -58,55 +58,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Accepts namespaced snake-case codes and conventional letter-number codes.
-fn valid_code(code: &str) -> bool {
-    /// Namespace and local name required by a qualified diagnostic code.
-    const MINIMUM_QUALIFIED_CODE_SEGMENTS: usize = 2;
-
-    let segments = code.split("::").collect::<Vec<_>>();
-
-    // Qualified codes reserve each segment for a stable machine-oriented name.
-    if segments.len() >= MINIMUM_QUALIFIED_CODE_SEGMENTS {
-        return segments.iter().all(|segment| {
-            !segment.is_empty()
-                && segment
-                    .chars()
-                    .next()
-                    .is_some_and(|character| character.is_ascii_lowercase())
-                && segment.chars().all(|character| {
-                    character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
-                })
-        });
-    }
-
-    let letters = code.chars().take_while(char::is_ascii_alphabetic).count();
-
-    letters > 0
-        && letters < code.len()
-        && code[..letters]
-            .chars()
-            .all(|character| character.is_ascii_uppercase())
-        && code[letters..]
-            .chars()
-            .all(|character| character.is_ascii_digit())
-}
-
-/// Reports a present code that does not use either accepted shape.
-fn check_code(cx: &LateContext<'_>, span: Span, code: Option<&str>) {
-    let Some(code) = code else {
-        return;
-    };
-    if valid_code(code) {
-        return;
-    }
-
-    Violation {
-        span,
-        code: code.to_owned(),
-    }
-    .emit(cx);
-}
-
 // -----------------------------------------------------------------------------
 // MietteMalformedDiagnosticCodes: Stable code spelling policy
 // -----------------------------------------------------------------------------
@@ -126,6 +77,58 @@ dylint_linting::impl_late_lint! {
     MietteMalformedDiagnosticCodes::default()
 }
 
+impl MietteMalformedDiagnosticCodes {
+    /// Accepts namespaced snake-case codes and conventional letter-number codes.
+    fn valid_code(code: &str) -> bool {
+        /// Namespace and local name required by a qualified diagnostic code.
+        const MINIMUM_QUALIFIED_CODE_SEGMENTS: usize = 2;
+
+        let segments = code.split("::").collect::<Vec<_>>();
+
+        // Qualified codes reserve each segment for a stable machine-oriented name.
+        if segments.len() >= MINIMUM_QUALIFIED_CODE_SEGMENTS {
+            return segments.iter().all(|segment| {
+                !segment.is_empty()
+                    && segment
+                        .chars()
+                        .next()
+                        .is_some_and(|character| character.is_ascii_lowercase())
+                    && segment.chars().all(|character| {
+                        character.is_ascii_lowercase()
+                            || character.is_ascii_digit()
+                            || character == '_'
+                    })
+            });
+        }
+
+        let letters = code.chars().take_while(char::is_ascii_alphabetic).count();
+
+        letters > 0
+            && letters < code.len()
+            && code[..letters]
+                .chars()
+                .all(|character| character.is_ascii_uppercase())
+            && code[letters..]
+                .chars()
+                .all(|character| character.is_ascii_digit())
+    }
+
+    /// Reports a present code that does not use either accepted shape.
+    fn check_code(cx: &LateContext<'_>, span: Span, code: Option<&str>) {
+        let Some(code) = code else {
+            return;
+        };
+        if Self::valid_code(code) {
+            return;
+        }
+
+        Violation {
+            span,
+            code: code.to_owned(),
+        }
+        .emit(cx);
+    }
+}
 impl LateLintPass<'_> for MietteMalformedDiagnosticCodes {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -133,9 +136,9 @@ impl LateLintPass<'_> for MietteMalformedDiagnosticCodes {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.derived_contracts() {
-            check_code(cx, contract.span, contract.metadata.code.as_deref());
+            Self::check_code(cx, contract.span, contract.metadata.code.as_deref());
             for member in &contract.members {
-                check_code(cx, member.span, member.metadata.code.as_deref());
+                Self::check_code(cx, member.span, member.metadata.code.as_deref());
             }
         }
     }

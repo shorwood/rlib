@@ -10,7 +10,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::{DiagnosticCatalog, DiagnosticContract, DiagnosticMember};
+use super::utils::contracts::{DiagnosticCatalog, DiagnosticContract, DiagnosticMember};
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -73,42 +73,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Records the effective code inherited or declared by an enum variant.
-fn record_member(
-    codes: &mut BTreeMap<String, Vec<ViolationUse>>,
-    contract: &DiagnosticContract,
-    member: &DiagnosticMember,
-) {
-    let Some(code) = member
-        .metadata
-        .code
-        .as_ref()
-        .or(contract.metadata.code.as_ref())
-    else {
-        return;
-    };
-    codes.entry(code.clone()).or_default().push(ViolationUse {
-        span: member.span,
-        diagnostic: format!("{}::{}", contract.name, member.name),
-    });
-}
-
-/// Records the effective codes exposed by one diagnostic contract.
-fn record_contract(codes: &mut BTreeMap<String, Vec<ViolationUse>>, contract: &DiagnosticContract) {
-    if contract.members.is_empty() {
-        if let Some(code) = &contract.metadata.code {
-            codes.entry(code.clone()).or_default().push(ViolationUse {
-                span: contract.span,
-                diagnostic: contract.name.clone(),
-            });
-        }
-        return;
-    }
-    for member in &contract.members {
-        record_member(codes, contract, member);
-    }
-}
-
 // -----------------------------------------------------------------------------
 // MietteDuplicateDiagnosticCodes: Unique machine identity policy
 // -----------------------------------------------------------------------------
@@ -128,6 +92,46 @@ dylint_linting::impl_late_lint! {
     MietteDuplicateDiagnosticCodes::default()
 }
 
+impl MietteDuplicateDiagnosticCodes {
+    /// Records the effective code inherited or declared by an enum variant.
+    fn record_member(
+        codes: &mut BTreeMap<String, Vec<ViolationUse>>,
+        contract: &DiagnosticContract,
+        member: &DiagnosticMember,
+    ) {
+        let Some(code) = member
+            .metadata
+            .code
+            .as_ref()
+            .or(contract.metadata.code.as_ref())
+        else {
+            return;
+        };
+        codes.entry(code.clone()).or_default().push(ViolationUse {
+            span: member.span,
+            diagnostic: format!("{}::{}", contract.name, member.name),
+        });
+    }
+
+    /// Records the effective codes exposed by one diagnostic contract.
+    fn record_contract(
+        codes: &mut BTreeMap<String, Vec<ViolationUse>>,
+        contract: &DiagnosticContract,
+    ) {
+        if contract.members.is_empty() {
+            if let Some(code) = &contract.metadata.code {
+                codes.entry(code.clone()).or_default().push(ViolationUse {
+                    span: contract.span,
+                    diagnostic: contract.name.clone(),
+                });
+            }
+            return;
+        }
+        for member in &contract.members {
+            Self::record_member(codes, contract, member);
+        }
+    }
+}
 impl LateLintPass<'_> for MietteDuplicateDiagnosticCodes {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -136,7 +140,7 @@ impl LateLintPass<'_> for MietteDuplicateDiagnosticCodes {
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         let mut codes = BTreeMap::<String, Vec<ViolationUse>>::new();
         for contract in self.catalog.derived_contracts() {
-            record_contract(&mut codes, contract);
+            Self::record_contract(&mut codes, contract);
         }
         for (code, uses) in codes {
             if uses.len() <= 1 {

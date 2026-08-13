@@ -13,7 +13,7 @@ use rustc_middle::ty;
 use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, sym};
 
-use super::contracts::DiagnosticCatalog;
+use super::utils::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -96,6 +96,7 @@ struct MietteIncoherentDiagnosticSeverity {
     /// Error-channel uses grouped by returned local type.
     uses: HashMap<LocalDefId, Vec<ViolationUse>>,
 }
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MIETTE_INCOHERENT_DIAGNOSTIC_SEVERITY,
@@ -103,6 +104,7 @@ dylint_linting::impl_late_lint! {
     "finds advisory Miette diagnostics propagated as errors",
     MietteIncoherentDiagnosticSeverity::default()
 }
+
 impl LateLintPass<'_> for MietteIncoherentDiagnosticSeverity {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         /// Success and error arguments carried by `Result`.

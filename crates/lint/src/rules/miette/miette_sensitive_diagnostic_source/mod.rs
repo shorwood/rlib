@@ -8,7 +8,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
+use super::utils::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
 use crate::utils::diagnostic::LateViolation;
 
 /// Field names that commonly carry confidential content.
@@ -72,27 +72,6 @@ impl LateViolation for Violation {
         );
     }
 }
-/// Matches exact and qualified sensitive field names.
-fn sensitive_name(name: &str) -> bool {
-    let name = name.to_ascii_lowercase();
-
-    SENSITIVE_TERMS
-        .iter()
-        .any(|term| name == *term || name.ends_with(&format!("_{term}")))
-}
-/// Reports sensitive fields exposed through Miette's source rendering.
-fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
-    for field in fields.iter().filter(|field| {
-        field.roles.contains(DiagnosticFieldRole::SourceCode) && sensitive_name(&field.name)
-    }) {
-        Violation {
-            span: field.span,
-            field: field.name.clone(),
-        }
-        .emit(cx);
-    }
-}
-
 // -----------------------------------------------------------------------------
 // MietteSensitiveDiagnosticSource: Confidential source-rendering policy
 // -----------------------------------------------------------------------------
@@ -103,12 +82,38 @@ struct MietteSensitiveDiagnosticSource {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MIETTE_SENSITIVE_DIAGNOSTIC_SOURCE,
     Warn,
     "finds sensitive fields exposed as Miette source code",
     MietteSensitiveDiagnosticSource::default()
+}
+
+impl MietteSensitiveDiagnosticSource {
+    /// Matches exact and qualified sensitive field names.
+    fn sensitive_name(name: &str) -> bool {
+        let name = name.to_ascii_lowercase();
+
+        SENSITIVE_TERMS
+            .iter()
+            .any(|term| name == *term || name.ends_with(&format!("_{term}")))
+    }
+
+    /// Reports sensitive fields exposed through Miette's source rendering.
+    fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
+        for field in fields.iter().filter(|field| {
+            field.roles.contains(DiagnosticFieldRole::SourceCode)
+                && Self::sensitive_name(&field.name)
+        }) {
+            Violation {
+                span: field.span,
+                field: field.name.clone(),
+            }
+            .emit(cx);
+        }
+    }
 }
 impl LateLintPass<'_> for MietteSensitiveDiagnosticSource {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
@@ -117,9 +122,9 @@ impl LateLintPass<'_> for MietteSensitiveDiagnosticSource {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.derived_contracts() {
-            check_fields(cx, &contract.fields);
+            Self::check_fields(cx, &contract.fields);
             for member in &contract.members {
-                check_fields(cx, &member.fields);
+                Self::check_fields(cx, &member.fields);
             }
         }
     }

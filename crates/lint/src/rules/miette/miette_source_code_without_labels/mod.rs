@@ -9,7 +9,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::{
+use super::utils::contracts::{
     DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole, DiagnosticMetadata,
 };
 use crate::utils::diagnostic::LateViolation;
@@ -95,40 +95,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Reports source storage with no label or nested diagnostic to focus it.
-fn check_fields(
-    cx: &LateContext<'_>,
-    span: Span,
-    fields: &[DiagnosticField],
-    transparency: Transparency,
-) {
-    let sources = fields
-        .iter()
-        .filter(|field| field.roles.contains(DiagnosticFieldRole::SourceCode))
-        .collect::<Vec<_>>();
-
-    // Delegation or any local focus makes the retained source useful.
-    if sources.is_empty()
-        || transparency.is_transparent()
-        || fields.iter().any(|field| {
-            field.roles.contains(DiagnosticFieldRole::Label)
-                || field.roles.contains(DiagnosticFieldRole::Related)
-                || field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
-        })
-    {
-        return;
-    }
-
-    Violation {
-        span,
-        sources: sources
-            .into_iter()
-            .map(|field| format!("`{}`", field.name))
-            .collect(),
-    }
-    .emit(cx);
-}
-
 // -----------------------------------------------------------------------------
 // MietteSourceCodeWithoutLabels: Focused source-retention policy
 // -----------------------------------------------------------------------------
@@ -139,12 +105,49 @@ struct MietteSourceCodeWithoutLabels {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MIETTE_SOURCE_CODE_WITHOUT_LABELS,
     Warn,
     "finds unfocused Miette source-code storage",
     MietteSourceCodeWithoutLabels::default()
+}
+
+impl MietteSourceCodeWithoutLabels {
+    /// Reports source storage with no label or nested diagnostic to focus it.
+    fn check_fields(
+        cx: &LateContext<'_>,
+        span: Span,
+        fields: &[DiagnosticField],
+        transparency: Transparency,
+    ) {
+        let sources = fields
+            .iter()
+            .filter(|field| field.roles.contains(DiagnosticFieldRole::SourceCode))
+            .collect::<Vec<_>>();
+
+        // Delegation or any local focus makes the retained source useful.
+        if sources.is_empty()
+            || transparency.is_transparent()
+            || fields.iter().any(|field| {
+                field.roles.contains(DiagnosticFieldRole::Label)
+                    || field.roles.contains(DiagnosticFieldRole::Related)
+                    || field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
+            })
+        {
+            return;
+        }
+
+        Violation {
+            span,
+            sources: sources
+                .into_iter()
+                .map(|field| format!("`{}`", field.name))
+                .collect(),
+        }
+        .emit(cx);
+    }
 }
 impl LateLintPass<'_> for MietteSourceCodeWithoutLabels {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
@@ -153,14 +156,14 @@ impl LateLintPass<'_> for MietteSourceCodeWithoutLabels {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.derived_contracts() {
-            check_fields(
+            Self::check_fields(
                 cx,
                 contract.span,
                 &contract.fields,
                 Transparency::for_contract(&contract.metadata),
             );
             for member in &contract.members {
-                check_fields(
+                Self::check_fields(
                     cx,
                     member.span,
                     &member.fields,

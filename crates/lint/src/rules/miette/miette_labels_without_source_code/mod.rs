@@ -9,7 +9,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::{
+use super::utils::contracts::{
     DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole, DiagnosticMetadata,
 };
 use crate::utils::diagnostic::LateViolation;
@@ -96,39 +96,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Reports label sets with neither local nor forwarded source code.
-fn check_fields(
-    cx: &LateContext<'_>,
-    span: Span,
-    fields: &[DiagnosticField],
-    transparency: Transparency,
-) {
-    let labels = fields
-        .iter()
-        .filter(|field| field.roles.contains(DiagnosticFieldRole::Label))
-        .collect::<Vec<_>>();
-
-    // Delegated diagnostics and locally sourced labels already have renderable text.
-    if labels.is_empty()
-        || transparency.is_transparent()
-        || fields.iter().any(|field| {
-            field.roles.contains(DiagnosticFieldRole::SourceCode)
-                || field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
-        })
-    {
-        return;
-    }
-
-    Violation {
-        span,
-        labels: labels
-            .into_iter()
-            .map(|field| format!("`{}`", field.name))
-            .collect(),
-    }
-    .emit(cx);
-}
-
 // -----------------------------------------------------------------------------
 // MietteLabelsWithoutSourceCode: Renderable label policy
 // -----------------------------------------------------------------------------
@@ -148,6 +115,40 @@ dylint_linting::impl_late_lint! {
     MietteLabelsWithoutSourceCode::default()
 }
 
+impl MietteLabelsWithoutSourceCode {
+    /// Reports label sets with neither local nor forwarded source code.
+    fn check_fields(
+        cx: &LateContext<'_>,
+        span: Span,
+        fields: &[DiagnosticField],
+        transparency: Transparency,
+    ) {
+        let labels = fields
+            .iter()
+            .filter(|field| field.roles.contains(DiagnosticFieldRole::Label))
+            .collect::<Vec<_>>();
+
+        // Delegated diagnostics and locally sourced labels already have renderable text.
+        if labels.is_empty()
+            || transparency.is_transparent()
+            || fields.iter().any(|field| {
+                field.roles.contains(DiagnosticFieldRole::SourceCode)
+                    || field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
+            })
+        {
+            return;
+        }
+
+        Violation {
+            span,
+            labels: labels
+                .into_iter()
+                .map(|field| format!("`{}`", field.name))
+                .collect(),
+        }
+        .emit(cx);
+    }
+}
 impl LateLintPass<'_> for MietteLabelsWithoutSourceCode {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -155,14 +156,14 @@ impl LateLintPass<'_> for MietteLabelsWithoutSourceCode {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.derived_contracts() {
-            check_fields(
+            Self::check_fields(
                 cx,
                 contract.span,
                 &contract.fields,
                 Transparency::for_contract(&contract.metadata),
             );
             for member in &contract.members {
-                check_fields(
+                Self::check_fields(
                     cx,
                     member.span,
                     &member.fields,
