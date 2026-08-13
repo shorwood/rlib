@@ -29,6 +29,8 @@ use crate::rules::strum::utils::enumeration::CollectionCandidate;
 #[cfg(all(feature = "thiserror", feature = "derive_more"))]
 use crate::rules::thiserror::contracts::ThiserrorContractCatalog;
 #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+use crate::rules::thiserror::manual_error::ManualErrorCatalog;
+#[cfg(all(feature = "thiserror", feature = "derive_more"))]
 use crate::rules::thiserror::manual_from::ManualFromCandidate;
 #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 use crate::utils::config::LibraryConfig;
@@ -215,6 +217,46 @@ impl LateViolation for ErrorConversionViolation {
     }
 }
 
+#[cfg(all(feature = "thiserror", feature = "derive_more"))]
+struct ErrorImplementationViolation {
+    span: Span,
+    name: String,
+}
+
+#[cfg(all(feature = "thiserror", feature = "derive_more"))]
+impl LateViolation for ErrorImplementationViolation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "error contract for `{}` has multiple eligible derive providers",
+            self.name
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "thiserror `Error` and derive_more `Display` plus `Error` can both generate this static message and conventional source chain",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "set `derive_resolution.error_implementation` to `thiserror_error` or `derive_more_error`",
+        )
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.emit_span_lint(
+            FRAMEWORK_RESOLUTION_REQUIRED,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
+
 // -----------------------------------------------------------------------------
 // FrameworkResolutionRequired: Provider arbitration
 // -----------------------------------------------------------------------------
@@ -235,6 +277,8 @@ struct FrameworkResolutionRequired {
     thiserror_catalog: ThiserrorContractCatalog,
     #[cfg(all(feature = "thiserror", feature = "derive_more"))]
     error_conversions: Vec<ManualFromCandidate>,
+    #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+    manual_errors: ManualErrorCatalog,
 }
 
 impl FrameworkResolutionRequired {
@@ -254,6 +298,8 @@ impl FrameworkResolutionRequired {
             thiserror_catalog: ThiserrorContractCatalog::default(),
             #[cfg(all(feature = "thiserror", feature = "derive_more"))]
             error_conversions: Vec::new(),
+            #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+            manual_errors: ManualErrorCatalog::default(),
         }
     }
 
@@ -329,7 +375,10 @@ impl LateLintPass<'_> for FrameworkResolutionRequired {
             self.catalog.check_item(cx, item);
         }
         #[cfg(all(feature = "thiserror", feature = "derive_more"))]
-        self.thiserror_catalog.check_item(cx, item);
+        {
+            self.thiserror_catalog.check_item(cx, item);
+            self.manual_errors.check_item(cx, item);
+        }
         #[cfg(not(any(feature = "strum", all(feature = "thiserror", feature = "derive_more"))))]
         let _ = (cx, item);
     }
@@ -374,6 +423,23 @@ impl LateLintPass<'_> for FrameworkResolutionRequired {
                     }
                     .emit(cx);
                 }
+            }
+        }
+        #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+        if self.config.error_implementation().is_none() {
+            for candidate in self.manual_errors.candidates() {
+                if candidate
+                    .source_field
+                    .as_deref()
+                    .is_some_and(|field| field != "source")
+                {
+                    continue;
+                }
+                ErrorImplementationViolation {
+                    span: candidate.span,
+                    name: candidate.name,
+                }
+                .emit(cx);
             }
         }
         #[cfg(not(any(feature = "strum", all(feature = "thiserror", feature = "derive_more"))))]

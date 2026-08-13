@@ -1,0 +1,23 @@
+warning: manual `Display` and `Error` implementations for `Marker` are derivable with thiserror
+  --> $DIR/semantic.rs:7:1
+   |
+LL | struct Marker;
+   | ^^^^^^^^^^^^^^ this complete error contract is derivable
+   |
+   = note: the authored implementations only provide a static message and conventional source forwarding
+   = help: derive `thiserror::Error`, add `#[error("marker")]`, and remove both implementations
+   = note: `#[warn(thiserror_manual_error_impls)]` on by default
+
+warning: manual `Display` and `Error` implementations for `LoadError` are derivable with thiserror
+  --> $DIR/semantic.rs:18:1
+   |
+LL | / struct LoadError {
+LL | |     source: std::io::Error,
+LL | | }
+   | |_^ this complete error contract is derivable
+   |
+   = note: the authored implementations only provide a static message and conventional source forwarding
+   = help: derive `thiserror::Error`, add `#[error("load failed")]` and mark `source` with `#[source]`, and remove both implementations
+
+warning: 2 warnings emitted
+

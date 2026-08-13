@@ -11,8 +11,21 @@ use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty;
 use rustc_span::Span;
 
+#[cfg(feature = "thiserror")]
+use crate::rules::framework::config::{DeriveResolutionConfig, ErrorImplementationProvider};
+#[cfg(feature = "thiserror")]
+use crate::rules::thiserror::manual_error::ManualErrorCatalog;
+#[cfg(feature = "thiserror")]
+use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
+
+struct Candidate {
+    definition: rustc_span::def_id::LocalDefId,
+    owner: rustc_hir::HirId,
+    span: Span,
+    name: String,
+}
 
 struct Violation {
     owner: rustc_hir::HirId,
@@ -55,56 +68,107 @@ impl LateViolation for Violation {
     }
 }
 
-struct DeriveMoreManualErrorImpls;
+struct DeriveMoreManualErrorImpls {
+    candidates: Vec<Candidate>,
+    #[cfg(feature = "thiserror")]
+    config: DeriveResolutionConfig,
+    #[cfg(feature = "thiserror")]
+    overlaps: ManualErrorCatalog,
+}
+
+impl DeriveMoreManualErrorImpls {
+    fn new() -> Self {
+        Self {
+            candidates: Vec::new(),
+            #[cfg(feature = "thiserror")]
+            config: LibraryConfig::load().derive_resolution,
+            #[cfg(feature = "thiserror")]
+            overlaps: ManualErrorCatalog::default(),
+        }
+    }
+
+    fn selected(&self, definition: rustc_span::def_id::LocalDefId) -> bool {
+        #[cfg(feature = "thiserror")]
+        if self.overlaps.contains(definition) {
+            return self.config.error_implementation()
+                == Some(ErrorImplementationProvider::DeriveMoreError);
+        }
+        let _ = definition;
+        true
+    }
+}
 
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub DERIVE_MORE_MANUAL_ERROR_IMPLS,
     Warn,
     "finds Error implementations reproducible by derive_more",
-    DeriveMoreManualErrorImpls
+    DeriveMoreManualErrorImpls::new()
 }
 
 impl LateLintPass<'_> for DeriveMoreManualErrorImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        let ItemKind::Impl(implementation) = item.kind else {
+        #[cfg(feature = "thiserror")]
+        self.overlaps.check_item(cx, item);
+        let Some(candidate) = candidate(cx, item) else {
             return;
         };
-        if item.span.from_expansion() || !cx.tcx.hir_attrs(item.hir_id()).is_empty() {
-            return;
-        }
-        let Some(trait_id) = implementation
-            .of_trait
-            .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
-        else {
-            return;
-        };
-        if cx.tcx.item_name(trait_id).as_str() != "Error"
-            || !matches!(cx.tcx.crate_name(trait_id.krate).as_str(), "core" | "std")
-        {
-            return;
-        }
-        let trait_ref = cx
-            .tcx
-            .impl_trait_ref(item.owner_id.def_id)
-            .instantiate_identity();
-        let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
-            return;
-        };
-        if !definition.is_struct()
-            || definition.did().as_local().is_none()
-            || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
-            || !is_derivable_error_impl(cx, item)
-        {
-            return;
-        }
-        Violation {
-            owner: item.hir_id(),
-            span: item.span,
-            name: cx.tcx.item_name(definition.did()).to_string(),
-        }
-        .emit(cx);
+        self.candidates.push(candidate);
     }
+
+    fn check_crate_post(&mut self, cx: &LateContext<'_>) {
+        for candidate in std::mem::take(&mut self.candidates) {
+            if !self.selected(candidate.definition) {
+                continue;
+            }
+            Violation {
+                owner: candidate.owner,
+                span: candidate.span,
+                name: candidate.name,
+            }
+            .emit(cx);
+        }
+    }
+}
+
+fn candidate(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Candidate> {
+    let ItemKind::Impl(implementation) = item.kind else {
+        return None;
+    };
+    if item.span.from_expansion() || !cx.tcx.hir_attrs(item.hir_id()).is_empty() {
+        return None;
+    }
+    let Some(trait_id) = implementation
+        .of_trait
+        .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
+    else {
+        return None;
+    };
+    if cx.tcx.item_name(trait_id).as_str() != "Error"
+        || !matches!(cx.tcx.crate_name(trait_id.krate).as_str(), "core" | "std")
+    {
+        return None;
+    }
+    let trait_ref = cx
+        .tcx
+        .impl_trait_ref(item.owner_id.def_id)
+        .instantiate_identity();
+    let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
+        return None;
+    };
+    if !definition.is_struct()
+        || definition.did().as_local().is_none()
+        || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
+        || !is_derivable_error_impl(cx, item)
+    {
+        return None;
+    }
+    Some(Candidate {
+        definition: definition.did().as_local()?,
+        owner: item.hir_id(),
+        span: item.span,
+        name: cx.tcx.item_name(definition.did()).to_string(),
+    })
 }
 
 fn is_derivable_error_impl(cx: &LateContext<'_>, item: &Item<'_>) -> bool {

@@ -328,7 +328,6 @@ fn run_derive_more_fixtures() {
         "derive_more_manual_conversion_impls",
         "derive_more_manual_constructors",
         "derive_more_manual_equality_impls",
-        "derive_more_manual_error_impls",
         "derive_more_manual_forwarding_interfaces",
         "derive_more_manual_formatting_impls",
         "derive_more_manual_from_str_impls",
@@ -349,6 +348,25 @@ fn run_derive_more_fixtures() {
         }
         Test::example(env!("CARGO_PKG_NAME"), example)
             .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+            .run();
+    }
+    if selected
+        .as_deref()
+        .is_none_or(|selected| selected == "derive_more_manual_error_impls")
+    {
+        #[cfg(not(feature = "thiserror"))]
+        Test::example(env!("CARGO_PKG_NAME"), "derive_more_manual_error_impls")
+            .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+            .run();
+        #[cfg(feature = "thiserror")]
+        Test::example(env!("CARGO_PKG_NAME"), "derive_more_manual_error_impls")
+            .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+            .dylint_toml(
+                r#"
+                    [rlib-lint.derive_resolution]
+                    error_implementation = "derive_more_error"
+                "#,
+            )
             .run();
     }
 }
@@ -401,6 +419,18 @@ fn run_thiserror_fixtures() {
         .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
         .run();
     }
+    #[cfg(feature = "derive_more")]
+    if selected
+        .as_deref()
+        .is_none_or(|selected| selected == "framework_error_implementation_resolution_required")
+    {
+        Test::example(
+            env!("CARGO_PKG_NAME"),
+            "framework_error_implementation_resolution_required",
+        )
+        .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+        .run();
+    }
     for example in [
         "thiserror_ambiguous_error_sources",
         "thiserror_duplicate_error_messages",
@@ -419,6 +449,20 @@ fn run_thiserror_fixtures() {
         }
         Test::example(env!("CARGO_PKG_NAME"), example)
             .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+            .run();
+    }
+    if selected
+        .as_deref()
+        .is_none_or(|selected| selected == "thiserror_manual_error_impls")
+    {
+        Test::example(env!("CARGO_PKG_NAME"), "thiserror_manual_error_impls")
+            .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+            .dylint_toml(
+                r#"
+                    [rlib-lint.derive_resolution]
+                    error_implementation = "thiserror_error"
+                "#,
+            )
             .run();
     }
     if selected

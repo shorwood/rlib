@@ -1,11 +1,19 @@
 use serde::Deserialize;
 
-#[cfg(any(feature = "derive_more", feature = "thiserror"))]
+#[cfg(feature = "thiserror")]
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum ErrorVariantConversionProvider {
     DeriveMoreFrom,
     ThiserrorFrom,
+}
+
+#[cfg(feature = "thiserror")]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ErrorImplementationProvider {
+    DeriveMoreError,
+    ThiserrorError,
 }
 
 #[cfg(feature = "strum")]
@@ -28,8 +36,11 @@ use crate::utils::variant_methods::PredicateProvider;
     reason = "the enum prefix makes each flat TOML configuration key self-describing"
 )]
 pub(crate) struct DeriveResolutionConfig {
+    /// Provider selected for complete error implementations.
+    #[cfg(feature = "thiserror")]
+    error_implementation: Option<ErrorImplementationProvider>,
     /// Provider selected for source-bearing error-variant conversions.
-    #[cfg(any(feature = "derive_more", feature = "thiserror"))]
+    #[cfg(feature = "thiserror")]
     error_variant_conversion: Option<ErrorVariantConversionProvider>,
     /// Provider selected for exhaustive enum variant collections.
     #[cfg(feature = "strum")]
@@ -46,7 +57,11 @@ pub(crate) struct DeriveResolutionConfig {
 }
 
 impl DeriveResolutionConfig {
-    #[cfg(any(feature = "derive_more", feature = "thiserror"))]
+    #[cfg(feature = "thiserror")]
+    pub(crate) const fn error_implementation(&self) -> Option<ErrorImplementationProvider> {
+        self.error_implementation
+    }
+    #[cfg(feature = "thiserror")]
     pub(crate) const fn error_variant_conversion(&self) -> Option<ErrorVariantConversionProvider> {
         self.error_variant_conversion
     }
