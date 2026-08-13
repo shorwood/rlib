@@ -17,10 +17,8 @@ use rustc_middle::ty::{self, Ty};
 use rustc_span::symbol::sym;
 use rustc_span::{Span, Symbol};
 
-use self::text_body_evidence::TextBodyEvidence;
 use super::identifier_case;
-
-mod text_body_evidence;
+use super::standard_interface_text_evidence::TextBodyEvidence;
 
 // -----------------------------------------------------------------------------
 // FormattingProblem: Canonical ownership problem

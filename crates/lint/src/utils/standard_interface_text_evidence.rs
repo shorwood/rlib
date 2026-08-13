@@ -26,65 +26,63 @@ impl TextBodyEvidence {
         body: &'tcx Body<'tcx>,
         binding: HirId,
     ) -> Self {
-        // Traverse the complete body with the authored input as provenance root.
-        let mut analyzer = TextBodyEvidenceAnalyzer {
+        let mut analyzer = TextBodyAnalyzer {
             cx,
             binding,
-            has_input_use: false,
-            has_display_delegation: false,
+            evidence: Self {
+                has_input_use: false,
+                has_display_delegation: false,
+            },
         };
         analyzer.visit_expr(body.value);
-
-        // Return only the two facts needed for candidate classification.
-        Self {
-            has_input_use: analyzer.has_input_use,
-            has_display_delegation: analyzer.has_display_delegation,
-        }
+        analyzer.evidence
     }
 }
 
 // -----------------------------------------------------------------------------
-// TextBodyEvidenceAnalyzer: Text body traversal
+// TextInputUseFinder: Authored input provenance
+// -----------------------------------------------------------------------------
+
+/// Finds the authored input binding inside one expression subtree.
+struct TextInputUseFinder<'analysis, 'tcx> {
+    /// Compiler context used to resolve local paths.
+    cx: &'analysis LateContext<'tcx>,
+    /// Authored binding being searched for.
+    binding: HirId,
+    /// Whether traversal reached the binding.
+    has_found: bool,
+}
+
+impl<'tcx> Visitor<'tcx> for TextInputUseFinder<'_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if let ExprKind::Path(path) = expression.kind
+            && self.cx.qpath_res(&path, expression.hir_id) == Res::Local(self.binding)
+        {
+            self.has_found = true;
+            return;
+        }
+        intravisit::walk_expr(self, expression);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// TextBodyAnalyzer: Text body traversal
 // -----------------------------------------------------------------------------
 
 /// Finds input provenance and direct calls into `ToString`.
-struct TextBodyEvidenceAnalyzer<'analysis, 'tcx> {
+struct TextBodyAnalyzer<'analysis, 'tcx> {
     /// Compiler context used to resolve paths and method calls.
     cx: &'analysis LateContext<'tcx>,
     /// Authored receiver or parameter binding.
     binding: HirId,
-    /// Whether traversal reached the authored input.
-    has_input_use: bool,
-    /// Whether traversal reached a resolved `ToString` call on that input.
-    has_display_delegation: bool,
+    /// Facts accumulated while traversing the body.
+    evidence: TextBodyEvidence,
 }
 
-impl<'tcx> TextBodyEvidenceAnalyzer<'_, 'tcx> {
+impl<'tcx> TextBodyAnalyzer<'_, 'tcx> {
     /// Returns whether one expression references the authored input binding.
     fn expression_uses_input(&self, expression: &'tcx Expr<'tcx>) -> bool {
-        /// Finds the authored input inside one expression subtree.
-        struct Finder<'analysis, 'tcx> {
-            /// Compiler context used to resolve local paths.
-            cx: &'analysis LateContext<'tcx>,
-            /// Authored binding being searched for.
-            binding: HirId,
-            /// Whether traversal reached the binding.
-            has_found: bool,
-        }
-
-        impl<'tcx> Visitor<'tcx> for Finder<'_, 'tcx> {
-            fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-                if let ExprKind::Path(path) = expression.kind
-                    && self.cx.qpath_res(&path, expression.hir_id) == Res::Local(self.binding)
-                {
-                    self.has_found = true;
-                    return;
-                }
-                intravisit::walk_expr(self, expression);
-            }
-        }
-
-        let mut finder = Finder {
+        let mut finder = TextInputUseFinder {
             cx: self.cx,
             binding: self.binding,
             has_found: false,
@@ -126,30 +124,26 @@ impl<'tcx> TextBodyEvidenceAnalyzer<'_, 'tcx> {
     }
 }
 
-impl<'tcx> Visitor<'tcx> for TextBodyEvidenceAnalyzer<'_, 'tcx> {
+impl<'tcx> Visitor<'tcx> for TextBodyAnalyzer<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        // Record any direct use of the authored receiver or parameter.
         if let ExprKind::Path(path) = expression.kind
             && self.cx.qpath_res(&path, expression.hir_id) == Res::Local(self.binding)
         {
-            self.has_input_use = true;
+            self.evidence.has_input_use = true;
         }
 
-        // Resolve method and UFCS calls whose receiver derives from that input.
         let target = match expression.kind {
             ExprKind::MethodCall(_, receiver, _, _) => self.method_target(expression, receiver),
             ExprKind::Call(callee, arguments) => self.function_target(callee, arguments),
             _ => None,
         };
-
-        // Recognize only the standard ToString delegation before walking children.
         if target.is_some_and(|target| {
             self.cx
                 .tcx
                 .def_path_str(target)
                 .ends_with("::ToString::to_string")
         }) {
-            self.has_display_delegation = true;
+            self.evidence.has_display_delegation = true;
         }
         intravisit::walk_expr(self, expression);
     }

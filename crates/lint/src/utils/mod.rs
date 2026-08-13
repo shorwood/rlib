@@ -52,4 +52,5 @@ pub mod generic_abstraction_analysis;
 pub mod callable_generic_analysis;
 pub mod single_implementation_trait_analysis;
 pub mod standard_interface_analysis;
+mod standard_interface_text_evidence;
 pub mod visibility_usage_analysis;
