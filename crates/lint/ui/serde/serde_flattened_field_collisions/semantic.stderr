@@ -1,0 +1,29 @@
+warning: Serde flattening creates duplicate serialization names
+  --> $DIR/semantic.rs:10:1
+   |
+LL | / struct Envelope {
+LL | |     id: u64,
+LL | |     #[serde(flatten)]
+LL | |     details: Details,
+LL | | }
+   | |_^ these flattened schemas share wire keys
+   |
+   = note: flattening places `id` more than once in the same wire namespace
+   = help: rename a colliding field or retain a nested representation
+   = note: `#[warn(serde_flattened_field_collisions)]` on by default
+
+warning: Serde flattening creates duplicate deserialization names
+  --> $DIR/semantic.rs:10:1
+   |
+LL | / struct Envelope {
+LL | |     id: u64,
+LL | |     #[serde(flatten)]
+LL | |     details: Details,
+LL | | }
+   | |_^ these flattened schemas share wire keys
+   |
+   = note: flattening places `id` more than once in the same wire namespace
+   = help: rename a colliding field or retain a nested representation
+
+warning: 2 warnings emitted
+

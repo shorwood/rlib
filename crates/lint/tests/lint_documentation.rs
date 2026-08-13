@@ -34,7 +34,7 @@ fn active_lints_have_canonical_public_documentation() {
         + 26 * usize::from(cfg!(feature = "leptos"))
         + 20 * usize::from(cfg!(feature = "derive_more"))
         + usize::from(cfg!(feature = "framework"))
-        + 12 * usize::from(cfg!(feature = "serde"))
+        + 13 * usize::from(cfg!(feature = "serde"))
         + 19 * usize::from(cfg!(feature = "strum"));
     assert_eq!(
         lint_directories.len(),

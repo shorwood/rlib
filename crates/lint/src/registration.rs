@@ -122,6 +122,8 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "serde")]
     rules::serde::serde_duplicate_serialized_names::register_lints(sess, lint_store);
     #[cfg(feature = "serde")]
+    rules::serde::serde_flattened_field_collisions::register_lints(sess, lint_store);
+    #[cfg(feature = "serde")]
     rules::serde::serde_flattened_unknown_field_policies::register_lints(sess, lint_store);
     #[cfg(feature = "serde")]
     rules::serde::serde_lossy_conditional_serialization::register_lints(sess, lint_store);
