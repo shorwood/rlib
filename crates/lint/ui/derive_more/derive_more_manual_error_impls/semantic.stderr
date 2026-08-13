@@ -1,0 +1,25 @@
+warning: manual error implementation for `Marker` is derivable
+  --> $DIR/semantic.rs:15:1
+   |
+LL | impl Error for Marker {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^ this complete error implementation is derivable
+   |
+   = note: the implementation adds no behavior beyond derive_more's conventional error source handling
+   = help: replace this implementation with `#[derive(derive_more::Error)]` and retain authored code only for custom error behavior
+   = note: `#[warn(derive_more_manual_error_impls)]` on by default
+
+warning: manual error implementation for `LoadError` is derivable
+  --> $DIR/semantic.rs:28:1
+   |
+LL | / impl Error for LoadError {
+LL | |     fn source(&self) -> Option<&(dyn Error + 'static)> {
+LL | |         Some(&self.source)
+LL | |     }
+LL | | }
+   | |_^ this complete error implementation is derivable
+   |
+   = note: the implementation adds no behavior beyond derive_more's conventional error source handling
+   = help: replace this implementation with `#[derive(derive_more::Error)]` and retain authored code only for custom error behavior
+
+warning: 2 warnings emitted
+

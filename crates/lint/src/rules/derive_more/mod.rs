@@ -6,6 +6,7 @@ pub mod derive_more_inconsistent_derived_equality;
 pub mod derive_more_manual_conversion_impls;
 pub mod derive_more_manual_constructors;
 pub mod derive_more_manual_equality_impls;
+pub mod derive_more_manual_error_impls;
 pub mod derive_more_manual_forwarding_interfaces;
 pub mod derive_more_manual_formatting_impls;
 pub mod derive_more_manual_from_str_impls;

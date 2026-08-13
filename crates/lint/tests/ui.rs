@@ -294,6 +294,7 @@ fn run_derive_more_fixtures() {
         "derive_more_manual_conversion_impls",
         "derive_more_manual_constructors",
         "derive_more_manual_equality_impls",
+        "derive_more_manual_error_impls",
         "derive_more_manual_forwarding_interfaces",
         "derive_more_manual_formatting_impls",
         "derive_more_manual_from_str_impls",

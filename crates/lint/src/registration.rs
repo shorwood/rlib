@@ -64,6 +64,8 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_equality_impls::register_lints(sess, lint_store);
     #[cfg(feature = "derive_more")]
+    rules::derive_more::derive_more_manual_error_impls::register_lints(sess, lint_store);
+    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_forwarding_interfaces::register_lints(sess, lint_store);
     #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_formatting_impls::register_lints(sess, lint_store);
