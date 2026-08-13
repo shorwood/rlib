@@ -172,6 +172,8 @@ pub extern "Rust" fn register_lints(
         sess, lint_store,
     );
     #[cfg(feature = "thiserror")]
+    rules::thiserror::thiserror_unpropagated_error_backtraces::register_lints(sess, lint_store);
+    #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_unreported_error_sources::register_lints(sess, lint_store);
 
     // Register standard trait protocol policies.

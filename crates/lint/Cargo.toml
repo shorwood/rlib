@@ -313,6 +313,11 @@ path = "ui/thiserror/thiserror_manual_error_impls/semantic.rs"
 required-features = ["thiserror"]
 
 [[example]]
+name = "thiserror_unpropagated_error_backtraces"
+path = "ui/thiserror/thiserror_unpropagated_error_backtraces/semantic.rs"
+required-features = ["thiserror"]
+
+[[example]]
 name = "serde_lossy_conditional_serialization"
 path = "ui/serde/serde_lossy_conditional_serialization/semantic.rs"
 required-features = ["serde"]

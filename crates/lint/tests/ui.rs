@@ -439,6 +439,7 @@ fn run_thiserror_fixtures() {
         "thiserror_from_sources_without_context",
         "thiserror_non_send_sync_public_errors",
         "thiserror_opaque_errors_exposing_representations",
+        "thiserror_unpropagated_error_backtraces",
         "thiserror_unreported_error_sources",
     ] {
         if selected

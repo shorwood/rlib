@@ -11,4 +11,5 @@ pub mod thiserror_manual_error_impls;
 pub mod thiserror_manual_from_error_variants;
 pub mod thiserror_non_send_sync_public_errors;
 pub mod thiserror_opaque_errors_exposing_representations;
+pub mod thiserror_unpropagated_error_backtraces;
 pub mod thiserror_unreported_error_sources;
