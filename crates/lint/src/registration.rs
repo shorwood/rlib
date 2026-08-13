@@ -112,6 +112,8 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "serde")]
     rules::serde::serde_duplicate_serialized_names::register_lints(sess, lint_store);
     #[cfg(feature = "serde")]
+    rules::serde::serde_manual_deserialize_impls::register_lints(sess, lint_store);
+    #[cfg(feature = "serde")]
     rules::serde::serde_manual_serialize_impls::register_lints(sess, lint_store);
 
     #[cfg(feature = "strum")]

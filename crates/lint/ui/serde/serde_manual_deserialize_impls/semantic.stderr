@@ -1,0 +1,17 @@
+warning: manual transparent deserializer for `UserId` is derivable
+  --> $DIR/semantic.rs:7:1
+   |
+LL | / impl<'de> Deserialize<'de> for UserId {
+LL | |     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+LL | |     where
+LL | |         D: Deserializer<'de>,
+...  |
+LL | | }
+   | |_^ this deserializer is exact transparent forwarding
+   |
+   = note: the complete implementation decodes the sole field unchanged and immediately constructs the wrapper
+   = help: replace this implementation with `#[derive(serde::Deserialize)]` and `#[serde(transparent)]`
+   = note: `#[warn(serde_manual_deserialize_impls)]` on by default
+
+warning: 1 warning emitted
+
