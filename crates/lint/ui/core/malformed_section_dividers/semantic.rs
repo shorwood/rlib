@@ -47,4 +47,20 @@ struct PublicContract;
 
 struct SourceContract;
 
+// -----------------------------------------------------------------------------
+// MacroFixture: Authored declaration generator
+// -----------------------------------------------------------------------------
+
+macro_rules! macro_fixture {
+    () => {
+        const GENERATED: () = ();
+    };
+}
+
+// -----------------------------------------------------------------------------
+// MacroInvocation: Generated declaration catalog
+// -----------------------------------------------------------------------------
+
+macro_fixture!();
+
 fn main() {}

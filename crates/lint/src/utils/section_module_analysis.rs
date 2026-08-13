@@ -1,4 +1,5 @@
 extern crate rustc_hir;
+extern crate rustc_lexer;
 extern crate rustc_lint;
 extern crate rustc_span;
 
@@ -9,6 +10,7 @@ use event_stream::{
     SectionEventStreamState,
 };
 use rustc_hir::{HirId, ItemKind, Mod, Node};
+use rustc_lexer::{FrontmatterAllowed, TokenKind, tokenize};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::{BytePos, Span};
 
@@ -18,6 +20,9 @@ use super::{
 };
 use crate::utils::identifier_case;
 use crate::utils::source_provenance::ItemProvenanceExt;
+
+/// Tokens required to recognize `identifier!delimiter` at an item boundary.
+const MACRO_INVOCATION_PREFIX_TOKENS: usize = 3;
 
 // -----------------------------------------------------------------------------
 // ModuleAnalysis: Complete section analysis
@@ -120,6 +125,96 @@ impl ModuleAnalysis {
     ) {
         let dividers = analyzer.dividers_in_span(cx, span);
         events.extend(dividers.into_iter().map(SectionEventStreamEntry::Divider));
+        events.extend(
+            Self::macro_invocations(cx, span)
+                .into_iter()
+                .map(SectionEventStreamEntry::Candidate),
+        );
+    }
+
+    /// Finds authored item-position macro invocations omitted from the lowered module HIR.
+    fn macro_invocations(cx: &LateContext<'_>, span: Span) -> Vec<SectionEventCandidate> {
+        let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
+            return Vec::new();
+        };
+        let mut tokens = Vec::new();
+        let mut offset = 0_usize;
+        for token in tokenize(&source, FrontmatterAllowed::No) {
+            let length = usize::try_from(token.len).expect("token length should fit usize");
+            let end = offset + length;
+            if !matches!(
+                token.kind,
+                TokenKind::Whitespace
+                    | TokenKind::LineComment { .. }
+                    | TokenKind::BlockComment { .. }
+            ) {
+                tokens.push((token.kind, offset, end));
+            }
+            offset = end;
+        }
+
+        let mut invocations = Vec::new();
+        let mut index = 0_usize;
+        let mut depth = 0_usize;
+        while index + MACRO_INVOCATION_PREFIX_TOKENS <= tokens.len() {
+            let (kind, start, name_end) = tokens[index];
+            if depth == 0
+                && matches!(kind, TokenKind::Ident | TokenKind::RawIdent)
+                && matches!(tokens[index + 1].0, TokenKind::Bang)
+                && matches!(
+                    tokens[index + 2].0,
+                    TokenKind::OpenParen | TokenKind::OpenBrace | TokenKind::OpenBracket
+                )
+            {
+                let opening = tokens[index + 2].0;
+                let mut invocation_depth = 1_usize;
+                let mut end_index = index + 3;
+                while end_index < tokens.len() && invocation_depth > 0 {
+                    let candidate = tokens[end_index].0;
+                    if candidate == opening {
+                        invocation_depth += 1;
+                    } else if Self::is_matching_delimiter(opening, candidate) {
+                        invocation_depth -= 1;
+                    }
+                    end_index += 1;
+                }
+                if invocation_depth == 0 {
+                    let end = tokens[end_index - 1].2;
+                    let lo = u32::try_from(start).expect("macro offset should fit BytePos");
+                    let hi = u32::try_from(end).expect("macro offset should fit BytePos");
+                    let invocation_span = span
+                        .with_lo(span.lo() + BytePos(lo))
+                        .with_hi(span.lo() + BytePos(hi));
+                    let name = source[start..name_end].trim_start_matches("r#").to_owned();
+                    invocations.push(SectionEventCandidate::from_macro_invocation(
+                        name,
+                        invocation_span,
+                    ));
+                    index = end_index;
+                    continue;
+                }
+            }
+
+            match kind {
+                TokenKind::OpenParen | TokenKind::OpenBrace | TokenKind::OpenBracket => depth += 1,
+                TokenKind::CloseParen | TokenKind::CloseBrace | TokenKind::CloseBracket => {
+                    depth = depth.saturating_sub(1);
+                }
+                _ => {}
+            }
+            index += 1;
+        }
+        invocations
+    }
+
+    /// Returns whether `closing` terminates the given opening delimiter.
+    const fn is_matching_delimiter(opening: TokenKind, closing: TokenKind) -> bool {
+        matches!(
+            (opening, closing),
+            (TokenKind::OpenParen, TokenKind::CloseParen)
+                | (TokenKind::OpenBrace, TokenKind::CloseBrace)
+                | (TokenKind::OpenBracket, TokenKind::CloseBracket)
+        )
     }
 
     /// Reduces a complete event stream into independently reportable findings.
@@ -413,6 +508,9 @@ impl ModuleAnalysis {
     ) -> Option<SectionFinding> {
         // Infer a family only when the divider actually governs declarations.
         if section.participants.is_empty() {
+            return None;
+        }
+        if section.participants.contains_only_opaque_macros() {
             return None;
         }
         if namespace.is_some_and(|namespace| namespace.prefix == prefix.text) {

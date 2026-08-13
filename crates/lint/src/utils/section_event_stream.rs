@@ -38,7 +38,7 @@ enum SectionEventCandidateKind {
 /// Module declaration that may participate in the current section.
 pub(super) struct SectionEventCandidate {
     /// Local definition represented by the declaration.
-    def_id: LocalDefId,
+    def_id: Option<LocalDefId>,
     /// Authored declaration name used for family inference.
     name: String,
     /// Complete declaration source range.
@@ -47,6 +47,8 @@ pub(super) struct SectionEventCandidate {
     is_nominal_declaration: bool,
     /// Whether this declaration requires a divider even when it stands alone.
     is_standalone_divider_required: bool,
+    /// Whether authored macro syntax hides the declarations produced by expansion.
+    is_opaque_macro: bool,
 }
 
 impl SectionEventCandidate {
@@ -98,11 +100,28 @@ impl SectionEventCandidate {
 
         // Classify value declarations and supporting inherent implementations.
         match item.kind {
-            ItemKind::Const(..) | ItemKind::Static(..) | ItemKind::Fn { .. } => Some(
-                Self::from_named_item(cx, item, SectionEventCandidateKind::Supporting),
-            ),
+            ItemKind::Const(..)
+            | ItemKind::Static(..)
+            | ItemKind::Fn { .. }
+            | ItemKind::Macro(..) => Some(Self::from_named_item(
+                cx,
+                item,
+                SectionEventCandidateKind::Supporting,
+            )),
             ItemKind::Impl(_) => Self::from_impl(cx, item),
             _ => None,
+        }
+    }
+
+    /// Represents one authored item-position macro whose expansion is absent from HIR.
+    pub(super) const fn from_macro_invocation(name: String, span: Span) -> Self {
+        Self {
+            def_id: None,
+            name,
+            span,
+            is_nominal_declaration: false,
+            is_standalone_divider_required: false,
+            is_opaque_macro: true,
         }
     }
 
@@ -113,11 +132,12 @@ impl SectionEventCandidate {
         kind: SectionEventCandidateKind,
     ) -> Self {
         Self {
-            def_id: item.owner_id.def_id,
+            def_id: Some(item.owner_id.def_id),
             name: cx.tcx.item_name(item.owner_id.to_def_id()).to_string(),
             span: item.span,
             is_nominal_declaration: matches!(kind, SectionEventCandidateKind::Nominal),
             is_standalone_divider_required: matches!(kind, SectionEventCandidateKind::TestModule),
+            is_opaque_macro: false,
         }
     }
 
@@ -132,11 +152,12 @@ impl SectionEventCandidate {
 
         // Represent the supporting implementation under its nominal type's family name.
         Some(Self {
-            def_id: definition,
+            def_id: Some(definition),
             name: cx.tcx.item_name(definition.to_def_id()).to_string(),
             span: item.span,
             is_nominal_declaration: false,
             is_standalone_divider_required: false,
+            is_opaque_macro: false,
         })
     }
 }
@@ -203,8 +224,11 @@ impl SectionEventStreamCandidates {
         let mut positions = HashMap::<LocalDefId, usize>::new();
         let mut declarations = Vec::<SectionParticipant>::new();
         for participant in &self.0 {
+            let Some(def_id) = participant.def_id else {
+                continue;
+            };
             let candidate = SectionParticipant {
-                def_id: participant.def_id,
+                def_id,
                 name: participant.name.clone(),
                 span: participant.span,
                 is_nominal: participant.is_nominal_declaration,
@@ -217,27 +241,29 @@ impl SectionEventStreamCandidates {
         declarations
     }
 
-    /// Returns `candidate` names in their authored order.
-    fn names(&self) -> Vec<&str> {
-        self.0
-            .iter()
-            .map(|participant| participant.name.as_str())
-            .collect()
-    }
-
     /// Returns nominal declaration names, falling back to supporting declarations for helpers.
     pub(super) fn family_names(&self) -> Vec<&str> {
         let nominal = self
             .0
             .iter()
+            .filter(|participant| !participant.is_opaque_macro)
             .filter(|participant| participant.is_nominal_declaration)
             .map(|participant| participant.name.as_str())
             .collect::<Vec<_>>();
         if nominal.is_empty() {
-            self.names()
+            self.0
+                .iter()
+                .filter(|participant| !participant.is_opaque_macro)
+                .map(|participant| participant.name.as_str())
+                .collect()
         } else {
             nominal
         }
+    }
+
+    /// Returns whether every participant is opaque authored macro syntax.
+    pub(super) fn contains_only_opaque_macros(&self) -> bool {
+        !self.0.is_empty() && self.0.iter().all(|participant| participant.is_opaque_macro)
     }
 
     /// Formats the nominal concepts that determine section responsibility.
@@ -265,6 +291,14 @@ impl SectionEventStreamCandidates {
             return true;
         };
         namespace.is_some_and(|namespace| namespace.contains(&prefix))
+    }
+
+    /// Returns `candidate` names in their authored order.
+    fn names(&self) -> Vec<&str> {
+        self.0
+            .iter()
+            .map(|participant| participant.name.as_str())
+            .collect()
     }
 
     /// Formats a stable, deduplicated set of `candidate` names for diagnostics.
