@@ -1,0 +1,44 @@
+warning: manual `Add` implementation for `Offset` is derivable
+  --> $DIR/semantic.rs:7:1
+   |
+LL | / impl Add for Offset {
+LL | |     type Output = Self;
+LL | |
+LL | |     fn add(self, rhs: Self) -> Self {
+...  |
+LL | | }
+   | |_^ this operator is exact newtype forwarding
+   |
+   = note: the implementation applies the corresponding operator to the sole field and reconstructs the wrapper without additional policy
+   = help: replace this implementation with `#[derive(derive_more::Add)]`
+   = note: `#[warn(derive_more_manual_operator_impls)]` on by default
+
+warning: manual `Neg` implementation for `Delta` is derivable
+  --> $DIR/semantic.rs:17:1
+   |
+LL | / impl Neg for Delta {
+LL | |     type Output = Self;
+LL | |
+LL | |     fn neg(self) -> Self {
+...  |
+LL | | }
+   | |_^ this operator is exact newtype forwarding
+   |
+   = note: the implementation applies the corresponding operator to the sole field and reconstructs the wrapper without additional policy
+   = help: replace this implementation with `#[derive(derive_more::Neg)]`
+
+warning: manual `AddAssign` implementation for `Counter` is derivable
+  --> $DIR/semantic.rs:27:1
+   |
+LL | / impl AddAssign for Counter {
+LL | |     fn add_assign(&mut self, rhs: Self) {
+LL | |         self.0 += rhs.0;
+LL | |     }
+LL | | }
+   | |_^ this operator is exact newtype forwarding
+   |
+   = note: the implementation applies the corresponding operator to the sole field and reconstructs the wrapper without additional policy
+   = help: replace this implementation with `#[derive(derive_more::AddAssign)]`
+
+warning: 3 warnings emitted
+
