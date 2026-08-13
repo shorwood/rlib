@@ -2,12 +2,12 @@
 
 ## What it does
 
-Finds generated Bon builders returned from private functions or stored in authored fields instead of
+Finds generated Bon builders returned from private functions or stored in hand-written fields instead of
 being completed within a focused construction expression.
 
 ## Why is this bad?
 
-Escaped typestate obscures which scope owns remaining required members and couples unrelated code to
+Escaped generated builder state obscures which scope owns remaining required members and couples unrelated code to
 the order and representation of staged construction.
 
 ## Example

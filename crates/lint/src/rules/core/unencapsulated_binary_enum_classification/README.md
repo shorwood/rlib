@@ -68,5 +68,5 @@ let function_return = FunctionReturn::from_output(&output);
 ```
 
 This lint intentionally does not suggest `From<bool>` or apply an automatic fix: choosing
-the constructor's semantic name and deciding whether it should accept a richer source type
+the constructor's behavioral name and deciding whether it should accept a richer source type
 require domain judgment.

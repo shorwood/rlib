@@ -10,9 +10,9 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
-use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
-use syn::visit::Visit;
+use rustc_span::{Span, sym};
+use syn::visit::{Visit, visit_expr_try};
 
 use super::contracts::{ThiserrorContractCatalog, thiserror_attributes};
 use crate::utils::diagnostic::LateViolation;
@@ -168,10 +168,7 @@ impl ThiserrorFromSourcesWithoutContext {
         let ty::Adt(result, arguments) = output.kind() else {
             return;
         };
-        if !cx
-            .tcx
-            .is_diagnostic_item(rustc_span::sym::Result, result.did())
-        {
+        if !cx.tcx.is_diagnostic_item(sym::Result, result.did()) {
             return;
         }
         let Some(error) = arguments
@@ -206,7 +203,7 @@ impl<'ast> Visit<'ast> for TryOperationVisitor {
         if let Some(operation) = operation_name(&expression.expr) {
             self.operations.insert(operation);
         }
-        syn::visit::visit_expr_try(self, expression);
+        visit_expr_try(self, expression);
     }
 }
 

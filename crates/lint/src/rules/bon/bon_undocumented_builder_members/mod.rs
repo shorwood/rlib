@@ -96,7 +96,7 @@ fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Viola
         .source_map()
         .span_to_snippet(parameter.pat.span)
         .ok()?;
-    member_violation(cx, &parameter.attrs, parameter.ty.span, member)
+    member_violation(cx, &parameter.attrs, parameter.ty.span, &member)
 }
 
 fn field_violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Violation> {
@@ -104,7 +104,7 @@ fn field_violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Violation>
         cx,
         &field.attrs,
         field.ty.span,
-        field.ident?.name.to_string(),
+        &field.ident?.name.to_string(),
     )
 }
 
@@ -112,7 +112,7 @@ fn member_violation(
     cx: &EarlyContext<'_>,
     attributes: &[rustc_ast::Attribute],
     ty_span: Span,
-    member: String,
+    member: &str,
 ) -> Option<Violation> {
     let builder_source = builder_attribute(attributes)
         .and_then(|attribute| attribute_source(cx, attribute))

@@ -3,7 +3,7 @@
 ## What it does
 
 Finds Leptos attributes placed beneath a group heading that explicitly names a contradictory
-semantic category.
+behavioral category.
 
 ## Why is this bad?
 

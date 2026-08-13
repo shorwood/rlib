@@ -5,15 +5,16 @@ extern crate rustc_span;
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
+use std::mem;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::{ImplItem, ImplItemKind, Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty::{self, Ty};
-use rustc_span::Span;
+use rustc_span::{Span, sym};
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
-use syn::visit::Visit;
+use syn::visit::{Visit, visit_expr_method_call};
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
@@ -112,7 +113,7 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
         self.record_messages(
             visitor.messages,
             item.span,
-            cx.tcx.item_name(item.owner_id.def_id).to_string(),
+            &cx.tcx.item_name(item.owner_id.def_id).to_string(),
             cx.tcx.visibility(item.owner_id.def_id).is_public(),
         );
     }
@@ -141,13 +142,13 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
         self.record_messages(
             visitor.messages,
             item.span,
-            cx.tcx.def_path_str(item.owner_id.def_id),
+            &cx.tcx.def_path_str(item.owner_id.def_id),
             cx.tcx.visibility(item.owner_id.def_id).is_public(),
         );
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for (message, uses) in std::mem::take(&mut self.messages) {
+        for (message, uses) in mem::take(&mut self.messages) {
             if uses.len() >= 2 && uses.iter().any(|usage| usage.public) {
                 Violation { message, uses }.emit(cx);
             }
@@ -160,13 +161,13 @@ impl MietteAdHocDiagnosticsAtDomainBoundaries {
         &mut self,
         messages: BTreeSet<String>,
         span: Span,
-        function: String,
+        function: &str,
         public: bool,
     ) {
         for message in messages {
             self.messages.entry(message).or_default().push(MessageUse {
                 span,
-                function: function.clone(),
+                function: function.to_owned(),
                 public,
             });
         }
@@ -214,7 +215,7 @@ impl<'ast> Visit<'ast> for StaticMessageVisitor {
         {
             self.messages.insert(message);
         }
-        syn::visit::visit_expr_method_call(self, call);
+        visit_expr_method_call(self, call);
     }
 }
 
@@ -247,8 +248,7 @@ fn contains_miette_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
     {
         return true;
     }
-    cx.tcx
-        .is_diagnostic_item(rustc_span::sym::Result, definition.did())
+    cx.tcx.is_diagnostic_item(sym::Result, definition.did())
         && arguments.len() == 2
         && contains_miette_report(cx, arguments.type_at(1))
 }

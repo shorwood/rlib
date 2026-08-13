@@ -6,7 +6,7 @@ Finds uncustomized private Bon function builders with only one or two required p
 
 ## Why is this bad?
 
-For a small, stable, internal signature, generated typestate and setter APIs add navigation and
+For a small, stable, internal signature, generated builder state and setter APIs add navigation and
 compile-time cost without providing optionality, defaults, conversion, or staging value.
 
 ## Example

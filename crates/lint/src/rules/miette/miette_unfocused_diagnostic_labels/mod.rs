@@ -8,7 +8,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::{DiagnosticCatalog, DiagnosticField};
+use super::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
 use crate::utils::diagnostic::LateViolation;
 
 struct Violation {
@@ -70,9 +70,13 @@ impl LateLintPass<'_> for MietteUnfocusedDiagnosticLabels {
 fn check_fields(cx: &LateContext<'_>, span: Span, fields: &[DiagnosticField]) {
     let labels = fields
         .iter()
-        .filter(|field| field.roles.label)
+        .filter(|field| field.roles.contains(DiagnosticFieldRole::Label))
         .collect::<Vec<_>>();
-    if labels.len() < 2 || labels.iter().any(|field| field.roles.primary) {
+    if labels.len() < 2
+        || labels
+            .iter()
+            .any(|field| field.roles.contains(DiagnosticFieldRole::Primary))
+    {
         return;
     }
     Violation {

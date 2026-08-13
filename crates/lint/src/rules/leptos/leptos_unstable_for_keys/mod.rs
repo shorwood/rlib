@@ -149,8 +149,11 @@ impl<'tcx> LateLintPass<'tcx> for LeptosUnstableForKeys {
             return;
         };
         for (offset, length, reason) in Self::findings(&source) {
-            let lo = view_span.lo() + BytePos(offset as u32);
-            let hi = lo + BytePos(length as u32);
+            let (Ok(offset), Ok(length)) = (u32::try_from(offset), u32::try_from(length)) else {
+                continue;
+            };
+            let lo = view_span.lo() + BytePos(offset);
+            let hi = lo + BytePos(length);
             if !self.reported.insert((lo.0, hi.0)) {
                 continue;
             }

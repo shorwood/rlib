@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds generated Bon builder or typestate definitions named in authored public function, method, or
+Finds generated Bon builder or generated builder state definitions named in hand-written public function, method, or
 field types.
 
 ## Why is this bad?

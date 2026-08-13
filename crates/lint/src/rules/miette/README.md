@@ -1,7 +1,9 @@
-# Miette lint design decisions
+# Miette-aware lints
 
-This layer recognizes `miette::Diagnostic` derives by macro provenance and models diagnostic
-metadata, field roles, source paths, and public reporting boundaries as one contract.
+Miette diagnostics are part error model and part user interface. These lints keep codes stable,
+labels useful, source excerpts safe, and application-oriented reports out of reusable library APIs.
+They recognize `miette::Diagnostic` derives and consider their attributes together, so a warning is
+based on the complete diagnostic rather than one attribute in isolation.
 
 ## Closed proposals
 
@@ -9,9 +11,8 @@ metadata, field roles, source paths, and public reporting boundaries as one cont
 
 No active lint is registered for this proposal. Miette 7.6 accepts
 `#[diagnostic(transparent)]` only on a struct or variant with exactly one field and rejects combining
-`transparent` with code, help, severity, URL, or other diagnostic arguments. Consequently, a valid
-transparent derive cannot also own the stored context or metadata the proposal intended to detect.
+it with code, help, severity, URL, or other diagnostic arguments. The macro therefore rejects the
+problem before this lint library could see it.
 
-Wrapper type identity alone is insufficient evidence of hidden actionable context, and pure
-representation-hiding wrappers are explicitly accepted. Warning on every valid transparent wrapper
-would therefore reverse the proposal's intended policy.
+A wrapper type alone is not evidence that useful context was lost. Warning on every valid
+transparent wrapper would punish an intentional and supported Miette pattern.

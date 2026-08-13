@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds match arms whose authored code exceeds the configured line limit. Blank lines,
+Finds match arms whose hand-written code exceeds the configured line limit. Blank lines,
 comments, and the arm's outer braces are excluded from the count.
 
 ## Why is this bad?

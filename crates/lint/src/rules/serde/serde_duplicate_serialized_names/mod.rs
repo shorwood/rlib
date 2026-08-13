@@ -11,7 +11,9 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeContractCatalog, SerdeDirection, apply_case, serde_attributes};
+use super::contracts::{
+    SerdeContractCatalog, SerdeDirection, SerdeFlag, apply_case, serde_attributes,
+};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
 
@@ -128,8 +130,8 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
             for (rust_name, attributes) in &members {
                 let attributes = serde_attributes(attributes);
                 if match direction {
-                    SerdeDirection::Serialize => attributes.skip_serialize,
-                    SerdeDirection::Deserialize => attributes.skip_deserialize,
+                    SerdeDirection::Serialize => attributes.has(SerdeFlag::SkipSerialize),
+                    SerdeDirection::Deserialize => attributes.has(SerdeFlag::SkipDeserialize),
                 } {
                     continue;
                 }
@@ -137,9 +139,8 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
                     SerdeDirection::Serialize => attributes.rename_serialize.as_deref(),
                     SerdeDirection::Deserialize => attributes.rename_deserialize.as_deref(),
                 };
-                let effective = explicit
-                    .map(ToOwned::to_owned)
-                    .unwrap_or_else(|| apply_case(rust_name, case));
+                let effective =
+                    explicit.map_or_else(|| apply_case(rust_name, case), ToOwned::to_owned);
                 names.entry(effective).or_default().push(rust_name.clone());
                 if matches!(direction, SerdeDirection::Deserialize) {
                     for alias in attributes.aliases {

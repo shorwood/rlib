@@ -7,7 +7,7 @@ Finds exhaustive declaration-order arrays and slices of unit enum variants when 
 
 ## Why is this bad?
 
-An authored variant array repeats information already owned by the enum and must be updated by hand
+An hand-written variant array repeats information already owned by the enum and must be updated by hand
 whenever the enum changes.
 
 ## Example

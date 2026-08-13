@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds authored `std::error::Error` implementations whose complete behavior is reproducible by
+Finds hand-written `std::error::Error` implementations whose complete behavior is reproducible by
 `derive_more::Error`.
 
 ## Why is this bad?

@@ -8,7 +8,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::{DiagnosticCatalog, DiagnosticField};
+use super::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
 use crate::utils::diagnostic::LateViolation;
 
 struct Violation {
@@ -70,10 +70,9 @@ impl LateLintPass<'_> for MietteSensitiveDiagnosticSource {
     }
 }
 fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
-    for field in fields
-        .iter()
-        .filter(|field| field.roles.source_code && sensitive_name(&field.name))
-    {
+    for field in fields.iter().filter(|field| {
+        field.roles.contains(DiagnosticFieldRole::SourceCode) && sensitive_name(&field.name)
+    }) {
         Violation {
             span: field.span,
             field: field.name.clone(),

@@ -7,6 +7,7 @@ use std::borrow::Cow;
 use convert_case::{Case, Casing};
 use rustc_errors::DiagDecorator;
 use rustc_hir::def::{CtorOf, DefKind, Res};
+use rustc_hir::def_id::DefId;
 use rustc_hir::{Expr, ExprKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
@@ -90,7 +91,7 @@ impl LateLintPass<'_> for DeriveMorePanicProneDerivedVariantAccessors {
     }
 }
 
-fn is_derive_more_unwrap(cx: &LateContext<'_>, target: rustc_hir::def_id::DefId) -> bool {
+fn is_derive_more_unwrap(cx: &LateContext<'_>, target: DefId) -> bool {
     cx.tcx.def_span(target).macro_backtrace().any(|expansion| {
         expansion.macro_def_id.is_some_and(|definition| {
             cx.tcx.crate_name(definition.krate).as_str() == "derive_more_impl"

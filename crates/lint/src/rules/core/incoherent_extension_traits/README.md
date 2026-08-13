@@ -2,7 +2,7 @@
 
 ## What it does
 
-Checks local traits implemented for a foreign nominal type or a generic blanket target.
+Checks local traits implemented for a foreign named type or a generic blanket target.
 Such an extension trait must operate on at most one concrete nonreceiver subject family and
 contain no more than `extension_traits.max_methods` methods, which defaults to eight.
 Receiver-only accessors count toward the method budget but do not invent a subject family.

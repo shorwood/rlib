@@ -85,7 +85,7 @@ impl EarlyLintPass for BonIncoherentBuilderVocabulary {
                             Violation {
                                 span: attribute.span,
                                 configured,
-                                established: operation.clone(),
+                                established: operation,
                             }
                             .emit(cx);
                             break;

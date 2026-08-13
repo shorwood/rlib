@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds unique authored inherent methods taking only `&mut self`, returning `Option<T>`, and
+Finds unique hand-written inherent methods taking only `&mut self`, returning `Option<T>`, and
 advancing persistent cursor-like receiver state. Explicit cursor/index updates and direct
 delegation to an inner iterator are recognized without requiring an observed caller.
 

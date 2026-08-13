@@ -2,7 +2,7 @@
 
 ## What it does
 
-Restricts authored definition visibility to four immediately recognizable boundaries:
+Restricts hand-written definition visibility to four immediately recognizable boundaries:
 private, `pub(super)`, `pub(crate)`, and unrestricted `pub`. It rejects `pub(self)`,
 `pub(in self)`, `pub(in super)`, `pub(in crate)`, and arbitrary `pub(in path)` syntax on
 modules, types, functions, constants, statics, struct and union fields, and associated items.

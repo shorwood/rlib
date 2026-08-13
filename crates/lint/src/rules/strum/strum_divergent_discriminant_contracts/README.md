@@ -20,7 +20,7 @@ pub enum Event { Created(Item), Deleted(Id) }
 
 ## Use instead
 
-Use an authored schema enum with explicit conversions when independent compatibility matters.
+Use an hand-written schema enum with explicit conversions when independent compatibility matters.
 
 ```rust,ignore
 #[derive(Serialize)]

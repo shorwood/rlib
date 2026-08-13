@@ -88,7 +88,7 @@ impl LateLintPass<'_> for SerdeNonRoundtrippingSerdeAdapters {
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
-        for field in structure.fields.iter() {
+        for field in &structure.fields {
             let Some(name) = field.ident.as_ref() else {
                 continue;
             };

@@ -11,7 +11,9 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeContractCatalog, SerdeDirection, apply_case, serde_attributes};
+use super::contracts::{
+    SerdeContractCatalog, SerdeDirection, SerdeFlag, apply_case, serde_attributes,
+};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
 
@@ -105,8 +107,10 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
             .filter_map(|(field, hir_field)| {
                 let rust_name = field.ident.as_ref()?.to_string();
                 let attributes = serde_attributes(&field.attrs);
-                let flatten_target = attributes
-                    .flatten
+                let flattened = attributes.has(SerdeFlag::Flatten);
+                let serialize = !attributes.has(SerdeFlag::SkipSerialize) && !flattened;
+                let deserialize = !attributes.has(SerdeFlag::SkipDeserialize) && !flattened;
+                let flatten_target = flattened
                     .then(|| {
                         cx.tcx
                             .type_of(hir_field.def_id)
@@ -116,20 +120,16 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
                     })
                     .flatten();
                 Some(FieldContract {
-                    serialize_name: (!attributes.skip_serialize && !attributes.flatten).then(
-                        || {
-                            attributes.rename_serialize.unwrap_or_else(|| {
-                                apply_case(&rust_name, container.rename_all_serialize.as_deref())
-                            })
-                        },
-                    ),
-                    deserialize_name: (!attributes.skip_deserialize && !attributes.flatten).then(
-                        || {
-                            attributes.rename_deserialize.unwrap_or_else(|| {
-                                apply_case(&rust_name, container.rename_all_deserialize.as_deref())
-                            })
-                        },
-                    ),
+                    serialize_name: serialize.then(|| {
+                        attributes.rename_serialize.unwrap_or_else(|| {
+                            apply_case(&rust_name, container.rename_all_serialize.as_deref())
+                        })
+                    }),
+                    deserialize_name: deserialize.then(|| {
+                        attributes.rename_deserialize.unwrap_or_else(|| {
+                            apply_case(&rust_name, container.rename_all_deserialize.as_deref())
+                        })
+                    }),
                     flatten_target,
                 })
             })
@@ -217,7 +217,7 @@ fn collisions(
     collisions
 }
 
-fn directional_name(field: &FieldContract, direction: SerdeDirection) -> Option<&String> {
+const fn directional_name(field: &FieldContract, direction: SerdeDirection) -> Option<&String> {
     match direction {
         SerdeDirection::Serialize => field.serialize_name.as_ref(),
         SerdeDirection::Deserialize => field.deserialize_name.as_ref(),

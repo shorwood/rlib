@@ -33,7 +33,7 @@ fn create_session(token: String) -> Session {
 ## Use instead
 
 
-Put construction on the type and use the move to reconsider the semantic name:
+Put construction on the type and use the move to reconsider the behavioral name:
 
 ```rust
 struct Session {

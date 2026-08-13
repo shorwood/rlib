@@ -2,7 +2,7 @@
 
 ## What it does
 
-Checks that a local extension trait and every authored foreign-target or blanket impl form
+Checks that a local extension trait and every hand-written foreign-target or blanket impl form
 one consecutive declaration group in the same module. Comments and attributes may appear
 between them because they do not constitute independent module declarations.
 

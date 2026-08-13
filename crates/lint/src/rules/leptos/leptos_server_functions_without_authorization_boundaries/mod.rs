@@ -18,7 +18,7 @@ use crate::utils::diagnostic::EarlyViolation;
 // -----------------------------------------------------------------------------
 
 #[derive(Clone, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct LeptosServerAuthorizationConfig {
     sensitive_call_terms: Vec<String>,
     authorization_functions: Vec<String>,

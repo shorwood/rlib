@@ -22,7 +22,7 @@ mod policy_api_catalog;
 mod policy_name_suggestion;
 pub mod policy_literal_analysis;
 mod prose_case;
-pub(crate) mod function_layout_prose;
+pub mod function_layout_prose;
 mod function_layout_comments;
 mod function_layout_analysis;
 mod control_flow_metrics;

@@ -1,6 +1,6 @@
-pub(crate) mod contracts;
-pub(crate) mod manual_error;
-pub(crate) mod manual_from;
+pub mod contracts;
+pub mod manual_error;
+pub mod manual_from;
 
 pub mod thiserror_ambiguous_error_sources;
 pub mod thiserror_duplicate_error_messages;

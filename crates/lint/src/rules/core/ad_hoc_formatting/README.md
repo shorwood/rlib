@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds authored inherent methods and free functions that derive one ordinary textual
+Finds hand-written inherent methods and free functions that derive one ordinary textual
 representation of a local type, return `String` or `Cow<str>`, and use neutral names such as
 `display`, `format`, `render_text`, or `to_text`. Helpers are grouped by represented type so
 one missing contract or ambiguous family produces one diagnostic.
@@ -44,5 +44,5 @@ impl Display for UserId {
 }
 ```
 
-No automatic rewrite is offered because choosing the canonical representation is semantic.
+No automatic rewrite is offered because choosing the canonical representation is behavioral.
 Analysis is compilation-local; inactive configurations and downstream code are not visible.

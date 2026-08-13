@@ -27,8 +27,8 @@ use crate::utils::function_layout_prose::FunctionLayoutProse;
 
 /// Complexity and comment syntax shared by the Leptos view-section lint family.
 #[derive(Clone, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub(crate) struct LeptosViewStructureConfig {
+#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
+pub struct LeptosViewStructureConfig {
     /// Ordinary line-comment prefix introducing a view section.
     pub(crate) view_section_comment_prefix: String,
     /// Maximum direct complexity permitted without named sections.
@@ -94,7 +94,7 @@ impl LeptosViewStructureConfig {
 
 /// One direct child in an authored sibling scope.
 #[derive(Clone)]
-pub(crate) struct ViewNode {
+pub struct ViewNode {
     /// Exact authored source range of the construct.
     pub(crate) span: Span,
     /// Source-relative range used to associate comments.
@@ -109,7 +109,7 @@ pub(crate) struct ViewNode {
 
 /// One ordinary comment positioned at a direct-child boundary.
 #[derive(Clone)]
-pub(crate) struct ViewHeading {
+pub struct ViewHeading {
     /// Exact source range of the comment.
     pub(crate) span: Span,
     /// Complete authored comment token.
@@ -146,7 +146,7 @@ impl ViewHeading {
 
 /// One independently analyzed direct sibling list.
 #[derive(Default)]
-pub(crate) struct ViewScope {
+pub struct ViewScope {
     /// Direct children in authored order.
     pub(crate) nodes: Vec<ViewNode>,
     /// Direct-boundary ordinary comments in authored order.
@@ -154,7 +154,7 @@ pub(crate) struct ViewScope {
 }
 
 /// Nodes introduced by one canonical heading in a direct sibling scope.
-pub(crate) struct ViewSection<'scope> {
+pub struct ViewSection<'scope> {
     /// Canonical heading that names this section.
     pub(crate) heading: &'scope ViewHeading,
     /// Consecutive direct nodes owned by the heading.
@@ -202,7 +202,7 @@ impl ViewScope {
 }
 
 /// Parsed authored structure for one `view!` call.
-pub(crate) struct ViewStructureAnalysis {
+pub struct ViewStructureAnalysis {
     /// Expanded expression used to honor local lint attributes.
     pub(crate) owner: HirId,
     /// Direct sibling scopes found in the authored view.
@@ -213,7 +213,7 @@ pub(crate) struct ViewStructureAnalysis {
 
 /// Stable semantic category for an authored attribute or component prop.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(crate) enum ViewAttributeCategory {
+pub enum ViewAttributeCategory {
     Identity,
     Accessibility,
     State,
@@ -226,7 +226,7 @@ pub(crate) enum ViewAttributeCategory {
 
 /// One direct attribute in an authored opening tag.
 #[derive(Clone)]
-pub(crate) struct ViewAttribute {
+pub struct ViewAttribute {
     pub(crate) name: String,
     pub(crate) span: Span,
     pub(crate) range: Range<usize>,
@@ -235,7 +235,7 @@ pub(crate) struct ViewAttribute {
 }
 
 /// One opening tag with its direct attributes and boundary comments.
-pub(crate) struct ViewElement {
+pub struct ViewElement {
     pub(crate) name: String,
     pub(crate) span: Span,
     pub(crate) attributes: Vec<ViewAttribute>,
@@ -243,7 +243,7 @@ pub(crate) struct ViewElement {
 }
 
 /// Consecutive attributes introduced by one canonical heading.
-pub(crate) struct ViewAttributeGroup<'element> {
+pub struct ViewAttributeGroup<'element> {
     pub(crate) heading: &'element ViewHeading,
     pub(crate) attributes: &'element [ViewAttribute],
 }
@@ -312,7 +312,7 @@ impl ViewElement {
 
 /// Stateful deduplication shared by individual view lint passes.
 #[derive(Default)]
-pub(crate) struct ViewCallSites {
+pub struct ViewCallSites {
     /// Source positions already analyzed for this pass.
     seen: HashSet<(u32, u32)>,
 }
@@ -489,8 +489,12 @@ impl ViewScopeBuilder<'_> {
                 ) + 1;
                 (complexity, None, None)
             }
-            Node::Comment(_) | Node::Doctype(_) | Node::Text(_) | Node::RawText(_) => return None,
-            Node::Fragment(_) | Node::Custom(_) => return None,
+            Node::Comment(_)
+            | Node::Doctype(_)
+            | Node::Text(_)
+            | Node::RawText(_)
+            | Node::Fragment(_)
+            | Node::Custom(_) => return None,
         };
         Some(ViewNode {
             span: self.to_rustc_span(&range),
@@ -701,7 +705,10 @@ mod tests {
 
     fn parse(source: &str) -> ViewStructureAnalysis {
         ViewStructureAnalysis::parse(
-            Span::with_root_ctxt(BytePos(0), BytePos(source.len() as u32)),
+            Span::with_root_ctxt(
+                BytePos(0),
+                BytePos(u32::try_from(source.len()).expect("test view fits in a source span")),
+            ),
             CRATE_HIR_ID,
             source,
         )
@@ -711,12 +718,12 @@ mod tests {
     #[test]
     fn delegates_nested_elements_blocks_and_attributes_to_rstml() {
         let parsed = parse(
-            r#"view! { <main><Header/><Show when=yes on:click=run><Body/></Show>{value}</main> }"#,
+            "view! { <main><Header/><Show when=yes on:click=run><Body/></Show>{value}</main> }",
         );
         let complexities = parsed
             .scopes
             .iter()
-            .map(|scope| scope.complexity())
+            .map(super::ViewScope::complexity)
             .collect::<Vec<_>>();
         assert_eq!(parsed.scopes[0].complexity(), 1, "{complexities:?}");
         assert_eq!(parsed.scopes[1].complexity(), 5);

@@ -21,7 +21,7 @@ use serde::Deserialize;
 /// Providers capable of generating flat unit-enum string parsers.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum StringParserProvider {
+pub enum StringParserProvider {
     StrumEnumString,
     DeriveMoreFromStr,
 }
@@ -29,7 +29,7 @@ pub(crate) enum StringParserProvider {
 /// Providers capable of generating enum `Display` implementations.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum DisplayProvider {
+pub enum DisplayProvider {
     StrumDisplay,
     DeriveMoreDisplay,
 }
@@ -76,14 +76,14 @@ impl StringParserProvider {
 
 /// Static literal supported by Strum message or property metadata.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum StaticValue {
+pub enum StaticValue {
     Bool(bool),
     Integer(u128),
     String(String),
 }
 
 /// Complete authored variant-to-static-value method.
-pub(crate) struct VariantValueFamily {
+pub struct VariantValueFamily {
     pub(crate) span: Span,
     pub(crate) owner: rustc_hir::HirId,
     pub(crate) definition: LocalDefId,
@@ -94,7 +94,7 @@ pub(crate) struct VariantValueFamily {
 }
 
 /// Exact enum `Display` implementation selecting one static string per variant.
-pub(crate) struct DisplayCandidate {
+pub struct DisplayCandidate {
     pub(crate) span: Span,
     pub(crate) owner: rustc_hir::HirId,
     pub(crate) enum_def: LocalDefId,
@@ -223,7 +223,7 @@ impl VariantValueFamily {
 // -----------------------------------------------------------------------------
 
 /// Static string table that may duplicate `VariantNames::VARIANTS`.
-pub(crate) struct StringTableCandidate {
+pub struct StringTableCandidate {
     pub(crate) span: Span,
     pub(crate) owner: rustc_hir::HirId,
     pub(crate) name: Symbol,
@@ -275,7 +275,7 @@ impl StringTableCandidate {
 // -----------------------------------------------------------------------------
 
 /// Authored `FromStr` match over static string literals and unit variants.
-pub(crate) struct StringParserCandidate {
+pub struct StringParserCandidate {
     pub(crate) span: Span,
     pub(crate) owner: rustc_hir::HirId,
     pub(crate) enum_def: LocalDefId,
@@ -284,7 +284,7 @@ pub(crate) struct StringParserCandidate {
 }
 
 /// One-to-one conversion from a payload enum into a private unit mirror enum.
-pub(crate) struct DiscriminantMirrorCandidate {
+pub struct DiscriminantMirrorCandidate {
     pub(crate) span: Span,
     pub(crate) owner: rustc_hir::HirId,
     pub(crate) source_enum: LocalDefId,

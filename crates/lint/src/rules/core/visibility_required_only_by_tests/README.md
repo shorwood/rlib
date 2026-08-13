@@ -4,7 +4,7 @@
 
 Compares the visibility required by production references with the visibility required when
 canonical in-source `test` or `tests` modules are included. It diagnoses declarations whose
-authored canonical visibility is justified only by those tests. The rule covers module
+hand-written canonical visibility is justified only by those tests. The rule covers module
 items, types, functions, constants, statics, struct and union fields, and inherent associated
 items. Separate end-to-end test crates are intentionally outside this crate-local analysis.
 

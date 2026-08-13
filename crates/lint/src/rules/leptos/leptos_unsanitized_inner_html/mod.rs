@@ -108,7 +108,7 @@ impl LeptosUnsanitizedInnerHtml {
     }
 
     /// Accepts static authored markup whose complete content is visible at the call site.
-    fn is_string_literal(expression: &Expr<'_>) -> bool {
+    const fn is_string_literal(expression: &Expr<'_>) -> bool {
         matches!(expression.kind, ExprKind::Lit(literal) if matches!(literal.node, LitKind::Str(..)))
     }
 

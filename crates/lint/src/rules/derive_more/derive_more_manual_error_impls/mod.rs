@@ -4,9 +4,11 @@ extern crate rustc_middle;
 extern crate rustc_span;
 
 use std::borrow::Cow;
+use std::mem;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{Item, ItemKind};
+use rustc_hir::def_id::LocalDefId;
+use rustc_hir::{HirId, Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty;
 use rustc_span::Span;
@@ -21,14 +23,14 @@ use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
 
 struct Candidate {
-    definition: rustc_span::def_id::LocalDefId,
-    owner: rustc_hir::HirId,
+    definition: LocalDefId,
+    owner: HirId,
     span: Span,
     name: String,
 }
 
 struct Violation {
-    owner: rustc_hir::HirId,
+    owner: HirId,
     span: Span,
     name: String,
 }
@@ -87,7 +89,7 @@ impl DeriveMoreManualErrorImpls {
         }
     }
 
-    fn selected(&self, definition: rustc_span::def_id::LocalDefId) -> bool {
+    fn selected(&self, definition: LocalDefId) -> bool {
         #[cfg(feature = "thiserror")]
         if self.overlaps.contains(definition) {
             return self.config.error_implementation()
@@ -117,7 +119,7 @@ impl LateLintPass<'_> for DeriveMoreManualErrorImpls {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for candidate in std::mem::take(&mut self.candidates) {
+        for candidate in mem::take(&mut self.candidates) {
             if !self.selected(candidate.definition) {
                 continue;
             }
@@ -138,12 +140,9 @@ fn candidate(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Candidate> {
     if item.span.from_expansion() || !cx.tcx.hir_attrs(item.hir_id()).is_empty() {
         return None;
     }
-    let Some(trait_id) = implementation
+    let trait_id = implementation
         .of_trait
-        .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
-    else {
-        return None;
-    };
+        .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())?;
     if cx.tcx.item_name(trait_id).as_str() != "Error"
         || !matches!(cx.tcx.crate_name(trait_id.krate).as_str(), "core" | "std")
     {

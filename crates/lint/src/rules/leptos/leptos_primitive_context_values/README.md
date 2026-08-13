@@ -21,7 +21,7 @@ let setter = use_context::<WriteSignal<bool>>();
 
 ## Use instead
 
-Give the context a nominal domain identity and expose only the required capability:
+Give the context a named domain identity and expose only the required capability:
 
 ```rust,ignore
 #[derive(Clone, Copy)]

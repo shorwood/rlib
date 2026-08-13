@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds authored `From` implementations that only construct or extract the sole field of a newtype.
+Finds hand-written `From` implementations that only construct or extract the sole field of a newtype.
 
 ## Why is this bad?
 

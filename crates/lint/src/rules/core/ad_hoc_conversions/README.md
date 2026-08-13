@@ -8,14 +8,14 @@ an infallible `From` opportunity; an exact `Result<Target, Error>` return is tre
 fallible `TryFrom` opportunity.
 
 The analysis follows the source through destructuring, local bindings, assignments,
-branches, matches, closures, and helper calls. It accepts concrete nominal, primitive,
+branches, matches, closures, and helper calls. It accepts concrete named, primitive,
 tuple, array, slice, and reference sources while rejecting unresolved generic, opaque,
 dynamic, and raw-pointer contracts. Lifetimes do not split otherwise identical families.
 
 ## Why is this bad?
 
 Ad hoc conversion functions hide standard capabilities from readers, generic code, IDEs,
-and trait-driven APIs. They also invite several names for the same semantic pair, making it
+and trait-driven APIs. They also invite several names for the same behavioral pair, making it
 unclear which conversion is canonical.
 
 ## Example
@@ -46,7 +46,7 @@ impl From<Record> for Account {
 ```
 
 Families with multiple candidates, existing `From` or `TryFrom` implementations, policy or
-effect vocabulary, ambient static state, and known standard I/O effects are left alone.
+effect vocabulary, global static state, and known standard I/O effects are left alone.
 Exact owned `&str -> Result<T, E>` parsers remain the responsibility of
 `ad_hoc_string_parsers`. No automatic fix is offered because moving an API into a trait can
 change visibility, coherence, error contracts, and call syntax.

@@ -3,7 +3,7 @@
 ## What it does
 
 Finds named functions and methods whose direct block surface exceeds the configured limit
-without being divided into short, explanatory phases. Nested authored blocks are measured
+without being divided into short, explanatory phases. Nested hand-written blocks are measured
 independently so their implementation does not inflate the containing phase. Declarative
 struct literals and literal-only match mappings count as one operation regardless of their
 formatting. The physical line limit and comment prefix are configurable through the shared

@@ -6,6 +6,7 @@ extern crate rustc_span;
 use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
+use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{ExprKind, ImplItem, ImplItemKind, ItemKind, Node};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
@@ -135,7 +136,7 @@ fn exact_wrapping<'tcx>(
     cx: &LateContext<'tcx>,
     wrapper: ty::Ty<'tcx>,
     inner: ty::Ty<'tcx>,
-    owner: rustc_hir::def_id::LocalDefId,
+    owner: LocalDefId,
     expression: &rustc_hir::Expr<'_>,
     binding: rustc_hir::HirId,
 ) -> Option<String> {

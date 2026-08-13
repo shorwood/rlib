@@ -10,6 +10,7 @@ use rustc_hir::intravisit::{self, Visitor};
 use rustc_hir::{BodyId, Expr, ExprKind, HirId};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
 
 use crate::utils::diagnostic::LateViolation;
 
@@ -69,7 +70,7 @@ struct CurrentValueRead<'analysis, 'tcx> {
     /// Compiler context used for semantic method resolution.
     cx: &'analysis LateContext<'tcx>,
     /// Body owner whose type-checking results resolve method calls.
-    owner: rustc_span::def_id::LocalDefId,
+    owner: LocalDefId,
     /// Signal binding being replaced.
     signal: HirId,
     /// First matching read span.
@@ -130,7 +131,7 @@ impl LeptosReadThenReplaceSignals {
     /// Returns whether a call resolves to one reactive graph trait method.
     fn is_reactive_method(
         cx: &LateContext<'_>,
-        owner: rustc_span::def_id::LocalDefId,
+        owner: LocalDefId,
         expression: &Expr<'_>,
         trait_name: &str,
         method_name: &str,

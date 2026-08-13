@@ -206,7 +206,7 @@ fn expected_mutability(derive: &str) -> Mutability {
     }
 }
 
-fn direct_field_reference<'hir>(
+const fn direct_field_reference<'hir>(
     expression: &'hir Expr<'hir>,
 ) -> Option<((&'hir Expr<'hir>, &'hir Expr<'hir>), Mutability)> {
     let ExprKind::AddrOf(_, mutability, field_expression) = expression.kind else {

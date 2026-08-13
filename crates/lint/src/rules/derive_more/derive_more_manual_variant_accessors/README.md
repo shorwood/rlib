@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds complete authored `is_<variant>` predicate families that are exactly reproducible by
+Finds complete hand-written `is_<variant>` predicate families that are exactly reproducible by
 `derive_more::IsVariant` when derive_more is the configured provider.
 
 ## Why is this bad?

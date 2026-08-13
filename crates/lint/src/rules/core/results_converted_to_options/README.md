@@ -26,7 +26,7 @@ let cached = load().ok();
 ## Use instead
 
 
-Keep the Result intact, or make the translation reviewable in authored control flow:
+Keep the Result intact, or make the translation reviewable in hand-written control flow:
 
 ```rust
 # fn load() -> Result<String, std::io::Error> { Ok(String::new()) }

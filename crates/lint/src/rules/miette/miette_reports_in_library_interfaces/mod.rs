@@ -9,7 +9,7 @@ use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty::{self, Ty};
 use rustc_session::config::CrateType;
-use rustc_span::Span;
+use rustc_span::{Span, sym};
 
 use crate::utils::diagnostic::LateViolation;
 
@@ -102,8 +102,7 @@ fn contains_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
     {
         return true;
     }
-    cx.tcx
-        .is_diagnostic_item(rustc_span::sym::Result, definition.did())
+    cx.tcx.is_diagnostic_item(sym::Result, definition.did())
         && arguments.len() == 2
         && contains_report(cx, arguments.type_at(1))
 }

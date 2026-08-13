@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeContractCatalog, serde_attributes};
+use super::contracts::{SerdeContractCatalog, SerdeFlag, serde_attributes};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
 
@@ -85,7 +85,7 @@ impl LateLintPass<'_> for SerdeDefaultsHidingMissingData {
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
-        for field in structure.fields.iter() {
+        for field in &structure.fields {
             let Some(name) = field.ident.as_ref() else {
                 continue;
             };
@@ -94,7 +94,7 @@ impl LateLintPass<'_> for SerdeDefaultsHidingMissingData {
                 .iter()
                 .any(|attribute| attribute.path().is_ident("doc"))
                 || is_option(&field.ty)
-                || !serde_attributes(&field.attrs).implicit_default
+                || !serde_attributes(&field.attrs).has(SerdeFlag::ImplicitDefault)
             {
                 continue;
             }

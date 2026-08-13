@@ -7,7 +7,7 @@ family but different units or encodings.
 
 ## Why is this bad?
 
-The serialized representation is decoded under a different scale or codec, so a nominal round trip
+The serialized representation is decoded under a different scale or codec, so a named round trip
 changes the value or fails despite both directions compiling independently.
 
 ## Example

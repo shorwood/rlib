@@ -2,11 +2,11 @@
 
 ## What it does
 
-Checks visible free functions that take foreign nominal types and recommends a focused
-extension trait when one foreign parameter remains the clear semantic subject. Repeated
-foreign dependencies are treated as ambient infrastructure only when they occur in at
-least two functions beside at least two different nominal co-parameters. Functions with a
-local nominal input or a local direct, optional, or fallible success return are left to that
+Checks visible free functions that take foreign named types and recommends a focused
+extension trait when one foreign parameter remains the clear behavioral subject. Repeated
+foreign dependencies are treated as global infrastructure only when they occur in at
+least two functions beside at least two different named co-parameters. Functions with a
+local named input or a local direct, optional, or fallible success return are left to that
 stronger local owner instead.
 
 ## Why is this bad?
@@ -26,7 +26,7 @@ pub fn direct_struct(cx: &LateContext<'_>, item: &Item<'_>) -> Option<LocalDefId
 ## Use instead
 
 
-Put the operation behind the semantic subject instead:
+Put the operation behind the behavioral subject instead:
 
 ```rust
 trait ItemExt {

@@ -23,7 +23,7 @@ use syn::{LitBool, LitStr, Token};
 
 /// Strum derive macros relevant to the framework-aware lint layer.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(crate) enum StrumDerive {
+pub enum StrumDerive {
     AsRefStr,
     Display,
     EnumCount,
@@ -64,7 +64,7 @@ impl StrumDerive {
 
 /// Effective Strum naming and behavior for one authored enum.
 #[derive(Clone)]
-pub(crate) struct EnumContract {
+pub struct EnumContract {
     pub(crate) def_id: LocalDefId,
     pub(crate) owner: rustc_hir::HirId,
     pub(crate) span: Span,
@@ -105,7 +105,7 @@ impl EnumContract {
     clippy::struct_excessive_bools,
     reason = "these flags model independent authored Strum attributes and variant shapes"
 )]
-pub(crate) struct VariantContract {
+pub struct VariantContract {
     pub(crate) def_id: LocalDefId,
     pub(crate) span: Span,
     pub(crate) name: Symbol,
@@ -130,7 +130,7 @@ pub(crate) struct VariantContract {
 
 /// Crate-wide authored enums plus generated Strum derive evidence.
 #[derive(Default)]
-pub(crate) struct ContractCatalog {
+pub struct ContractCatalog {
     contracts: HashMap<LocalDefId, EnumContract>,
     derives: HashMap<LocalDefId, HashSet<StrumDerive>>,
     discriminants: Vec<GeneratedDiscriminant>,
@@ -238,7 +238,7 @@ struct GeneratedDiscriminant {
 }
 
 /// Returns whether an item span came from one known Strum derive macro.
-pub(crate) fn strum_derive(cx: &LateContext<'_>, span: Span) -> Option<StrumDerive> {
+pub fn strum_derive(cx: &LateContext<'_>, span: Span) -> Option<StrumDerive> {
     span.macro_backtrace().find_map(|expansion| {
         let definition = expansion.macro_def_id?;
         (cx.tcx.crate_name(definition.krate).as_str() == "strum_macros")
@@ -563,7 +563,7 @@ fn apply_case(value: &str, style: Option<CaseStyle>) -> String {
 }
 
 /// Resolves the enum type in a `Type::ITEM` path owned by one Strum trait.
-pub(crate) fn strum_associated_enum(
+pub fn strum_associated_enum(
     cx: &LateContext<'_>,
     expression: &Expr<'_>,
     trait_name: &str,

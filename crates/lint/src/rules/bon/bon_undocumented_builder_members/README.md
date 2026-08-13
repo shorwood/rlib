@@ -19,7 +19,7 @@ pub fn connect(#[builder(default = 30)] timeout_seconds: u64) {}
 
 ## Use instead
 
-Document the behavior on the authored field or parameter so Bon can carry it to generated APIs:
+Document the behavior on the hand-written field or parameter so Bon can carry it to generated APIs:
 
 ```rust,ignore
 #[bon::builder]

@@ -19,7 +19,7 @@ fn request(timeout: Option<Duration>, url: String) {}
 ## Use instead
 
 Require callers to provide the optional value explicitly, document intentional omission, or model the
-choice with a semantic enum:
+choice with a behavioral enum:
 
 ```rust,ignore
 #[bon::builder]

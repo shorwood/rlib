@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeContractCatalog, serde_attributes};
+use super::contracts::{SerdeContractCatalog, SerdeFlag, serde_attributes};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
 
@@ -105,7 +105,7 @@ impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
             .filter_map(|field| {
                 let name = field.ident.as_ref()?.to_string();
                 let attributes = serde_attributes(&field.attrs);
-                if attributes.skip_serialize
+                if attributes.has(SerdeFlag::SkipSerialize)
                     || !sensitive_name(&name)
                     || !raw_secret_carrier(&field.ty)
                     || attributes

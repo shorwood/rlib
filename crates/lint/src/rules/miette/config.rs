@@ -1,8 +1,8 @@
 use serde::Deserialize;
 
 #[derive(Clone, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub(crate) struct MietteHelpConfig {
+#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
+pub struct MietteHelpConfig {
     pub(crate) generic_phrases: Vec<String>,
 }
 

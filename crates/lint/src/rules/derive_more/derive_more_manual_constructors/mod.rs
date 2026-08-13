@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use rustc_abi::ExternAbi;
 use rustc_errors::DiagDecorator;
 use rustc_hir::def::Res;
+use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::{
     Constness, ExprKind, ImplItem, ImplItemKind, ItemKind, Node, PatKind, StructTailExpr,
 };
@@ -145,14 +146,14 @@ fn parameter_bindings(body: &rustc_hir::Body<'_>) -> Option<Vec<(rustc_hir::HirI
 
 fn exact_field_assembly(
     cx: &LateContext<'_>,
-    definition: rustc_hir::def_id::DefId,
-    owner: rustc_hir::def_id::LocalDefId,
+    definition: DefId,
+    owner: LocalDefId,
     bindings: &[(rustc_hir::HirId, Symbol)],
     expression: &rustc_hir::Expr<'_>,
 ) -> bool {
     match expression.kind {
         ExprKind::Struct(path, fields, StructTailExpr::None) => {
-            path_targets(cx, cx.qpath_res(&path, expression.hir_id), definition)
+            path_targets(cx, cx.qpath_res(path, expression.hir_id), definition)
                 && fields.len() == bindings.len()
                 && fields.iter().all(|field| {
                     bindings.iter().any(|(binding, name)| {
@@ -177,11 +178,7 @@ fn exact_field_assembly(
     }
 }
 
-fn path_targets(
-    cx: &LateContext<'_>,
-    resolution: Res,
-    definition: rustc_hir::def_id::DefId,
-) -> bool {
+fn path_targets(cx: &LateContext<'_>, resolution: Res, definition: DefId) -> bool {
     match resolution {
         Res::Def(_, target) => target == definition,
         Res::SelfTyAlias { alias_to, .. } => cx

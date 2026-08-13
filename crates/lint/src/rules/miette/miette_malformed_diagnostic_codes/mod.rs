@@ -106,10 +106,7 @@ fn valid_code(code: &str) -> bool {
                 })
         });
     }
-    let letters = code
-        .chars()
-        .take_while(|character| character.is_ascii_alphabetic())
-        .count();
+    let letters = code.chars().take_while(char::is_ascii_alphabetic).count();
     letters > 0
         && letters < code.len()
         && code[..letters]

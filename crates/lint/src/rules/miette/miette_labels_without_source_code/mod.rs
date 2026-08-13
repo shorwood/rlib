@@ -9,7 +9,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::{DiagnosticCatalog, DiagnosticField};
+use super::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
 use crate::utils::diagnostic::LateViolation;
 
 struct Violation {
@@ -86,13 +86,14 @@ impl LateLintPass<'_> for MietteLabelsWithoutSourceCode {
 fn check_fields(cx: &LateContext<'_>, span: Span, fields: &[DiagnosticField], transparent: bool) {
     let labels = fields
         .iter()
-        .filter(|field| field.roles.label)
+        .filter(|field| field.roles.contains(DiagnosticFieldRole::Label))
         .collect::<Vec<_>>();
     if labels.is_empty()
         || transparent
-        || fields
-            .iter()
-            .any(|field| field.roles.source_code || field.roles.diagnostic_source)
+        || fields.iter().any(|field| {
+            field.roles.contains(DiagnosticFieldRole::SourceCode)
+                || field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
+        })
     {
         return;
     }

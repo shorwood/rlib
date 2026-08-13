@@ -3,7 +3,7 @@ use serde::Deserialize;
 #[cfg(feature = "thiserror")]
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum ErrorVariantConversionProvider {
+pub enum ErrorVariantConversionProvider {
     DeriveMoreFrom,
     ThiserrorFrom,
 }
@@ -11,7 +11,7 @@ pub(crate) enum ErrorVariantConversionProvider {
 #[cfg(feature = "thiserror")]
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum ErrorImplementationProvider {
+pub enum ErrorImplementationProvider {
     DeriveMoreError,
     ThiserrorError,
 }
@@ -29,13 +29,8 @@ use crate::utils::variant_methods::PredicateProvider;
 
 /// Workspace-wide provider choices for overlapping framework remediations.
 #[derive(Clone, Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-#[allow(clippy::redundant_pub_crate)]
-#[expect(
-    clippy::struct_field_names,
-    reason = "the enum prefix makes each flat TOML configuration key self-describing"
-)]
-pub(crate) struct DeriveResolutionConfig {
+#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
+pub struct DeriveResolutionConfig {
     /// Provider selected for complete error implementations.
     #[cfg(feature = "thiserror")]
     error_implementation: Option<ErrorImplementationProvider>,

@@ -24,7 +24,7 @@ use template::{Template, TemplateMatch};
 
 /// Shared configuration for the section-divider lint family.
 #[derive(Clone, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct SectionDividerConfig {
     /// Multiline divider template containing the required `{content}` placeholder.
     pub(super) template: String,

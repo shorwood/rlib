@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds authored, non-generic local traits with exactly one concrete local implementation and
+Finds hand-written, non-generic local traits with exactly one concrete local implementation and
 no active polymorphic consumer. A consumer is evidence that code depends on the abstraction:
 a generic bound, `impl Trait`, a trait object, an associated-type projection, a dependent
 supertrait, or a trait alias. Calling a trait method on the sole concrete implementation,

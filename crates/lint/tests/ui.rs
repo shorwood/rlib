@@ -474,9 +474,13 @@ fn run_miette_fixtures() {
         {
             continue;
         }
-        Test::example(env!("CARGO_PKG_NAME"), example)
-            .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
-            .run();
+        let mut test = Test::example(env!("CARGO_PKG_NAME"), example);
+        test.rustc_flags(CROSS_CUTTING_LINT_ALLOWS);
+        #[cfg(feature = "thiserror")]
+        if example == "miette_ad_hoc_diagnostics_at_domain_boundaries" {
+            test.rustc_flags(["-A", "thiserror_dynamic_errors_in_library_interfaces"]);
+        }
+        test.run();
     }
     if selected
         .as_deref()

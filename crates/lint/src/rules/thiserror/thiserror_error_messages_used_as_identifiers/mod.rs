@@ -150,7 +150,7 @@ fn displayed_error(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalD
         .as_local()
 }
 
-fn is_string_literal(expression: &Expr<'_>) -> bool {
+const fn is_string_literal(expression: &Expr<'_>) -> bool {
     matches!(expression.kind, ExprKind::Lit(literal)
         if matches!(literal.node, rustc_ast::LitKind::Str(..)))
 }

@@ -2,23 +2,15 @@ extern crate rustc_hir;
 extern crate rustc_lint;
 extern crate rustc_span;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::LateContext;
 use rustc_span::def_id::LocalDefId;
-use rustc_span::{Span, Symbol};
-
-#[derive(Clone)]
-#[allow(dead_code)]
-pub(crate) struct ThiserrorTypeContract {
-    pub(super) span: Span,
-    pub(super) name: Symbol,
-}
 
 #[derive(Default)]
-pub(crate) struct ThiserrorContractCatalog {
-    types: HashMap<LocalDefId, ThiserrorTypeContract>,
+pub struct ThiserrorContractCatalog {
+    types: HashSet<LocalDefId>,
     derives: HashSet<LocalDefId>,
 }
 
@@ -28,24 +20,14 @@ impl ThiserrorContractCatalog {
             self.record_generated_impl(cx, item);
             return;
         }
-        let identifier = match item.kind {
-            ItemKind::Struct(identifier, ..) | ItemKind::Enum(identifier, ..) => identifier,
-            _ => return,
+        let (ItemKind::Struct(..) | ItemKind::Enum(..)) = item.kind else {
+            return;
         };
-        self.types.insert(
-            item.owner_id.def_id,
-            ThiserrorTypeContract {
-                span: item.span,
-                name: identifier.name,
-            },
-        );
+        self.types.insert(item.owner_id.def_id);
     }
 
-    pub(crate) fn derived_type(&self, definition: LocalDefId) -> Option<&ThiserrorTypeContract> {
-        self.derives
-            .contains(&definition)
-            .then(|| self.types.get(&definition))
-            .flatten()
+    pub(crate) fn derived_type(&self, definition: LocalDefId) -> Option<()> {
+        (self.derives.contains(&definition) && self.types.contains(&definition)).then_some(())
     }
 
     fn record_generated_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {

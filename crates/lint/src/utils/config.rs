@@ -19,7 +19,7 @@ use crate::rules::miette::config::MietteHelpConfig;
 
 /// Every configurable policy exposed through the `rlib-lint` Dylint table.
 #[derive(Clone, Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct LibraryConfig {
     /// Historical public Bon member snapshot used for compatibility checks.
     #[cfg(feature = "bon")]

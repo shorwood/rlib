@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeContractCatalog, serde_attributes};
+use super::contracts::{SerdeContractCatalog, SerdeFlag, serde_attributes};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
 
@@ -97,7 +97,7 @@ impl LateLintPass<'_> for SerdeCatchAllVariantsHidingSchemaDrift {
         let variants = enumeration
             .variants
             .iter()
-            .filter(|variant| serde_attributes(&variant.attrs).other)
+            .filter(|variant| serde_attributes(&variant.attrs).has(SerdeFlag::Other))
             .map(|variant| format!("`{}`", variant.ident))
             .collect::<Vec<_>>();
         if variants.is_empty() {

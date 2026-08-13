@@ -1,20 +1,22 @@
 # derive_more-aware lints
 
-This layer distinguishes two policies:
+`derive_more` can replace repetitive trait implementations with a declaration beside the type. The
+lints in this layer help teams adopt those derives where the generated behavior is equivalent, and
+flag derives that would weaken an invariant or hide an important text format.
 
-- adoption lints report authored implementations only when derive_more can reproduce the complete
-  contract;
-- usage lints require semantic evidence that an existing derive weakens a type invariant or hides a
-  machine-facing contract.
+There are two kinds of rule:
 
-Overlapping derive providers are selected only through the `derive_resolution` configuration. In
-particular, `enum_variant_predicates` chooses between `strum_enum_is` and
-`derive_more_is_variant`; dependency order is never a resolution mechanism.
+- adoption rules report hand-written implementations only when `derive_more` can reproduce all of
+  their behavior;
+- safety rules require evidence that an existing derive bypasses validation or makes a data format
+  hard to see.
+
+Some derives overlap with other libraries. The linter never guesses from dependency order. Choose
+the provider in the `derive_resolution` section of `dylint.toml`; for example,
+`enum_variant_predicates` can select `strum_enum_is` or `derive_more_is_variant`.
 
 ## Deliberately absent lint
 
-`derive_more_incoherent_into_iterator_derives` is not implementable against derive_more 2.1. Its
-`IntoIterator` expansion calls `assert_single_enabled_field()` once and generates every requested
-owned, shared, and mutable implementation from that same field. The proposed state—different fields
-for different receiver forms—is rejected by the macro and cannot reach lint analysis. A lint for it
-would therefore be dead policy coupled to an impossible program.
+There is no `derive_more_incoherent_into_iterator_derives` rule for derive_more 2.1. The macro
+already requires owned, shared, and mutable iteration to use the same field, so the conflicting
+program cannot compile. A lint would add noise without catching a real state.

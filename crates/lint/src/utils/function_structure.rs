@@ -19,7 +19,7 @@ use super::function_layout_analysis::{FunctionLayoutAnalysis, FunctionLayoutAnal
 
 /// Limits shared by the function-structure lint family.
 #[derive(Clone, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct FunctionStructureConfig {
     /// Maximum source lines permitted in one uncommented function phase.
     pub(super) max_phase_lines: usize,

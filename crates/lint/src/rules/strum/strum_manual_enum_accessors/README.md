@@ -7,7 +7,7 @@ they exactly match Strum's `EnumTryAs` derive.
 
 ## Why is this bad?
 
-The authored methods repeat tuple field order, receiver behavior, and failure handling. `EnumTryAs`
+The hand-written methods repeat tuple field order, receiver behavior, and failure handling. `EnumTryAs`
 keeps those accessors synchronized with the enum declaration.
 
 ## Example

@@ -115,7 +115,7 @@ impl LeptosMalformedViewSectionComments {
         let content = heading
             .text
             .strip_prefix(&self.config.view_section_comment_prefix)
-            .unwrap_or(heading.text.trim_start_matches('/'))
+            .unwrap_or_else(|| heading.text.trim_start_matches('/'))
             .trim()
             .trim_start_matches(['-', '*', '#'])
             .trim_start()

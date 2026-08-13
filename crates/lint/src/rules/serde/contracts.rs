@@ -9,19 +9,20 @@ use rustc_hir::{Item, ItemKind};
 use rustc_lint::LateContext;
 use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
+use strum::EnumProperty as _;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, strum::EnumProperty)]
 pub(super) enum SerdeDirection {
+    #[strum(props(label = "serialization"))]
     Serialize,
+    #[strum(props(label = "deserialization"))]
     Deserialize,
 }
 
 impl SerdeDirection {
-    pub(super) const fn label(self) -> &'static str {
-        match self {
-            Self::Serialize => "serialization",
-            Self::Deserialize => "deserialization",
-        }
+    pub(super) fn label(self) -> &'static str {
+        self.get_str("label")
+            .expect("every Serde direction declares a label")
     }
 }
 
@@ -32,18 +33,33 @@ pub(super) struct SerdeAttributes {
     pub(super) rename_all_serialize: Option<String>,
     pub(super) rename_all_deserialize: Option<String>,
     pub(super) aliases: Vec<String>,
-    pub(super) skip_serialize: bool,
-    pub(super) skip_deserialize: bool,
-    pub(super) implicit_default: bool,
-    pub(super) has_default: bool,
+    flags: HashSet<SerdeFlag>,
     pub(super) skip_serializing_if: Option<String>,
     pub(super) serialize_with: Option<String>,
     pub(super) deserialize_with: Option<String>,
-    pub(super) untagged: bool,
-    pub(super) flatten: bool,
-    pub(super) deny_unknown_fields: bool,
-    pub(super) other: bool,
     pub(super) remote: Option<String>,
+}
+
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub(super) enum SerdeFlag {
+    DenyUnknownFields,
+    Flatten,
+    HasDefault,
+    ImplicitDefault,
+    Other,
+    SkipDeserialize,
+    SkipSerialize,
+    Untagged,
+}
+
+impl SerdeAttributes {
+    pub(super) fn has(&self, flag: SerdeFlag) -> bool {
+        self.flags.contains(&flag)
+    }
+
+    fn insert(&mut self, flag: SerdeFlag) {
+        self.flags.insert(flag);
+    }
 }
 
 pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes {
@@ -77,15 +93,17 @@ pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes
                     .aliases
                     .push(meta.value()?.parse::<syn::LitStr>()?.value());
             } else if meta.path.is_ident("skip") {
-                result.skip_serialize = true;
-                result.skip_deserialize = true;
+                result.insert(SerdeFlag::SkipSerialize);
+                result.insert(SerdeFlag::SkipDeserialize);
             } else if meta.path.is_ident("skip_serializing") {
-                result.skip_serialize = true;
+                result.insert(SerdeFlag::SkipSerialize);
             } else if meta.path.is_ident("skip_deserializing") {
-                result.skip_deserialize = true;
+                result.insert(SerdeFlag::SkipDeserialize);
             } else if meta.path.is_ident("default") {
-                result.has_default = true;
-                result.implicit_default = !meta.input.peek(syn::Token![=]);
+                result.insert(SerdeFlag::HasDefault);
+                if !meta.input.peek(syn::Token![=]) {
+                    result.insert(SerdeFlag::ImplicitDefault);
+                }
                 if meta.input.peek(syn::Token![=]) {
                     let _ = meta.value()?.parse::<syn::LitStr>()?;
                 }
@@ -96,13 +114,13 @@ pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes
             } else if meta.path.is_ident("deserialize_with") {
                 result.deserialize_with = Some(meta.value()?.parse::<syn::LitStr>()?.value());
             } else if meta.path.is_ident("untagged") {
-                result.untagged = true;
+                result.insert(SerdeFlag::Untagged);
             } else if meta.path.is_ident("flatten") {
-                result.flatten = true;
+                result.insert(SerdeFlag::Flatten);
             } else if meta.path.is_ident("deny_unknown_fields") {
-                result.deny_unknown_fields = true;
+                result.insert(SerdeFlag::DenyUnknownFields);
             } else if meta.path.is_ident("other") {
-                result.other = true;
+                result.insert(SerdeFlag::Other);
             } else if meta.path.is_ident("remote") {
                 result.remote = Some(meta.value()?.parse::<syn::LitStr>()?.value());
             }

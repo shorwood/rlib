@@ -8,7 +8,7 @@ unchanged to another function in the same crate.
 ## Why is this bad?
 
 Pure forwarding wrappers obscure the real implementation, scatter documentation and
-visibility decisions, and force readers to follow an indirection with no semantic value.
+visibility decisions, and force readers to follow an indirection with no behavioral value.
 
 For example, `parse` only repeats `parse_document`'s signature and call:
 

@@ -7,7 +7,7 @@ vocabulary.
 
 ## Why is this bad?
 
-Names such as `process`, `execute`, or `value` force callers to rediscover meaning that the authored
+Names such as `process`, `execute`, or `value` force callers to rediscover meaning that the hand-written
 operation and member names already communicate.
 
 ## Example

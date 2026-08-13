@@ -14,7 +14,7 @@ use rustc_span::def_id::LocalDefId;
 use crate::utils::source_provenance::authored_item_source;
 
 #[derive(Clone)]
-pub(crate) struct ManualErrorCandidate {
+pub struct ManualErrorCandidate {
     pub(crate) span: Span,
     pub(crate) name: String,
     pub(crate) message: String,
@@ -22,10 +22,24 @@ pub(crate) struct ManualErrorCandidate {
 }
 
 #[derive(Default)]
-pub(crate) struct ManualErrorCatalog {
+pub struct ManualErrorCatalog {
     displays: HashMap<LocalDefId, String>,
-    errors: HashMap<LocalDefId, Option<String>>,
+    errors: HashMap<LocalDefId, ErrorSource>,
     types: HashMap<LocalDefId, (Span, String)>,
+}
+
+enum ErrorSource {
+    Empty,
+    Field(String),
+}
+
+impl ErrorSource {
+    fn field(&self) -> Option<String> {
+        match self {
+            Self::Empty => None,
+            Self::Field(field) => Some(field.clone()),
+        }
+    }
 }
 
 impl ManualErrorCatalog {
@@ -49,10 +63,10 @@ impl ManualErrorCatalog {
                     if let Some(message) = display_message(cx, item) {
                         self.displays.insert(definition, message);
                     }
-                } else if trait_name == "Error" {
-                    if let Some(source_field) = error_source(cx, item) {
-                        self.errors.insert(definition, source_field);
-                    }
+                } else if trait_name == "Error"
+                    && let Some(source_field) = error_source(cx, item)
+                {
+                    self.errors.insert(definition, source_field);
                 }
             }
             _ => {}
@@ -70,7 +84,7 @@ impl ManualErrorCatalog {
                     span: *span,
                     name: name.clone(),
                     message: message.clone(),
-                    source_field: source_field.clone(),
+                    source_field: source_field.field(),
                 })
             })
             .collect::<Vec<_>>();
@@ -159,13 +173,12 @@ fn display_message(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
     (!message.contains('{') && !message.contains('}')).then_some(message)
 }
 
-/// Returns `Some(None)` for an empty implementation and the direct source field otherwise.
-fn error_source(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Option<String>> {
+fn error_source(cx: &LateContext<'_>, item: &Item<'_>) -> Option<ErrorSource> {
     let source = authored_item_source(cx, item)?;
     let implementation = syn::parse_str::<syn::ItemImpl>(&source).ok()?;
     match implementation.items.as_slice() {
-        [] => Some(None),
-        [syn::ImplItem::Fn(method)] => conventional_source(method).map(Some),
+        [] => Some(ErrorSource::Empty),
+        [syn::ImplItem::Fn(method)] => conventional_source(method).map(ErrorSource::Field),
         _ => None,
     }
 }

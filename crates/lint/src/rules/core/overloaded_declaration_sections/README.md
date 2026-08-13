@@ -3,7 +3,7 @@
 ## What it does
 
 Rejects a valid section divider when it governs more distinct declarations than the
-configured maximum. A nominal type and all of its implementation blocks count as one
+configured maximum. A named type and all of its implementation blocks count as one
 declaration, while separate types, free functions, constants, and statics count
 independently. The default maximum is five declarations per section.
 

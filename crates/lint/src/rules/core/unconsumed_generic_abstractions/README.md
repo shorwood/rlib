@@ -2,13 +2,13 @@
 
 ## What it does
 
-Finds authored type parameters on local structs, enums, unions, type aliases, free functions,
+Finds hand-written type parameters on local structs, enums, unions, type aliases, free functions,
 and inherent methods when every active use supplies the same fully concrete type. Parameters
 are analyzed independently, so one unused dimension can be specialized without rejecting
 meaningful variation in another. Direct calls are resolved through compiler type checking,
 including arguments inferred without an explicit turbofish.
 
-Evidence remains open when a parameter is inferred on a nominal use, forwarded from another
+Evidence remains open when a parameter is inferred on a named use, forwarded from another
 generic context, escapes as a callable value, or involves an alias, projection, opaque type,
 trait object, closure, function item, function pointer, unnameable type, dependent bound, or
 higher-ranked bound. Trait methods, trait implementations, impl-level type parameters,

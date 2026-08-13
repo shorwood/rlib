@@ -1,4 +1,4 @@
-pub(crate) mod utils;
+pub mod utils;
 pub mod leptos_attribute_bound_controlled_inputs;
 pub mod leptos_boolean_component_props;
 pub mod leptos_duplicate_view_section_comments;

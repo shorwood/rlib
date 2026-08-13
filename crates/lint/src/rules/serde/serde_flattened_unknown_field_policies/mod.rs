@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeContractCatalog, serde_attributes};
+use super::contracts::{SerdeContractCatalog, SerdeFlag, serde_attributes};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
 
@@ -96,13 +96,13 @@ impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
-        if !serde_attributes(&structure.attrs).deny_unknown_fields {
+        if !serde_attributes(&structure.attrs).has(SerdeFlag::DenyUnknownFields) {
             return;
         }
         let fields = structure
             .fields
             .iter()
-            .filter(|field| serde_attributes(&field.attrs).flatten)
+            .filter(|field| serde_attributes(&field.attrs).has(SerdeFlag::Flatten))
             .map(|field| {
                 field
                     .ident

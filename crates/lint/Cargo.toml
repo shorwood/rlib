@@ -15,28 +15,28 @@ derive_more = ["framework", "dep:syn"]
 leptos = ["dep:proc-macro2", "dep:quote", "dep:rstml", "dep:syn"]
 miette = ["dep:syn"]
 serde = ["dep:syn"]
-strum = ["framework", "dep:syn"]
+strum = ["framework", "dep:strum", "dep:syn"]
 thiserror = ["framework", "dep:syn"]
 
 [dependencies]
 convert_case = "0.11"
 dylint_linting = { version = "=6.0.1", features = ["constituent"] }
+derive_more = { version = "=2.1.1", features = ["full"] }
 heck = "0.5"
 proc-macro2 = { version = "1", features = ["span-locations"], optional = true }
 quote = { version = "1", optional = true }
 rstml = { version = "=0.12.1", optional = true }
 serde = { version = "1", features = ["derive"] }
+strum = { version = "=0.28.0", features = ["derive"], optional = true }
 syn = { version = "2", features = ["full", "parsing", "visit"], optional = true }
 toml = "0.9"
 
 [dev-dependencies]
 bon = "=3.9.3"
-derive_more = { version = "=2.1.1", features = ["full"] }
 dylint_testing = "=6.0.1"
 leptos = { version = "=0.8.20", features = ["ssr"] }
 miette = { version = "=7.6.0", features = ["derive"] }
 reactive_stores = "=0.4.3"
-strum = { version = "=0.28.0", features = ["derive"] }
 thiserror = "=2.0.19"
 
 [[example]]

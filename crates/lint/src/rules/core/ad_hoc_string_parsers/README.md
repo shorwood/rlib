@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds the unique authored function or receiver-free inherent method that accepts exactly
+Finds the unique hand-written function or receiver-free inherent method that accepts exactly
 one immutable `&str`, uses that input, constructs a same-module owned type, and returns it as
 `Result<T, E>`. When the target has no borrowed lifetime and no existing `FromStr`
 implementation, the lint asks the type to expose the standard parsing contract.

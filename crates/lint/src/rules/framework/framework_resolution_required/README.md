@@ -2,7 +2,7 @@
 
 ## What it does
 
-Reports a framework remediation that has multiple eligible providers but no explicit provider
+Reports a framework suggested fix that has multiple eligible providers but no explicit provider
 selection in the `rlib-lint` Dylint configuration.
 
 ## Why is this bad?

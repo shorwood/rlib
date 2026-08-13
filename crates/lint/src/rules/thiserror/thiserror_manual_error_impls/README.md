@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds authored `Display` and `std::error::Error` implementations whose complete behavior is
+Finds hand-written `Display` and `std::error::Error` implementations whose complete behavior is
 reproducible by `thiserror::Error`.
 
 ## Why is this bad?

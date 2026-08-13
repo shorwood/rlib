@@ -110,10 +110,10 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
             return;
         };
         if cx.tcx.item_name(to_string).as_str() != "to_string"
-            || !cx
+            || cx
                 .tcx
                 .trait_of_assoc(to_string)
-                .is_some_and(|trait_id| cx.tcx.item_name(trait_id).as_str() == "ToString")
+                .is_none_or(|trait_id| cx.tcx.item_name(trait_id).as_str() != "ToString")
         {
             return;
         }

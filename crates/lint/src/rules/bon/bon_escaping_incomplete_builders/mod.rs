@@ -8,6 +8,7 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{FieldDef, FnRetTy, ImplItem, ImplItemKind, Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
 
 use super::contracts::BonContractCatalog;
 use crate::utils::diagnostic::LateViolation;
@@ -54,8 +55,8 @@ impl LateViolation for Violation {
 #[derive(Default)]
 struct BonEscapingIncompleteBuilders {
     catalog: BonContractCatalog,
-    function_returns: Vec<(rustc_span::def_id::LocalDefId, Span)>,
-    fields: Vec<(rustc_span::def_id::LocalDefId, Span)>,
+    function_returns: Vec<(LocalDefId, Span)>,
+    fields: Vec<(LocalDefId, Span)>,
 }
 
 dylint_linting::impl_late_lint! {

@@ -20,7 +20,7 @@ impl From<&Event> for EventKind { /* exhaustive variant-only match */ }
 
 ## Use instead
 
-Derive `strum::EnumDiscriminants` with the intended generated name. Keep authored mirror enums when
+Derive `strum::EnumDiscriminants` with the intended generated name. Keep hand-written mirror enums when
 they are public or independently serialized schemas.
 
 ```rust,ignore

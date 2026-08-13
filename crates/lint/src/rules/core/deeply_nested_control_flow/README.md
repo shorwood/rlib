@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds authored `if`, `match`, and loop constructs whose nesting exceeds the configured
+Finds hand-written `if`, `match`, and loop constructs whose nesting exceeds the configured
 control-flow depth. `else if` chains remain one decision level, and closures are independent
 expressions rather than hidden extensions of their containing function.
 

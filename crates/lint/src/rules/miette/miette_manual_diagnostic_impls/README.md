@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds authored `miette::Diagnostic` implementations containing only defaults, static metadata, or
+Finds hand-written `miette::Diagnostic` implementations containing only defaults, static metadata, or
 direct source-field forwarding expressible by Miette derive attributes.
 
 ## Why is this bad?

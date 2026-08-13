@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds authored concrete single-field structs whose complete inherent API contains at least
+Finds hand-written concrete single-field structs whose complete inherent API contains at least
 two behavior-bearing methods and only forwards them to the stored value. Forwarding must
 preserve the receiver, arguments and their order, return value, error propagation, and async
 behavior. An identity constructor or direct field accessor is neutral, but any substantive
@@ -66,5 +66,5 @@ fn transfer(connection: &Connection) {
 
 Exact forwarding is intentionally a narrow signal: wrappers that transform values, enforce
 invariants, implement traits, or contain any substantive API are not diagnosed. No automatic
-rewrite is offered because removing a nominal type changes construction, field access, type
+rewrite is offered because removing a named type changes construction, field access, type
 signatures, imports, and potentially external data or ABI contracts.

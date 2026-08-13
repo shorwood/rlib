@@ -157,7 +157,7 @@ impl ThiserrorNonSendSyncPublicErrors {
                 let blocked = path.ends_with("::rc::Rc")
                     || path.ends_with("::cell::Cell")
                     || path.ends_with("::cell::RefCell");
-                blocked.then(|| format!("`{}`", path))
+                blocked.then(|| format!("`{path}`"))
             })
             .collect::<Vec<_>>();
         if !blockers.is_empty() {

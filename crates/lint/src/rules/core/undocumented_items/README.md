@@ -2,7 +2,7 @@
 
 ## What it does
 
-Requires documentation on authored types, fields, enum variants, traits, constants,
+Requires documentation on hand-written types, fields, enum variants, traits, constants,
 statics, free functions, trait items, and inherent implementation items regardless of
 visibility. Modules, imports, re-exports, implementation blocks, and foreign declarations
 are intentionally excluded.
@@ -32,7 +32,7 @@ fn retry(policy: &RetryPolicy) {}
 ## Use instead
 
 
-Document each semantic declaration where its contract is defined:
+Document each behavioral declaration where its contract is defined:
 
 ```rust
 /// Limits repeated attempts after transient failures.

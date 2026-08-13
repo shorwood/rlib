@@ -8,7 +8,7 @@ field of a wrapper.
 ## Why is this bad?
 
 Transparent iteration plumbing duplicates a structural contract and scatters the receiver family
-across authored implementations.
+across hand-written implementations.
 
 ## Example
 

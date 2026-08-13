@@ -8,7 +8,7 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::{DiagnosticCatalog, DiagnosticField};
+use super::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
 use crate::utils::diagnostic::LateViolation;
 
 enum Kind {
@@ -88,9 +88,10 @@ impl LateLintPass<'_> for MietteMisclassifiedRelatedDiagnostics {
 fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
     for field in fields {
         let name = field.name.to_ascii_lowercase();
-        let kind = if field.roles.related && causal_name(&name) {
+        let kind = if field.roles.contains(DiagnosticFieldRole::Related) && causal_name(&name) {
             Some(Kind::CauseAsRelated)
-        } else if field.roles.diagnostic_source && sibling_name(&name) {
+        } else if field.roles.contains(DiagnosticFieldRole::DiagnosticSource) && sibling_name(&name)
+        {
             Some(Kind::SiblingAsCause)
         } else {
             None

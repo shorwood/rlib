@@ -11,7 +11,7 @@ use rustc_span::def_id::LocalDefId;
 
 use crate::utils::direct_forwarding::DirectForwarding;
 
-pub(crate) struct ManualFromCandidate {
+pub struct ManualFromCandidate {
     pub(crate) definition: LocalDefId,
     pub(crate) span: Span,
     pub(crate) error: String,

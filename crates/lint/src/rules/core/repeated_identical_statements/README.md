@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds adjacent statements whose authored source is identical. Statements produced by macro
+Finds adjacent statements whose hand-written source is identical. Statements produced by macro
 expansion are ignored because their repetition cannot be repaired at the diagnostic site.
 
 ## Why is this bad?

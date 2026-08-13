@@ -4,13 +4,14 @@ extern crate rustc_middle;
 extern crate rustc_span;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::mem;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
-use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
+use rustc_span::{Span, sym};
 
 use super::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
@@ -93,11 +94,7 @@ impl LateLintPass<'_> for MietteIncoherentDiagnosticSeverity {
         let ty::Adt(result, arguments) = output.kind() else {
             return;
         };
-        if !cx
-            .tcx
-            .is_diagnostic_item(rustc_span::sym::Result, result.did())
-            || arguments.len() != 2
-        {
+        if !cx.tcx.is_diagnostic_item(sym::Result, result.did()) || arguments.len() != 2 {
             return;
         }
         let Some(error) = arguments
@@ -113,7 +110,7 @@ impl LateLintPass<'_> for MietteIncoherentDiagnosticSeverity {
         });
     }
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for (definition, uses) in std::mem::take(&mut self.uses) {
+        for (definition, uses) in mem::take(&mut self.uses) {
             let Some(contract) = self.catalog.derived_type(definition) else {
                 continue;
             };

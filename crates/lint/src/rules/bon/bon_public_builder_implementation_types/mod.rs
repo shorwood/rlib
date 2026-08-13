@@ -164,7 +164,7 @@ fn collect_definitions(
         }
         ty::Array(nested, _) => collect_definitions(cx, *nested, span, exposures),
         ty::Tuple(elements) => {
-            for nested in elements.iter() {
+            for nested in *elements {
                 collect_definitions(cx, nested, span, exposures);
             }
         }

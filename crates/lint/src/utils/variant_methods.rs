@@ -21,13 +21,13 @@ use serde::Deserialize;
 /// Provider values accepted by the enum-predicate conflict knob.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum PredicateProvider {
+pub enum PredicateProvider {
     StrumEnumIs,
     DeriveMoreIsVariant,
 }
 
 /// Complete authored predicate family reproducible by `EnumIs`.
-pub(crate) struct PredicateFamily {
+pub struct PredicateFamily {
     pub(crate) span: Span,
     pub(crate) owner: rustc_hir::HirId,
     enum_def: LocalDefId,
@@ -72,7 +72,7 @@ impl PredicateFamily {
 
 /// Accumulates predicate methods until a complete enum family can be proven.
 #[derive(Default)]
-pub(crate) struct PredicateFamilyAnalyzer {
+pub struct PredicateFamilyAnalyzer {
     methods: HashMap<LocalDefId, Vec<PredicateMethod>>,
 }
 
@@ -175,7 +175,7 @@ enum AccessorMode {
 }
 
 /// Complete authored accessor family reproducible by `EnumTryAs`.
-pub(crate) struct AccessorFamily {
+pub struct AccessorFamily {
     pub(crate) span: Span,
     pub(crate) owner: rustc_hir::HirId,
     enum_def: LocalDefId,
@@ -196,7 +196,7 @@ impl AccessorFamily {
 
 /// Accumulates exact payload accessors until every generated method is represented.
 #[derive(Default)]
-pub(crate) struct AccessorFamilyAnalyzer {
+pub struct AccessorFamilyAnalyzer {
     methods: HashMap<LocalDefId, Vec<AccessorMethod>>,
 }
 
@@ -307,7 +307,7 @@ impl AccessorMethod {
 }
 
 /// One exact inherent integer-to-unit-variant conversion reproducible by `FromRepr`.
-pub(crate) struct ReprConversionCandidate {
+pub struct ReprConversionCandidate {
     pub(crate) span: Span,
     pub(crate) owner: rustc_hir::HirId,
     enum_def: LocalDefId,

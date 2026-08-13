@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeContractCatalog, serde_attributes};
+use super::contracts::{SerdeContractCatalog, SerdeFlag, serde_attributes};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
 
@@ -158,7 +158,7 @@ fn contract_names(source: &str) -> Option<(bool, Vec<String>, Vec<String>)> {
     }
     let enumeration = syn::parse_str::<syn::ItemEnum>(source).ok()?;
     let container = serde_attributes(&enumeration.attrs);
-    if container.untagged {
+    if container.has(SerdeFlag::Untagged) {
         return None;
     }
     let variants = enumeration
@@ -187,13 +187,13 @@ fn implicit_names(
     for (name, attributes) in members {
         if serialize_rule.is_none()
             && attributes.rename_serialize.is_none()
-            && !attributes.skip_serialize
+            && !attributes.has(SerdeFlag::SkipSerialize)
         {
             serialize.push(name.clone());
         }
         if deserialize_rule.is_none()
             && attributes.rename_deserialize.is_none()
-            && !attributes.skip_deserialize
+            && !attributes.has(SerdeFlag::SkipDeserialize)
         {
             deserialize.push(name);
         }

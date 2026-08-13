@@ -11,8 +11,9 @@ use rustc_hir::{Expr, ExprKind, ImplItem, ImplItemKind, ItemKind, Mutability, No
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
 use rustc_span::Span;
-use rustc_span::def_id::LocalDefId;
+use rustc_span::def_id::{DefId, LocalDefId};
 use syn::parse::Parser;
+use syn::punctuated::Punctuated;
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
@@ -174,7 +175,7 @@ fn direct_trait_delegation(
     expression: &Expr<'_>,
     self_binding: rustc_hir::HirId,
     formatter_binding: rustc_hir::HirId,
-    trait_id: rustc_hir::def_id::DefId,
+    trait_id: DefId,
 ) -> bool {
     let Some(call) = DirectForwarding::call(cx, owner, expression) else {
         return false;
@@ -222,7 +223,7 @@ fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
     let syn::Pat::Ident(formatter_parameter) = formatter_parameter.pat.as_ref() else {
         return false;
     };
-    let parser = syn::punctuated::Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
+    let parser = Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
     let Ok(arguments) = parser.parse2(invocation.mac.tokens.clone()) else {
         return false;
     };

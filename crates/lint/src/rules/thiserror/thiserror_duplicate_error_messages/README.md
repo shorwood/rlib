@@ -7,8 +7,8 @@ messages.
 
 ## Why is this bad?
 
-Identical presentation erases the semantic distinction between typed variants in logs and user
-reports, making failures harder to triage and remediation harder to explain.
+Identical presentation erases the behavioral distinction between typed variants in logs and user
+reports, making failures harder to triage and suggested fix harder to explain.
 
 ## Example
 
@@ -24,7 +24,7 @@ enum LookupError {
 
 ## Use instead
 
-Give each semantic failure useful context while keeping machine identity in the variant or an
+Give each behavioral failure useful context while keeping machine identity in the variant or an
 explicit diagnostic code.
 
 ```rust,ignore

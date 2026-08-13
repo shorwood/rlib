@@ -11,7 +11,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeContractCatalog, serde_attributes};
+use super::contracts::{SerdeContractCatalog, SerdeFlag, serde_attributes};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
 
@@ -97,13 +97,15 @@ impl LateLintPass<'_> for SerdeAmbiguousUntaggedEnums {
             return;
         };
         let container = serde_attributes(&enumeration.attrs);
-        if !container.untagged {
+        if !container.has(SerdeFlag::Untagged) {
             return;
         }
         let variants = enumeration
             .variants
             .iter()
-            .filter_map(|variant| variant_shape(variant, container.deny_unknown_fields))
+            .filter_map(|variant| {
+                variant_shape(variant, container.has(SerdeFlag::DenyUnknownFields))
+            })
             .collect::<Vec<_>>();
         for (index, first) in variants.iter().enumerate() {
             for second in &variants[index + 1..] {
@@ -164,13 +166,14 @@ fn variant_shape(variant: &syn::Variant, closed: bool) -> Option<VariantShape> {
     };
     for field in &fields.named {
         let attributes = serde_attributes(&field.attrs);
-        if attributes.skip_deserialize {
+        if attributes.has(SerdeFlag::SkipDeserialize) {
             continue;
         }
         let rust_name = field.ident.as_ref()?.to_string();
+        let has_default = attributes.has(SerdeFlag::HasDefault);
         let name = attributes.rename_deserialize.unwrap_or(rust_name);
         shape.fields.insert(name.clone(), scalar_domain(&field.ty)?);
-        if !attributes.has_default && !is_option(&field.ty) {
+        if !has_default && !is_option(&field.ty) {
             shape.required.insert(name);
         }
     }

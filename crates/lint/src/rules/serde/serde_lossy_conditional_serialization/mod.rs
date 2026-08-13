@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeContractCatalog, serde_attributes};
+use super::contracts::{SerdeContractCatalog, SerdeFlag, serde_attributes};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
 
@@ -88,16 +88,17 @@ impl LateLintPass<'_> for SerdeLossyConditionalSerialization {
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
-        for field in structure.fields.iter() {
+        for field in &structure.fields {
             let Some(name) = field.ident.as_ref() else {
                 continue;
             };
             let attributes = serde_attributes(&field.attrs);
+            let has_deserialization_fallback =
+                attributes.has(SerdeFlag::HasDefault) || attributes.has(SerdeFlag::SkipDeserialize);
             let Some(predicate) = attributes.skip_serializing_if else {
                 continue;
             };
-            if attributes.has_default
-                || attributes.skip_deserialize
+            if has_deserialization_fallback
                 || is_option(&field.ty)
                 || field
                     .attrs

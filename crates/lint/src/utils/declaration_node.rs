@@ -3,7 +3,6 @@ extern crate rustc_lint;
 extern crate rustc_span;
 
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
 
 use rustc_hir::def_id::LocalDefId;
 use rustc_lint::LateContext;
@@ -167,6 +166,7 @@ struct DeclarationDependencyEdge {
 }
 
 /// A collection of declarations that can compute its stable dependency-first order.
+#[derive(derive_more::Deref)]
 pub struct DeclarationNodeList {
     /// Declaration units in their original source order.
     items: Vec<DeclarationNode>,
@@ -310,13 +310,5 @@ impl DeclarationNodeList {
             order.extend(components[next].iter().copied());
         }
         order
-    }
-}
-
-impl Deref for DeclarationNodeList {
-    type Target = [DeclarationNode];
-
-    fn deref(&self) -> &Self::Target {
-        &self.items
     }
 }

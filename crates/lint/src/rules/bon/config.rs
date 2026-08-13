@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use serde::Deserialize;
 
 #[derive(Clone, Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub(crate) struct BonApiBaselineConfig {
+#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
+pub struct BonApiBaselineConfig {
     builders: HashMap<String, BonBuilderBaseline>,
 }
 

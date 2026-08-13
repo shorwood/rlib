@@ -76,7 +76,7 @@ struct ReactiveOperations<'analysis, 'tcx> {
 
 impl<'analysis, 'tcx> ReactiveOperations<'analysis, 'tcx> {
     /// Creates an empty operation summary.
-    fn new(cx: &'analysis LateContext<'tcx>) -> Self {
+    const fn new(cx: &'analysis LateContext<'tcx>) -> Self {
         Self {
             cx,
             read_span: None,

@@ -2,7 +2,7 @@
 
 ## What it does
 
-Finds authored module items, types, functions, constants, statics, struct and union fields,
+Finds hand-written module items, types, functions, constants, statics, struct and union fields,
 and inherent associated items whose canonical visibility is broader than every resolved use
 in the current crate. It recommends private visibility for uses confined to the defining
 module, `pub(super)` for the immediate parent subtree, and `pub(crate)` for wider crate use.

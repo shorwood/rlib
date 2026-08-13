@@ -4,7 +4,7 @@
 
 Requires module-level declaration groups to be covered by a configured section divider.
 Nominal types and their direct impls always participate. Free functions, constants, and
-statics also participate when they form a group or occur inside an authored section; an
+statics also participate when they form a group or occur inside an hand-written section; an
 isolated value declaration does not require a divider by itself. A conventional in-source
 `#[cfg(test)] mod test` or `mod tests` always requires a divider, even when it is the only
 declaration in its group.

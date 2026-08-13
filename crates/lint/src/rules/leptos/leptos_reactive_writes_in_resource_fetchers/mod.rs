@@ -76,7 +76,7 @@ struct FetcherWrites<'analysis, 'tcx> {
 
 impl<'analysis, 'tcx> FetcherWrites<'analysis, 'tcx> {
     /// Creates an empty fetcher analysis.
-    fn new(cx: &'analysis LateContext<'tcx>) -> Self {
+    const fn new(cx: &'analysis LateContext<'tcx>) -> Self {
         Self {
             cx,
             write_span: None,

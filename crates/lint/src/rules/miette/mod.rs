@@ -1,5 +1,5 @@
-pub(crate) mod contracts;
-pub(crate) mod config;
+pub mod contracts;
+pub mod config;
 
 pub mod miette_ad_hoc_diagnostics_at_domain_boundaries;
 pub mod miette_duplicate_diagnostic_codes;

@@ -16,20 +16,20 @@ use serde::Deserialize;
 /// Provider values accepted by the enum collection conflict knob.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum CollectionProvider {
+pub enum CollectionProvider {
     StrumEnumIter,
     StrumVariantArray,
 }
 
 /// Authored API shape reproduced by a Strum enumeration derive.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum CollectionSurface {
+pub enum CollectionSurface {
     Static,
     Iterator,
 }
 
 /// Exact exhaustive unit-enum collection found in authored code.
-pub(crate) struct CollectionCandidate {
+pub struct CollectionCandidate {
     pub(crate) span: Span,
     pub(crate) owner: rustc_hir::HirId,
     pub(crate) enum_def: LocalDefId,
@@ -140,7 +140,7 @@ impl CollectionCandidate {
 }
 
 /// Exact authored total count associated with one enum.
-pub(crate) struct CountCandidate {
+pub struct CountCandidate {
     pub(crate) span: Span,
     pub(crate) owner: rustc_hir::HirId,
     pub(crate) enum_def: LocalDefId,

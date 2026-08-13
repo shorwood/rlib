@@ -22,7 +22,7 @@ impl Severity {
 ## Use instead
 
 Use `EnumMessage` for message/detailed-message vocabulary and `EnumProperty` for named static
-properties. Keep policy-bearing or localized values in authored methods.
+properties. Keep policy-bearing or localized values in hand-written methods.
 
 ```rust,ignore
 #[derive(strum::EnumMessage)]

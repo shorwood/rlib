@@ -20,7 +20,7 @@ enum Limit { Unlimited, Fixed(u32) }
 
 ## Use instead
 
-Disable the payload variant for that derive, use a unit discriminant enum, or keep an authored
+Disable the payload variant for that derive, use a unit discriminant enum, or keep an hand-written
 constructor that requires the payload.
 
 ```rust,ignore

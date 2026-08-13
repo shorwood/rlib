@@ -27,7 +27,7 @@ impl FunctionLayoutProsePosition {
 }
 
 /// Validates and safely normalizes authored phase-comment prose.
-pub(crate) struct FunctionLayoutProse;
+pub struct FunctionLayoutProse;
 
 impl FunctionLayoutProse {
     /// Validates presence, spacing, and sentence style of phase-comment prose.

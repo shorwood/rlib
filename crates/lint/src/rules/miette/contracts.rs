@@ -11,18 +11,33 @@ use rustc_span::def_id::LocalDefId;
 
 use crate::utils::source_provenance::authored_item_source;
 
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub enum DiagnosticFieldRole {
+    DiagnosticSource,
+    Label,
+    Primary,
+    Related,
+    Source,
+    SourceCode,
+}
+
 #[derive(Clone, Default)]
-pub(crate) struct DiagnosticFieldRoles {
-    pub(crate) diagnostic_source: bool,
-    pub(crate) label: bool,
-    pub(crate) primary: bool,
-    pub(crate) related: bool,
-    pub(crate) source: bool,
-    pub(crate) source_code: bool,
+pub struct DiagnosticFieldRoles {
+    values: HashSet<DiagnosticFieldRole>,
+}
+
+impl DiagnosticFieldRoles {
+    pub(crate) fn contains(&self, role: DiagnosticFieldRole) -> bool {
+        self.values.contains(&role)
+    }
+
+    fn insert(&mut self, role: DiagnosticFieldRole) {
+        self.values.insert(role);
+    }
 }
 
 #[derive(Clone)]
-pub(crate) struct DiagnosticField {
+pub struct DiagnosticField {
     pub(crate) span: Span,
     pub(crate) name: String,
     pub(crate) roles: DiagnosticFieldRoles,
@@ -30,7 +45,7 @@ pub(crate) struct DiagnosticField {
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct DiagnosticMetadata {
+pub struct DiagnosticMetadata {
     pub(crate) code: Option<String>,
     pub(crate) help: Option<String>,
     pub(crate) severity: Option<String>,
@@ -39,7 +54,7 @@ pub(crate) struct DiagnosticMetadata {
 }
 
 #[derive(Clone)]
-pub(crate) struct DiagnosticMember {
+pub struct DiagnosticMember {
     pub(crate) span: Span,
     pub(crate) name: String,
     pub(crate) metadata: DiagnosticMetadata,
@@ -47,7 +62,7 @@ pub(crate) struct DiagnosticMember {
 }
 
 #[derive(Clone)]
-pub(crate) struct DiagnosticContract {
+pub struct DiagnosticContract {
     pub(crate) span: Span,
     pub(crate) name: String,
     pub(crate) metadata: DiagnosticMetadata,
@@ -56,7 +71,7 @@ pub(crate) struct DiagnosticContract {
 }
 
 #[derive(Default)]
-pub(crate) struct DiagnosticCatalog {
+pub struct DiagnosticCatalog {
     contracts: HashMap<LocalDefId, DiagnosticContract>,
     derives: HashSet<LocalDefId>,
 }
@@ -167,7 +182,9 @@ fn diagnostic_fields(
                 .as_ref()
                 .map_or_else(|| index.to_string(), ToString::to_string);
             let mut roles = diagnostic_field_roles(&field.attrs);
-            roles.source |= name == "source";
+            if name == "source" {
+                roles.insert(DiagnosticFieldRole::Source);
+            }
             DiagnosticField {
                 span: hir_field.span,
                 name,
@@ -187,18 +204,18 @@ fn diagnostic_field_roles(attributes: &[syn::Attribute]) -> DiagnosticFieldRoles
     let mut roles = DiagnosticFieldRoles::default();
     for attribute in attributes {
         if attribute.path().is_ident("diagnostic_source") {
-            roles.diagnostic_source = true;
+            roles.insert(DiagnosticFieldRole::DiagnosticSource);
         } else if attribute.path().is_ident("related") {
-            roles.related = true;
+            roles.insert(DiagnosticFieldRole::Related);
         } else if attribute.path().is_ident("source") {
-            roles.source = true;
+            roles.insert(DiagnosticFieldRole::Source);
         } else if attribute.path().is_ident("source_code") {
-            roles.source_code = true;
+            roles.insert(DiagnosticFieldRole::SourceCode);
         } else if attribute.path().is_ident("label") {
-            roles.label = true;
+            roles.insert(DiagnosticFieldRole::Label);
             let _ = attribute.parse_nested_meta(|nested| {
                 if nested.path.is_ident("primary") {
-                    roles.primary = true;
+                    roles.insert(DiagnosticFieldRole::Primary);
                 }
                 Ok(())
             });
@@ -207,7 +224,7 @@ fn diagnostic_field_roles(attributes: &[syn::Attribute]) -> DiagnosticFieldRoles
     roles
 }
 
-pub(crate) fn diagnostic_metadata(attributes: &[syn::Attribute]) -> DiagnosticMetadata {
+pub fn diagnostic_metadata(attributes: &[syn::Attribute]) -> DiagnosticMetadata {
     let mut metadata = DiagnosticMetadata::default();
     for attribute in attributes
         .iter()
