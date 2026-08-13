@@ -1,0 +1,12 @@
+warning: derived text contracts for `Port` cannot round trip
+  --> $DIR/semantic.rs:5:8
+   |
+LL | struct Port(u16);
+   |        ^^^^ incompatible text traits are derived here
+   |
+   = note: `Display` uses `port:{_0}`, but `FromStr` forwards the complete output to the numeric field parser
+   = help: make `Display` transparent or replace the derived parser with an authored `FromStr` implementation for the same grammar
+   = note: `#[warn(derive_more_non_roundtripping_derived_text_contracts)]` on by default
+
+warning: 1 warning emitted
+

@@ -103,11 +103,46 @@ fn derive_more_expansion(cx: &LateContext<'_>, span: Span) -> Option<&'static st
             "Constructor" => Some("Constructor"),
             "AsMut" => Some("AsMut"),
             "DerefMut" => Some("DerefMut"),
+            "Display" => Some("Display"),
             "From" => Some("From"),
+            "FromStr" => Some("FromStr"),
             "IndexMut" => Some("IndexMut"),
             "PartialEq" => Some("PartialEq"),
             "TryFrom" => Some("TryFrom"),
             _ => None,
         }
     })
+}
+
+pub(super) fn authored_item_source(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
+    let source_map = cx.tcx.sess.source_map();
+    let item_source = source_map.span_to_snippet(item.span).ok()?;
+    let location = source_map.lookup_char_pos(item.span.lo());
+    let file_source = location.file.src.as_deref()?;
+    let offset = usize::try_from(item.span.lo().0.checked_sub(location.file.start_pos.0)?).ok()?;
+    let bytes = file_source.as_bytes();
+    let mut start = offset;
+    loop {
+        while start > 0 && bytes[start - 1].is_ascii_whitespace() {
+            start -= 1;
+        }
+        if start == 0 || bytes[start - 1] != b']' {
+            break;
+        }
+        let mut cursor = start - 1;
+        let mut depth = 1_u32;
+        while cursor > 0 && depth > 0 {
+            cursor -= 1;
+            match bytes[cursor] {
+                b']' => depth += 1,
+                b'[' => depth -= 1,
+                _ => {}
+            }
+        }
+        if depth != 0 || cursor == 0 || bytes[cursor - 1] != b'#' {
+            break;
+        }
+        start = cursor - 1;
+    }
+    Some(format!("{}{}", &file_source[start..offset], item_source))
 }

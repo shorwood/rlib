@@ -299,6 +299,7 @@ fn run_derive_more_fixtures() {
         "derive_more_manual_from_str_impls",
         "derive_more_manual_into_iterator_impls",
         "derive_more_mutable_forwarding_bypassing_invariants",
+        "derive_more_non_roundtripping_derived_text_contracts",
     ] {
         if selected
             .as_deref()

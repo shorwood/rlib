@@ -160,6 +160,11 @@ path = "ui/derive_more/derive_more_mutable_forwarding_bypassing_invariants/seman
 required-features = ["derive_more"]
 
 [[example]]
+name = "derive_more_non_roundtripping_derived_text_contracts"
+path = "ui/derive_more/derive_more_non_roundtripping_derived_text_contracts/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
 name = "leptos_attribute_bound_controlled_inputs"
 path = "ui/leptos/leptos_attribute_bound_controlled_inputs/semantic.rs"
 required-features = ["leptos"]

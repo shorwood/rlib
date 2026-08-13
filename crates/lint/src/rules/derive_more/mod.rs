@@ -11,3 +11,4 @@ pub mod derive_more_manual_formatting_impls;
 pub mod derive_more_manual_from_str_impls;
 pub mod derive_more_manual_into_iterator_impls;
 pub mod derive_more_mutable_forwarding_bypassing_invariants;
+pub mod derive_more_non_roundtripping_derived_text_contracts;
