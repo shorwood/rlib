@@ -1,0 +1,15 @@
+warning: public thiserror enum exposes foreign error representations
+  --> $DIR/semantic.rs:4:1
+   |
+LL | / pub enum ApiError {
+LL | |     #[error("I/O failed")]
+LL | |     Io(#[from] std::io::Error),
+LL | | }
+   | |_^ this public enum leaks dependency-specific error shapes
+   |
+   = note: source-bearing variant becomes part of downstream pattern matching: `Io(std::io::Error)`
+   = help: use an opaque public wrapper or stable owned variants, keeping foreign errors behind a private source boundary
+   = note: `#[warn(thiserror_opaque_errors_exposing_representations)]` on by default
+
+warning: 1 warning emitted
+

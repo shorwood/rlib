@@ -3,4 +3,5 @@ mod contracts;
 pub mod thiserror_ambiguous_error_sources;
 pub mod thiserror_duplicate_error_messages;
 pub mod thiserror_dynamic_errors_in_library_interfaces;
+pub mod thiserror_opaque_errors_exposing_representations;
 pub mod thiserror_unreported_error_sources;
