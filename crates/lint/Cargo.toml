@@ -190,6 +190,11 @@ path = "ui/derive_more/derive_more_opaque_derived_display_contracts/semantic.rs"
 required-features = ["derive_more"]
 
 [[example]]
+name = "derive_more_operator_derives_bypassing_invariants"
+path = "ui/derive_more/derive_more_operator_derives_bypassing_invariants/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
 name = "derive_more_panic_prone_derived_variant_accessors"
 path = "ui/derive_more/derive_more_panic_prone_derived_variant_accessors/semantic.rs"
 required-features = ["derive_more"]

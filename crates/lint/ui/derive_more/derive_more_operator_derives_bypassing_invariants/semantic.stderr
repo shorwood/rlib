@@ -1,0 +1,15 @@
+warning: derive_more operators can bypass `Percentage` invariants
+  --> $DIR/semantic.rs:7:8
+   |
+LL | struct Percentage(u8);
+   |        ^^^^^^^^^^ unchecked operations are derived here
+...
+LL |     fn new(value: u8) -> Result<Self, OutOfRange> {
+   |        --- this constructor establishes fallible validation
+   |
+   = note: the derived component-wise operations reconstruct restricted state without passing through the type's fallible invariant boundary
+   = help: remove the Add, Sum derives and retain only operations that preserve or revalidate the invariant
+   = note: `#[warn(derive_more_operator_derives_bypassing_invariants)]` on by default
+
+warning: 1 warning emitted
+

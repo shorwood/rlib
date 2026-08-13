@@ -94,6 +94,10 @@ pub extern "Rust" fn register_lints(
         sess, lint_store,
     );
     #[cfg(feature = "derive_more")]
+    rules::derive_more::derive_more_operator_derives_bypassing_invariants::register_lints(
+        sess, lint_store,
+    );
+    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_panic_prone_derived_variant_accessors::register_lints(
         sess, lint_store,
     );
