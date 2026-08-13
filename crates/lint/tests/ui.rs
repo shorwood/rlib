@@ -421,6 +421,7 @@ fn run_miette_fixtures() {
         "miette_labels_without_source_code",
         "miette_malformed_diagnostic_codes",
         "miette_missing_diagnostic_codes",
+        "miette_plain_error_diagnostic_sources",
         "miette_sensitive_diagnostic_source",
         "miette_source_code_without_labels",
         "miette_unstable_diagnostic_urls",

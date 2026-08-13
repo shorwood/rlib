@@ -1,0 +1,12 @@
+warning: diagnostic source `source` is exposed only as a plain error
+  --> $DIR/semantic.rs:11:5
+   |
+LL |     source: ParseError,
+   |     ^^^^^^^^^^^^^^^^^^ structured diagnostic metadata stops here
+   |
+   = note: the inner type implements `miette::Diagnostic`, but only its standard error source chain is forwarded, losing codes, labels, help, and related diagnostics
+   = help: add `#[diagnostic_source]` while retaining `#[source]` for the standard error chain
+   = note: `#[warn(miette_plain_error_diagnostic_sources)]` on by default
+
+warning: 1 warning emitted
+

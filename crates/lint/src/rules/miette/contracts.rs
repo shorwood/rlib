@@ -26,6 +26,7 @@ pub(crate) struct DiagnosticField {
     pub(crate) span: Span,
     pub(crate) name: String,
     pub(crate) roles: DiagnosticFieldRoles,
+    pub(crate) target: Option<LocalDefId>,
 }
 
 #[derive(Clone, Default)]
@@ -78,7 +79,7 @@ impl DiagnosticCatalog {
                     span: item.span,
                     name: identifier.name.to_string(),
                     metadata: diagnostic_metadata(&structure.attrs),
-                    fields: diagnostic_fields(&structure.fields, data.fields()),
+                    fields: diagnostic_fields(cx, &structure.fields, data.fields()),
                     members: Vec::new(),
                 }
             }
@@ -94,7 +95,7 @@ impl DiagnosticCatalog {
                         span: hir_variant.span,
                         name: variant.ident.to_string(),
                         metadata: diagnostic_metadata(&variant.attrs),
-                        fields: diagnostic_fields(&variant.fields, hir_variant.data.fields()),
+                        fields: diagnostic_fields(cx, &variant.fields, hir_variant.data.fields()),
                     })
                     .collect();
                 DiagnosticContract {
@@ -148,6 +149,7 @@ impl DiagnosticCatalog {
 }
 
 fn diagnostic_fields(
+    cx: &LateContext<'_>,
     fields: &syn::Fields,
     hir_fields: &[rustc_hir::FieldDef<'_>],
 ) -> Vec<DiagnosticField> {
@@ -155,13 +157,24 @@ fn diagnostic_fields(
         .iter()
         .zip(hir_fields)
         .enumerate()
-        .map(|(index, (field, hir_field))| DiagnosticField {
-            span: hir_field.span,
-            name: field
+        .map(|(index, (field, hir_field))| {
+            let name = field
                 .ident
                 .as_ref()
-                .map_or_else(|| index.to_string(), ToString::to_string),
-            roles: diagnostic_field_roles(&field.attrs),
+                .map_or_else(|| index.to_string(), ToString::to_string);
+            let mut roles = diagnostic_field_roles(&field.attrs);
+            roles.source |= name == "source";
+            DiagnosticField {
+                span: hir_field.span,
+                name,
+                roles,
+                target: cx
+                    .tcx
+                    .type_of(hir_field.def_id)
+                    .instantiate_identity()
+                    .ty_adt_def()
+                    .and_then(|definition| definition.did().as_local()),
+            }
         })
         .collect()
 }
