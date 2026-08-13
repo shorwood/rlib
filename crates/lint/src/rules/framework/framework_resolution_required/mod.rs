@@ -17,7 +17,7 @@ use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 
 #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
-use super::config::DeriveResolutionConfig;
+use super::utils::config::DeriveResolutionConfig;
 #[cfg(feature = "strum")]
 use crate::rules::strum::utils::authored_contracts::{
     DisplayCandidate, DisplayProvider, StringParserCandidate, StringParserProvider,
@@ -27,11 +27,11 @@ use crate::rules::strum::utils::contracts::ContractCatalog;
 #[cfg(feature = "strum")]
 use crate::rules::strum::utils::enumeration::CollectionCandidate;
 #[cfg(all(feature = "thiserror", feature = "derive_more"))]
-use crate::rules::thiserror::contracts::ThiserrorContractCatalog;
+use crate::rules::thiserror::utils::contracts::ThiserrorContractCatalog;
 #[cfg(all(feature = "thiserror", feature = "derive_more"))]
-use crate::rules::thiserror::manual_error::ManualErrorCatalog;
+use crate::rules::thiserror::utils::error_conversions::Candidate as ManualFromCandidate;
 #[cfg(all(feature = "thiserror", feature = "derive_more"))]
-use crate::rules::thiserror::manual_from::Candidate as ManualFromCandidate;
+use crate::rules::thiserror::utils::error_implementations::ManualErrorCatalog;
 #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 use crate::utils::config::LibraryConfig;
 #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
@@ -423,7 +423,7 @@ impl LateLintPass<'_> for FrameworkResolutionRequired {
 
 #[cfg(test)]
 mod tests {
-    use super::super::config::DeriveResolutionConfig;
+    use super::super::utils::config::DeriveResolutionConfig;
 
     #[test]
     fn accepts_an_absent_provider_choice() {

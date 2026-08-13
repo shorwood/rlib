@@ -5,7 +5,7 @@ use super::section_divider_config::SectionDividerConfig;
 #[cfg(feature = "bon")]
 use crate::rules::bon::utils::config::BonApiBaselineConfig;
 use crate::rules::core::incoherent_extension_traits::ExtensionTraitConfig;
-use crate::rules::framework::config::DeriveResolutionConfig;
+use crate::rules::framework::utils::config::DeriveResolutionConfig;
 #[cfg(feature = "leptos")]
 use crate::rules::leptos::leptos_server_functions_without_authorization_boundaries::LeptosServerAuthorizationConfig;
 #[cfg(feature = "leptos")]
