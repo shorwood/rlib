@@ -8,6 +8,7 @@ pub mod serde_defaults_hiding_missing_data;
 pub mod serde_duplicate_serialized_names;
 pub mod serde_flattened_field_collisions;
 pub mod serde_flattened_unknown_field_policies;
+pub mod serde_format_specific_serde_impls;
 pub mod serde_lossy_conditional_serialization;
 pub mod serde_manual_deserialize_impls;
 pub mod serde_manual_serialize_impls;

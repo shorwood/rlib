@@ -251,6 +251,11 @@ path = "ui/serde/serde_sensitive_fields_serialized_by_default/semantic.rs"
 required-features = ["serde"]
 
 [[example]]
+name = "serde_format_specific_serde_impls"
+path = "ui/serde/serde_format_specific_serde_impls/semantic.rs"
+required-features = ["serde"]
+
+[[example]]
 name = "serde_lossy_conditional_serialization"
 path = "ui/serde/serde_lossy_conditional_serialization/semantic.rs"
 required-features = ["serde"]

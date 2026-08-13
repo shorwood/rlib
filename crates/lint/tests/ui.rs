@@ -357,6 +357,7 @@ fn run_serde_fixtures() {
         "serde_duplicate_serialized_names",
         "serde_flattened_field_collisions",
         "serde_flattened_unknown_field_policies",
+        "serde_format_specific_serde_impls",
         "serde_lossy_conditional_serialization",
         "serde_manual_deserialize_impls",
         "serde_manual_serialize_impls",
