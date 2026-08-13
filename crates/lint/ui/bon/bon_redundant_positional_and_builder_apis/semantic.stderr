@@ -1,0 +1,12 @@
+warning: Bon builder keeps 4 of 5 members positional
+  --> $DIR/semantic.rs:5:1
+   |
+LL | #[bon::builder]
+   | ^^^^^^^^^^^^^^^ this builder retains a positional-heavy call contract
+   |
+   = note: a parameter-heavy builder loses its named-argument value when most inputs remain positional at its start or finish boundary
+   = help: keep only a small identity-bearing prefix or terminal value positional and expose the remaining inputs as named setters
+   = note: `#[warn(bon_redundant_positional_and_builder_apis)]` on by default
+
+warning: 1 warning emitted
+
