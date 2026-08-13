@@ -1,11 +1,13 @@
 extern crate rustc_hir;
 extern crate rustc_lint;
+extern crate rustc_middle;
 extern crate rustc_span;
 
 use std::collections::{HashMap, HashSet};
 
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::LateContext;
+use rustc_middle::ty::{self, Ty};
 use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 
@@ -21,6 +23,7 @@ pub(super) struct BonContractCatalog {
     structs: HashMap<LocalDefId, BonStructContract>,
     derived: HashSet<LocalDefId>,
     generated_types: HashSet<LocalDefId>,
+    generated_builders: HashSet<LocalDefId>,
 }
 
 impl BonContractCatalog {
@@ -53,12 +56,40 @@ impl BonContractCatalog {
         self.generated_types.contains(&def_id)
     }
 
+    pub(super) fn generated_builder_in_type(&self, ty: Ty<'_>) -> Option<LocalDefId> {
+        match ty.kind() {
+            ty::Adt(definition, arguments) => {
+                let local = definition.did().as_local();
+                if local.is_some_and(|definition| self.generated_builders.contains(&definition)) {
+                    return local;
+                }
+                arguments
+                    .types()
+                    .find_map(|nested| self.generated_builder_in_type(nested))
+            }
+            ty::Ref(_, nested, _) | ty::Slice(nested) | ty::Array(nested, _) => {
+                self.generated_builder_in_type(*nested)
+            }
+            ty::Tuple(elements) => elements
+                .iter()
+                .find_map(|nested| self.generated_builder_in_type(nested)),
+            _ => None,
+        }
+    }
+
     fn record_generated_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         if !is_bon_expansion(cx, item.span) {
             return;
         }
         if matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..)) {
             self.generated_types.insert(item.owner_id.def_id);
+            if item
+                .kind
+                .ident()
+                .is_some_and(|identifier| identifier.name.as_str().ends_with("Builder"))
+            {
+                self.generated_builders.insert(item.owner_id.def_id);
+            }
         }
         if !matches!(item.kind, ItemKind::Impl(_)) || !is_bon_builder_expansion(cx, item.span) {
             return;
