@@ -275,6 +275,11 @@ path = "ui/miette/miette_duplicate_diagnostic_codes/semantic.rs"
 required-features = ["miette"]
 
 [[example]]
+name = "miette_missing_diagnostic_codes"
+path = "ui/miette/miette_missing_diagnostic_codes/semantic.rs"
+required-features = ["miette"]
+
+[[example]]
 name = "thiserror_dynamic_errors_in_library_interfaces"
 path = "ui/thiserror/thiserror_dynamic_errors_in_library_interfaces/semantic.rs"
 required-features = ["thiserror"]

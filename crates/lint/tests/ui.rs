@@ -415,7 +415,10 @@ fn run_serde_fixtures() {
 #[cfg(feature = "miette")]
 fn run_miette_fixtures() {
     let selected = selected_framework_fixture();
-    for example in ["miette_duplicate_diagnostic_codes"] {
+    for example in [
+        "miette_duplicate_diagnostic_codes",
+        "miette_missing_diagnostic_codes",
+    ] {
         if selected
             .as_deref()
             .is_some_and(|selected| selected != example)
