@@ -1,22 +1,22 @@
-#[cfg(feature = "strum")]
+#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 extern crate rustc_errors;
 extern crate rustc_hir;
-#[cfg(feature = "strum")]
+#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 extern crate rustc_span;
 
-#[cfg(feature = "strum")]
+#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 use std::borrow::Cow;
 
-#[cfg(feature = "strum")]
+#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 use rustc_errors::DiagDecorator;
 use rustc_hir::{ImplItem, Item};
-#[cfg(feature = "strum")]
+#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 use rustc_lint::LintContext;
 use rustc_lint::{LateContext, LateLintPass};
-#[cfg(feature = "strum")]
+#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 use rustc_span::Span;
 
-#[cfg(feature = "strum")]
+#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 use super::config::DeriveResolutionConfig;
 #[cfg(feature = "strum")]
 use crate::rules::strum::utils::authored_contracts::{
@@ -26,9 +26,13 @@ use crate::rules::strum::utils::authored_contracts::{
 use crate::rules::strum::utils::contracts::ContractCatalog;
 #[cfg(feature = "strum")]
 use crate::rules::strum::utils::enumeration::CollectionCandidate;
-#[cfg(feature = "strum")]
+#[cfg(all(feature = "thiserror", feature = "derive_more"))]
+use crate::rules::thiserror::contracts::ThiserrorContractCatalog;
+#[cfg(all(feature = "thiserror", feature = "derive_more"))]
+use crate::rules::thiserror::manual_from::ManualFromCandidate;
+#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 use crate::utils::config::LibraryConfig;
-#[cfg(feature = "strum")]
+#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 use crate::utils::diagnostic::LateViolation;
 #[cfg(feature = "strum")]
 use crate::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer};
@@ -175,13 +179,49 @@ impl LateViolation for ParserViolation {
     }
 }
 
+#[cfg(all(feature = "thiserror", feature = "derive_more"))]
+struct ErrorConversionViolation {
+    span: Span,
+}
+
+#[cfg(all(feature = "thiserror", feature = "derive_more"))]
+impl LateViolation for ErrorConversionViolation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed("error-variant conversion has multiple eligible derive providers")
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "thiserror `#[from]` and derive_more `From` can both generate this exact source-bearing variant conversion",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "set `derive_resolution.error_variant_conversion` to `thiserror_from` or `derive_more_from`",
+        )
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.emit_span_lint(
+            FRAMEWORK_RESOLUTION_REQUIRED,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
+
 // -----------------------------------------------------------------------------
 // FrameworkResolutionRequired: Provider arbitration
 // -----------------------------------------------------------------------------
 
 /// Reports unresolved framework choices without selecting a provider.
 struct FrameworkResolutionRequired {
-    #[cfg(feature = "strum")]
+    #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
     config: DeriveResolutionConfig,
     #[cfg(feature = "strum")]
     predicates: PredicateFamilyAnalyzer,
@@ -191,12 +231,16 @@ struct FrameworkResolutionRequired {
     displays: Vec<DisplayCandidate>,
     #[cfg(feature = "strum")]
     parsers: Vec<StringParserCandidate>,
+    #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+    thiserror_catalog: ThiserrorContractCatalog,
+    #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+    error_conversions: Vec<ManualFromCandidate>,
 }
 
 impl FrameworkResolutionRequired {
     fn new() -> Self {
         Self {
-            #[cfg(feature = "strum")]
+            #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
             config: LibraryConfig::load().derive_resolution,
             #[cfg(feature = "strum")]
             predicates: PredicateFamilyAnalyzer::default(),
@@ -206,6 +250,10 @@ impl FrameworkResolutionRequired {
             displays: Vec::new(),
             #[cfg(feature = "strum")]
             parsers: Vec::new(),
+            #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+            thiserror_catalog: ThiserrorContractCatalog::default(),
+            #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+            error_conversions: Vec::new(),
         }
     }
 
@@ -280,7 +328,9 @@ impl LateLintPass<'_> for FrameworkResolutionRequired {
             self.check_candidate(cx, CollectionCandidate::from_item(cx, item));
             self.catalog.check_item(cx, item);
         }
-        #[cfg(not(feature = "strum"))]
+        #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+        self.thiserror_catalog.check_item(cx, item);
+        #[cfg(not(any(feature = "strum", all(feature = "thiserror", feature = "derive_more"))))]
         let _ = (cx, item);
     }
 
@@ -296,17 +346,37 @@ impl LateLintPass<'_> for FrameworkResolutionRequired {
                 self.parsers.push(parser);
             }
         }
-        #[cfg(not(feature = "strum"))]
+        #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+        if let Some(candidate) = ManualFromCandidate::from_impl_item(cx, item) {
+            self.error_conversions.push(candidate);
+        }
+        #[cfg(not(any(feature = "strum", all(feature = "thiserror", feature = "derive_more"))))]
         let _ = (cx, item);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
+        let _ = cx;
         #[cfg(feature = "strum")]
         {
             self.emit_unresolved_predicates(cx);
             self.emit_unresolved_text_contracts(cx);
         }
-        #[cfg(not(feature = "strum"))]
+        #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+        if self.config.error_variant_conversion().is_none() {
+            for candidate in &self.error_conversions {
+                if self
+                    .thiserror_catalog
+                    .derived_type(candidate.definition)
+                    .is_some()
+                {
+                    ErrorConversionViolation {
+                        span: candidate.span,
+                    }
+                    .emit(cx);
+                }
+            }
+        }
+        #[cfg(not(any(feature = "strum", all(feature = "thiserror", feature = "derive_more"))))]
         let _ = cx;
     }
 }

@@ -1,0 +1,16 @@
+warning: error-variant conversion has multiple eligible derive providers
+  --> $DIR/semantic.rs:11:1
+   |
+LL | / impl From<io::Error> for LoadError {
+LL | |     fn from(source: io::Error) -> Self {
+LL | |         Self::Io(source)
+LL | |     }
+LL | | }
+   | |_^
+   |
+   = note: thiserror `#[from]` and derive_more `From` can both generate this exact source-bearing variant conversion
+   = help: set `derive_resolution.error_variant_conversion` to `thiserror_from` or `derive_more_from`
+   = note: `#[warn(framework_resolution_required)]` on by default
+
+warning: 1 warning emitted
+

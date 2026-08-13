@@ -11,19 +11,19 @@ use rustc_span::{Span, Symbol};
 
 #[derive(Clone)]
 #[allow(dead_code)]
-pub(super) struct ThiserrorTypeContract {
+pub(crate) struct ThiserrorTypeContract {
     pub(super) span: Span,
     pub(super) name: Symbol,
 }
 
 #[derive(Default)]
-pub(super) struct ThiserrorContractCatalog {
+pub(crate) struct ThiserrorContractCatalog {
     types: HashMap<LocalDefId, ThiserrorTypeContract>,
     derives: HashSet<LocalDefId>,
 }
 
 impl ThiserrorContractCatalog {
-    pub(super) fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+    pub(crate) fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         if item.span.from_expansion() {
             self.record_generated_impl(cx, item);
             return;
@@ -41,7 +41,7 @@ impl ThiserrorContractCatalog {
         );
     }
 
-    pub(super) fn derived_type(&self, definition: LocalDefId) -> Option<&ThiserrorTypeContract> {
+    pub(crate) fn derived_type(&self, definition: LocalDefId) -> Option<&ThiserrorTypeContract> {
         self.derives
             .contains(&definition)
             .then(|| self.types.get(&definition))

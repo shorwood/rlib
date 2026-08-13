@@ -389,6 +389,18 @@ fn run_serde_fixtures() {
 #[cfg(feature = "thiserror")]
 fn run_thiserror_fixtures() {
     let selected = selected_framework_fixture();
+    #[cfg(feature = "derive_more")]
+    if selected
+        .as_deref()
+        .is_none_or(|selected| selected == "framework_error_variant_conversion_resolution_required")
+    {
+        Test::example(
+            env!("CARGO_PKG_NAME"),
+            "framework_error_variant_conversion_resolution_required",
+        )
+        .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+        .run();
+    }
     for example in [
         "thiserror_ambiguous_error_sources",
         "thiserror_duplicate_error_messages",
@@ -408,6 +420,23 @@ fn run_thiserror_fixtures() {
         Test::example(env!("CARGO_PKG_NAME"), example)
             .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
             .run();
+    }
+    if selected
+        .as_deref()
+        .is_none_or(|selected| selected == "thiserror_manual_from_error_variants")
+    {
+        Test::example(
+            env!("CARGO_PKG_NAME"),
+            "thiserror_manual_from_error_variants",
+        )
+        .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+        .dylint_toml(
+            r#"
+                [rlib-lint.derive_resolution]
+                error_variant_conversion = "thiserror_from"
+            "#,
+        )
+        .run();
     }
 }
 
