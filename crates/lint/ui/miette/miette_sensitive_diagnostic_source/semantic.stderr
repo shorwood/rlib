@@ -1,0 +1,12 @@
+warning: sensitive field `request_body` is exposed as diagnostic source code
+  --> $DIR/semantic.rs:7:5
+   |
+LL |     request_body: miette::NamedSource<String>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this source can disclose sensitive content
+   |
+   = note: Miette reporters may print labeled excerpts and surrounding text from this field to terminals, logs, or serialized reports
+   = help: store a redacted source representation or keep sensitive content outside the diagnostic
+   = note: `#[warn(miette_sensitive_diagnostic_source)]` on by default
+
+warning: 1 warning emitted
+

@@ -120,6 +120,8 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "miette")]
     rules::miette::miette_missing_diagnostic_codes::register_lints(sess, lint_store);
     #[cfg(feature = "miette")]
+    rules::miette::miette_sensitive_diagnostic_source::register_lints(sess, lint_store);
+    #[cfg(feature = "miette")]
     rules::miette::miette_source_code_without_labels::register_lints(sess, lint_store);
     #[cfg(feature = "miette")]
     rules::miette::miette_unstable_diagnostic_urls::register_lints(sess, lint_store);
