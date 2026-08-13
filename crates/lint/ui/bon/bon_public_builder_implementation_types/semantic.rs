@@ -1,4 +1,5 @@
 #![allow(
+    bon_escaping_incomplete_builders,
     dead_code,
     misordered_module_declarations,
     needless_function_wrappers,
