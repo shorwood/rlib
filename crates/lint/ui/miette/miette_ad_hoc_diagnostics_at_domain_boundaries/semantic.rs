@@ -1,4 +1,8 @@
-#![allow(dead_code, unknown_lints)]
+#![allow(
+    dead_code,
+    thiserror_dynamic_errors_in_library_interfaces,
+    unknown_lints
+)]
 
 use miette::WrapErr;
 

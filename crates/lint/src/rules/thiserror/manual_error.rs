@@ -60,7 +60,8 @@ impl ManualErrorCatalog {
     }
 
     pub(crate) fn candidates(&self) -> Vec<ManualErrorCandidate> {
-        self.errors
+        let mut candidates = self
+            .errors
             .iter()
             .filter_map(|(definition, source_field)| {
                 let message = self.displays.get(definition)?;
@@ -72,7 +73,9 @@ impl ManualErrorCatalog {
                     source_field: source_field.clone(),
                 })
             })
-            .collect()
+            .collect::<Vec<_>>();
+        candidates.sort_by_key(|candidate| candidate.span.lo());
+        candidates
     }
 
     #[cfg(feature = "derive_more")]

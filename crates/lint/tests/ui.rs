@@ -103,6 +103,25 @@ const CROSS_CUTTING_LINT_ALLOWS: [&str; 98] = [
     "visibility_required_only_by_tests",
 ];
 
+// Core fixtures exercise analogous language-level contracts intentionally. Framework-provider
+// recommendations are tested by their own dependency-aware examples and must not change core
+// fixture snapshots when all features are enabled together.
+#[cfg(any(feature = "derive_more", feature = "framework", feature = "thiserror"))]
+const CORE_FIXTURE_FRAMEWORK_LINT_ALLOWS: [&str; 12] = [
+    "-A",
+    "derive_more_manual_equality_impls",
+    "-A",
+    "derive_more_manual_error_impls",
+    "-A",
+    "derive_more_manual_formatting_impls",
+    "-A",
+    "derive_more_manual_forwarding_interfaces",
+    "-A",
+    "framework_resolution_required",
+    "-A",
+    "thiserror_manual_error_impls",
+];
+
 // Leptos macro expansion intentionally produces shapes covered by these core lints. Keeping the
 // exceptions here lets each core lint's own standalone fixture continue to exercise the warning.
 #[cfg(feature = "leptos")]
@@ -272,9 +291,11 @@ fn rerun_with_feature_aware_cargo_wrapper() -> bool {
 
 /// Runs fixtures that rustc can compile directly without Cargo dependency metadata.
 fn run_standalone_fixtures() {
-    Test::src_base(env!("CARGO_PKG_NAME"), "ui/core")
-        .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
-        .run();
+    let mut test = Test::src_base(env!("CARGO_PKG_NAME"), "ui/core");
+    test.rustc_flags(CROSS_CUTTING_LINT_ALLOWS);
+    #[cfg(any(feature = "derive_more", feature = "framework", feature = "thiserror"))]
+    test.rustc_flags(CORE_FIXTURE_FRAMEWORK_LINT_ALLOWS);
+    test.run();
 }
 
 #[cfg(feature = "bon")]
@@ -341,7 +362,6 @@ fn run_derive_more_fixtures() {
         "derive_more_manual_from_str_impls",
         "derive_more_manual_into_iterator_impls",
         "derive_more_manual_operator_impls",
-        "derive_more_manual_variant_accessors",
         "derive_more_mutable_forwarding_bypassing_invariants",
         "derive_more_non_roundtripping_derived_text_contracts",
         "derive_more_opaque_derived_display_contracts",
@@ -357,6 +377,23 @@ fn run_derive_more_fixtures() {
         Test::example(env!("CARGO_PKG_NAME"), example)
             .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
             .run();
+    }
+    if selected
+        .as_deref()
+        .is_none_or(|selected| selected == "derive_more_manual_variant_accessors")
+    {
+        Test::example(
+            env!("CARGO_PKG_NAME"),
+            "derive_more_manual_variant_accessors",
+        )
+        .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+        .dylint_toml(
+            r#"
+                [rlib-lint.derive_resolution]
+                enum_variant_predicates = "derive_more_is_variant"
+            "#,
+        )
+        .run();
     }
     if selected
         .as_deref()
@@ -445,13 +482,15 @@ fn run_miette_fixtures() {
         .as_deref()
         .is_none_or(|selected| selected == "miette_reports_in_library_interfaces")
     {
-        Test::example(
+        let mut test = Test::example(
             env!("CARGO_PKG_NAME"),
             "miette_reports_in_library_interfaces",
-        )
-        .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
-        .rustc_flags(["--crate-type=lib"])
-        .run();
+        );
+        test.rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+            .rustc_flags(["--crate-type=lib"]);
+        #[cfg(feature = "thiserror")]
+        test.rustc_flags(["-A", "thiserror_dynamic_errors_in_library_interfaces"]);
+        test.run();
     }
 }
 

@@ -1,5 +1,5 @@
 warning: ad-hoc Miette diagnostic `configuration could not be read` is repeated at domain boundaries
-  --> $DIR/semantic.rs:37:1
+  --> $DIR/semantic.rs:41:1
    |
 LL | / pub fn read_primary() -> miette::Result<()> {
 LL | |     Err::<(), _>(miette::miette!("primary source is unavailable"))
@@ -18,7 +18,7 @@ LL | | }
    = note: `#[warn(miette_ad_hoc_diagnostics_at_domain_boundaries)]` on by default
 
 warning: ad-hoc Miette diagnostic `configuration is missing` is repeated at domain boundaries
-  --> $DIR/semantic.rs:17:1
+  --> $DIR/semantic.rs:21:1
    |
 LL | / pub fn load_primary() -> miette::Result<()> {
 LL | |     Err(miette::miette!("configuration is missing"))
@@ -34,7 +34,7 @@ LL | | }
    = help: introduce one typed error deriving `thiserror::Error` and `miette::Diagnostic`, then reuse it at each boundary
 
 warning: ad-hoc Miette diagnostic `input is invalid` is repeated at domain boundaries
-  --> $DIR/semantic.rs:25:1
+  --> $DIR/semantic.rs:29:1
    |
 LL | / pub fn validate_primary() -> miette::Result<()> {
 LL | |     Err(miette::Report::from(miette::diagnostic!(
@@ -54,7 +54,7 @@ LL | | }
    = help: introduce one typed error deriving `thiserror::Error` and `miette::Diagnostic`, then reuse it at each boundary
 
 warning: ad-hoc Miette diagnostic `loader is unavailable` is repeated at domain boundaries
-  --> $DIR/semantic.rs:8:5
+  --> $DIR/semantic.rs:12:5
    |
 LL | /     pub fn primary(&self) -> miette::Result<()> {
 LL | |         Err(miette::miette!("loader is unavailable"))

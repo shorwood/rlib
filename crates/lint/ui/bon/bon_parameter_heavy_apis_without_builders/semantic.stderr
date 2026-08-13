@@ -1,7 +1,7 @@
 warning: public API has 5 positional parameters with builder-worthy ambiguity
   --> $DIR/semantic.rs:5:8
    |
-LL | pub fn render(
+LL | pub fn render(path: PathBuf, width: u32, height: u32, cache: bool, color: bool) {
    |        ^^^^^^
    |
    = note: 2 boolean choices and 0 interchangeable type groups make call sites difficult to verify

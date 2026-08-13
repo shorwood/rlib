@@ -112,9 +112,13 @@ impl DiagnosticCatalog {
     }
 
     pub(crate) fn derived_contracts(&self) -> impl Iterator<Item = &DiagnosticContract> {
-        self.derives
+        let mut contracts = self
+            .derives
             .iter()
             .filter_map(|definition| self.contracts.get(definition))
+            .collect::<Vec<_>>();
+        contracts.sort_by_key(|contract| contract.span.lo());
+        contracts.into_iter()
     }
 
     pub(crate) fn derived_type(&self, definition: LocalDefId) -> Option<&DiagnosticContract> {
