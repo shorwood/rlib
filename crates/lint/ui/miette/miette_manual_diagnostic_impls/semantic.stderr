@@ -1,0 +1,25 @@
+warning: manual `Diagnostic` implementation for `Marker` is derivable
+  --> $DIR/semantic.rs:7:1
+   |
+LL | impl miette::Diagnostic for Marker {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this complete diagnostic contract is derivable
+   |
+   = note: the implementation uses only `Diagnostic` defaults
+   = help: replace the implementation with `#[derive(miette::Diagnostic)]` and equivalent diagnostic or field attributes
+   = note: `#[warn(miette_manual_diagnostic_impls)]` on by default
+
+warning: manual `Diagnostic` implementation for `Coded` is derivable
+  --> $DIR/semantic.rs:13:1
+   |
+LL | / impl miette::Diagnostic for Coded {
+LL | |     fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+LL | |         Some(Box::new("domain::coded"))
+LL | |     }
+LL | | }
+   | |_^ this complete diagnostic contract is derivable
+   |
+   = note: methods `code` contain only static metadata or direct field forwarding
+   = help: replace the implementation with `#[derive(miette::Diagnostic)]` and equivalent diagnostic or field attributes
+
+warning: 2 warnings emitted
+

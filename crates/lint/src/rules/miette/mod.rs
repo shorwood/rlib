@@ -6,6 +6,7 @@ pub mod miette_generic_diagnostic_help;
 pub mod miette_incoherent_diagnostic_severity;
 pub mod miette_labels_without_source_code;
 pub mod miette_malformed_diagnostic_codes;
+pub mod miette_manual_diagnostic_impls;
 pub mod miette_misclassified_related_diagnostics;
 pub mod miette_missing_diagnostic_codes;
 pub mod miette_plain_error_diagnostic_sources;
