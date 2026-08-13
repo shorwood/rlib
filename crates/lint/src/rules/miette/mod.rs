@@ -8,3 +8,4 @@ pub mod miette_malformed_diagnostic_codes;
 pub mod miette_missing_diagnostic_codes;
 pub mod miette_source_code_without_labels;
 pub mod miette_unstable_diagnostic_urls;
+pub mod miette_unfocused_diagnostic_labels;

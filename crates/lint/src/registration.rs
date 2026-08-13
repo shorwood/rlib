@@ -123,6 +123,8 @@ pub extern "Rust" fn register_lints(
     rules::miette::miette_source_code_without_labels::register_lints(sess, lint_store);
     #[cfg(feature = "miette")]
     rules::miette::miette_unstable_diagnostic_urls::register_lints(sess, lint_store);
+    #[cfg(feature = "miette")]
+    rules::miette::miette_unfocused_diagnostic_labels::register_lints(sess, lint_store);
 
     #[cfg(feature = "serde")]
     rules::serde::serde_ambiguous_untagged_enums::register_lints(sess, lint_store);

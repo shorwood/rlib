@@ -1,0 +1,18 @@
+warning: multi-label diagnostic has no primary location
+  --> $DIR/semantic.rs:5:1
+   |
+LL | / struct Unfocused {
+LL | |     #[source_code]
+LL | |     input: miette::NamedSource<String>,
+LL | |     #[label]
+...  |
+LL | |     second: miette::SourceSpan,
+LL | | }
+   | |_^ this label set has no explicit focus
+   |
+   = note: labels `first`, `second` are presented without identifying the causal span
+   = help: mark the causal label `#[label(primary)]`; do not infer importance from field order
+   = note: `#[warn(miette_unfocused_diagnostic_labels)]` on by default
+
+warning: 1 warning emitted
+

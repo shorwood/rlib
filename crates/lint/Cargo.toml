@@ -305,6 +305,11 @@ path = "ui/miette/miette_source_code_without_labels/semantic.rs"
 required-features = ["miette"]
 
 [[example]]
+name = "miette_unfocused_diagnostic_labels"
+path = "ui/miette/miette_unfocused_diagnostic_labels/semantic.rs"
+required-features = ["miette"]
+
+[[example]]
 name = "thiserror_dynamic_errors_in_library_interfaces"
 path = "ui/thiserror/thiserror_dynamic_errors_in_library_interfaces/semantic.rs"
 required-features = ["thiserror"]

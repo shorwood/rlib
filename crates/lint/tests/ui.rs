@@ -423,6 +423,7 @@ fn run_miette_fixtures() {
         "miette_missing_diagnostic_codes",
         "miette_source_code_without_labels",
         "miette_unstable_diagnostic_urls",
+        "miette_unfocused_diagnostic_labels",
     ] {
         if selected
             .as_deref()
