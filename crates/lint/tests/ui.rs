@@ -227,6 +227,7 @@ fn run_leptos_fixtures() {
         "leptos_attribute_bound_controlled_inputs",
         "leptos_boolean_component_props",
         "leptos_effects_synchronizing_signals",
+        "leptos_hydration_divergent_views",
         "leptos_manual_resource_refetch_signals",
         "leptos_missing_view_section_comments",
         "leptos_missing_view_attribute_group_comments",

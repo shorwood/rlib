@@ -52,6 +52,11 @@ path = "ui/leptos/leptos_effects_synchronizing_signals/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
+name = "leptos_hydration_divergent_views"
+path = "ui/leptos/leptos_hydration_divergent_views/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_unstable_for_keys"
 path = "ui/leptos/leptos_unstable_for_keys/semantic.rs"
 required-features = ["leptos"]
