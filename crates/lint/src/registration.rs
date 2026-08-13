@@ -160,6 +160,8 @@ pub extern "Rust" fn register_lints(
         sess, lint_store,
     );
     #[cfg(feature = "thiserror")]
+    rules::thiserror::thiserror_from_sources_without_context::register_lints(sess, lint_store);
+    #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_non_send_sync_public_errors::register_lints(sess, lint_store);
     #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_opaque_errors_exposing_representations::register_lints(

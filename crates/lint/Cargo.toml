@@ -25,7 +25,7 @@ proc-macro2 = { version = "1", features = ["span-locations"], optional = true }
 quote = { version = "1", optional = true }
 rstml = { version = "=0.12.1", optional = true }
 serde = { version = "1", features = ["derive"] }
-syn = { version = "2", features = ["full", "parsing"], optional = true }
+syn = { version = "2", features = ["full", "parsing", "visit"], optional = true }
 toml = "0.9"
 
 [dev-dependencies]
@@ -295,6 +295,11 @@ required-features = ["thiserror"]
 [[example]]
 name = "thiserror_error_messages_used_as_identifiers"
 path = "ui/thiserror/thiserror_error_messages_used_as_identifiers/semantic.rs"
+required-features = ["thiserror"]
+
+[[example]]
+name = "thiserror_from_sources_without_context"
+path = "ui/thiserror/thiserror_from_sources_without_context/semantic.rs"
 required-features = ["thiserror"]
 
 [[example]]

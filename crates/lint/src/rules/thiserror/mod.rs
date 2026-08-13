@@ -4,6 +4,7 @@ pub mod thiserror_ambiguous_error_sources;
 pub mod thiserror_duplicate_error_messages;
 pub mod thiserror_dynamic_errors_in_library_interfaces;
 pub mod thiserror_error_messages_used_as_identifiers;
+pub mod thiserror_from_sources_without_context;
 pub mod thiserror_non_send_sync_public_errors;
 pub mod thiserror_opaque_errors_exposing_representations;
 pub mod thiserror_unreported_error_sources;
