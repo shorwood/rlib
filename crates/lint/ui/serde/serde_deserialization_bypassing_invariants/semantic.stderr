@@ -1,0 +1,15 @@
+warning: derived `Deserialize` bypasses `Percentage` invariants
+  --> $DIR/semantic.rs:7:8
+   |
+LL | struct Percentage(u8);
+   |        ^^^^^^^^^^ direct field deserialization is derived here
+...
+LL |     fn new(value: u8) -> Result<Self, OutOfRange> {
+   |        --- this constructor establishes fallible validation
+   |
+   = note: Serde constructs restricted fields directly instead of passing the decoded value through the type's fallible invariant boundary
+   = help: deserialize through `#[serde(try_from = ...)]`, a validating adapter, or a separate wire type
+   = note: `#[warn(serde_deserialization_bypassing_invariants)]` on by default
+
+warning: 1 warning emitted
+

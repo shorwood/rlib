@@ -329,7 +329,10 @@ fn run_derive_more_fixtures() {
 #[cfg(feature = "serde")]
 fn run_serde_fixtures() {
     let selected = selected_framework_fixture();
-    for example in ["serde_duplicate_serialized_names"] {
+    for example in [
+        "serde_deserialization_bypassing_invariants",
+        "serde_duplicate_serialized_names",
+    ] {
         if selected
             .as_deref()
             .is_some_and(|selected| selected != example)

@@ -211,6 +211,11 @@ path = "ui/serde/serde_duplicate_serialized_names/semantic.rs"
 required-features = ["serde"]
 
 [[example]]
+name = "serde_deserialization_bypassing_invariants"
+path = "ui/serde/serde_deserialization_bypassing_invariants/semantic.rs"
+required-features = ["serde"]
+
+[[example]]
 name = "leptos_attribute_bound_controlled_inputs"
 path = "ui/leptos/leptos_attribute_bound_controlled_inputs/semantic.rs"
 required-features = ["leptos"]

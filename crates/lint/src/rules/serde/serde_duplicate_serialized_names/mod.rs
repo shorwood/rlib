@@ -12,6 +12,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::def_id::LocalDefId;
 use rustc_span::Span;
 
+use super::contracts::SerdeContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
 
@@ -81,7 +82,7 @@ impl LateViolation for Violation {
 
 #[derive(Default)]
 struct SerdeDuplicateSerializedNames {
-    derives: HashMap<&'static str, HashSet<LocalDefId>>,
+    catalog: SerdeContractCatalog,
     candidates: Vec<Candidate>,
 }
 
@@ -95,8 +96,8 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        self.catalog.check_item(cx, item);
         if item.span.from_expansion() {
-            self.record_derive(cx, item);
             return;
         }
         let Some(source) = authored_item_source(cx, item) else {
@@ -183,10 +184,10 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
                 Direction::Serialize => "Serialize",
                 Direction::Deserialize => "Deserialize",
             };
-            if !self
-                .derives
-                .get(required)
-                .is_some_and(|definitions| definitions.contains(&candidate.definition))
+            if self
+                .catalog
+                .derived_type(candidate.definition, required)
+                .is_none()
             {
                 continue;
             }
@@ -198,36 +199,6 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
             }
             .emit(cx);
         }
-    }
-}
-
-impl SerdeDuplicateSerializedNames {
-    fn record_derive(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        if !matches!(item.kind, ItemKind::Impl(_)) {
-            return;
-        }
-        let Some(derive) = item.span.macro_backtrace().find_map(|expansion| {
-            let definition = expansion.macro_def_id?;
-            (cx.tcx.crate_name(definition.krate).as_str() == "serde_derive")
-                .then(|| match cx.tcx.item_name(definition).as_str() {
-                    "Serialize" => Some("Serialize"),
-                    "Deserialize" => Some("Deserialize"),
-                    _ => None,
-                })
-                .flatten()
-        }) else {
-            return;
-        };
-        let Some(definition) = cx
-            .tcx
-            .type_of(item.owner_id)
-            .instantiate_identity()
-            .ty_adt_def()
-            .and_then(|definition| definition.did().as_local())
-        else {
-            return;
-        };
-        self.derives.entry(derive).or_default().insert(definition);
     }
 }
 
