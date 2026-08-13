@@ -222,6 +222,7 @@ fn run_standalone_fixtures() {
 fn run_bon_fixtures() {
     let selected = selected_framework_fixture();
     for example in [
+        "bon_inconsistent_builder_conversions",
         "bon_needless_builders_for_small_apis",
         "bon_parameter_heavy_apis_without_builders",
     ] {

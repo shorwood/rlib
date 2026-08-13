@@ -9,6 +9,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
+use super::utils::plain_builder_attribute;
 use crate::utils::diagnostic::EarlyViolation;
 
 struct Violation {
@@ -59,21 +60,6 @@ dylint_linting::impl_pre_expansion_lint! {
 }
 
 impl BonNeedlessBuildersForSmallApis {
-    fn plain_builder_attribute(cx: &EarlyContext<'_>, item: &Item) -> Option<Span> {
-        item.attrs.iter().find_map(|attribute| {
-            let name = attribute.path().last().copied()?;
-            if name.as_str() != "builder" {
-                return None;
-            }
-            let source = cx
-                .sess()
-                .source_map()
-                .span_to_snippet(attribute.span)
-                .ok()?;
-            matches!(source.trim(), "#[builder]" | "#[bon::builder]").then_some(attribute.span)
-        })
-    }
-
     fn required_distinct_parameters(cx: &EarlyContext<'_>, item: &Item) -> Option<usize> {
         let ItemKind::Fn(function) = &item.kind else {
             return None;
@@ -102,7 +88,7 @@ impl EarlyLintPass for BonNeedlessBuildersForSmallApis {
         if !matches!(item.vis.kind, VisibilityKind::Inherited) {
             return;
         }
-        let Some(span) = Self::plain_builder_attribute(cx, item) else {
+        let Some(span) = plain_builder_attribute(cx, &item.attrs) else {
             return;
         };
         let Some(parameter_count) = Self::required_distinct_parameters(cx, item) else {
