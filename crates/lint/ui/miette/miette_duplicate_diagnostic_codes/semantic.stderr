@@ -1,0 +1,15 @@
+warning: diagnostic code `config::invalid` identifies distinct diagnostics
+  --> $DIR/semantic.rs:7:5
+   |
+LL |     Missing,
+   |     ^^^^^^^ `ConfigError::Missing` uses this code
+...
+LL |     Invalid,
+   |     ------- `ConfigError::Invalid` uses this code
+   |
+   = note: the code is shared by `ConfigError::Missing`, `ConfigError::Invalid`
+   = help: assign a unique stable code to each distinct diagnostic contract
+   = note: `#[warn(miette_duplicate_diagnostic_codes)]` on by default
+
+warning: 1 warning emitted
+

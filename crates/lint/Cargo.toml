@@ -13,6 +13,7 @@ framework = []
 bon = []
 derive_more = ["framework", "dep:syn"]
 leptos = ["dep:proc-macro2", "dep:quote", "dep:rstml", "dep:syn"]
+miette = ["dep:syn"]
 serde = ["dep:syn"]
 strum = ["framework", "dep:syn"]
 thiserror = ["framework", "dep:syn"]
@@ -33,6 +34,7 @@ bon = "=3.9.3"
 derive_more = { version = "=2.1.1", features = ["full"] }
 dylint_testing = "=6.0.1"
 leptos = { version = "=0.8.20", features = ["ssr"] }
+miette = { version = "=7.6.0", features = ["derive"] }
 reactive_stores = "=0.4.3"
 strum = { version = "=0.28.0", features = ["derive"] }
 thiserror = "=2.0.19"
@@ -266,6 +268,11 @@ required-features = ["serde"]
 name = "thiserror_duplicate_error_messages"
 path = "ui/thiserror/thiserror_duplicate_error_messages/semantic.rs"
 required-features = ["thiserror"]
+
+[[example]]
+name = "miette_duplicate_diagnostic_codes"
+path = "ui/miette/miette_duplicate_diagnostic_codes/semantic.rs"
+required-features = ["miette"]
 
 [[example]]
 name = "thiserror_dynamic_errors_in_library_interfaces"
