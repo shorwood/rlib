@@ -132,7 +132,12 @@ const LEPTOS_FIXTURE_LINT_ALLOWS: [&str; 20] = [
 /// Runs every standalone and dependency-aware UI fixture against the lint library.
 #[test]
 fn ui() {
-    #[cfg(any(feature = "strum", feature = "bon", feature = "derive_more", feature = "serde"))]
+    #[cfg(any(
+        feature = "strum",
+        feature = "bon",
+        feature = "derive_more",
+        feature = "serde"
+    ))]
     if rerun_with_feature_aware_cargo_wrapper() {
         return;
     }
@@ -167,7 +172,15 @@ fn ui() {
 }
 
 /// Makes Dylint's internal `cargo build` preserve the test process's feature set.
-#[cfg(all(any(feature = "strum", feature = "bon", feature = "derive_more", feature = "serde"), unix))]
+#[cfg(all(
+    any(
+        feature = "strum",
+        feature = "bon",
+        feature = "derive_more",
+        feature = "serde"
+    ),
+    unix
+))]
 fn rerun_with_feature_aware_cargo_wrapper() -> bool {
     use std::env::{current_exe, join_paths, split_paths, temp_dir, var, var_os};
     use std::fs::{create_dir_all, set_permissions, write};
@@ -229,7 +242,12 @@ fn rerun_with_feature_aware_cargo_wrapper() -> bool {
 
 /// Rejects unsupported all-feature UI execution platforms explicitly.
 #[cfg(all(
-    any(feature = "strum", feature = "bon", feature = "derive_more", feature = "serde"),
+    any(
+        feature = "strum",
+        feature = "bon",
+        feature = "derive_more",
+        feature = "serde"
+    ),
     not(unix)
 ))]
 fn rerun_with_feature_aware_cargo_wrapper() -> bool {
@@ -271,9 +289,10 @@ fn run_bon_fixtures() {
             .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
             .run();
     }
-    if selected.as_deref().is_none_or(|selected| {
-        selected == "bon_required_builder_members_breaking_compatibility"
-    }) {
+    if selected
+        .as_deref()
+        .is_none_or(|selected| selected == "bon_required_builder_members_breaking_compatibility")
+    {
         Test::example(
             env!("CARGO_PKG_NAME"),
             "bon_required_builder_members_breaking_compatibility",
@@ -338,6 +357,7 @@ fn run_serde_fixtures() {
         "serde_manual_deserialize_impls",
         "serde_manual_serialize_impls",
         "serde_non_roundtripping_serde_adapters",
+        "serde_unstable_implicit_wire_names",
     ] {
         if selected
             .as_deref()

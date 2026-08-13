@@ -1,0 +1,15 @@
+warning: public Serde serialization and deserialization contract relies on implicit wire names
+  --> $DIR/semantic.rs:4:1
+   |
+LL | / pub enum ApiEvent {
+LL | |     UserCreated,
+LL | |     UserDeleted,
+LL | | }
+   | |_^ this public contract inherits Rust identifiers
+   |
+   = note: renaming the Rust identifiers `UserCreated`, `UserDeleted` would silently change externally observed data
+   = help: declare `#[serde(rename_all = "...")]` or explicit member renames for each wire direction
+   = note: `#[warn(serde_unstable_implicit_wire_names)]` on by default
+
+warning: 1 warning emitted
+

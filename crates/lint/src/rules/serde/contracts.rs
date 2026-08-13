@@ -39,6 +39,7 @@ pub(super) struct SerdeAttributes {
     pub(super) skip_serializing_if: Option<String>,
     pub(super) serialize_with: Option<String>,
     pub(super) deserialize_with: Option<String>,
+    pub(super) untagged: bool,
 }
 
 pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes {
@@ -68,7 +69,9 @@ pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes
                     })?;
                 }
             } else if meta.path.is_ident("alias") {
-                result.aliases.push(meta.value()?.parse::<syn::LitStr>()?.value());
+                result
+                    .aliases
+                    .push(meta.value()?.parse::<syn::LitStr>()?.value());
             } else if meta.path.is_ident("skip") {
                 result.skip_serialize = true;
                 result.skip_deserialize = true;
@@ -79,13 +82,17 @@ pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes
             } else if meta.path.is_ident("default") {
                 result.has_default = true;
                 result.implicit_default = !meta.input.peek(syn::Token![=]);
+                if meta.input.peek(syn::Token![=]) {
+                    let _ = meta.value()?.parse::<syn::LitStr>()?;
+                }
             } else if meta.path.is_ident("skip_serializing_if") {
-                result.skip_serializing_if =
-                    Some(meta.value()?.parse::<syn::LitStr>()?.value());
+                result.skip_serializing_if = Some(meta.value()?.parse::<syn::LitStr>()?.value());
             } else if meta.path.is_ident("serialize_with") {
                 result.serialize_with = Some(meta.value()?.parse::<syn::LitStr>()?.value());
             } else if meta.path.is_ident("deserialize_with") {
                 result.deserialize_with = Some(meta.value()?.parse::<syn::LitStr>()?.value());
+            } else if meta.path.is_ident("untagged") {
+                result.untagged = true;
             }
             Ok(())
         });

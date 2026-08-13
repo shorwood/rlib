@@ -41,7 +41,9 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "bon")]
     rules::bon::bon_redundant_positional_and_builder_apis::register_lints(sess, lint_store);
     #[cfg(feature = "bon")]
-    rules::bon::bon_required_builder_members_breaking_compatibility::register_lints(sess, lint_store);
+    rules::bon::bon_required_builder_members_breaking_compatibility::register_lints(
+        sess, lint_store,
+    );
     #[cfg(feature = "bon")]
     rules::bon::bon_skipped_builder_members_without_policy::register_lints(sess, lint_store);
     #[cfg(feature = "bon")]
@@ -119,6 +121,8 @@ pub extern "Rust" fn register_lints(
     rules::serde::serde_lossy_conditional_serialization::register_lints(sess, lint_store);
     #[cfg(feature = "serde")]
     rules::serde::serde_non_roundtripping_serde_adapters::register_lints(sess, lint_store);
+    #[cfg(feature = "serde")]
+    rules::serde::serde_unstable_implicit_wire_names::register_lints(sess, lint_store);
     #[cfg(feature = "serde")]
     rules::serde::serde_manual_deserialize_impls::register_lints(sess, lint_store);
     #[cfg(feature = "serde")]
