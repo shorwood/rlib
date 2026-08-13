@@ -138,6 +138,9 @@ pub extern "Rust" fn register_lints(
             sess, lint_store,
         );
         rules::leptos::leptos_resource_fetchers_rereading_sources::register_lints(sess, lint_store);
+        rules::leptos::leptos_server_functions_without_authorization_boundaries::register_lints(
+            sess, lint_store,
+        );
         rules::leptos::leptos_unsanitized_inner_html::register_lints(sess, lint_store);
         rules::leptos::leptos_unkeyed_reactive_collections::register_lints(sess, lint_store);
         rules::leptos::leptos_unreactive_signal_reads_in_views::register_lints(sess, lint_store);

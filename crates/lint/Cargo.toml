@@ -137,6 +137,11 @@ path = "ui/leptos/leptos_resource_fetchers_rereading_sources/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
+name = "leptos_server_functions_without_authorization_boundaries"
+path = "ui/leptos/leptos_server_functions_without_authorization_boundaries/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_unsanitized_inner_html"
 path = "ui/leptos/leptos_unsanitized_inner_html/semantic.rs"
 required-features = ["leptos"]

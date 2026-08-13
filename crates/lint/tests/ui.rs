@@ -253,6 +253,26 @@ fn run_leptos_fixtures() {
             .rustc_flags(LEPTOS_FIXTURE_LINT_ALLOWS)
             .run();
     }
+    if selected.as_deref().is_none_or(|selected| {
+        selected == "leptos_server_functions_without_authorization_boundaries"
+    }) {
+        Test::example(
+            env!("CARGO_PKG_NAME"),
+            "leptos_server_functions_without_authorization_boundaries",
+        )
+        .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+        .rustc_flags(LEPTOS_FIXTURE_LINT_ALLOWS)
+        .dylint_toml(
+            r#"
+                [rlib-lint.leptos_server_authorization]
+                sensitive_call_terms = ["delete_account", "read_private_profile"]
+                authorization_functions = ["authorize_account_admin"]
+                protected_endpoint_attributes = ["protected_endpoint"]
+                public_endpoint_attributes = ["public_endpoint"]
+            "#,
+        )
+        .run();
+    }
 }
 
 /// Runs each Strum fixture with the provider policy its expected diagnostic requires.

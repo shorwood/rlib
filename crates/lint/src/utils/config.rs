@@ -5,6 +5,8 @@ use super::section_analysis::SectionDividerConfig;
 use crate::rules::core::incoherent_extension_traits::ExtensionTraitConfig;
 use crate::rules::framework::config::DeriveResolutionConfig;
 #[cfg(feature = "leptos")]
+use crate::rules::leptos::leptos_server_functions_without_authorization_boundaries::LeptosServerAuthorizationConfig;
+#[cfg(feature = "leptos")]
 use crate::rules::leptos::utils::view_structure::LeptosViewStructureConfig;
 
 // -----------------------------------------------------------------------------
@@ -24,6 +26,9 @@ pub struct LibraryConfig {
     /// Complexity and heading policy used by Leptos view-structure lints.
     #[cfg(feature = "leptos")]
     pub(crate) leptos_view_structure: LeptosViewStructureConfig,
+    /// Explicit application vocabulary used to audit Leptos server endpoints.
+    #[cfg(feature = "leptos")]
+    pub(crate) leptos_server_authorization: LeptosServerAuthorizationConfig,
     /// Rendering and width policy used by section-divider lints.
     pub(super) section_dividers: SectionDividerConfig,
 }
