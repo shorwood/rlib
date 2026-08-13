@@ -337,6 +337,7 @@ fn run_serde_fixtures() {
         "serde_lossy_conditional_serialization",
         "serde_manual_deserialize_impls",
         "serde_manual_serialize_impls",
+        "serde_non_roundtripping_serde_adapters",
     ] {
         if selected
             .as_deref()

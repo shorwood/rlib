@@ -37,6 +37,8 @@ pub(super) struct SerdeAttributes {
     pub(super) implicit_default: bool,
     pub(super) has_default: bool,
     pub(super) skip_serializing_if: Option<String>,
+    pub(super) serialize_with: Option<String>,
+    pub(super) deserialize_with: Option<String>,
 }
 
 pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes {
@@ -80,6 +82,10 @@ pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes
             } else if meta.path.is_ident("skip_serializing_if") {
                 result.skip_serializing_if =
                     Some(meta.value()?.parse::<syn::LitStr>()?.value());
+            } else if meta.path.is_ident("serialize_with") {
+                result.serialize_with = Some(meta.value()?.parse::<syn::LitStr>()?.value());
+            } else if meta.path.is_ident("deserialize_with") {
+                result.deserialize_with = Some(meta.value()?.parse::<syn::LitStr>()?.value());
             }
             Ok(())
         });

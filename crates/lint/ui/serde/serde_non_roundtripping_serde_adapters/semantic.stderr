@@ -1,0 +1,18 @@
+warning: Serde adapters for `created_at` do not round-trip
+  --> $DIR/semantic.rs:6:1
+   |
+LL | / struct Record {
+LL | |     #[serde(
+LL | |         serialize_with = "timestamp_seconds",
+LL | |         deserialize_with = "timestamp_milliseconds"
+LL | |     )]
+LL | |     created_at: u64,
+LL | | }
+   | |_^ these directional adapters disagree
+   |
+   = note: serialization uses `timestamp_seconds` while deserialization uses the incompatible `timestamp_milliseconds` contract
+   = help: pair helpers with the same unit or encoding, or use one `with` module
+   = note: `#[warn(serde_non_roundtripping_serde_adapters)]` on by default
+
+warning: 1 warning emitted
+
