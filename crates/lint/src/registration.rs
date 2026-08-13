@@ -48,6 +48,10 @@ pub extern "Rust" fn register_lints(
     rules::bon::bon_undocumented_builder_members::register_lints(sess, lint_store);
 
     #[cfg(feature = "derive_more")]
+    rules::derive_more::derive_more_ambiguous_derived_error_sources::register_lints(
+        sess, lint_store,
+    );
+    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_derived_constructors_bypassing_invariants::register_lints(
         sess, lint_store,
     );

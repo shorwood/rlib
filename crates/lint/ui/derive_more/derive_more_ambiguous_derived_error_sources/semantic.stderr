@@ -1,0 +1,15 @@
+warning: derived error source for `RequestError` is ambiguous with `retry_error`
+  --> $DIR/semantic.rs:5:1
+   |
+LL | / struct RequestError {
+LL | |     source: std::io::Error,
+LL | |     retry_error: std::io::Error,
+LL | | }
+   | |_^ this type relies on implicit source selection
+   |
+   = note: derive_more selects the field named `source` by convention even though another field is named like an error cause
+   = help: mark the intended field with `#[error(source)]` and classify the other cause-like field explicitly
+   = note: `#[warn(derive_more_ambiguous_derived_error_sources)]` on by default
+
+warning: 1 warning emitted
+

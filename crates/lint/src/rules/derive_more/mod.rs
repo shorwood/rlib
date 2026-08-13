@@ -1,5 +1,6 @@
 mod contracts;
 
+pub mod derive_more_ambiguous_derived_error_sources;
 pub mod derive_more_derived_constructors_bypassing_invariants;
 pub mod derive_more_derived_conversions_bypassing_invariants;
 pub mod derive_more_inconsistent_derived_equality;

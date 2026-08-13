@@ -115,6 +115,11 @@ path = "ui/derive_more/derive_more_derived_conversions_bypassing_invariants/sema
 required-features = ["derive_more"]
 
 [[example]]
+name = "derive_more_ambiguous_derived_error_sources"
+path = "ui/derive_more/derive_more_ambiguous_derived_error_sources/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
 name = "derive_more_inconsistent_derived_equality"
 path = "ui/derive_more/derive_more_inconsistent_derived_equality/semantic.rs"
 required-features = ["derive_more"]
