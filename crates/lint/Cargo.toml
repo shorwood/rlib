@@ -211,6 +211,11 @@ path = "ui/serde/serde_duplicate_serialized_names/semantic.rs"
 required-features = ["serde"]
 
 [[example]]
+name = "serde_manual_serialize_impls"
+path = "ui/serde/serde_manual_serialize_impls/semantic.rs"
+required-features = ["serde"]
+
+[[example]]
 name = "serde_deserialization_bypassing_invariants"
 path = "ui/serde/serde_deserialization_bypassing_invariants/semantic.rs"
 required-features = ["serde"]

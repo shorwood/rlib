@@ -1,0 +1,17 @@
+warning: manual transparent serializer for `UserId` is derivable
+  --> $DIR/semantic.rs:7:1
+   |
+LL | / impl Serialize for UserId {
+LL | |     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+LL | |     where
+LL | |         S: Serializer,
+...  |
+LL | | }
+   | |_^ this serializer is exact transparent forwarding
+   |
+   = note: the complete implementation forwards the sole field unchanged to the provided serializer
+   = help: replace this implementation with `#[derive(serde::Serialize)]` and `#[serde(transparent)]`
+   = note: `#[warn(serde_manual_serialize_impls)]` on by default
+
+warning: 1 warning emitted
+

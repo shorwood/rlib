@@ -332,6 +332,7 @@ fn run_serde_fixtures() {
     for example in [
         "serde_deserialization_bypassing_invariants",
         "serde_duplicate_serialized_names",
+        "serde_manual_serialize_impls",
     ] {
         if selected
             .as_deref()
