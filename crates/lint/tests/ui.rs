@@ -132,15 +132,25 @@ const LEPTOS_FIXTURE_LINT_ALLOWS: [&str; 20] = [
 /// Runs every standalone and dependency-aware UI fixture against the lint library.
 #[test]
 fn ui() {
-    #[cfg(any(feature = "strum", feature = "bon"))]
+    #[cfg(any(feature = "strum", feature = "bon", feature = "derive_more"))]
     if rerun_with_feature_aware_cargo_wrapper() {
         return;
     }
-    #[cfg(any(feature = "strum", feature = "leptos", feature = "bon"))]
+    #[cfg(any(
+        feature = "strum",
+        feature = "leptos",
+        feature = "bon",
+        feature = "derive_more"
+    ))]
     if selected_framework_fixture().is_none() {
         run_standalone_fixtures();
     }
-    #[cfg(not(any(feature = "strum", feature = "leptos", feature = "bon")))]
+    #[cfg(not(any(
+        feature = "strum",
+        feature = "leptos",
+        feature = "bon",
+        feature = "derive_more"
+    )))]
     run_standalone_fixtures();
     #[cfg(feature = "strum")]
     run_strum_fixtures();
@@ -148,10 +158,12 @@ fn ui() {
     run_leptos_fixtures();
     #[cfg(feature = "bon")]
     run_bon_fixtures();
+    #[cfg(feature = "derive_more")]
+    run_derive_more_fixtures();
 }
 
 /// Makes Dylint's internal `cargo build` preserve the test process's feature set.
-#[cfg(all(any(feature = "strum", feature = "bon"), unix))]
+#[cfg(all(any(feature = "strum", feature = "bon", feature = "derive_more"), unix))]
 fn rerun_with_feature_aware_cargo_wrapper() -> bool {
     use std::env::{current_exe, join_paths, split_paths, temp_dir, var, var_os};
     use std::fs::{create_dir_all, set_permissions, write};
@@ -166,14 +178,19 @@ fn rerun_with_feature_aware_cargo_wrapper() -> bool {
     let directory = temp_dir().join(format!("rlib-lint-cargo-wrapper-{}", id()));
     create_dir_all(&directory).expect("Cargo wrapper directory should be creatable");
     let wrapper = directory.join("cargo");
+    let enabled_features = [
+        cfg!(feature = "strum").then_some("strum"),
+        cfg!(feature = "bon").then_some("bon"),
+        cfg!(feature = "derive_more").then_some("derive_more"),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join(",");
     let feature_flags = if cfg!(feature = "leptos") {
-        "--all-features"
-    } else if cfg!(all(feature = "strum", feature = "bon")) {
-        "--no-default-features --features strum,bon"
-    } else if cfg!(feature = "bon") {
-        "--no-default-features --features bon"
+        "--all-features".to_owned()
     } else {
-        "--no-default-features --features strum"
+        format!("--no-default-features --features {enabled_features}")
     };
     write(
         &wrapper,
@@ -206,7 +223,10 @@ fn rerun_with_feature_aware_cargo_wrapper() -> bool {
 }
 
 /// Rejects unsupported all-feature UI execution platforms explicitly.
-#[cfg(all(any(feature = "strum", feature = "bon"), not(unix)))]
+#[cfg(all(
+    any(feature = "strum", feature = "bon", feature = "derive_more"),
+    not(unix)
+))]
 fn rerun_with_feature_aware_cargo_wrapper() -> bool {
     panic!("all-feature Dylint UI tests currently require a Unix Cargo wrapper");
 }
@@ -261,6 +281,22 @@ fn run_bon_fixtures() {
             "#,
         )
         .run();
+    }
+}
+
+#[cfg(feature = "derive_more")]
+fn run_derive_more_fixtures() {
+    let selected = selected_framework_fixture();
+    for example in ["derive_more_manual_conversion_impls"] {
+        if selected
+            .as_deref()
+            .is_some_and(|selected| selected != example)
+        {
+            continue;
+        }
+        Test::example(env!("CARGO_PKG_NAME"), example)
+            .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+            .run();
     }
 }
 
@@ -420,7 +456,12 @@ fn run_strum_fixtures() {
     }
 }
 
-#[cfg(any(feature = "strum", feature = "leptos", feature = "bon"))]
+#[cfg(any(
+    feature = "strum",
+    feature = "leptos",
+    feature = "bon",
+    feature = "derive_more"
+))]
 fn selected_framework_fixture() -> Option<String> {
     use std::env::var;
 

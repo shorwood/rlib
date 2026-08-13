@@ -1,0 +1,180 @@
+extern crate rustc_errors;
+extern crate rustc_hir;
+extern crate rustc_middle;
+extern crate rustc_span;
+
+use std::borrow::Cow;
+
+use rustc_errors::DiagDecorator;
+use rustc_hir::{ExprKind, ImplItem, ImplItemKind, ItemKind, Node};
+use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_middle::ty;
+use rustc_span::Span;
+
+use crate::utils::diagnostic::LateViolation;
+use crate::utils::direct_forwarding::DirectForwarding;
+
+struct Violation {
+    span: Span,
+    derive: &'static str,
+    wrapper: String,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "manual transparent conversion for `{}` is derivable",
+            self.wrapper
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "the implementation only constructs or extracts the wrapper's sole field without validation, normalization, or adaptation",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "replace this implementation with `#[derive(derive_more::{})]` on `{}`",
+            self.derive, self.wrapper
+        ))
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.emit_span_lint(
+            DERIVE_MORE_MANUAL_CONVERSION_IMPLS,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.span_label(self.span, "this conversion is exact newtype plumbing");
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
+
+struct DeriveMoreManualConversionImpls;
+
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub DERIVE_MORE_MANUAL_CONVERSION_IMPLS,
+    Warn,
+    "finds transparent conversion implementations reproducible by derive_more",
+    DeriveMoreManualConversionImpls
+}
+
+impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
+    fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        let ImplItemKind::Fn(signature, body_id) = item.kind else {
+            return;
+        };
+        if item.span.from_expansion() || signature.decl.implicit_self.has_implicit_self() {
+            return;
+        }
+        let implementation = cx.tcx.local_parent(item.owner_id.def_id);
+        let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
+            return;
+        };
+        let ItemKind::Impl(implementation_item) = parent.kind else {
+            return;
+        };
+        let Some(trait_ref) = implementation_item
+            .of_trait
+            .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
+        else {
+            return;
+        };
+        if cx.tcx.crate_name(trait_ref.krate).as_str() != "core"
+            || cx.tcx.item_name(trait_ref).as_str() != "From"
+            || item.ident.name.as_str() != "from"
+        {
+            return;
+        }
+        let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
+        let source = trait_ref.args.type_at(1);
+        let target = trait_ref.self_ty();
+        let body = cx.tcx.hir_body(body_id);
+        let Some(forwarding) =
+            DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)
+        else {
+            return;
+        };
+        let [binding] = forwarding.bindings.as_slice() else {
+            return;
+        };
+        if let Some(wrapper) = exact_wrapping(
+            cx,
+            target,
+            source,
+            forwarding.typeck_owner,
+            forwarding.forwarded,
+            *binding,
+        ) {
+            Violation {
+                span: parent.span,
+                derive: "From",
+                wrapper,
+            }
+            .emit(cx);
+        } else if let Some(wrapper) =
+            exact_extraction(cx, source, target, forwarding.forwarded, *binding)
+        {
+            Violation {
+                span: parent.span,
+                derive: "Into",
+                wrapper,
+            }
+            .emit(cx);
+        }
+    }
+}
+
+fn exact_wrapping<'tcx>(
+    cx: &LateContext<'tcx>,
+    wrapper: ty::Ty<'tcx>,
+    inner: ty::Ty<'tcx>,
+    owner: rustc_hir::def_id::LocalDefId,
+    expression: &rustc_hir::Expr<'_>,
+    binding: rustc_hir::HirId,
+) -> Option<String> {
+    let (definition, arguments) = one_field_struct(wrapper)?;
+    let call = DirectForwarding::call(cx, owner, expression)?;
+    let [argument] = call.arguments.as_slice() else {
+        return None;
+    };
+    let field = definition.non_enum_variant().fields.iter().next()?;
+    let is_wrapper_constructor = call.target == definition.did()
+        || cx.tcx.opt_parent(call.target) == Some(definition.did());
+    (is_wrapper_constructor
+        && DirectForwarding::is_binding(cx, argument, binding)
+        && field.ty(cx.tcx, arguments) == inner)
+        .then(|| cx.tcx.item_name(definition.did()).to_string())
+}
+
+fn exact_extraction<'tcx>(
+    cx: &LateContext<'tcx>,
+    wrapper: ty::Ty<'tcx>,
+    inner: ty::Ty<'tcx>,
+    expression: &rustc_hir::Expr<'_>,
+    binding: rustc_hir::HirId,
+) -> Option<String> {
+    let (definition, arguments) = one_field_struct(wrapper)?;
+    let ExprKind::Field(base, field) = expression.kind else {
+        return None;
+    };
+    let sole_field = definition.non_enum_variant().fields.iter().next()?;
+    (field.name.as_str() == "0"
+        && DirectForwarding::is_binding(cx, base, binding)
+        && sole_field.ty(cx.tcx, arguments) == inner)
+        .then(|| cx.tcx.item_name(definition.did()).to_string())
+}
+
+fn one_field_struct(ty: ty::Ty<'_>) -> Option<(ty::AdtDef<'_>, ty::GenericArgsRef<'_>)> {
+    let ty::Adt(definition, arguments) = ty.kind() else {
+        return None;
+    };
+    (definition.is_struct() && definition.non_enum_variant().fields.len() == 1)
+        .then_some((*definition, arguments))
+}

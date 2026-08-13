@@ -1,6 +1,8 @@
 #[cfg(feature = "bon")]
 pub mod bon;
 pub mod core;
+#[cfg(feature = "derive_more")]
+pub mod derive_more;
 #[cfg(feature = "leptos")]
 pub mod leptos;
 #[cfg(feature = "strum")]

@@ -1,0 +1,29 @@
+warning: manual transparent conversion for `SystemList` is derivable
+  --> $DIR/semantic.rs:5:1
+   |
+LL | / impl From<Vec<u32>> for SystemList {
+LL | |     fn from(systems: Vec<u32>) -> Self {
+LL | |         Self(systems)
+LL | |     }
+LL | | }
+   | |_^ this conversion is exact newtype plumbing
+   |
+   = note: the implementation only constructs or extracts the wrapper's sole field without validation, normalization, or adaptation
+   = help: replace this implementation with `#[derive(derive_more::From)]` on `SystemList`
+   = note: `#[warn(derive_more_manual_conversion_impls)]` on by default
+
+warning: manual transparent conversion for `SystemList` is derivable
+  --> $DIR/semantic.rs:11:1
+   |
+LL | / impl From<SystemList> for Vec<u32> {
+LL | |     fn from(systems: SystemList) -> Self {
+LL | |         systems.0
+LL | |     }
+LL | | }
+   | |_^ this conversion is exact newtype plumbing
+   |
+   = note: the implementation only constructs or extracts the wrapper's sole field without validation, normalization, or adaptation
+   = help: replace this implementation with `#[derive(derive_more::Into)]` on `SystemList`
+
+warning: 2 warnings emitted
+

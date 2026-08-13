@@ -127,7 +127,16 @@ impl DirectForwarding {
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
-        let target = cx.qpath_res(&path, callee.hir_id).opt_def_id()?;
+        let resolution = cx.qpath_res(&path, callee.hir_id);
+        let target = match resolution {
+            Res::SelfCtor(implementation) => cx
+                .tcx
+                .type_of(implementation)
+                .instantiate_identity()
+                .ty_adt_def()?
+                .did(),
+            _ => resolution.opt_def_id()?,
+        };
 
         // Preserve ordinary authored argument order for exact-forwarding comparison.
         Some(Call {

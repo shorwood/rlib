@@ -20,6 +20,8 @@ fn active_lints_have_canonical_public_documentation() {
     collect_lint_directories(&rules.join("bon"), &mut lint_directories);
     #[cfg(feature = "framework")]
     collect_lint_directories(&rules.join("framework"), &mut lint_directories);
+    #[cfg(feature = "derive_more")]
+    collect_lint_directories(&rules.join("derive_more"), &mut lint_directories);
     #[cfg(feature = "strum")]
     collect_lint_directories(&rules.join("strum"), &mut lint_directories);
     #[cfg(feature = "leptos")]
@@ -28,6 +30,7 @@ fn active_lints_have_canonical_public_documentation() {
     let expected = 60
         + 14 * usize::from(cfg!(feature = "bon"))
         + 26 * usize::from(cfg!(feature = "leptos"))
+        + usize::from(cfg!(feature = "derive_more"))
         + usize::from(cfg!(feature = "framework"))
         + 19 * usize::from(cfg!(feature = "strum"));
     assert_eq!(
