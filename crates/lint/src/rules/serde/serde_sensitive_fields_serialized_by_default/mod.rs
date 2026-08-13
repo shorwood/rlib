@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
+use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -81,71 +81,12 @@ impl LateViolation for Violation {
     }
 }
 
-/// Recognizes field names conventionally associated with credentials or secret material.
-fn sensitive_name(name: &str) -> bool {
-    let name = name.to_ascii_lowercase();
-
-    [
-        "password",
-        "passphrase",
-        "access_token",
-        "refresh_token",
-        "auth_token",
-        "api_token",
-        "api_key",
-        "private_key",
-        "client_secret",
-        "shared_secret",
-    ]
-    .iter()
-    .any(|term| name == *term || name.ends_with(&format!("_{term}")))
-}
-
-/// Returns whether a type is the primitive byte type.
-fn is_u8(ty: &syn::Type) -> bool {
-    matches!(ty, syn::Type::Path(path)
-        if path.path.segments.last().is_some_and(|segment| segment.ident == "u8"))
-}
-
-/// Recognizes strings and byte containers that can expose raw secret material.
-fn raw_secret_carrier(ty: &syn::Type) -> bool {
-    match ty {
-        syn::Type::Array(array) => is_u8(&array.elem),
-        syn::Type::Slice(slice) => is_u8(&slice.elem),
-        syn::Type::Path(path) => {
-            let Some(segment) = path.path.segments.last() else {
-                return false;
-            };
-
-            match segment.ident.to_string().as_str() {
-                "String" => true,
-                "Vec" => match &segment.arguments {
-                    syn::PathArguments::AngleBracketed(arguments) => arguments.args.iter().any(
-                        |argument| matches!(argument, syn::GenericArgument::Type(ty) if is_u8(ty)),
-                    ),
-                    _ => false,
-                },
-                _ => false,
-            }
-        }
-        _ => false,
-    }
-}
-
-/// Returns whether Serde attributes explicitly omit or transform a sensitive field.
-fn explicit_sensitive_policy(path: &str) -> bool {
-    let path = path.to_ascii_lowercase();
-    ["redact", "secret", "encrypt", "mask"]
-        .iter()
-        .any(|term| path.contains(term))
-}
-
-#[derive(Default)]
 // -----------------------------------------------------------------------------
 // SerdeSensitiveFieldsSerializedByDefault: Explicit disclosure policy
 // -----------------------------------------------------------------------------
 
 /// Rejects sensitive-looking fields that Serde would expose unchanged by default.
+#[derive(Default)]
 struct SerdeSensitiveFieldsSerializedByDefault {
     /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
@@ -161,6 +102,66 @@ dylint_linting::impl_late_lint! {
     SerdeSensitiveFieldsSerializedByDefault::default()
 }
 
+impl SerdeSensitiveFieldsSerializedByDefault {
+    /// Recognizes field names conventionally associated with credentials or secret material.
+    fn sensitive_name(name: &str) -> bool {
+        let name = name.to_ascii_lowercase();
+
+        [
+            "password",
+            "passphrase",
+            "access_token",
+            "refresh_token",
+            "auth_token",
+            "api_token",
+            "api_key",
+            "private_key",
+            "client_secret",
+            "shared_secret",
+        ]
+        .iter()
+        .any(|term| name == *term || name.ends_with(&format!("_{term}")))
+    }
+
+    /// Returns whether a type is the primitive byte type.
+    fn is_u8(ty: &syn::Type) -> bool {
+        matches!(ty, syn::Type::Path(path)
+        if path.path.segments.last().is_some_and(|segment| segment.ident == "u8"))
+    }
+
+    /// Recognizes strings and byte containers that can expose raw secret material.
+    fn raw_secret_carrier(ty: &syn::Type) -> bool {
+        match ty {
+            syn::Type::Array(array) => Self::is_u8(&array.elem),
+            syn::Type::Slice(slice) => Self::is_u8(&slice.elem),
+            syn::Type::Path(path) => {
+                let Some(segment) = path.path.segments.last() else {
+                    return false;
+                };
+
+                match segment.ident.to_string().as_str() {
+                "String" => true,
+                "Vec" => match &segment.arguments {
+                    syn::PathArguments::AngleBracketed(arguments) => arguments.args.iter().any(
+                        |argument| matches!(argument, syn::GenericArgument::Type(ty) if Self::is_u8(ty)),
+                    ),
+                    _ => false,
+                },
+                _ => false,
+            }
+            }
+            _ => false,
+        }
+    }
+
+    /// Returns whether Serde attributes explicitly omit or transform a sensitive field.
+    fn explicit_sensitive_policy(path: &str) -> bool {
+        let path = path.to_ascii_lowercase();
+        ["redact", "secret", "encrypt", "mask"]
+            .iter()
+            .any(|term| path.contains(term))
+    }
+}
 impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -185,12 +186,12 @@ impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
                 let name = field.ident.as_ref()?.to_string();
                 let attributes = SerdeAttributes::from_attributes(&field.attrs);
                 if attributes.has(SerdeFlag::SkipSerialize)
-                    || !sensitive_name(&name)
-                    || !raw_secret_carrier(&field.ty)
+                    || !Self::sensitive_name(&name)
+                    || !Self::raw_secret_carrier(&field.ty)
                     || attributes
                         .serialize_with
                         .as_deref()
-                        .is_some_and(explicit_sensitive_policy)
+                        .is_some_and(Self::explicit_sensitive_policy)
                 {
                     return None;
                 }

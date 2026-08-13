@@ -11,7 +11,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{
+use super::utils::contracts::{
     SerdeAttributes, SerdeCase, SerdeContractCatalog, SerdeDirection, SerdeFlag,
 };
 use crate::utils::diagnostic::LateViolation;

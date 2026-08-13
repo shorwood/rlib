@@ -66,61 +66,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Proves that deserialization delegates to one field and wraps the result unchanged.
-fn exact_transparent_deserializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
-    let Some(source) = AuthoredItemSource::for_item(cx, item) else {
-        return false;
-    };
-    let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
-        return false;
-    };
-
-    let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
-        return false;
-    };
-    if method.sig.ident != "deserialize" {
-        return false;
-    }
-    let [syn::FnArg::Typed(deserializer)] = method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
-    else {
-        return false;
-    };
-    let syn::Pat::Ident(deserializer) = deserializer.pat.as_ref() else {
-        return false;
-    };
-
-    let [syn::Stmt::Expr(syn::Expr::Call(ok), _)] = method.block.stmts.as_slice() else {
-        return false;
-    };
-    if !matches!(ok.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Ok"))
-        || ok.args.len() != 1
-    {
-        return false;
-    }
-    let Some(syn::Expr::Call(construction)) = ok.args.first() else {
-        return false;
-    };
-
-    if !matches!(construction.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Self"))
-        || construction.args.len() != 1
-    {
-        return false;
-    }
-
-    let Some(syn::Expr::Try(decoded)) = construction.args.first() else {
-        return false;
-    };
-    let syn::Expr::Call(decode) = decoded.expr.as_ref() else {
-        return false;
-    };
-
-    decode.args.len() == 1
-        && matches!(decode.func.as_ref(), syn::Expr::Path(path)
-            if path.path.segments.last().is_some_and(|segment| segment.ident == "deserialize"))
-        && matches!(decode.args.first(), Some(syn::Expr::Path(path))
-            if path.path.is_ident(&deserializer.ident))
-}
-
 // -----------------------------------------------------------------------------
 // SerdeManualDeserializeImpls: Declarative deserialization policy
 // -----------------------------------------------------------------------------
@@ -136,6 +81,63 @@ dylint_linting::impl_late_lint! {
     SerdeManualDeserializeImpls
 }
 
+impl SerdeManualDeserializeImpls {
+    /// Proves that deserialization delegates to one field and wraps the result unchanged.
+    fn exact_transparent_deserializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
+            return false;
+        };
+        let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
+            return false;
+        };
+
+        let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
+            return false;
+        };
+        if method.sig.ident != "deserialize" {
+            return false;
+        }
+        let [syn::FnArg::Typed(deserializer)] =
+            method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
+        else {
+            return false;
+        };
+        let syn::Pat::Ident(deserializer) = deserializer.pat.as_ref() else {
+            return false;
+        };
+
+        let [syn::Stmt::Expr(syn::Expr::Call(ok), _)] = method.block.stmts.as_slice() else {
+            return false;
+        };
+        if !matches!(ok.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Ok"))
+            || ok.args.len() != 1
+        {
+            return false;
+        }
+        let Some(syn::Expr::Call(construction)) = ok.args.first() else {
+            return false;
+        };
+
+        if !matches!(construction.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Self"))
+            || construction.args.len() != 1
+        {
+            return false;
+        }
+
+        let Some(syn::Expr::Try(decoded)) = construction.args.first() else {
+            return false;
+        };
+        let syn::Expr::Call(decode) = decoded.expr.as_ref() else {
+            return false;
+        };
+
+        decode.args.len() == 1
+            && matches!(decode.func.as_ref(), syn::Expr::Path(path)
+            if path.path.segments.last().is_some_and(|segment| segment.ident == "deserialize"))
+            && matches!(decode.args.first(), Some(syn::Expr::Path(path))
+            if path.path.is_ident(&deserializer.ident))
+    }
+}
 impl LateLintPass<'_> for SerdeManualDeserializeImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         let ItemKind::Impl(implementation) = item.kind else {
@@ -171,7 +173,7 @@ impl LateLintPass<'_> for SerdeManualDeserializeImpls {
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
             || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
-            || !exact_transparent_deserializer(cx, item)
+            || !Self::exact_transparent_deserializer(cx, item)
         {
             return;
         }

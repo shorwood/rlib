@@ -63,43 +63,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Proves that serialization delegates unchanged to a newtype's sole field.
-fn exact_transparent_serializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
-    let Some(source) = AuthoredItemSource::for_item(cx, item) else {
-        return false;
-    };
-    let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
-        return false;
-    };
-
-    let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
-        return false;
-    };
-    if method.sig.ident != "serialize" {
-        return false;
-    }
-
-    let [_, syn::FnArg::Typed(serializer)] =
-        method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
-    else {
-        return false;
-    };
-
-    let syn::Pat::Ident(serializer) = serializer.pat.as_ref() else {
-        return false;
-    };
-    let [syn::Stmt::Expr(syn::Expr::MethodCall(call), _)] = method.block.stmts.as_slice() else {
-        return false;
-    };
-
-    call.method == "serialize"
-        && call.args.len() == 1
-        && matches!(call.receiver.as_ref(), syn::Expr::Field(field)
-            if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self"))
-                && matches!(&field.member, syn::Member::Unnamed(index) if index.index == 0))
-        && matches!(call.args.first(), Some(syn::Expr::Path(path)) if path.path.is_ident(&serializer.ident))
-}
-
 // -----------------------------------------------------------------------------
 // SerdeManualSerializeImpls: Declarative serialization policy
 // -----------------------------------------------------------------------------
@@ -115,6 +78,45 @@ dylint_linting::impl_late_lint! {
     SerdeManualSerializeImpls
 }
 
+impl SerdeManualSerializeImpls {
+    /// Proves that serialization delegates unchanged to a newtype's sole field.
+    fn exact_transparent_serializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
+            return false;
+        };
+        let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
+            return false;
+        };
+
+        let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
+            return false;
+        };
+        if method.sig.ident != "serialize" {
+            return false;
+        }
+
+        let [_, syn::FnArg::Typed(serializer)] =
+            method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
+        else {
+            return false;
+        };
+
+        let syn::Pat::Ident(serializer) = serializer.pat.as_ref() else {
+            return false;
+        };
+        let [syn::Stmt::Expr(syn::Expr::MethodCall(call), _)] = method.block.stmts.as_slice()
+        else {
+            return false;
+        };
+
+        call.method == "serialize"
+            && call.args.len() == 1
+            && matches!(call.receiver.as_ref(), syn::Expr::Field(field)
+            if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self"))
+                && matches!(&field.member, syn::Member::Unnamed(index) if index.index == 0))
+            && matches!(call.args.first(), Some(syn::Expr::Path(path)) if path.path.is_ident(&serializer.ident))
+    }
+}
 impl LateLintPass<'_> for SerdeManualSerializeImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         let ItemKind::Impl(implementation) = item.kind else {
@@ -150,7 +152,7 @@ impl LateLintPass<'_> for SerdeManualSerializeImpls {
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
             || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
-            || !exact_transparent_serializer(cx, item)
+            || !Self::exact_transparent_serializer(cx, item)
         {
             return;
         }

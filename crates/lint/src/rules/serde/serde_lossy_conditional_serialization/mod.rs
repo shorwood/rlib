@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
+use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -75,18 +75,12 @@ impl LateViolation for Violation {
     }
 }
 
-/// Returns whether the type is the standard optional container.
-fn is_option(ty: &syn::Type) -> bool {
-    matches!(ty, syn::Type::Path(path)
-        if path.path.segments.last().is_some_and(|segment| segment.ident == "Option"))
-}
-
-#[derive(Default)]
 // -----------------------------------------------------------------------------
 // SerdeLossyConditionalSerialization: Round-trip preservation policy
 // -----------------------------------------------------------------------------
 
 /// Rejects conditional serialization that cannot reconstruct the omitted domain value.
+#[derive(Default)]
 struct SerdeLossyConditionalSerialization {
     /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
@@ -102,6 +96,13 @@ dylint_linting::impl_late_lint! {
     SerdeLossyConditionalSerialization::default()
 }
 
+impl SerdeLossyConditionalSerialization {
+    /// Returns whether the type is the standard optional container.
+    fn is_option(ty: &syn::Type) -> bool {
+        matches!(ty, syn::Type::Path(path)
+        if path.path.segments.last().is_some_and(|segment| segment.ident == "Option"))
+    }
+}
 impl LateLintPass<'_> for SerdeLossyConditionalSerialization {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -127,7 +128,7 @@ impl LateLintPass<'_> for SerdeLossyConditionalSerialization {
             };
 
             if has_deserialization_fallback
-                || is_option(&field.ty)
+                || Self::is_option(&field.ty)
                 || field
                     .attrs
                     .iter()

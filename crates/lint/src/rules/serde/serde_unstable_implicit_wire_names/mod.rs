@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
+use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -80,7 +80,7 @@ struct ImplicitMember {
     /// Rust member name.
     name: String,
     /// Parsed Serde attributes for the member.
-    attributes: super::contracts::SerdeAttributes,
+    attributes: super::utils::contracts::SerdeAttributes,
 }
 
 /// Implicit names retained for each wire direction.

@@ -11,7 +11,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
+use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -120,8 +120,11 @@ impl VariantShape {
             let has_default = attributes.has(SerdeFlag::HasDefault);
             let name = attributes.rename_deserialize.unwrap_or(rust_name);
 
-            shape.fields.insert(name.clone(), scalar_domain(&field.ty)?);
-            if !(!has_default && !scalar_domain_is_option(&field.ty)) {
+            shape.fields.insert(
+                name.clone(),
+                SerdeAmbiguousUntaggedEnums::scalar_domain(&field.ty)?,
+            );
+            if !(!has_default && !SerdeAmbiguousUntaggedEnums::is_option(&field.ty)) {
                 continue;
             }
             shape.required.insert(name);
@@ -157,93 +160,11 @@ impl VariantShape {
 }
 
 // -----------------------------------------------------------------------------
-// ScalarDomain: Primitive overlap classification
-// -----------------------------------------------------------------------------
-
-/// Recognizes signed integer scalar domains.
-fn scalar_domain_signed(name: &str) -> Option<&'static str> {
-    match name {
-        "i8" => Some("i8"),
-        "i16" => Some("i16"),
-        "i32" => Some("i32"),
-        "i64" => Some("i64"),
-        "i128" => Some("i128"),
-        "isize" => Some("isize"),
-        _ => None,
-    }
-}
-
-/// Recognizes unsigned integer scalar domains.
-fn scalar_domain_unsigned(name: &str) -> Option<&'static str> {
-    match name {
-        "u8" => Some("u8"),
-        "u16" => Some("u16"),
-        "u32" => Some("u32"),
-        "u64" => Some("u64"),
-        "u128" => Some("u128"),
-        "usize" => Some("usize"),
-        _ => None,
-    }
-}
-
-/// Recognizes floating-point scalar domains.
-fn scalar_domain_float(name: &str) -> Option<&'static str> {
-    match name {
-        "f32" => Some("f32"),
-        "f64" => Some("f64"),
-        _ => None,
-    }
-}
-
-/// Classifies primitive scalar names into their overlap domains.
-fn scalar_domain_primitive(name: &str) -> Option<&'static str> {
-    match name {
-        "bool" => Some("bool"),
-        "char" => Some("char"),
-        "String" | "str" => Some("string"),
-        _ => scalar_domain_signed(name)
-            .or_else(|| scalar_domain_unsigned(name))
-            .or_else(|| scalar_domain_float(name)),
-    }
-}
-
-/// Classifies scalar syntax types that can overlap during untagged deserialization.
-fn scalar_domain(ty: &syn::Type) -> Option<&'static str> {
-    let syn::Type::Path(path) = ty else {
-        return None;
-    };
-    let segment = path.path.segments.last()?;
-
-    let name = segment.ident.to_string();
-    if name != "Option" {
-        return scalar_domain_primitive(&name);
-    }
-
-    // Unwrap an optional scalar while preserving its overlap domain.
-    let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
-        return None;
-    };
-    arguments.args.iter().find_map(|arg| {
-        if let syn::GenericArgument::Type(inner) = arg {
-            scalar_domain(inner)
-        } else {
-            None
-        }
-    })
-}
-
-/// Returns whether the type is the standard optional container.
-fn scalar_domain_is_option(ty: &syn::Type) -> bool {
-    matches!(ty, syn::Type::Path(path)
-        if path.path.segments.last().is_some_and(|segment| segment.ident == "Option"))
-}
-
-#[derive(Default)]
-// -----------------------------------------------------------------------------
 // SerdeAmbiguousUntaggedEnums: Unambiguous wire-shape policy
 // -----------------------------------------------------------------------------
 
 /// Finds concrete input shapes accepted by more than one untagged variant.
+#[derive(Default)]
 struct SerdeAmbiguousUntaggedEnums {
     /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
@@ -259,6 +180,85 @@ dylint_linting::impl_late_lint! {
     SerdeAmbiguousUntaggedEnums::default()
 }
 
+impl SerdeAmbiguousUntaggedEnums {
+    /// Recognizes signed integer scalar domains.
+    fn signed_domain(name: &str) -> Option<&'static str> {
+        match name {
+            "i8" => Some("i8"),
+            "i16" => Some("i16"),
+            "i32" => Some("i32"),
+            "i64" => Some("i64"),
+            "i128" => Some("i128"),
+            "isize" => Some("isize"),
+            _ => None,
+        }
+    }
+
+    /// Recognizes unsigned integer scalar domains.
+    fn unsigned_domain(name: &str) -> Option<&'static str> {
+        match name {
+            "u8" => Some("u8"),
+            "u16" => Some("u16"),
+            "u32" => Some("u32"),
+            "u64" => Some("u64"),
+            "u128" => Some("u128"),
+            "usize" => Some("usize"),
+            _ => None,
+        }
+    }
+
+    /// Recognizes floating-point scalar domains.
+    fn float_domain(name: &str) -> Option<&'static str> {
+        match name {
+            "f32" => Some("f32"),
+            "f64" => Some("f64"),
+            _ => None,
+        }
+    }
+
+    /// Classifies primitive scalar names into their overlap domains.
+    fn primitive_domain(name: &str) -> Option<&'static str> {
+        match name {
+            "bool" => Some("bool"),
+            "char" => Some("char"),
+            "String" | "str" => Some("string"),
+            _ => Self::signed_domain(name)
+                .or_else(|| Self::unsigned_domain(name))
+                .or_else(|| Self::float_domain(name)),
+        }
+    }
+
+    /// Classifies scalar syntax types that can overlap during untagged deserialization.
+    fn scalar_domain(ty: &syn::Type) -> Option<&'static str> {
+        let syn::Type::Path(path) = ty else {
+            return None;
+        };
+        let segment = path.path.segments.last()?;
+
+        let name = segment.ident.to_string();
+        if name != "Option" {
+            return Self::primitive_domain(&name);
+        }
+
+        // Unwrap an optional scalar while preserving its overlap domain.
+        let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+            return None;
+        };
+        arguments.args.iter().find_map(|arg| {
+            if let syn::GenericArgument::Type(inner) = arg {
+                Self::scalar_domain(inner)
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Returns whether the type is the standard optional container.
+    fn is_option(ty: &syn::Type) -> bool {
+        matches!(ty, syn::Type::Path(path)
+        if path.path.segments.last().is_some_and(|segment| segment.ident == "Option"))
+    }
+}
 impl LateLintPass<'_> for SerdeAmbiguousUntaggedEnums {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

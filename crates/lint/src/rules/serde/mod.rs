@@ -1,4 +1,4 @@
-mod contracts;
+mod utils;
 
 pub mod serde_ambiguous_untagged_enums;
 pub mod serde_asymmetric_serde_contracts;

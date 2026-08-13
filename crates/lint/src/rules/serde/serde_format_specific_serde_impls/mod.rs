@@ -68,56 +68,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Finds a serializer or deserializer operation tied to one wire format.
-fn format_specific_evidence(source: &str) -> Option<String> {
-    /// Data-format crates whose APIs must not leak into a generic Serde implementation.
-    const FORMAT_CRATES: &[&str] = &[
-        "serde_json::",
-        "serde_yaml::",
-        "serde_cbor::",
-        "toml::",
-        "bincode::",
-        "rmp_serde::",
-    ];
-
-    if let Some(format) = FORMAT_CRATES
-        .iter()
-        .find(|format| source.contains(**format))
-    {
-        return Some(format!(
-            "the generic implementation directly depends on the `{}` format API",
-            format.trim_end_matches("::")
-        ));
-    }
-
-    if !source.contains("is_human_readable()") {
-        return None;
-    }
-    let string_shape = ["serialize_str", "deserialize_str", "deserialize_string"]
-        .iter()
-        .any(|operation| source.contains(operation));
-
-    let binary_shape = [
-        "serialize_u",
-        "serialize_i",
-        "serialize_bytes",
-        "serialize_seq",
-        "serialize_map",
-        "deserialize_u",
-        "deserialize_i",
-        "deserialize_bytes",
-        "deserialize_seq",
-        "deserialize_map",
-    ]
-    .iter()
-    .any(|operation| source.contains(operation));
-
-    (string_shape && binary_shape).then(|| {
-        "`is_human_readable()` selects different string and binary Serde data-model shapes"
-            .to_owned()
-    })
-}
-
 // -----------------------------------------------------------------------------
 // SerdeFormatSpecificSerdeImpls: Format-neutral data-model policy
 // -----------------------------------------------------------------------------
@@ -133,6 +83,57 @@ dylint_linting::impl_late_lint! {
     SerdeFormatSpecificSerdeImpls
 }
 
+impl SerdeFormatSpecificSerdeImpls {
+    /// Finds a serializer or deserializer operation tied to one wire format.
+    fn format_specific_evidence(source: &str) -> Option<String> {
+        /// Data-format crates whose APIs must not leak into a generic Serde implementation.
+        const FORMAT_CRATES: &[&str] = &[
+            "serde_json::",
+            "serde_yaml::",
+            "serde_cbor::",
+            "toml::",
+            "bincode::",
+            "rmp_serde::",
+        ];
+
+        if let Some(format) = FORMAT_CRATES
+            .iter()
+            .find(|format| source.contains(**format))
+        {
+            return Some(format!(
+                "the generic implementation directly depends on the `{}` format API",
+                format.trim_end_matches("::")
+            ));
+        }
+
+        if !source.contains("is_human_readable()") {
+            return None;
+        }
+        let string_shape = ["serialize_str", "deserialize_str", "deserialize_string"]
+            .iter()
+            .any(|operation| source.contains(operation));
+
+        let binary_shape = [
+            "serialize_u",
+            "serialize_i",
+            "serialize_bytes",
+            "serialize_seq",
+            "serialize_map",
+            "deserialize_u",
+            "deserialize_i",
+            "deserialize_bytes",
+            "deserialize_seq",
+            "deserialize_map",
+        ]
+        .iter()
+        .any(|operation| source.contains(operation));
+
+        (string_shape && binary_shape).then(|| {
+            "`is_human_readable()` selects different string and binary Serde data-model shapes"
+                .to_owned()
+        })
+    }
+}
 impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         let ItemKind::Impl(implementation) = item.kind else {
@@ -169,7 +170,7 @@ impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
             return;
         }
 
-        let Some(evidence) = format_specific_evidence(&source) else {
+        let Some(evidence) = Self::format_specific_evidence(&source) else {
             return;
         };
         let trait_ref = cx
