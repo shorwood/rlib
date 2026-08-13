@@ -1,0 +1,12 @@
+warning: manual transparent iteration for `SystemList` is derivable
+  --> $DIR/semantic.rs:3:1
+   |
+LL | struct SystemList(Vec<u32>);
+   | ^^^^^^^^^^^^^^^^^ this wrapper owns direct field iteration
+   |
+   = note: each implementation delegates unchanged to the wrapper's sole field
+   = help: replace this family with `#[derive(derive_more::IntoIterator)]` and `#[into_iterator(owned, ref)]`
+   = note: `#[warn(derive_more_manual_into_iterator_impls)]` on by default
+
+warning: 1 warning emitted
+

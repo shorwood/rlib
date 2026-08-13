@@ -120,6 +120,11 @@ path = "ui/derive_more/derive_more_manual_constructors/semantic.rs"
 required-features = ["derive_more"]
 
 [[example]]
+name = "derive_more_manual_into_iterator_impls"
+path = "ui/derive_more/derive_more_manual_into_iterator_impls/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
 name = "leptos_attribute_bound_controlled_inputs"
 path = "ui/leptos/leptos_attribute_bound_controlled_inputs/semantic.rs"
 required-features = ["leptos"]
