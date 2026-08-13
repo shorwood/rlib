@@ -332,6 +332,7 @@ fn run_serde_fixtures() {
     for example in [
         "serde_asymmetric_serde_contracts",
         "serde_deserialization_bypassing_invariants",
+        "serde_defaults_hiding_missing_data",
         "serde_duplicate_serialized_names",
         "serde_manual_deserialize_impls",
         "serde_manual_serialize_impls",

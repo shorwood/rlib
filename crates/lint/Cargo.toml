@@ -226,6 +226,11 @@ path = "ui/serde/serde_deserialization_bypassing_invariants/semantic.rs"
 required-features = ["serde"]
 
 [[example]]
+name = "serde_defaults_hiding_missing_data"
+path = "ui/serde/serde_defaults_hiding_missing_data/semantic.rs"
+required-features = ["serde"]
+
+[[example]]
 name = "serde_asymmetric_serde_contracts"
 path = "ui/serde/serde_asymmetric_serde_contracts/semantic.rs"
 required-features = ["serde"]

@@ -1,0 +1,18 @@
+warning: missing `maximum` data is replaced with an implicit default
+  --> $DIR/semantic.rs:4:1
+   |
+LL | / struct Limits {
+LL | |     #[serde(default)]
+LL | |     maximum: u32,
+LL | |     #[serde(default)]
+...  |
+LL | |     minimum: u32,
+LL | | }
+   | |_^ missing input is silently defaulted here
+   |
+   = note: bare `#[serde(default)]` turns absence into a potentially meaningful domain value without naming the compatibility policy
+   = help: use `Option`, a named default function, or document why the generic default represents missing input
+   = note: `#[warn(serde_defaults_hiding_missing_data)]` on by default
+
+warning: 1 warning emitted
+

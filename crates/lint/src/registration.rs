@@ -112,6 +112,8 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "serde")]
     rules::serde::serde_deserialization_bypassing_invariants::register_lints(sess, lint_store);
     #[cfg(feature = "serde")]
+    rules::serde::serde_defaults_hiding_missing_data::register_lints(sess, lint_store);
+    #[cfg(feature = "serde")]
     rules::serde::serde_duplicate_serialized_names::register_lints(sess, lint_store);
     #[cfg(feature = "serde")]
     rules::serde::serde_manual_deserialize_impls::register_lints(sess, lint_store);

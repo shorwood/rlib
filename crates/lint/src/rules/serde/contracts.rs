@@ -34,6 +34,7 @@ pub(super) struct SerdeAttributes {
     pub(super) aliases: Vec<String>,
     pub(super) skip_serialize: bool,
     pub(super) skip_deserialize: bool,
+    pub(super) implicit_default: bool,
 }
 
 pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes {
@@ -71,6 +72,8 @@ pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes
                 result.skip_serialize = true;
             } else if meta.path.is_ident("skip_deserializing") {
                 result.skip_deserialize = true;
+            } else if meta.path.is_ident("default") && !meta.input.peek(syn::Token![=]) {
+                result.implicit_default = true;
             }
             Ok(())
         });
