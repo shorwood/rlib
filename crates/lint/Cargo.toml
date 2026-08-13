@@ -54,6 +54,11 @@ path = "ui/bon/bon_parameter_heavy_apis_without_builders/semantic.rs"
 required-features = ["bon"]
 
 [[example]]
+name = "bon_skipped_builder_members_without_policy"
+path = "ui/bon/bon_skipped_builder_members_without_policy/semantic.rs"
+required-features = ["bon"]
+
+[[example]]
 name = "leptos_attribute_bound_controlled_inputs"
 path = "ui/leptos/leptos_attribute_bound_controlled_inputs/semantic.rs"
 required-features = ["leptos"]

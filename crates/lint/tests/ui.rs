@@ -226,6 +226,7 @@ fn run_bon_fixtures() {
         "bon_inconsistent_builder_conversions",
         "bon_needless_builders_for_small_apis",
         "bon_parameter_heavy_apis_without_builders",
+        "bon_skipped_builder_members_without_policy",
     ] {
         if selected
             .as_deref()

@@ -50,3 +50,11 @@ pub(super) fn has_attribute(attributes: &[Attribute], name: &str) -> bool {
         .iter()
         .any(|attribute| attribute_name(attribute).is_some_and(|actual| actual.as_str() == name))
 }
+
+pub(super) fn derives_bon_builder(cx: &EarlyContext<'_>, attributes: &[Attribute]) -> bool {
+    attributes.iter().any(|attribute| {
+        attribute_name(attribute).is_some_and(|name| name.as_str() == "derive")
+            && attribute_source(cx, attribute)
+                .is_some_and(|source| source.contains("bon::Builder"))
+    })
+}

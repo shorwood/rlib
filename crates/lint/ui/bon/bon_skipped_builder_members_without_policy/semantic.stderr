@@ -1,0 +1,12 @@
+warning: skipped Bon member `revision` has only an implicit default policy
+  --> $DIR/semantic.rs:7:5
+   |
+LL |     #[builder(skip)]
+   |     ^^^^^^^^^^^^^^^^ this skip silently uses `Default::default()`
+   |
+   = note: bare `#[builder(skip)]` initializes the field with `Default::default()`, hiding construction policy from readers and callers
+   = help: use `#[builder(skip = expression)]` to state the initialization policy or document why the type's default is the intended invariant
+   = note: `#[warn(bon_skipped_builder_members_without_policy)]` on by default
+
+warning: 1 warning emitted
+
