@@ -18,9 +18,9 @@ pub struct Candidate {
     /// Manual implementation receiving a diagnostic.
     pub(crate) span: Span,
     /// Target error enum name.
-    pub(super) error: String,
+    pub error: String,
     /// Single-field variant receiving the source value.
-    pub(super) variant: String,
+    pub variant: String,
 }
 
 impl Candidate {

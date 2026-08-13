@@ -13,7 +13,7 @@ use rustc_middle::ty;
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
+use super::utils::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -236,7 +236,6 @@ impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
         }
     }
 }
-
 impl ThiserrorUnpropagatedErrorBacktraces {
     /// Recursively determines whether an error captures or forwards a trace.
     fn provides_backtrace(

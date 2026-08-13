@@ -9,9 +9,11 @@ use rustc_hir::{ImplItem, Item};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::ThiserrorContractCatalog;
-use super::manual_from::Candidate as ManualFromCandidate;
-use crate::rules::framework::config::{DeriveResolutionConfig, ErrorVariantConversionProvider};
+use super::utils::contracts::ThiserrorContractCatalog;
+use super::utils::error_conversions::Candidate as ManualFromCandidate;
+use crate::rules::framework::utils::config::{
+    DeriveResolutionConfig, ErrorVariantConversionProvider,
+};
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 
@@ -75,6 +77,14 @@ struct ThiserrorManualFromErrorVariants {
     candidates: Vec<ManualFromCandidate>,
 }
 
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub THISERROR_MANUAL_FROM_ERROR_VARIANTS,
+    Warn,
+    "finds error-variant conversions reproducible by thiserror",
+    ThiserrorManualFromErrorVariants::new()
+}
+
 impl ThiserrorManualFromErrorVariants {
     /// Loads explicit derive-provider resolution.
     fn new() -> Self {
@@ -97,15 +107,6 @@ impl ThiserrorManualFromErrorVariants {
         }
     }
 }
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub THISERROR_MANUAL_FROM_ERROR_VARIANTS,
-    Warn,
-    "finds error-variant conversions reproducible by thiserror",
-    ThiserrorManualFromErrorVariants::new()
-}
-
 impl LateLintPass<'_> for ThiserrorManualFromErrorVariants {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

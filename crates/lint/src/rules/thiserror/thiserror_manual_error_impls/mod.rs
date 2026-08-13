@@ -9,8 +9,8 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::manual_error::ManualErrorCatalog;
-use crate::rules::framework::config::{DeriveResolutionConfig, ErrorImplementationProvider};
+use super::utils::error_implementations::ManualErrorCatalog;
+use crate::rules::framework::utils::config::{DeriveResolutionConfig, ErrorImplementationProvider};
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 
@@ -80,6 +80,14 @@ struct ThiserrorManualErrorImpls {
     config: DeriveResolutionConfig,
 }
 
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub THISERROR_MANUAL_ERROR_IMPLS,
+    Warn,
+    "finds complete error contracts reproducible by thiserror",
+    ThiserrorManualErrorImpls::new()
+}
+
 impl ThiserrorManualErrorImpls {
     /// Loads explicit derive-provider resolution.
     fn new() -> Self {
@@ -98,15 +106,6 @@ impl ThiserrorManualErrorImpls {
         }
     }
 }
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub THISERROR_MANUAL_ERROR_IMPLS,
-    Warn,
-    "finds complete error contracts reproducible by thiserror",
-    ThiserrorManualErrorImpls::new()
-}
-
 impl LateLintPass<'_> for ThiserrorManualErrorImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

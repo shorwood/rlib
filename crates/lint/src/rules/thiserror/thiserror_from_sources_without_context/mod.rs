@@ -14,7 +14,7 @@ use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, sym};
 use syn::visit::{Visit, visit_expr_try};
 
-use super::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
+use super::utils::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -137,11 +137,6 @@ struct ThiserrorFromSourcesWithoutContext {
     uses: Vec<ContextCandidateUse>,
 }
 
-impl ThiserrorFromSourcesWithoutContext {
-    /// Smallest propagation chain that demonstrates repeated context loss.
-    const MINIMUM_PROPAGATION_OPERATIONS: usize = 2;
-}
-
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub THISERROR_FROM_SOURCES_WITHOUT_CONTEXT,
@@ -150,6 +145,10 @@ dylint_linting::impl_late_lint! {
     ThiserrorFromSourcesWithoutContext::default()
 }
 
+impl ThiserrorFromSourcesWithoutContext {
+    /// Smallest propagation chain that demonstrates repeated context loss.
+    const MINIMUM_PROPAGATION_OPERATIONS: usize = 2;
+}
 impl LateLintPass<'_> for ThiserrorFromSourcesWithoutContext {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -187,7 +186,6 @@ impl LateLintPass<'_> for ThiserrorFromSourcesWithoutContext {
         }
     }
 }
-
 impl ThiserrorFromSourcesWithoutContext {
     /// Records an enum with exactly one transparent `#[from]` variant.
     fn record_error(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {

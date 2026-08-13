@@ -71,18 +71,18 @@ impl ThiserrorContractCatalog {
 
 /// Causal and backtrace roles declared on one thiserror field.
 #[derive(Default)]
-pub(super) struct ThiserrorAttributes {
+pub struct ThiserrorAttributes {
     /// Whether the field participates in `Error::source`.
-    pub(super) is_source: bool,
+    pub is_source: bool,
     /// Whether the field also generates an input conversion.
-    pub(super) is_from: bool,
+    pub is_from: bool,
     /// Whether the field supplies captured or forwarded backtrace state.
-    pub(super) is_backtrace: bool,
+    pub is_backtrace: bool,
 }
 
 impl ThiserrorAttributes {
     /// Reads thiserror field attributes.
-    pub(super) fn from_attributes(attributes: &[syn::Attribute]) -> Self {
+    pub fn from_attributes(attributes: &[syn::Attribute]) -> Self {
         let mut result = Self::default();
         for attribute in attributes {
             if attribute.path().is_ident("source") {
@@ -99,18 +99,23 @@ impl ThiserrorAttributes {
 }
 
 // -----------------------------------------------------------------------------
-// StaticErrorMessage: Literal presentation extraction
+// ErrorMessage: Literal presentation extraction
 // -----------------------------------------------------------------------------
 
-/// Returns an error message only when it contains no interpolation.
-pub(super) fn static_error_message(attributes: &[syn::Attribute]) -> Option<String> {
-    let attribute = attributes
-        .iter()
-        .find(|attribute| attribute.path().is_ident("error"))?;
-    let message = match attribute.parse_args::<syn::LitStr>() {
-        Ok(message) => message.value(),
-        Err(_error) => return None,
-    };
+/// Recovers authored error presentation without interpolation.
+pub struct ErrorMessage;
 
-    (!message.contains('{')).then_some(message)
+impl ErrorMessage {
+    /// Returns an error message only when it contains no interpolation.
+    pub fn static_from(attributes: &[syn::Attribute]) -> Option<String> {
+        let attribute = attributes
+            .iter()
+            .find(|attribute| attribute.path().is_ident("error"))?;
+        let message = match attribute.parse_args::<syn::LitStr>() {
+            Ok(message) => message.value(),
+            Err(_error) => return None,
+        };
+
+        (!message.contains('{')).then_some(message)
+    }
 }

@@ -68,42 +68,6 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// DynamicError: Erased error recognition
-// -----------------------------------------------------------------------------
-
-/// Success and error arguments carried by `Result`.
-const DYNAMIC_ERROR_RESULT_TYPE_ARGUMENT_COUNT: usize = 2;
-
-/// Recognizes `Box<dyn std::error::Error>` and its `core` spelling.
-fn dynamic_error_boxed_trait_name(cx: &LateContext<'_>, inner: Ty<'_>) -> Option<String> {
-    let ty::Dynamic(predicates, ..) = inner.kind() else {
-        return None;
-    };
-    let principal = predicates.principal()?;
-    let definition = principal.def_id();
-    (cx.tcx.item_name(definition).as_str() == "Error"
-        && matches!(cx.tcx.crate_name(definition.krate).as_str(), "core" | "std"))
-    .then(|| "Box<dyn Error>".to_owned())
-}
-
-/// Names dynamic error types that should stay behind a concrete domain error.
-fn dynamic_error_name(cx: &LateContext<'_>, error: Ty<'_>) -> Option<String> {
-    if let ty::Adt(definition, arguments) = error.kind() {
-        let name_symbol = cx.tcx.item_name(definition.did());
-        let name = name_symbol.as_str();
-        let crate_symbol = cx.tcx.crate_name(definition.did().krate);
-        let krate = crate_symbol.as_str();
-        if (krate == "anyhow" && name == "Error") || (krate == "miette" && name == "Report") {
-            return Some(format!("{krate}::{name}"));
-        }
-        if krate == "alloc" && name == "Box" && !arguments.is_empty() {
-            return dynamic_error_boxed_trait_name(cx, arguments.type_at(0));
-        }
-    }
-    None
-}
-
-// -----------------------------------------------------------------------------
 // ThiserrorDynamicErrorsInLibraryInterfaces: Concrete public error policy
 // -----------------------------------------------------------------------------
 
@@ -118,6 +82,39 @@ dylint_linting::impl_late_lint! {
     ThiserrorDynamicErrorsInLibraryInterfaces
 }
 
+impl ThiserrorDynamicErrorsInLibraryInterfaces {
+    /// Success and error arguments carried by `Result`.
+    const RESULT_TYPE_ARGUMENT_COUNT: usize = 2;
+
+    /// Recognizes `Box<dyn std::error::Error>` and its `core` spelling.
+    fn boxed_trait_name(cx: &LateContext<'_>, inner: Ty<'_>) -> Option<String> {
+        let ty::Dynamic(predicates, ..) = inner.kind() else {
+            return None;
+        };
+        let principal = predicates.principal()?;
+        let definition = principal.def_id();
+        (cx.tcx.item_name(definition).as_str() == "Error"
+            && matches!(cx.tcx.crate_name(definition.krate).as_str(), "core" | "std"))
+        .then(|| "Box<dyn Error>".to_owned())
+    }
+
+    /// Names dynamic error types that should stay behind a concrete domain error.
+    fn error_name(cx: &LateContext<'_>, error: Ty<'_>) -> Option<String> {
+        if let ty::Adt(definition, arguments) = error.kind() {
+            let name_symbol = cx.tcx.item_name(definition.did());
+            let name = name_symbol.as_str();
+            let crate_symbol = cx.tcx.crate_name(definition.did().krate);
+            let krate = crate_symbol.as_str();
+            if (krate == "anyhow" && name == "Error") || (krate == "miette" && name == "Report") {
+                return Some(format!("{krate}::{name}"));
+            }
+            if krate == "alloc" && name == "Box" && !arguments.is_empty() {
+                return Self::boxed_trait_name(cx, arguments.type_at(0));
+            }
+        }
+        None
+    }
+}
 impl LateLintPass<'_> for ThiserrorDynamicErrorsInLibraryInterfaces {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Limit the policy to authored public functions.
@@ -140,14 +137,14 @@ impl LateLintPass<'_> for ThiserrorDynamicErrorsInLibraryInterfaces {
             return;
         };
         if cx.tcx.item_name(result.did()).as_str() != "Result"
-            || arguments.len() != DYNAMIC_ERROR_RESULT_TYPE_ARGUMENT_COUNT
+            || arguments.len() != Self::RESULT_TYPE_ARGUMENT_COUNT
         {
             return;
         }
         let error = arguments.type_at(1);
 
         // Report only error types that erase the public failure vocabulary.
-        let Some(error_name) = dynamic_error_name(cx, error) else {
+        let Some(error_name) = Self::error_name(cx, error) else {
             return;
         };
 

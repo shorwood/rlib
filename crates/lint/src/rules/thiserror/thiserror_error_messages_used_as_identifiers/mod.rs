@@ -11,7 +11,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::ThiserrorContractCatalog;
+use super::utils::contracts::ThiserrorContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -72,37 +72,6 @@ struct Candidate {
     operation: &'static str,
 }
 
-/// Resolves the local error type formatted by a `to_string` call.
-fn candidate_displayed_error(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
-    let ExprKind::MethodCall(segment, receiver, _, _) = expression.kind else {
-        return None;
-    };
-    if segment.ident.as_str() != "to_string" {
-        return None;
-    }
-
-    let method = cx
-        .typeck_results()
-        .type_dependent_def_id(expression.hir_id)?;
-    let trait_id = cx.tcx.trait_of_assoc(method)?;
-    if cx.tcx.item_name(trait_id).as_str() != "ToString" {
-        return None;
-    }
-
-    cx.typeck_results()
-        .expr_ty(receiver)
-        .peel_refs()
-        .ty_adt_def()?
-        .did()
-        .as_local()
-}
-
-/// Returns whether an operand is a literal string rather than domain data.
-const fn candidate_is_string_literal(expression: &Expr<'_>) -> bool {
-    matches!(expression.kind, ExprKind::Lit(literal)
-        if matches!(literal.node, rustc_ast::LitKind::Str(..)))
-}
-
 // -----------------------------------------------------------------------------
 // ThiserrorErrorMessagesUsedAsIdentifiers: Typed identity policy
 // -----------------------------------------------------------------------------
@@ -124,6 +93,38 @@ dylint_linting::impl_late_lint! {
     ThiserrorErrorMessagesUsedAsIdentifiers::default()
 }
 
+impl ThiserrorErrorMessagesUsedAsIdentifiers {
+    /// Resolves the local error type formatted by a `to_string` call.
+    fn displayed_error(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
+        let ExprKind::MethodCall(segment, receiver, _, _) = expression.kind else {
+            return None;
+        };
+        if segment.ident.as_str() != "to_string" {
+            return None;
+        }
+
+        let method = cx
+            .typeck_results()
+            .type_dependent_def_id(expression.hir_id)?;
+        let trait_id = cx.tcx.trait_of_assoc(method)?;
+        if cx.tcx.item_name(trait_id).as_str() != "ToString" {
+            return None;
+        }
+
+        cx.typeck_results()
+            .expr_ty(receiver)
+            .peel_refs()
+            .ty_adt_def()?
+            .did()
+            .as_local()
+    }
+
+    /// Returns whether an operand is a literal string rather than domain data.
+    const fn is_string_literal(expression: &Expr<'_>) -> bool {
+        matches!(expression.kind, ExprKind::Lit(literal)
+        if matches!(literal.node, rustc_ast::LitKind::Str(..)))
+    }
+}
 impl LateLintPass<'_> for ThiserrorErrorMessagesUsedAsIdentifiers {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -138,11 +139,11 @@ impl LateLintPass<'_> for ThiserrorErrorMessagesUsedAsIdentifiers {
             ExprKind::Binary(operator, left, right)
                 if matches!(operator.node, BinOpKind::Eq | BinOpKind::Ne) =>
             {
-                if candidate_is_string_literal(right) {
-                    candidate_displayed_error(cx, left)
+                if Self::is_string_literal(right) {
+                    Self::displayed_error(cx, left)
                         .map(|definition| (definition, "string comparison"))
-                } else if candidate_is_string_literal(left) {
-                    candidate_displayed_error(cx, right)
+                } else if Self::is_string_literal(left) {
+                    Self::displayed_error(cx, right)
                         .map(|definition| (definition, "string comparison"))
                 } else {
                     None
@@ -154,9 +155,9 @@ impl LateLintPass<'_> for ThiserrorErrorMessagesUsedAsIdentifiers {
                     "starts_with" | "ends_with" | "contains"
                 ) && arguments
                     .first()
-                    .is_some_and(|argument| candidate_is_string_literal(argument)) =>
+                    .is_some_and(|argument| Self::is_string_literal(argument)) =>
             {
-                candidate_displayed_error(cx, receiver)
+                Self::displayed_error(cx, receiver)
                     .map(|definition| (definition, "string-pattern check"))
             }
             _ => None,

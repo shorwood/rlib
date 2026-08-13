@@ -11,7 +11,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{ThiserrorContractCatalog, static_error_message};
+use super::utils::contracts::{ErrorMessage, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -118,7 +118,7 @@ impl LateLintPass<'_> for ThiserrorDuplicateErrorMessages {
         };
         let mut messages = BTreeMap::<String, Vec<String>>::new();
         for variant in &enumeration.variants {
-            let Some(message) = static_error_message(&variant.attrs) else {
+            let Some(message) = ErrorMessage::static_from(&variant.attrs) else {
                 continue;
             };
             messages

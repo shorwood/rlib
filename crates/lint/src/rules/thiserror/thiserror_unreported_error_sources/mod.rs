@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
+use super::utils::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -87,11 +87,6 @@ struct Candidate {
     fields: Vec<CandidateField>,
 }
 
-/// Returns whether a field name conventionally denotes a cause.
-fn candidate_has_causal_name(name: &str) -> bool {
-    matches!(name, "cause" | "error" | "source") || name.ends_with("_error")
-}
-
 // -----------------------------------------------------------------------------
 // ThiserrorUnreportedErrorSources: Complete source-chain policy
 // -----------------------------------------------------------------------------
@@ -113,6 +108,12 @@ dylint_linting::impl_late_lint! {
     ThiserrorUnreportedErrorSources::default()
 }
 
+impl ThiserrorUnreportedErrorSources {
+    /// Returns whether a field name conventionally denotes a cause.
+    fn has_causal_name(name: &str) -> bool {
+        matches!(name, "cause" | "error" | "source") || name.ends_with("_error")
+    }
+}
 impl LateLintPass<'_> for ThiserrorUnreportedErrorSources {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -153,7 +154,7 @@ impl LateLintPass<'_> for ThiserrorUnreportedErrorSources {
             .zip(hir_fields)
             .filter_map(|(field, hir_field)| {
                 let name = field.ident.as_ref()?.to_string();
-                if !candidate_has_causal_name(&name) {
+                if !Self::has_causal_name(&name) {
                     return None;
                 }
                 let target = cx

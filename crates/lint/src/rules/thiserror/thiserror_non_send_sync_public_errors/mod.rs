@@ -13,7 +13,7 @@ use rustc_middle::ty::{self, Ty};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::ThiserrorContractCatalog;
+use super::utils::contracts::ThiserrorContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -104,47 +104,6 @@ impl ChannelNesting {
     }
 }
 
-/// Collects local types nested within channel payloads.
-fn channel_nesting_collect_errors(
-    cx: &LateContext<'_>,
-    ty: Ty<'_>,
-    nesting: ChannelNesting,
-    errors: &mut HashSet<LocalDefId>,
-) {
-    let ty::Adt(definition, arguments) = ty.kind() else {
-        return;
-    };
-    let path = cx.tcx.def_path_str(definition.did());
-
-    let nesting = nesting.entering(&path);
-    let channel = nesting.is_inside();
-    if channel && let Some(local) = definition.did().as_local() {
-        errors.insert(local);
-    }
-
-    for nested in arguments.types() {
-        if channel
-            && let ty::Adt(nested_definition, _) = nested.kind()
-            && let Some(local) = nested_definition.did().as_local()
-        {
-            errors.insert(local);
-        }
-        channel_nesting_collect_errors(cx, nested, nesting, errors);
-    }
-}
-
-// -----------------------------------------------------------------------------
-// ThreadSafetyCandidate: Blocking field evidence
-// -----------------------------------------------------------------------------
-
-/// Public error and the fields preventing thread-safe transport.
-struct ThreadSafetyCandidate {
-    /// Error declaration receiving a later diagnostic.
-    span: Span,
-    /// Local-only field representations.
-    blockers: Vec<String>,
-}
-
 // -----------------------------------------------------------------------------
 // ThiserrorNonSendSyncPublicErrors: Public channel safety policy
 // -----------------------------------------------------------------------------
@@ -168,6 +127,36 @@ dylint_linting::impl_late_lint! {
     ThiserrorNonSendSyncPublicErrors::default()
 }
 
+impl ThiserrorNonSendSyncPublicErrors {
+    /// Collects local types nested within channel payloads.
+    fn collect_channel_errors(
+        cx: &LateContext<'_>,
+        ty: Ty<'_>,
+        nesting: ChannelNesting,
+        errors: &mut HashSet<LocalDefId>,
+    ) {
+        let ty::Adt(definition, arguments) = ty.kind() else {
+            return;
+        };
+        let path = cx.tcx.def_path_str(definition.did());
+
+        let nesting = nesting.entering(&path);
+        let channel = nesting.is_inside();
+        if channel && let Some(local) = definition.did().as_local() {
+            errors.insert(local);
+        }
+
+        for nested in arguments.types() {
+            if channel
+                && let ty::Adt(nested_definition, _) = nested.kind()
+                && let Some(local) = nested_definition.did().as_local()
+            {
+                errors.insert(local);
+            }
+            Self::collect_channel_errors(cx, nested, nesting, errors);
+        }
+    }
+}
 impl LateLintPass<'_> for ThiserrorNonSendSyncPublicErrors {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -211,7 +200,6 @@ impl LateLintPass<'_> for ThiserrorNonSendSyncPublicErrors {
         }
     }
 }
-
 impl ThiserrorNonSendSyncPublicErrors {
     /// Records local errors transported by one public channel-returning function.
     fn record_public_channel_boundary(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
@@ -222,7 +210,7 @@ impl ThiserrorNonSendSyncPublicErrors {
             .skip_binder()
             .output();
         let mut errors = HashSet::new();
-        channel_nesting_collect_errors(cx, output, ChannelNesting::OutsideChannel, &mut errors);
+        Self::collect_channel_errors(cx, output, ChannelNesting::OutsideChannel, &mut errors);
         for error in errors {
             self.boundaries
                 .insert(error, cx.tcx.item_name(item.owner_id.def_id).to_string());
@@ -267,4 +255,15 @@ impl ThiserrorNonSendSyncPublicErrors {
             },
         );
     }
+}
+// -----------------------------------------------------------------------------
+// ThreadSafetyCandidate: Blocking field evidence
+// -----------------------------------------------------------------------------
+
+/// Public error and the fields preventing thread-safe transport.
+struct ThreadSafetyCandidate {
+    /// Error declaration receiving a later diagnostic.
+    span: Span,
+    /// Local-only field representations.
+    blockers: Vec<String>,
 }

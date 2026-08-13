@@ -25,7 +25,7 @@ pub struct ManualErrorCandidate {
     /// Error type name.
     pub(crate) name: String,
     /// Static message returned by the manual `Display` implementation.
-    pub(super) message: String,
+    pub message: String,
     /// Field returned by `Error::source`, when present.
     pub(crate) source_field: Option<String>,
 }
@@ -96,7 +96,7 @@ impl ManualErrorCatalog {
             return;
         };
         if trait_name == "Display" {
-            if let Some(message) = manual_error_impl_display_message(cx, item) {
+            if let Some(message) = ManualErrorImpl::display_message(cx, item) {
                 self.displays.insert(definition, message);
             }
         } else if trait_name == "Error"
@@ -155,10 +155,38 @@ impl ManualErrorSource {
 
         match implementation.items.as_slice() {
             [] => Some(Self::Empty),
-            [syn::ImplItem::Fn(method)] => {
-                manual_error_impl_conventional_source(method).map(Self::Field)
-            }
+            [syn::ImplItem::Fn(method)] => Self::conventional_field(method).map(Self::Field),
             _ => None,
+        }
+    }
+
+    /// Parses a conventional `Some(&self.field)` source method.
+    fn conventional_field(method: &syn::ImplItemFn) -> Option<String> {
+        if method.sig.ident != "source" {
+            return None;
+        }
+        let [syn::Stmt::Expr(syn::Expr::Call(call), _)] = method.block.stmts.as_slice() else {
+            return None;
+        };
+
+        if !matches!(call.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Some"))
+            || call.args.len() != 1
+        {
+            return None;
+        }
+        let syn::Expr::Reference(reference) = call.args.first()? else {
+            return None;
+        };
+        let syn::Expr::Field(field) = reference.expr.as_ref() else {
+            return None;
+        };
+
+        if !matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self")) {
+            return None;
+        }
+        match &field.member {
+            syn::Member::Named(name) => Some(name.to_string()),
+            syn::Member::Unnamed(_) => None,
         }
     }
 
@@ -223,88 +251,56 @@ impl ManualErrorImpl {
             trait_name,
         })
     }
-}
 
-/// Parses a single static `write_str` display implementation.
-fn manual_error_impl_display_message(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
-    let source = AuthoredItemSource::for_item(cx, item)?;
-    let implementation = match syn::parse_str::<syn::ItemImpl>(&source) {
-        Ok(implementation) => implementation,
-        Err(_error) => return None,
-    };
+    /// Parses a single static `write_str` display implementation.
+    fn display_message(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
+        let source = AuthoredItemSource::for_item(cx, item)?;
+        let implementation = match syn::parse_str::<syn::ItemImpl>(&source) {
+            Ok(implementation) => implementation,
+            Err(_error) => return None,
+        };
 
-    let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
-        return None;
-    };
-    if method.sig.ident != "fmt" {
-        return None;
-    }
-    let mut inputs = method.sig.inputs.iter();
+        let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
+            return None;
+        };
+        if method.sig.ident != "fmt" {
+            return None;
+        }
+        let mut inputs = method.sig.inputs.iter();
 
-    if !matches!(inputs.next(), Some(syn::FnArg::Receiver(_))) {
-        return None;
-    }
-    let Some(syn::FnArg::Typed(formatter)) = inputs.next() else {
-        return None;
-    };
+        if !matches!(inputs.next(), Some(syn::FnArg::Receiver(_))) {
+            return None;
+        }
+        let Some(syn::FnArg::Typed(formatter)) = inputs.next() else {
+            return None;
+        };
 
-    if inputs.next().is_some() {
-        return None;
-    }
-    let syn::Pat::Ident(formatter) = formatter.pat.as_ref() else {
-        return None;
-    };
+        if inputs.next().is_some() {
+            return None;
+        }
+        let syn::Pat::Ident(formatter) = formatter.pat.as_ref() else {
+            return None;
+        };
 
-    let [syn::Stmt::Expr(syn::Expr::MethodCall(call), _)] = method.block.stmts.as_slice() else {
-        return None;
-    };
-    if call.method != "write_str" || call.turbofish.is_some() || call.args.len() != 1 {
-        return None;
-    }
-    if !matches!(call.receiver.as_ref(), syn::Expr::Path(path) if path.path.is_ident(&formatter.ident))
-    {
-        return None;
-    }
-    let syn::Expr::Lit(syn::ExprLit {
-        lit: syn::Lit::Str(message),
-        ..
-    }) = call.args.first()?
-    else {
-        return None;
-    };
-    let message = message.value();
-    (!message.contains('{') && !message.contains('}')).then_some(message)
-}
-
-/// Parses a conventional `Some(&self.field)` source method.
-fn manual_error_impl_conventional_source(method: &syn::ImplItemFn) -> Option<String> {
-    if method.sig.ident != "source" {
-        return None;
-    }
-    let [syn::Stmt::Expr(syn::Expr::Call(call), _)] = method.block.stmts.as_slice() else {
-        return None;
-    };
-
-    if !matches!(call.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Some")) {
-        return None;
-    }
-    if call.args.len() != 1 {
-        return None;
-    }
-    let argument = call.args.first()?;
-
-    let syn::Expr::Reference(reference) = argument else {
-        return None;
-    };
-    let syn::Expr::Field(field) = reference.expr.as_ref() else {
-        return None;
-    };
-
-    if !matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self")) {
-        return None;
-    }
-    match &field.member {
-        syn::Member::Named(name) => Some(name.to_string()),
-        syn::Member::Unnamed(_) => None,
+        let [syn::Stmt::Expr(syn::Expr::MethodCall(call), _)] = method.block.stmts.as_slice()
+        else {
+            return None;
+        };
+        if call.method != "write_str" || call.turbofish.is_some() || call.args.len() != 1 {
+            return None;
+        }
+        if !matches!(call.receiver.as_ref(), syn::Expr::Path(path) if path.path.is_ident(&formatter.ident))
+        {
+            return None;
+        }
+        let syn::Expr::Lit(syn::ExprLit {
+            lit: syn::Lit::Str(message),
+            ..
+        }) = call.args.first()?
+        else {
+            return None;
+        };
+        let message = message.value();
+        (!message.contains('{') && !message.contains('}')).then_some(message)
     }
 }
