@@ -7,6 +7,7 @@ pub mod miette_labels_without_source_code;
 pub mod miette_malformed_diagnostic_codes;
 pub mod miette_missing_diagnostic_codes;
 pub mod miette_plain_error_diagnostic_sources;
+pub mod miette_reports_in_library_interfaces;
 pub mod miette_sensitive_diagnostic_source;
 pub mod miette_source_code_without_labels;
 pub mod miette_unstable_diagnostic_urls;

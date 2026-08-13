@@ -38,7 +38,7 @@ fn active_lints_have_canonical_public_documentation() {
         + 26 * usize::from(cfg!(feature = "leptos"))
         + 20 * usize::from(cfg!(feature = "derive_more"))
         + usize::from(cfg!(feature = "framework"))
-        + 10 * usize::from(cfg!(feature = "miette"))
+        + 11 * usize::from(cfg!(feature = "miette"))
         + 16 * usize::from(cfg!(feature = "serde"))
         + 19 * usize::from(cfg!(feature = "strum"))
         + 11 * usize::from(cfg!(feature = "thiserror"));

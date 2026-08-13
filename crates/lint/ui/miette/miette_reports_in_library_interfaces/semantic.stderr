@@ -1,0 +1,14 @@
+warning: public library API `public_report` returns `miette::Report`
+  --> $DIR/semantic.rs:3:1
+   |
+LL | / pub fn public_report() -> miette::Result<()> {
+LL | |     Ok(())
+LL | | }
+   | |_^ this library boundary exposes an application report
+   |
+   = note: a report is an application rendering boundary and erases the concrete failure vocabulary library callers need
+   = help: return a public concrete error type, optionally deriving both `thiserror::Error` and `miette::Diagnostic`
+   = note: `#[warn(miette_reports_in_library_interfaces)]` on by default
+
+warning: 1 warning emitted
+

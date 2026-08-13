@@ -437,6 +437,18 @@ fn run_miette_fixtures() {
             .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
             .run();
     }
+    if selected
+        .as_deref()
+        .is_none_or(|selected| selected == "miette_reports_in_library_interfaces")
+    {
+        Test::example(
+            env!("CARGO_PKG_NAME"),
+            "miette_reports_in_library_interfaces",
+        )
+        .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+        .rustc_flags(["--crate-type=lib"])
+        .run();
+    }
 }
 
 #[cfg(feature = "thiserror")]
