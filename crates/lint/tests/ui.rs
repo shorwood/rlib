@@ -390,6 +390,7 @@ fn run_serde_fixtures() {
 fn run_thiserror_fixtures() {
     let selected = selected_framework_fixture();
     for example in [
+        "thiserror_ambiguous_error_sources",
         "thiserror_duplicate_error_messages",
         "thiserror_dynamic_errors_in_library_interfaces",
         "thiserror_unreported_error_sources",

@@ -148,6 +148,8 @@ pub extern "Rust" fn register_lints(
     register_strum_lints(sess, lint_store);
 
     #[cfg(feature = "thiserror")]
+    rules::thiserror::thiserror_ambiguous_error_sources::register_lints(sess, lint_store);
+    #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_duplicate_error_messages::register_lints(sess, lint_store);
     #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_dynamic_errors_in_library_interfaces::register_lints(
