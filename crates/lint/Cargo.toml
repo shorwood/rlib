@@ -110,6 +110,11 @@ path = "ui/derive_more/derive_more_derived_constructors_bypassing_invariants/sem
 required-features = ["derive_more"]
 
 [[example]]
+name = "derive_more_derived_conversions_bypassing_invariants"
+path = "ui/derive_more/derive_more_derived_conversions_bypassing_invariants/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
 name = "derive_more_inconsistent_derived_equality"
 path = "ui/derive_more/derive_more_inconsistent_derived_equality/semantic.rs"
 required-features = ["derive_more"]

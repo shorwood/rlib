@@ -1,0 +1,15 @@
+warning: derive_more generates unchecked conversion into `EmailAddress`
+  --> $DIR/semantic.rs:4:8
+   |
+LL | struct EmailAddress(String);
+   |        ^^^^^^^^^^^^ unchecked structural conversion is derived here
+...
+LL |     fn parse(value: String) -> Result<Self, &'static str> {
+   |        ----- this constructor establishes fallible validation
+   |
+   = note: the structural conversion constructs restricted state without passing through the type's fallible invariant boundary
+   = help: remove the From derive and route conversion through the checked constructor or an authored `TryFrom` implementation
+   = note: `#[warn(derive_more_derived_conversions_bypassing_invariants)]` on by default
+
+warning: 1 warning emitted
+
