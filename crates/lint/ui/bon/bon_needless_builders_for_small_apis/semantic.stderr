@@ -1,0 +1,12 @@
+warning: private Bon builder wraps only 2 required parameters
+  --> $DIR/semantic.rs:5:1
+   |
+LL | #[bon::builder]
+   | ^^^^^^^^^^^^^^^
+   |
+   = note: this small internal API gains no optionality, default, conversion, or staging benefit from generated typestate
+   = help: remove `#[bon::builder]` and retain the direct function call
+   = note: `#[warn(bon_needless_builders_for_small_apis)]` on by default
+
+warning: 1 warning emitted
+

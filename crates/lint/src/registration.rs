@@ -19,6 +19,8 @@ pub extern "Rust" fn register_lints(
     lint_store: &mut rustc_lint::LintStore,
 ) {
     #[cfg(feature = "bon")]
+    rules::bon::bon_needless_builders_for_small_apis::register_lints(sess, lint_store);
+    #[cfg(feature = "bon")]
     rules::bon::bon_parameter_heavy_apis_without_builders::register_lints(sess, lint_store);
 
     #[cfg(feature = "framework")]

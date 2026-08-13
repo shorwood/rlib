@@ -34,6 +34,11 @@ reactive_stores = "=0.4.3"
 strum = { version = "=0.28.0", features = ["derive"] }
 
 [[example]]
+name = "bon_needless_builders_for_small_apis"
+path = "ui/bon/bon_needless_builders_for_small_apis/semantic.rs"
+required-features = ["bon"]
+
+[[example]]
 name = "bon_parameter_heavy_apis_without_builders"
 path = "ui/bon/bon_parameter_heavy_apis_without_builders/semantic.rs"
 required-features = ["bon"]

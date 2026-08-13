@@ -221,7 +221,10 @@ fn run_standalone_fixtures() {
 #[cfg(feature = "bon")]
 fn run_bon_fixtures() {
     let selected = selected_framework_fixture();
-    for example in ["bon_parameter_heavy_apis_without_builders"] {
+    for example in [
+        "bon_needless_builders_for_small_apis",
+        "bon_parameter_heavy_apis_without_builders",
+    ] {
         if selected
             .as_deref()
             .is_some_and(|selected| selected != example)

@@ -1,1 +1,2 @@
+pub mod bon_needless_builders_for_small_apis;
 pub mod bon_parameter_heavy_apis_without_builders;
