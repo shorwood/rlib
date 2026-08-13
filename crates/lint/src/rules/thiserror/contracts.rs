@@ -79,3 +79,25 @@ pub(super) fn static_error_message(attributes: &[syn::Attribute]) -> Option<Stri
     let message = attribute.parse_args::<syn::LitStr>().ok()?.value();
     (!message.contains('{')).then_some(message)
 }
+
+#[derive(Default)]
+pub(super) struct ThiserrorAttributes {
+    pub(super) source: bool,
+    pub(super) from: bool,
+    pub(super) backtrace: bool,
+}
+
+pub(super) fn thiserror_attributes(attributes: &[syn::Attribute]) -> ThiserrorAttributes {
+    let mut result = ThiserrorAttributes::default();
+    for attribute in attributes {
+        if attribute.path().is_ident("source") {
+            result.source = true;
+        } else if attribute.path().is_ident("from") {
+            result.from = true;
+            result.source = true;
+        } else if attribute.path().is_ident("backtrace") {
+            result.backtrace = true;
+        }
+    }
+    result
+}

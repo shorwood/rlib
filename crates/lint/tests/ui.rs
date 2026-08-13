@@ -392,6 +392,7 @@ fn run_thiserror_fixtures() {
     for example in [
         "thiserror_duplicate_error_messages",
         "thiserror_dynamic_errors_in_library_interfaces",
+        "thiserror_unreported_error_sources",
     ] {
         if selected
             .as_deref()

@@ -38,7 +38,7 @@ fn active_lints_have_canonical_public_documentation() {
         + usize::from(cfg!(feature = "framework"))
         + 16 * usize::from(cfg!(feature = "serde"))
         + 19 * usize::from(cfg!(feature = "strum"))
-        + 2 * usize::from(cfg!(feature = "thiserror"));
+        + 3 * usize::from(cfg!(feature = "thiserror"));
     assert_eq!(
         lint_directories.len(),
         expected,
