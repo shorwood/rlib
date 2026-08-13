@@ -3,4 +3,5 @@ mod contracts;
 pub mod derive_more_derived_constructors_bypassing_invariants;
 pub mod derive_more_manual_conversion_impls;
 pub mod derive_more_manual_constructors;
+pub mod derive_more_manual_forwarding_interfaces;
 pub mod derive_more_manual_into_iterator_impls;
