@@ -1,0 +1,21 @@
+warning: causal field `source_errors` is classified as a related diagnostic
+  --> $DIR/semantic.rs:11:5
+   |
+LL |     source_errors: Vec<Inner>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^ this relationship conflicts with the field role
+   |
+   = note: the declared Miette relationship contradicts the field's explicit domain role and distorts the rendered diagnostic tree
+   = help: model the primary failure with `#[diagnostic_source]` and reserve `#[related]` for sibling findings
+   = note: `#[warn(miette_misclassified_related_diagnostics)]` on by default
+
+warning: sibling field `related` is classified as the diagnostic source
+  --> $DIR/semantic.rs:18:5
+   |
+LL |     related: Inner,
+   |     ^^^^^^^^^^^^^^ this relationship conflicts with the field role
+   |
+   = note: the declared Miette relationship contradicts the field's explicit domain role and distorts the rendered diagnostic tree
+   = help: model independent findings with `#[related]` and select one actual causal diagnostic source
+
+warning: 2 warnings emitted
+

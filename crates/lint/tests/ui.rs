@@ -420,6 +420,7 @@ fn run_miette_fixtures() {
         "miette_generic_diagnostic_help",
         "miette_labels_without_source_code",
         "miette_malformed_diagnostic_codes",
+        "miette_misclassified_related_diagnostics",
         "miette_missing_diagnostic_codes",
         "miette_plain_error_diagnostic_sources",
         "miette_sensitive_diagnostic_source",

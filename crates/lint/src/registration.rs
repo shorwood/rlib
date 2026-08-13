@@ -118,6 +118,8 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "miette")]
     rules::miette::miette_malformed_diagnostic_codes::register_lints(sess, lint_store);
     #[cfg(feature = "miette")]
+    rules::miette::miette_misclassified_related_diagnostics::register_lints(sess, lint_store);
+    #[cfg(feature = "miette")]
     rules::miette::miette_missing_diagnostic_codes::register_lints(sess, lint_store);
     #[cfg(feature = "miette")]
     rules::miette::miette_plain_error_diagnostic_sources::register_lints(sess, lint_store);
