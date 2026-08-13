@@ -1,0 +1,18 @@
+warning: conditional serialization of `display_name` is not reversible
+  --> $DIR/semantic.rs:4:1
+   |
+LL | / struct Profile {
+LL | |     #[serde(skip_serializing_if = "String::is_empty")]
+LL | |     display_name: String,
+LL | |     #[serde(default, skip_serializing_if = "String::is_empty")]
+...  |
+LL | |     avatar: Option<String>,
+LL | | }
+   | |_^ this omission produces input the type rejects
+   |
+   = note: `String::is_empty` can omit this required field, but deserialization has no optional or default value for the missing key
+   = help: add a matching deserialization default, make the field optional, or remove the skip predicate
+   = note: `#[warn(serde_lossy_conditional_serialization)]` on by default
+
+warning: 1 warning emitted
+

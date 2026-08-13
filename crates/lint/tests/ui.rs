@@ -334,6 +334,7 @@ fn run_serde_fixtures() {
         "serde_deserialization_bypassing_invariants",
         "serde_defaults_hiding_missing_data",
         "serde_duplicate_serialized_names",
+        "serde_lossy_conditional_serialization",
         "serde_manual_deserialize_impls",
         "serde_manual_serialize_impls",
     ] {

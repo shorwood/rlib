@@ -35,6 +35,8 @@ pub(super) struct SerdeAttributes {
     pub(super) skip_serialize: bool,
     pub(super) skip_deserialize: bool,
     pub(super) implicit_default: bool,
+    pub(super) has_default: bool,
+    pub(super) skip_serializing_if: Option<String>,
 }
 
 pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes {
@@ -72,8 +74,12 @@ pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes
                 result.skip_serialize = true;
             } else if meta.path.is_ident("skip_deserializing") {
                 result.skip_deserialize = true;
-            } else if meta.path.is_ident("default") && !meta.input.peek(syn::Token![=]) {
-                result.implicit_default = true;
+            } else if meta.path.is_ident("default") {
+                result.has_default = true;
+                result.implicit_default = !meta.input.peek(syn::Token![=]);
+            } else if meta.path.is_ident("skip_serializing_if") {
+                result.skip_serializing_if =
+                    Some(meta.value()?.parse::<syn::LitStr>()?.value());
             }
             Ok(())
         });

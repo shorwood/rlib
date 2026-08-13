@@ -4,5 +4,6 @@ pub mod serde_asymmetric_serde_contracts;
 pub mod serde_deserialization_bypassing_invariants;
 pub mod serde_defaults_hiding_missing_data;
 pub mod serde_duplicate_serialized_names;
+pub mod serde_lossy_conditional_serialization;
 pub mod serde_manual_deserialize_impls;
 pub mod serde_manual_serialize_impls;
