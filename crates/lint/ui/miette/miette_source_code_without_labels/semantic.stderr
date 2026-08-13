@@ -1,0 +1,15 @@
+warning: diagnostic retains source code without a focus
+  --> $DIR/semantic.rs:5:1
+   |
+LL | / struct Unfocused {
+LL | |     #[source_code]
+LL | |     input: miette::NamedSource<String>,
+LL | | }
+   | |_^ this source has no diagnostic focus
+   |
+   = note: source fields `input` have no label, related diagnostic, or diagnostic source that can select a relevant location
+   = help: add focused label metadata or remove source-code storage from this diagnostic
+   = note: `#[warn(miette_source_code_without_labels)]` on by default
+
+warning: 1 warning emitted
+
