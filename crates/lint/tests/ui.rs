@@ -293,6 +293,7 @@ fn run_derive_more_fixtures() {
         "derive_more_manual_constructors",
         "derive_more_manual_forwarding_interfaces",
         "derive_more_manual_into_iterator_impls",
+        "derive_more_mutable_forwarding_bypassing_invariants",
     ] {
         if selected
             .as_deref()

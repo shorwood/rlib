@@ -53,6 +53,26 @@ impl DeriveMoreContractCatalog {
             .flatten()
     }
 
+    pub(super) fn derives_for(
+        &self,
+        def_id: LocalDefId,
+        derives: &[&'static str],
+    ) -> Vec<&'static str> {
+        derives
+            .iter()
+            .copied()
+            .filter(|derive| {
+                self.derives
+                    .get(derive)
+                    .is_some_and(|definitions| definitions.contains(&def_id))
+            })
+            .collect()
+    }
+
+    pub(super) fn type_contract(&self, def_id: LocalDefId) -> Option<&DeriveMoreTypeContract> {
+        self.types.get(&def_id)
+    }
+
     fn record_generated_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         if !matches!(item.kind, ItemKind::Impl(_)) {
             return;
@@ -81,6 +101,9 @@ fn derive_more_expansion(cx: &LateContext<'_>, span: Span) -> Option<&'static st
         }
         match cx.tcx.item_name(definition).as_str() {
             "Constructor" => Some("Constructor"),
+            "AsMut" => Some("AsMut"),
+            "DerefMut" => Some("DerefMut"),
+            "IndexMut" => Some("IndexMut"),
             _ => None,
         }
     })
