@@ -12,4 +12,5 @@ pub mod serde_lossy_conditional_serialization;
 pub mod serde_manual_deserialize_impls;
 pub mod serde_manual_serialize_impls;
 pub mod serde_non_roundtripping_serde_adapters;
+pub mod serde_sensitive_fields_serialized_by_default;
 pub mod serde_unstable_implicit_wire_names;
