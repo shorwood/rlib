@@ -18,6 +18,9 @@ pub extern "Rust" fn register_lints(
     sess: &rustc_session::Session,
     lint_store: &mut rustc_lint::LintStore,
 ) {
+    #[cfg(feature = "bon")]
+    rules::bon::bon_parameter_heavy_apis_without_builders::register_lints(sess, lint_store);
+
     #[cfg(feature = "framework")]
     rules::framework::framework_resolution_required::register_lints(sess, lint_store);
 

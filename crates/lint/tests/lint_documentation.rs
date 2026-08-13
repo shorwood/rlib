@@ -16,6 +16,8 @@ fn active_lints_have_canonical_public_documentation() {
     let rules = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
     let mut lint_directories = Vec::new();
     collect_lint_directories(&rules.join("core"), &mut lint_directories);
+    #[cfg(feature = "bon")]
+    collect_lint_directories(&rules.join("bon"), &mut lint_directories);
     #[cfg(feature = "framework")]
     collect_lint_directories(&rules.join("framework"), &mut lint_directories);
     #[cfg(feature = "strum")]
@@ -24,6 +26,7 @@ fn active_lints_have_canonical_public_documentation() {
     collect_lint_directories(&rules.join("leptos"), &mut lint_directories);
 
     let expected = 60
+        + usize::from(cfg!(feature = "bon"))
         + 26 * usize::from(cfg!(feature = "leptos"))
         + usize::from(cfg!(feature = "framework"))
         + 19 * usize::from(cfg!(feature = "strum"));

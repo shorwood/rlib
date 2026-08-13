@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 [features]
 default = ["leptos"]
 framework = []
+bon = []
 leptos = ["dep:proc-macro2", "dep:quote", "dep:rstml", "dep:syn"]
 strum = ["framework", "dep:syn"]
 
@@ -25,11 +26,17 @@ syn = { version = "2", features = ["full", "parsing"], optional = true }
 toml = "0.9"
 
 [dev-dependencies]
+bon = "=3.9.3"
 derive_more = { version = "=2.1.1", features = ["is_variant"] }
 dylint_testing = "=6.0.1"
 leptos = { version = "=0.8.20", features = ["ssr"] }
 reactive_stores = "=0.4.3"
 strum = { version = "=0.28.0", features = ["derive"] }
+
+[[example]]
+name = "bon_parameter_heavy_apis_without_builders"
+path = "ui/bon/bon_parameter_heavy_apis_without_builders/semantic.rs"
+required-features = ["bon"]
 
 [[example]]
 name = "leptos_attribute_bound_controlled_inputs"

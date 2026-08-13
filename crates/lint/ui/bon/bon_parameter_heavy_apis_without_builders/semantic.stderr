@@ -1,0 +1,12 @@
+warning: public API has 5 positional parameters with builder-worthy ambiguity
+  --> $DIR/semantic.rs:5:8
+   |
+LL | pub fn render(
+   |        ^^^^^^
+   |
+   = note: 2 boolean choices and 0 interchangeable type groups make call sites difficult to verify
+   = help: add `#[bon::builder]` for independent named choices, or introduce a domain options type when these values form one concept
+   = note: `#[warn(bon_parameter_heavy_apis_without_builders)]` on by default
+
+warning: 1 warning emitted
+

@@ -65,6 +65,16 @@ pub struct ParameterSignature {
 }
 
 impl ParameterSignature {
+    /// Returns the number of direct authored parameters excluding `self`.
+    pub(crate) const fn parameter_count(&self) -> usize {
+        self.parameters.len()
+    }
+
+    /// Returns the authored function or method name span.
+    pub(crate) const fn name_span(&self) -> Span {
+        self.span
+    }
+
     /// Collects a function or provided method under an authored Rust API boundary.
     pub(crate) fn from_body(
         cx: &LateContext<'_>,

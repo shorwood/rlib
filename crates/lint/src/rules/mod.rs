@@ -1,3 +1,5 @@
+#[cfg(feature = "bon")]
+pub mod bon;
 pub mod core;
 #[cfg(feature = "leptos")]
 pub mod leptos;
