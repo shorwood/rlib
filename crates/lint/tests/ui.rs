@@ -303,6 +303,7 @@ fn run_derive_more_fixtures() {
         "derive_more_mutable_forwarding_bypassing_invariants",
         "derive_more_non_roundtripping_derived_text_contracts",
         "derive_more_opaque_derived_display_contracts",
+        "derive_more_panic_prone_derived_variant_accessors",
     ] {
         if selected
             .as_deref()

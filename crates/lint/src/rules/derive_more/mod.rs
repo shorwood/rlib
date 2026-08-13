@@ -15,3 +15,4 @@ pub mod derive_more_manual_into_iterator_impls;
 pub mod derive_more_mutable_forwarding_bypassing_invariants;
 pub mod derive_more_non_roundtripping_derived_text_contracts;
 pub mod derive_more_opaque_derived_display_contracts;
+pub mod derive_more_panic_prone_derived_variant_accessors;

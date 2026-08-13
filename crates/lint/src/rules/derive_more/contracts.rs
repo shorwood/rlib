@@ -28,15 +28,27 @@ impl DeriveMoreContractCatalog {
             self.record_generated_impl(cx, item);
             return;
         }
-        let ItemKind::Struct(identifier, _, data) = item.kind else {
-            return;
+        let (identifier, has_restricted_fields) = match item.kind {
+            ItemKind::Struct(identifier, _, data) => (
+                identifier,
+                data.fields().iter().any(|field| field.vis_span.is_empty()),
+            ),
+            ItemKind::Enum(identifier, _, definition) => (
+                identifier,
+                definition
+                    .variants
+                    .iter()
+                    .flat_map(|variant| variant.data.fields())
+                    .any(|field| field.vis_span.is_empty()),
+            ),
+            _ => return,
         };
         self.types.insert(
             item.owner_id.def_id,
             DeriveMoreTypeContract {
                 span: identifier.span,
                 name: identifier.name,
-                has_restricted_fields: data.fields().iter().any(|field| field.vis_span.is_empty()),
+                has_restricted_fields,
             },
         );
     }
@@ -110,6 +122,7 @@ fn derive_more_expansion(cx: &LateContext<'_>, span: Span) -> Option<&'static st
             "IndexMut" => Some("IndexMut"),
             "PartialEq" => Some("PartialEq"),
             "TryFrom" => Some("TryFrom"),
+            "Unwrap" => Some("Unwrap"),
             _ => None,
         }
     })

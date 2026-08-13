@@ -1,0 +1,12 @@
+warning: derive_more-generated `unwrap_ok` is called without an established variant
+  --> $DIR/semantic.rs:10:5
+   |
+LL |     response.unwrap_ok()
+   |     ^^^^^^^^^^^^^^^^^^^^ this call can panic on another variant
+   |
+   = note: the generated accessor panics whenever the receiver has another variant
+   = help: pattern-match the receiver or use a derive_more `TryUnwrap` accessor for a fallible extraction
+   = note: `#[warn(derive_more_panic_prone_derived_variant_accessors)]` on by default
+
+warning: 1 warning emitted
+

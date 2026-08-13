@@ -180,6 +180,11 @@ path = "ui/derive_more/derive_more_opaque_derived_display_contracts/semantic.rs"
 required-features = ["derive_more"]
 
 [[example]]
+name = "derive_more_panic_prone_derived_variant_accessors"
+path = "ui/derive_more/derive_more_panic_prone_derived_variant_accessors/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
 name = "leptos_attribute_bound_controlled_inputs"
 path = "ui/leptos/leptos_attribute_bound_controlled_inputs/semantic.rs"
 required-features = ["leptos"]
