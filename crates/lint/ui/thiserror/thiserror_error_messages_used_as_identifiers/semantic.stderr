@@ -1,0 +1,12 @@
+warning: thiserror display text is used as machine identity
+  --> $DIR/semantic.rs:10:5
+   |
+LL |     error.to_string() == "not found"
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this decision parses error presentation
+   |
+   = note: this string comparison makes control flow depend on presentation text instead of the error's typed identity
+   = help: match the typed error variant or introduce an explicit stable diagnostic code
+   = note: `#[warn(thiserror_error_messages_used_as_identifiers)]` on by default
+
+warning: 1 warning emitted
+
