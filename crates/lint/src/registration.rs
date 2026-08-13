@@ -28,6 +28,8 @@ pub extern "Rust" fn register_lints(
     rules::bon::bon_parameter_heavy_apis_without_builders::register_lints(sess, lint_store);
     #[cfg(feature = "bon")]
     rules::bon::bon_skipped_builder_members_without_policy::register_lints(sess, lint_store);
+    #[cfg(feature = "bon")]
+    rules::bon::bon_undocumented_builder_members::register_lints(sess, lint_store);
 
     #[cfg(feature = "framework")]
     rules::framework::framework_resolution_required::register_lints(sess, lint_store);

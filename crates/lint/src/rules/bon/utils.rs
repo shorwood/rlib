@@ -58,3 +58,13 @@ pub(super) fn derives_bon_builder(cx: &EarlyContext<'_>, attributes: &[Attribute
                 .is_some_and(|source| source.contains("bon::Builder"))
     })
 }
+
+pub(super) fn is_option_type(ty: &str) -> bool {
+    let compact: String = ty
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect();
+    compact.starts_with("Option<")
+        || compact.starts_with("std::option::Option<")
+        || compact.starts_with("core::option::Option<")
+}

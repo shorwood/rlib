@@ -9,7 +9,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{builder_attribute, builder_attribute_contains, has_attribute};
+use super::utils::{builder_attribute, builder_attribute_contains, has_attribute, is_option_type};
 use crate::utils::diagnostic::EarlyViolation;
 
 struct Violation {
@@ -83,7 +83,7 @@ impl EarlyLintPass for BonImplicitOptionalBuilderMembers {
 fn violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
     let source_map = cx.sess().source_map();
     let ty = source_map.span_to_snippet(parameter.ty.span).ok()?;
-    if !is_option(&ty)
+    if !is_option_type(&ty)
         || builder_attribute_contains(cx, &parameter.attrs, "required")
         || has_attribute(&parameter.attrs, "doc")
     {
@@ -100,16 +100,6 @@ fn violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
         span: parameter.ty.span,
         member,
     })
-}
-
-fn is_option(ty: &str) -> bool {
-    let compact: String = ty
-        .chars()
-        .filter(|character| !character.is_whitespace())
-        .collect();
-    compact.starts_with("Option<")
-        || compact.starts_with("std::option::Option<")
-        || compact.starts_with("core::option::Option<")
 }
 
 fn is_policy_bearing(member: &str) -> bool {

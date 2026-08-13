@@ -1,0 +1,21 @@
+warning: public Bon member `timeout_seconds` has undocumented default behavior
+  --> $DIR/semantic.rs:4:58
+   |
+LL | pub fn connect(#[builder(default = 30)] timeout_seconds: u64, host: String) {
+   |                                                          ^^^ this non-obvious builder policy is undocumented
+   |
+   = note: generated setter signatures do not explain the domain meaning of optionality, defaults, conversions, or hidden initialization
+   = help: document the member's caller-visible policy with a doc comment or explicit Bon setter documentation
+   = note: `#[warn(bon_undocumented_builder_members)]` on by default
+
+warning: public Bon member `destination` has undocumented conversion behavior
+  --> $DIR/semantic.rs:24:18
+   |
+LL |     destination: String,
+   |                  ^^^^^^ this non-obvious builder policy is undocumented
+   |
+   = note: generated setter signatures do not explain the domain meaning of optionality, defaults, conversions, or hidden initialization
+   = help: document the member's caller-visible policy with a doc comment or explicit Bon setter documentation
+
+warning: 2 warnings emitted
+
