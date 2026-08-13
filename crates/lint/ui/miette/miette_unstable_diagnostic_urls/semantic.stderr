@@ -1,0 +1,12 @@
+warning: diagnostic URL `http://localhost/errors/bad` is not a stable external link
+  --> $DIR/semantic.rs:6:1
+   |
+LL | struct Bad;
+   | ^^^^^^^^^^^ this diagnostic exposes an unstable URL
+   |
+   = note: local, insecure, relative, or presentation-derived links are unsuitable as durable diagnostic metadata
+   = help: use a static HTTPS documentation URL with a stable path
+   = note: `#[warn(miette_unstable_diagnostic_urls)]` on by default
+
+warning: 1 warning emitted
+

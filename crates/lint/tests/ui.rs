@@ -419,6 +419,7 @@ fn run_miette_fixtures() {
         "miette_duplicate_diagnostic_codes",
         "miette_malformed_diagnostic_codes",
         "miette_missing_diagnostic_codes",
+        "miette_unstable_diagnostic_urls",
     ] {
         if selected
             .as_deref()

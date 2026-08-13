@@ -115,6 +115,8 @@ pub extern "Rust" fn register_lints(
     rules::miette::miette_malformed_diagnostic_codes::register_lints(sess, lint_store);
     #[cfg(feature = "miette")]
     rules::miette::miette_missing_diagnostic_codes::register_lints(sess, lint_store);
+    #[cfg(feature = "miette")]
+    rules::miette::miette_unstable_diagnostic_urls::register_lints(sess, lint_store);
 
     #[cfg(feature = "serde")]
     rules::serde::serde_ambiguous_untagged_enums::register_lints(sess, lint_store);
