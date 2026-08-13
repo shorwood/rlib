@@ -13,15 +13,19 @@ use super::utils::enumeration::{CollectionCandidate, CollectionProvider};
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Hand-maintained complete enum collection
+// -----------------------------------------------------------------------------
+
+/// Complete variant collection reproducible by the configured Strum provider.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `enum_name` value used by this analysis.
+    /// Enum name quoted in the diagnostic.
     enum_name: Symbol,
-    /// Stores the `is_public_api` value used by this analysis.
+    /// Whether replacement would change a public API.
     is_public_api: bool,
 }
 
@@ -46,12 +50,10 @@ impl LateViolation for Violation {
     }
 
     fn emit(self, cx: &LateContext<'_>) {
-        // Prepare the values used by this stage.
         let primary = self.primary_message().into_owned();
         let rationale = self.rationale_message().into_owned();
         let remediation = self.remediation_message().into_owned();
 
-        // Perform the next step of the analysis.
         cx.tcx.emit_node_span_lint(
             STRUM_MANUAL_ENUM_ITERATION,
             self.owner,
@@ -68,14 +70,18 @@ impl LateViolation for Violation {
     }
 }
 
-/// Carries the `StrumManualEnumIteration` state used by this analysis.
+// -----------------------------------------------------------------------------
+// StrumManualEnumIteration: Generated complete-iteration policy
+// -----------------------------------------------------------------------------
+
+/// Finds complete manual variant collections after provider resolution.
 struct StrumManualEnumIteration {
-    /// Stores the `provider` value used by this analysis.
+    /// Explicitly resolved framework provider, when one is available.
     provider: Option<CollectionProvider>,
 }
 
 impl StrumManualEnumIteration {
-    /// Performs the `new` operation for this value.
+    /// Starts enum-iteration analysis with the configured framework owner.
     fn new() -> Self {
         Self {
             provider: LibraryConfig::load()
@@ -84,22 +90,20 @@ impl StrumManualEnumIteration {
         }
     }
 
-    /// Performs the `check` operation for this value.
-    fn check(&self, cx: &LateContext<'_>, analyze_candidate: Option<CollectionCandidate>) {
-        // Prepare the values used by this stage.
-        let Some(analyze_candidate) = analyze_candidate else {
+    /// Reports complete authored iteration when Strum owns its replacement.
+    fn check(&self, cx: &LateContext<'_>, candidate: Option<CollectionCandidate>) {
+        let Some(candidate) = candidate else {
             return;
         };
-        if !(analyze_candidate.selected(self.provider) == Some(CollectionProvider::StrumEnumIter)) {
+        if !(candidate.selected(self.provider) == Some(CollectionProvider::StrumEnumIter)) {
             return;
         }
 
-        // Perform the next step of the analysis.
         Violation {
-            span: analyze_candidate.span,
-            owner: analyze_candidate.owner,
-            enum_name: analyze_candidate.enum_name(cx),
-            is_public_api: analyze_candidate.is_public_api(),
+            span: candidate.span,
+            owner: candidate.owner,
+            enum_name: candidate.enum_name(cx),
+            is_public_api: candidate.is_public_api(),
         }
         .emit(cx);
     }

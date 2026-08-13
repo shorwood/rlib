@@ -13,17 +13,21 @@ use super::utils::authored_contracts::VariantValueFamily;
 use super::utils::contracts::ContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Hand-maintained variant metadata table
+// -----------------------------------------------------------------------------
+
+/// Complete variant-to-value table reproducible by Strum properties.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `enum_name` value used by this analysis.
+    /// Enum name quoted in the diagnostic.
     enum_name: Symbol,
-    /// Stores the `provider` value used by this analysis.
+    /// Explicitly resolved framework provider, when one is available.
     provider: &'static str,
-    /// Stores the `is_public` value used by this analysis.
+    /// Whether the declaration is visible outside its defining module.
     is_public: bool,
 }
 
@@ -63,9 +67,8 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `is_metadata_name` step of the lint analysis.
+/// Recognizes method names conventionally used to expose enum metadata.
 fn is_metadata_name(name: &str) -> bool {
-    // Perform the next step of the analysis.
     [
         "message",
         "description",
@@ -83,10 +86,14 @@ fn is_metadata_name(name: &str) -> bool {
     .any(|token| name.contains(token))
 }
 
+// -----------------------------------------------------------------------------
+// StrumManualEnumMetadata: Declarative variant metadata policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `StrumManualEnumMetadata` state used by this analysis.
+/// Finds complete authored metadata tables that `EnumProperty` can generate.
 struct StrumManualEnumMetadata {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,
 }
 
@@ -104,18 +111,15 @@ impl LateLintPass<'_> for StrumManualEnumMetadata {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        // Prepare the values used by this stage.
         let Some(family) = VariantValueFamily::from_impl_item(cx, item) else {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if self
             .catalog
             .contracts()
             .iter()
             .any(|contract| contract.def_id == family.enum_def && contract.has_authored_metadata())
-        // Perform the next step of the analysis.
         {
             return;
         }
@@ -123,19 +127,16 @@ impl LateLintPass<'_> for StrumManualEnumMetadata {
             family.method_name.as_str(),
             "as_str" | "as_static_str" | "name"
         ) || !is_metadata_name(family.method_name.as_str())
-        // Perform the next step of the analysis.
         {
             return;
         }
 
-        // Prepare the values used by this stage.
         let provider = if matches!(family.method_name.as_str(), "message" | "detailed_message") {
             "EnumMessage"
         } else {
             "EnumProperty"
         };
 
-        // Perform the next step of the analysis.
         Violation {
             owner: family.owner,
             span: family.span,

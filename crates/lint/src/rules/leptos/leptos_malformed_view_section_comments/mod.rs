@@ -109,12 +109,10 @@ impl LeptosMalformedViewSectionComments {
 
     /// Produces an unambiguous source-only repair when possible.
     fn replacement(&self, heading: &ViewHeading) -> Option<String> {
-        // Reject inputs that do not satisfy this stage.
         if !heading.text.starts_with("//") || heading.text.contains('\n') {
             return None;
         }
 
-        // Prepare the values used by this stage.
         let content = heading
             .text
             .strip_prefix(&self.config.view_section_comment_prefix)
@@ -126,13 +124,11 @@ impl LeptosMalformedViewSectionComments {
             .trim_end_matches([':', '.', ';', '!', '?', ',', '-'])
             .trim_end();
 
-        // Perform the next step of the analysis.
         FunctionLayoutProse::replacement(Some(content), &self.config.view_section_comment_prefix)
     }
 
     /// Classifies the first failure for one direct-boundary comment.
     fn violation(&self, heading: &ViewHeading, owner: HirId) -> Option<Violation> {
-        // Prepare the values used by this stage.
         let Some(node) = heading.node else {
             return Some(Violation {
                 owner,
@@ -142,11 +138,9 @@ impl LeptosMalformedViewSectionComments {
             });
         };
 
-        // Prepare the values used by this stage.
         let placement_is_valid =
             heading.is_immediately_preceding && (node == 0 || heading.has_blank_before);
 
-        // Prepare the values used by this stage.
         let (message, replacement) = if !self.is_canonical(heading) {
             (
                 "this view section comment is not canonical",
@@ -169,7 +163,6 @@ impl LeptosMalformedViewSectionComments {
             )
         };
 
-        // Return the completed analysis result.
         Some(Violation {
             owner,
             span: heading.span,

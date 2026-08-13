@@ -11,13 +11,17 @@ use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Documentation reused as a runtime message
+// -----------------------------------------------------------------------------
+
+/// Enum message contract coupled to authored API documentation.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `sink` value used by this analysis.
+    /// User-visible consumer reached by the documentation-derived message.
     sink: String,
 }
 
@@ -53,7 +57,7 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `callable_name` step of the lint analysis.
+/// Resolves the authored name of a directly called function or method.
 fn callable_name(cx: &LateContext<'_>, callee: &Expr<'_>) -> Option<String> {
     let ExprKind::Path(path) = callee.kind else {
         return None;
@@ -62,7 +66,7 @@ fn callable_name(cx: &LateContext<'_>, callee: &Expr<'_>) -> Option<String> {
     Some(cx.tcx.item_name(definition).as_str().to_owned())
 }
 
-/// Performs the `is_observed_name` step of the lint analysis.
+/// Recognizes call names that conventionally expose text to a user.
 fn is_observed_name(name: &str) -> bool {
     [
         "show", "display", "render", "response", "error", "message", "notify", "alert",
@@ -71,18 +75,16 @@ fn is_observed_name(name: &str) -> bool {
     .any(|token| name.contains(token))
 }
 
-/// Performs the `observed_sink` step of the lint analysis.
+/// Finds the nearby user-visible call that consumes a generated enum message.
 fn observed_sink(cx: &LateContext<'_>, mut hir_id: rustc_hir::HirId) -> Option<String> {
     /// Maximum parent expressions inspected for an observed message sink.
     const MAXIMUM_OBSERVED_SINK_ANCESTORS: usize = 4;
     for _ in 0..MAXIMUM_OBSERVED_SINK_ANCESTORS {
-        // Prepare the values used by this stage.
         let parent = cx.tcx.parent_hir_node(hir_id);
         let Node::Expr(expression) = parent else {
             return None;
         };
 
-        // Classify the current analyze_candidate.
         match expression.kind {
             ExprKind::MethodCall(segment, ..)
                 if matches!(
@@ -111,7 +113,11 @@ fn observed_sink(cx: &LateContext<'_>, mut hir_id: rustc_hir::HirId) -> Option<S
     None
 }
 
-/// Carries the `StrumDocumentationUsedAsEnumMessages` state used by this analysis.
+// -----------------------------------------------------------------------------
+// StrumDocumentationUsedAsEnumMessages: Separate message policy
+// -----------------------------------------------------------------------------
+
+/// Detects Strum message derivation from documentation comments.
 struct StrumDocumentationUsedAsEnumMessages;
 
 dylint_linting::impl_late_lint! {
@@ -124,7 +130,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for StrumDocumentationUsedAsEnumMessages {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
-        // Prepare the values used by this stage.
         let ExprKind::MethodCall(segment, ..) = expression.kind else {
             return;
         };
@@ -132,19 +137,16 @@ impl LateLintPass<'_> for StrumDocumentationUsedAsEnumMessages {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(method) = cx.typeck_results().type_dependent_def_id(expression.hir_id) else {
             return;
         };
 
-        // Prepare the values used by this stage.
         let contract = cx
             .tcx
             .associated_item(method)
             .trait_item_def_id()
             .unwrap_or(method);
 
-        // Reject inputs that do not satisfy this stage.
         if !cx
             .tcx
             .def_path_str(contract)
@@ -153,12 +155,10 @@ impl LateLintPass<'_> for StrumDocumentationUsedAsEnumMessages {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(sink) = observed_sink(cx, expression.hir_id) else {
             return;
         };
 
-        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
             span: expression.span.source_callsite(),

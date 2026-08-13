@@ -13,49 +13,56 @@ use rustc_span::def_id::LocalDefId;
 
 use crate::utils::source_provenance::AuthoredItemSource;
 
+// -----------------------------------------------------------------------------
+// ManualErrorCandidate: Derivable error contract
+// -----------------------------------------------------------------------------
+
+/// Manual `Display` and `Error` contract reproducible by a derive.
 #[derive(Clone)]
-/// Carries one manual error candidate found by this analysis.
-pub struct Candidate {
-    /// Stores the `span` value used by this analysis.
+pub struct ManualErrorCandidate {
+    /// Authored error type receiving a diagnostic.
     pub(crate) span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Error type name.
     pub(crate) name: String,
-    /// Stores the `message` value used by this analysis.
+    /// Static message returned by the manual `Display` implementation.
     pub(super) message: String,
-    /// Stores the `source_field` value used by this analysis.
+    /// Field returned by `Error::source`, when present.
     pub(crate) source_field: Option<String>,
 }
 
 /// Identifies one authored error type and its declaration span.
-struct ErrorType {
+struct ManualErrorCandidateType {
     /// Declaration span.
     span: Span,
     /// Authored type name.
     name: String,
 }
 
-#[derive(Default)]
+// -----------------------------------------------------------------------------
+// ManualErrorCatalog: Cross-implementation correlation
+// -----------------------------------------------------------------------------
+
 /// Collects manual error contracts across the crate.
-pub struct Catalog {
-    /// Stores the `displays` value used by this analysis.
+#[derive(Default)]
+pub struct ManualErrorCatalog {
+    /// Static display messages indexed by their local error type.
     displays: HashMap<LocalDefId, String>,
-    /// Stores the `errors` value used by this analysis.
-    errors: HashMap<LocalDefId, ErrorSource>,
-    /// Stores the `types` value used by this analysis.
-    types: HashMap<LocalDefId, ErrorType>,
+    /// Standard source behavior indexed by its local error type.
+    errors: HashMap<LocalDefId, ManualErrorSource>,
+    /// Authored error declarations indexed by local definition.
+    types: HashMap<LocalDefId, ManualErrorCandidateType>,
 }
 
-impl Catalog {
-    /// Performs the `candidates` operation for this value.
-    pub(crate) fn candidates(&self) -> Vec<Candidate> {
-        // Prepare the values used by this stage.
+impl ManualErrorCatalog {
+    /// Returns complete manual contracts in source order.
+    pub(crate) fn candidates(&self) -> Vec<ManualErrorCandidate> {
         let mut candidates = self
             .errors
             .iter()
             .filter_map(|(definition, source_field)| {
                 let message = self.displays.get(definition)?;
                 let error_type = self.types.get(definition)?;
-                Some(Candidate {
+                Some(ManualErrorCandidate {
                     span: error_type.span,
                     name: error_type.name.clone(),
                     message: message.clone(),
@@ -64,13 +71,12 @@ impl Catalog {
             })
             .collect::<Vec<_>>();
 
-        // Perform the next step of the analysis.
-        candidates.sort_by_key(|analyze_candidate| analyze_candidate.span.lo());
+        candidates.sort_by_key(|candidate| candidate.span.lo());
         candidates
     }
 
     #[cfg(feature = "derive_more")]
-    /// Performs the `contains` operation for this value.
+    /// Returns whether a type manually implements both presentation and error behavior.
     pub(crate) fn contains(&self, definition: LocalDefId) -> bool {
         self.displays.contains_key(&definition) && self.errors.contains_key(&definition)
     }
@@ -82,25 +88,25 @@ impl Catalog {
         item: &Item<'_>,
         implementation: &rustc_hir::Impl<'_>,
     ) {
-        let Some(ImplContract {
+        let Some(ManualErrorImpl {
             definition,
             trait_name,
-        }) = ImplContract::for_item(cx, item, implementation)
+        }) = ManualErrorImpl::for_item(cx, item, implementation)
         else {
             return;
         };
         if trait_name == "Display" {
-            if let Some(message) = display_message(cx, item) {
+            if let Some(message) = manual_error_impl_display_message(cx, item) {
                 self.displays.insert(definition, message);
             }
         } else if trait_name == "Error"
-            && let Some(source_field) = ErrorSource::analyze_error_source(cx, item)
+            && let Some(source_field) = ManualErrorSource::from_item(cx, item)
         {
             self.errors.insert(definition, source_field);
         }
     }
 
-    /// Performs the `check_item` operation for this value.
+    /// Records an authored error type or one of its relevant trait implementations.
     pub(crate) fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         if item.span.from_expansion() {
             return;
@@ -109,7 +115,7 @@ impl Catalog {
             ItemKind::Struct(identifier, ..) => {
                 self.types.insert(
                     item.owner_id.def_id,
-                    ErrorType {
+                    ManualErrorCandidateType {
                         span: item.span,
                         name: identifier.name.to_string(),
                     },
@@ -123,38 +129,40 @@ impl Catalog {
     }
 }
 
-/// Classifies `ErrorSource` cases used by this analysis.
-enum ErrorSource {
-    /// Represents the `Empty` case.
+// -----------------------------------------------------------------------------
+// ManualErrorSource: Conventional source implementation parsing
+// -----------------------------------------------------------------------------
+
+/// Source behavior expressed by a manual standard `Error` implementation.
+enum ManualErrorSource {
+    /// The implementation uses the default source behavior.
     Empty,
-    /// Stores the `item` value used by this analysis.
+    /// The implementation returns a reference to one named field.
     Field(
         /// Field whose value is returned as the error source.
         String,
     ),
 }
 
-impl ErrorSource {
-    /// Performs the `analyze_error_source` step of the lint analysis.
-    fn analyze_error_source(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
-        // Prepare the values used by this stage.
+impl ManualErrorSource {
+    /// Parses a conventional empty or single-field source implementation.
+    fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         let source = AuthoredItemSource::for_item(cx, item)?;
         let implementation = match syn::parse_str::<syn::ItemImpl>(&source) {
             Ok(implementation) => implementation,
             Err(_error) => return None,
         };
 
-        // Classify the current analyze_candidate.
         match implementation.items.as_slice() {
             [] => Some(Self::Empty),
-            [syn::ImplItem::Fn(method)] => conventional_source(method).map(ErrorSource::Field),
+            [syn::ImplItem::Fn(method)] => {
+                manual_error_impl_conventional_source(method).map(Self::Field)
+            }
             _ => None,
         }
     }
-}
 
-impl ErrorSource {
-    /// Performs the `field` operation for this value.
+    /// Returns the selected field, if the implementation overrides `source`.
     fn field(&self) -> Option<String> {
         match self {
             Self::Empty => None,
@@ -163,22 +171,25 @@ impl ErrorSource {
     }
 }
 
+// -----------------------------------------------------------------------------
+// ManualErrorImpl: Standard trait implementation parsing
+// -----------------------------------------------------------------------------
+
 /// Connects a relevant standard trait implementation to its local type.
-struct ImplContract {
+struct ManualErrorImpl {
     /// Local type receiving the implementation.
     definition: LocalDefId,
     /// Standard error trait implemented by the item.
     trait_name: &'static str,
 }
 
-impl ImplContract {
+impl ManualErrorImpl {
     /// Extracts a relevant standard trait contract from an implementation.
     fn for_item(
         cx: &LateContext<'_>,
         item: &Item<'_>,
         implementation: &rustc_hir::Impl<'_>,
     ) -> Option<Self> {
-        // Reject inputs that do not satisfy this stage.
         if !cx.tcx.hir_attrs(item.hir_id()).is_empty() {
             return None;
         }
@@ -186,19 +197,16 @@ impl ImplContract {
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())?;
 
-        // Reject inputs that do not satisfy this stage.
         if !matches!(cx.tcx.crate_name(trait_id.krate).as_str(), "core" | "std") {
             return None;
         }
 
-        // Prepare the values used by this stage.
         let trait_name = match cx.tcx.item_name(trait_id).as_str() {
             "Display" => "Display",
             "Error" => "Error",
             _ => return None,
         };
 
-        // Prepare the values used by this stage.
         let trait_ref = cx
             .tcx
             .impl_trait_ref(item.owner_id.def_id)
@@ -207,7 +215,6 @@ impl ImplContract {
             return None;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if !definition.is_struct() || !cx.tcx.generics_of(definition.did()).own_params.is_empty() {
             return None;
         }
@@ -218,16 +225,14 @@ impl ImplContract {
     }
 }
 
-/// Performs the `display_message` step of the lint analysis.
-fn display_message(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
-    // Prepare the values used by this stage.
+/// Parses a single static `write_str` display implementation.
+fn manual_error_impl_display_message(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
     let source = AuthoredItemSource::for_item(cx, item)?;
     let implementation = match syn::parse_str::<syn::ItemImpl>(&source) {
         Ok(implementation) => implementation,
         Err(_error) => return None,
     };
 
-    // Prepare the values used by this stage.
     let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
         return None;
     };
@@ -236,7 +241,6 @@ fn display_message(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
     }
     let mut inputs = method.sig.inputs.iter();
 
-    // Reject inputs that do not satisfy this stage.
     if !matches!(inputs.next(), Some(syn::FnArg::Receiver(_))) {
         return None;
     }
@@ -244,7 +248,6 @@ fn display_message(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
         return None;
     };
 
-    // Reject inputs that do not satisfy this stage.
     if inputs.next().is_some() {
         return None;
     }
@@ -252,7 +255,6 @@ fn display_message(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
         return None;
     };
 
-    // Prepare the values used by this stage.
     let [syn::Stmt::Expr(syn::Expr::MethodCall(call), _)] = method.block.stmts.as_slice() else {
         return None;
     };
@@ -260,7 +262,6 @@ fn display_message(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
         return None;
     }
     if !matches!(call.receiver.as_ref(), syn::Expr::Path(path) if path.path.is_ident(&formatter.ident))
-    // Perform the next step of the analysis.
     {
         return None;
     }
@@ -268,7 +269,6 @@ fn display_message(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
         lit: syn::Lit::Str(message),
         ..
     }) = call.args.first()?
-    // Perform the next step of the analysis.
     else {
         return None;
     };
@@ -276,9 +276,8 @@ fn display_message(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
     (!message.contains('{') && !message.contains('}')).then_some(message)
 }
 
-/// Performs the `conventional_source` step of the lint analysis.
-fn conventional_source(method: &syn::ImplItemFn) -> Option<String> {
-    // Reject inputs that do not satisfy this stage.
+/// Parses a conventional `Some(&self.field)` source method.
+fn manual_error_impl_conventional_source(method: &syn::ImplItemFn) -> Option<String> {
     if method.sig.ident != "source" {
         return None;
     }
@@ -286,7 +285,6 @@ fn conventional_source(method: &syn::ImplItemFn) -> Option<String> {
         return None;
     };
 
-    // Reject inputs that do not satisfy this stage.
     if !matches!(call.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Some")) {
         return None;
     }
@@ -295,7 +293,6 @@ fn conventional_source(method: &syn::ImplItemFn) -> Option<String> {
     }
     let argument = call.args.first()?;
 
-    // Prepare the values used by this stage.
     let syn::Expr::Reference(reference) = argument else {
         return None;
     };
@@ -303,7 +300,6 @@ fn conventional_source(method: &syn::ImplItemFn) -> Option<String> {
         return None;
     };
 
-    // Reject inputs that do not satisfy this stage.
     if !matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self")) {
         return None;
     }

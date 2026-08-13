@@ -6,6 +6,10 @@ use rustc_ast::Attribute;
 use rustc_lint::{EarlyContext, LintContext};
 use rustc_span::{Span, Symbol};
 
+// -----------------------------------------------------------------------------
+// BonAttributeAnalysis: Authored Bon attribute inspection
+// -----------------------------------------------------------------------------
+
 /// Owns source-level analysis of Bon-related attributes.
 pub(super) struct BonAttributeAnalysis;
 
@@ -25,7 +29,7 @@ impl BonAttributeAnalysis {
 
     /// Returns a plain `builder` attribute with no additional policy.
     pub(super) fn plain_builder(cx: &EarlyContext<'_>, attributes: &[Attribute]) -> Option<Span> {
-        let attribute = builder_attribute(attributes)?;
+        let attribute = Self::builder(attributes)?;
         let source = match Self::source(cx, attribute) {
             Ok(source) => source,
             Err(_error) => return None,
@@ -39,7 +43,7 @@ impl BonAttributeAnalysis {
         attributes: &[Attribute],
         needle: &str,
     ) -> bool {
-        let Some(attribute) = builder_attribute(attributes) else {
+        let Some(attribute) = Self::builder(attributes) else {
             return false;
         };
         Self::source(cx, attribute).is_ok_and(|source| source.contains(needle))
@@ -52,21 +56,25 @@ impl BonAttributeAnalysis {
                 && Self::source(cx, attribute).is_ok_and(|source| source.contains("bon::Builder"))
         })
     }
+
+    /// Returns the first Bon builder attribute in a declaration.
+    pub(super) fn builder(attributes: &[Attribute]) -> Option<&Attribute> {
+        attributes
+            .iter()
+            .find(|attribute| Self::name(attribute).is_some_and(|name| name.as_str() == "builder"))
+    }
+
+    /// Returns whether a declaration carries an attribute with the requested final path name.
+    pub(super) fn has(attributes: &[Attribute], name: &str) -> bool {
+        attributes
+            .iter()
+            .any(|attribute| Self::name(attribute).is_some_and(|actual| actual.as_str() == name))
+    }
 }
 
-/// Performs the `builder_attribute` step of the lint analysis.
-pub(super) fn builder_attribute(attributes: &[Attribute]) -> Option<&Attribute> {
-    attributes.iter().find(|attribute| {
-        BonAttributeAnalysis::name(attribute).is_some_and(|name| name.as_str() == "builder")
-    })
-}
-
-/// Performs the `has_attribute` step of the lint analysis.
-pub(super) fn has_attribute(attributes: &[Attribute], name: &str) -> bool {
-    attributes.iter().any(|attribute| {
-        BonAttributeAnalysis::name(attribute).is_some_and(|actual| actual.as_str() == name)
-    })
-}
+// -----------------------------------------------------------------------------
+// ConfiguredIdentifier: Named Bon option parsing
+// -----------------------------------------------------------------------------
 
 /// Authored attribute source and the named key to extract from it.
 pub(super) struct ConfiguredIdentifier<'source> {
@@ -79,7 +87,6 @@ pub(super) struct ConfiguredIdentifier<'source> {
 impl ConfiguredIdentifier<'_> {
     /// Parses the configured identifier when the key has an identifier-like value.
     pub(super) fn parse(self) -> Option<String> {
-        // Prepare the values used by this stage.
         let tail = self
             .source
             .get(self.source.find(self.key)? + self.key.len()..)?
@@ -91,18 +98,26 @@ impl ConfiguredIdentifier<'_> {
             .take_while(|character| character.is_alphanumeric() || *character == '_')
             .collect();
 
-        // Return the completed analysis result.
         (!value.is_empty()).then_some(value)
     }
 }
 
-/// Performs the `is_option_type` step of the lint analysis.
-pub(super) fn is_option_type(ty: &str) -> bool {
-    let compact: String = ty
-        .chars()
-        .filter(|character| !character.is_whitespace())
-        .collect();
-    compact.starts_with("Option<")
-        || compact.starts_with("std::option::Option<")
-        || compact.starts_with("core::option::Option<")
+// -----------------------------------------------------------------------------
+// OptionType: Source-level optionality recognition
+// -----------------------------------------------------------------------------
+
+/// Source-level recognition for optional builder member types.
+pub(super) struct OptionType;
+
+impl OptionType {
+    /// Recognizes common source spellings of `Option<T>`.
+    pub(super) fn is_option(ty: &str) -> bool {
+        let compact: String = ty
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect();
+        compact.starts_with("Option<")
+            || compact.starts_with("std::option::Option<")
+            || compact.starts_with("core::option::Option<")
+    }
 }

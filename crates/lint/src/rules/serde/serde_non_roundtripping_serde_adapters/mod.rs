@@ -14,17 +14,21 @@ use super::contracts::{SerdeAttributes, SerdeContractCatalog};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Adapter pair that cannot round-trip
+// -----------------------------------------------------------------------------
+
+/// Adapted field awaiting comparison of its read and write functions.
 struct Candidate {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `field` value used by this analysis.
+    /// Field name quoted in the diagnostic.
     field: String,
-    /// Stores the `serialize` value used by this analysis.
+    /// Effective name written during serialization.
     serialize: String,
-    /// Stores the `deserialize` value used by this analysis.
+    /// Primary name accepted during deserialization.
     deserialize: String,
 }
 
@@ -80,15 +84,15 @@ impl AdapterPair<'_> {
     }
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Field whose serialization and deserialization adapters do not form one contract.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `field` value used by this analysis.
+    /// Field name quoted in the diagnostic.
     field: String,
-    /// Stores the `serialize` value used by this analysis.
+    /// Effective name written during serialization.
     serialize: String,
-    /// Stores the `deserialize` value used by this analysis.
+    /// Primary name accepted during deserialization.
     deserialize: String,
 }
 
@@ -126,11 +130,15 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
-/// Carries the `SerdeNonRoundtrippingSerdeAdapters` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeNonRoundtrippingSerdeAdapters: Symmetric adapter policy
+// -----------------------------------------------------------------------------
+
+/// Rejects mismatched serialization and deserialization adapters on one value.
 struct SerdeNonRoundtrippingSerdeAdapters {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored Serde declarations awaiting crate-wide contract comparison.
     candidates: Vec<Candidate>,
 }
 
@@ -155,14 +163,12 @@ impl LateLintPass<'_> for SerdeNonRoundtrippingSerdeAdapters {
             return;
         };
         for field in &structure.fields {
-            // Prepare the values used by this stage.
             let Some(name) = field.ident.as_ref() else {
                 continue;
             };
-            let attributes = SerdeAttributes::analyze_serde_attributes(&field.attrs);
+            let attributes = SerdeAttributes::from_attributes(&field.attrs);
             let (Some(serialize), Some(deserialize)) =
                 (attributes.serialize_with, attributes.deserialize_with)
-            // Perform the next step of the analysis.
             else {
                 continue;
             };
@@ -175,7 +181,6 @@ impl LateLintPass<'_> for SerdeNonRoundtrippingSerdeAdapters {
                 continue;
             }
 
-            // Update the accumulated analysis state.
             self.candidates.push(Candidate {
                 definition: item.owner_id.def_id,
                 span: item.span,
@@ -187,27 +192,24 @@ impl LateLintPass<'_> for SerdeNonRoundtrippingSerdeAdapters {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
+        for candidate in self.candidates.drain(..) {
             if self
                 .catalog
-                .derived_type(analyze_candidate.definition, "Serialize")
+                .derived_type(candidate.definition, "Serialize")
                 .is_none()
                 || self
                     .catalog
-                    .derived_type(analyze_candidate.definition, "Deserialize")
+                    .derived_type(candidate.definition, "Deserialize")
                     .is_none()
-            // Perform the next step of the analysis.
             {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                field: analyze_candidate.field,
-                serialize: analyze_candidate.serialize,
-                deserialize: analyze_candidate.deserialize,
+                span: candidate.span,
+                field: candidate.field,
+                serialize: candidate.serialize,
+                deserialize: candidate.deserialize,
             }
             .emit(cx);
         }

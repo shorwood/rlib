@@ -66,7 +66,7 @@ struct ReceiverSyntax {
 // CandidateComponent: Candidate syntax and migration inputs
 // -----------------------------------------------------------------------------
 
-/// Simple binding extracted from a `analyze_candidate` function's first parameter.
+/// Simple binding extracted from a `candidate` function's first parameter.
 struct CandidateComponentBinding {
     /// HIR identity used to find every body reference to the binding.
     id: Option<HirId>,
@@ -82,7 +82,7 @@ struct CandidateComponentGenerics {
     is_safe: bool,
 }
 
-/// Source identity and spans of a `analyze_candidate` free function.
+/// Source identity and spans of a `candidate` free function.
 struct CandidateComponentFunction {
     /// Local definition identity of the free function.
     def_id: LocalDefId,
@@ -96,7 +96,7 @@ struct CandidateComponentFunction {
     item_span: Span,
 }
 
-/// Semantic receiver identity and syntax of a `analyze_candidate` free function.
+/// Semantic receiver identity and syntax of a `candidate` free function.
 struct CandidateComponentReceiver {
     /// First-parameter span replaced by receiver syntax.
     parameter_span: Span,
@@ -108,13 +108,13 @@ struct CandidateComponentReceiver {
     struct_name: Symbol,
 }
 
-/// Syntax-safety facts governing a `analyze_candidate`'s automatic migration.
+/// Syntax-safety facts governing a `candidate`'s automatic migration.
 struct CandidateComponentMigration {
     /// Generic parameter span moved from the function to the impl.
     impl_generics_span: Option<Span>,
     /// Mechanically replaceable first-parameter binding.
     binding: CandidateComponentBinding,
-    /// Whether all analyze_candidate-local syntax is safe to migrate.
+    /// Whether all candidate-local syntax is safe to migrate.
     is_suggestible: bool,
 }
 
@@ -133,7 +133,7 @@ pub struct MethodCandidate {
 }
 
 impl MethodCandidate {
-    /// Turns a free function into a `analyze_candidate` when its first parameter is a same-module struct.
+    /// Turns a free function into a `candidate` when its first parameter is a same-module struct.
     ///
     /// The warning follows the meaning of the types, while the automatic fix also checks whether
     /// the original spelling can be moved without inventing code.
@@ -141,7 +141,7 @@ impl MethodCandidate {
     /// ```rust
     /// struct Item;
     ///
-    /// // This is a analyze_candidate because `Item` and `inspect` share a module.
+    /// // This is a candidate because `Item` and `inspect` share a module.
     /// fn inspect(item: &Item) {}
     /// ```
     pub(crate) fn discover(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
@@ -227,7 +227,7 @@ impl MethodCandidate {
             is_suggestible,
         };
 
-        // Assemble the analyze_candidate from its three independently meaningful concerns.
+        // Assemble the candidate from its three independently meaningful concerns.
         Some(Self {
             function,
             receiver,
@@ -467,7 +467,7 @@ impl MethodCandidate {
     /// A collision needs a naming decision from the author and therefore cannot be fixed
     /// automatically.
     pub(crate) fn has_method_collision(&self, cx: &LateContext<'_>) -> bool {
-        // Resolve every inherent implementation for the analyze_candidate's receiver struct.
+        // Resolve every inherent implementation for the candidate's receiver struct.
         let impls = cx
             .tcx
             .inherent_impls(self.receiver.semantics.struct_def_id)

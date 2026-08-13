@@ -8,14 +8,14 @@ use rustc_lint::{LateContext, LateLintPass};
 use super::utils::enumeration::{CollectionCandidate, CollectionProvider};
 use crate::utils::config::LibraryConfig;
 
-/// Carries the `StrumManualVariantArrays` state used by this analysis.
+/// Finds authored variant arrays that `VariantArray` can generate without changing order.
 struct StrumManualVariantArrays {
-    /// Stores the `provider` value used by this analysis.
+    /// Explicitly resolved framework provider, when one is available.
     provider: Option<CollectionProvider>,
 }
 
 impl StrumManualVariantArrays {
-    /// Performs the `new` operation for this value.
+    /// Starts variant-array analysis with the configured framework owner.
     fn new() -> Self {
         Self {
             provider: LibraryConfig::load()
@@ -24,27 +24,24 @@ impl StrumManualVariantArrays {
         }
     }
 
-    /// Performs the `check` operation for this value.
-    fn check(&self, cx: &LateContext<'_>, analyze_candidate: Option<CollectionCandidate>) {
-        // Prepare the values used by this stage.
-        let Some(analyze_candidate) = analyze_candidate else {
+    /// Reports a complete authored variant array when Strum owns its replacement.
+    fn check(&self, cx: &LateContext<'_>, candidate: Option<CollectionCandidate>) {
+        let Some(candidate) = candidate else {
             return;
         };
-        if analyze_candidate.selected(self.provider) != Some(CollectionProvider::StrumVariantArray)
-        {
+        if candidate.selected(self.provider) != Some(CollectionProvider::StrumVariantArray) {
             return;
         }
-        let name = analyze_candidate.enum_name(cx);
+        let name = candidate.enum_name(cx);
 
-        // Perform the next step of the analysis.
         cx.tcx.emit_node_span_lint(
             STRUM_MANUAL_VARIANT_ARRAYS,
-            analyze_candidate.owner,
-            analyze_candidate.span,
+            candidate.owner,
+            candidate.span,
             DiagDecorator(|diag| {
                 diag.primary_message(format!("`{name}` variants are repeated in a manual array"));
                 diag.note("the exhaustive declaration-order array duplicates the enum definition and can become stale");
-                if analyze_candidate.is_public_api() {
+                if candidate.is_public_api() {
                     diag.note("this API is public; `VariantArray::VARIANTS` is a shared slice, so migration requires a compatibility review");
                 }
                 diag.help("derive `strum::VariantArray`, import its trait, and migrate callers to `Type::VARIANTS`");

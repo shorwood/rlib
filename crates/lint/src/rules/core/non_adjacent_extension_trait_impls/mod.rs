@@ -62,7 +62,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// NonAdjacentExtensionTraitImpls: Lint pass
+// NonAdjacentExtensionTraitImpls: Trait implementation colocation policy
 // -----------------------------------------------------------------------------
 #[derive(Default)]
 /// Collects extension declarations and their authored implementation groups.

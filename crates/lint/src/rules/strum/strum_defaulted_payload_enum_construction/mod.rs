@@ -12,15 +12,19 @@ use rustc_span::{Span, Symbol};
 use super::utils::contracts::{ContractCatalog, StrumDerive};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Payload variant constructed from defaults
+// -----------------------------------------------------------------------------
+
+/// Generated construction that invents payload values through `Default`.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `variant` value used by this analysis.
+    /// Variant identity involved in the finding.
     variant: Symbol,
-    /// Stores the `derives` value used by this analysis.
+    /// Derive macros that establish the generated behavior.
     derives: String,
 }
 
@@ -56,10 +60,14 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// StrumDefaultedPayloadEnumConstruction: Explicit payload policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `StrumDefaultedPayloadEnumConstruction` state used by this analysis.
+/// Rejects generated construction that silently fills domain payloads with defaults.
 struct StrumDefaultedPayloadEnumConstruction {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,
 }
 
@@ -82,7 +90,6 @@ impl LateLintPass<'_> for StrumDefaultedPayloadEnumConstruction {
                 .enabled_variants()
                 .filter(|variant| variant.has_domain_payload)
             {
-                // Prepare the values used by this stage.
                 let mut derives = Vec::new();
                 if contract.derives(StrumDerive::EnumIter) {
                     derives.push("`EnumIter`");
@@ -91,7 +98,6 @@ impl LateLintPass<'_> for StrumDefaultedPayloadEnumConstruction {
                     derives.push("`FromRepr`");
                 }
 
-                // Reject inputs that do not satisfy this stage.
                 if contract.derives(StrumDerive::EnumString) && !variant.is_default_capture {
                     derives.push("`EnumString`");
                 }
@@ -99,7 +105,6 @@ impl LateLintPass<'_> for StrumDefaultedPayloadEnumConstruction {
                     continue;
                 }
 
-                // Perform the next step of the analysis.
                 Violation {
                     owner: contract.owner,
                     span: variant.span,

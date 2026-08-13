@@ -7,8 +7,9 @@ forward that source backtrace.
 
 ## Why is this bad?
 
-Recapture adds cost and points at the wrapping boundary instead of the original failure. A plain
-`#[source]` field preserves the error chain but does not forward generic backtrace requests.
+Recapturing adds cost and points at the wrapper instead of the original failure. A plain
+`#[source]` field keeps the error chain, but tools still cannot retrieve the source's backtrace
+through the wrapper.
 
 ## Example
 

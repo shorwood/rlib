@@ -21,7 +21,6 @@ fn names(values: &[String]) -> Vec<String> {
 
 ## Use instead
 
-
 Break the expression where an intermediate state has a useful name:
 
 ```rust

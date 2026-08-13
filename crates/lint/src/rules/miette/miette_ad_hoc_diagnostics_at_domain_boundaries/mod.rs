@@ -19,23 +19,27 @@ use syn::visit::{Visit, visit_expr_method_call};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `MessageUse` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Repeated anonymous diagnostic at a domain boundary
+// -----------------------------------------------------------------------------
+
+/// One function constructing a static anonymous diagnostic message.
 #[derive(Clone)]
-struct MessageUse {
-    /// Stores the `span` value used by this analysis.
+struct ViolationUse {
+    /// Function declaration containing the construction.
     span: Span,
-    /// Stores the `function` value used by this analysis.
+    /// Function name shown to the author.
     function: String,
-    /// Stores the `is_public` value used by this analysis.
+    /// Whether this use crosses a public domain boundary.
     is_public: bool,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Repeated static failure text that has acquired a shared domain meaning.
 struct Violation {
-    /// Stores the `message` value used by this analysis.
+    /// Anonymous message repeated across functions.
     message: String,
-    /// Stores the `uses` value used by this analysis.
-    uses: Vec<MessageUse>,
+    /// Construction sites sharing that message.
+    uses: Vec<ViolationUse>,
 }
 
 impl LateViolation for Violation {
@@ -83,7 +87,11 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `is_code_assignment` step of the lint analysis.
+// -----------------------------------------------------------------------------
+// StaticMessageVisitor: Static anonymous Miette messages
+// -----------------------------------------------------------------------------
+
+/// Returns whether a macro argument gives the diagnostic a stable code.
 fn is_code_assignment(expression: &syn::Expr) -> bool {
     matches!(
         expression,
@@ -92,9 +100,8 @@ fn is_code_assignment(expression: &syn::Expr) -> bool {
     )
 }
 
-/// Performs the `static_string` step of the lint analysis.
+/// Extracts literal text with no formatting placeholders.
 fn static_string(expression: &syn::Expr) -> Option<String> {
-    // Prepare the values used by this stage.
     let syn::Expr::Lit(syn::ExprLit {
         lit: syn::Lit::Str(literal),
         ..
@@ -103,27 +110,24 @@ fn static_string(expression: &syn::Expr) -> Option<String> {
         return None;
     };
 
-    // Prepare the values used by this stage.
     let value = literal.value();
     (!value.contains('{') && !value.contains('}')).then_some(value)
 }
 
 #[derive(Default)]
-/// Carries the `StaticMessageVisitor` state used by this analysis.
+/// Finds uncoded literal messages in Miette macros and wrapping calls.
 struct StaticMessageVisitor {
-    /// Stores the `messages` value used by this analysis.
+    /// Distinct static messages found in one function.
     messages: BTreeSet<String>,
 }
 
 impl<'ast> Visit<'ast> for StaticMessageVisitor {
     fn visit_macro(&mut self, invocation: &'ast syn::Macro) {
-        // Prepare the values used by this stage.
         let Some(name) = invocation
             .path
             .segments
             .last()
             .map(|segment| &segment.ident)
-        // Perform the next step of the analysis.
         else {
             return;
         };
@@ -132,7 +136,6 @@ impl<'ast> Visit<'ast> for StaticMessageVisitor {
         }
         let parser = Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
 
-        // Prepare the values used by this stage.
         let Ok(arguments) = parser.parse2(invocation.tokens.clone()) else {
             return;
         };
@@ -140,7 +143,6 @@ impl<'ast> Visit<'ast> for StaticMessageVisitor {
             return;
         }
 
-        // Prepare the values used by this stage.
         let literals = arguments
             .iter()
             .filter_map(static_string)
@@ -162,7 +164,7 @@ impl<'ast> Visit<'ast> for StaticMessageVisitor {
     }
 }
 
-/// Performs the `contains_miette_report` step of the lint analysis.
+/// Finds a Miette report directly or in a result error position.
 fn contains_miette_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
     let ty::Adt(definition, arguments) = ty.kind() else {
         return false;
@@ -177,11 +179,15 @@ fn contains_miette_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
         && contains_miette_report(cx, arguments.type_at(1))
 }
 
+// -----------------------------------------------------------------------------
+// MietteAdHocDiagnosticsAtDomainBoundaries: Typed domain failure policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `MietteAdHocDiagnosticsAtDomainBoundaries` state used by this analysis.
+/// Correlates repeated anonymous messages across report-returning functions.
 struct MietteAdHocDiagnosticsAtDomainBoundaries {
-    /// Stores the `messages` value used by this analysis.
-    messages: BTreeMap<String, Vec<MessageUse>>,
+    /// Construction sites grouped by static message text.
+    messages: BTreeMap<String, Vec<ViolationUse>>,
 }
 
 dylint_linting::impl_late_lint! {
@@ -194,12 +200,10 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Reject inputs that do not satisfy this stage.
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Fn { .. }) {
             return;
         }
 
-        // Prepare the values used by this stage.
         let output = cx
             .tcx
             .fn_sig(item.owner_id.def_id)
@@ -207,7 +211,6 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
             .skip_binder()
             .output();
 
-        // Reject inputs that do not satisfy this stage.
         if !contains_miette_report(cx, output) {
             return;
         }
@@ -215,17 +218,15 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
             return;
         };
 
-        // Prepare the values used by this stage.
         let Ok(function) = syn::parse_str::<syn::ItemFn>(&source) else {
             return;
         };
         let mut visitor = StaticMessageVisitor::default();
         visitor.visit_item_fn(&function);
 
-        // Update the accumulated analysis state.
         self.record_messages(
             visitor.messages,
-            &MessageUse {
+            &ViolationUse {
                 span: item.span,
                 function: cx.tcx.item_name(item.owner_id.def_id).to_string(),
                 is_public: cx.tcx.visibility(item.owner_id.def_id).is_public(),
@@ -234,12 +235,10 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        // Reject inputs that do not satisfy this stage.
         if item.span.from_expansion() || !matches!(item.kind, ImplItemKind::Fn(..)) {
             return;
         }
 
-        // Prepare the values used by this stage.
         let output = cx
             .tcx
             .fn_sig(item.owner_id.def_id)
@@ -247,7 +246,6 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
             .skip_binder()
             .output();
 
-        // Reject inputs that do not satisfy this stage.
         if !contains_miette_report(cx, output) {
             return;
         }
@@ -255,17 +253,15 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
             return;
         };
 
-        // Prepare the values used by this stage.
         let Ok(method) = syn::parse_str::<syn::ImplItemFn>(&source) else {
             return;
         };
         let mut visitor = StaticMessageVisitor::default();
         visitor.visit_impl_item_fn(&method);
 
-        // Update the accumulated analysis state.
         self.record_messages(
             visitor.messages,
-            &MessageUse {
+            &ViolationUse {
                 span: item.span,
                 function: cx.tcx.def_path_str(item.owner_id.def_id),
                 is_public: cx.tcx.visibility(item.owner_id.def_id).is_public(),
@@ -289,8 +285,8 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
 }
 
 impl MietteAdHocDiagnosticsAtDomainBoundaries {
-    /// Performs the `record_messages` operation for this value.
-    fn record_messages(&mut self, messages: BTreeSet<String>, usage: &MessageUse) {
+    /// Associates every message found in a function with that boundary.
+    fn record_messages(&mut self, messages: BTreeSet<String>, usage: &ViolationUse) {
         for message in messages {
             self.messages
                 .entry(message)

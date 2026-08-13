@@ -61,19 +61,17 @@ struct Violation {
 }
 
 impl Violation {
-    /// Captures the exact `analyze_candidate` context and its available remediation.
+    /// Captures the exact `candidate` context and its available remediation.
     fn from_candidate(
         cx: &LateContext<'_>,
-        analyze_candidate: &ConstructionCandidate,
+        candidate: &ConstructionCandidate,
         migration: Option<Migration>,
     ) -> Self {
         Self {
-            hir_id: cx
-                .tcx
-                .local_def_id_to_hir_id(analyze_candidate.function.def_id),
-            span: analyze_candidate.function.name_span,
-            function_name: analyze_candidate.function.name.to_string(),
-            target_name: analyze_candidate.target.name.to_string(),
+            hir_id: cx.tcx.local_def_id_to_hir_id(candidate.function.def_id),
+            span: candidate.function.name_span,
+            function_name: candidate.function.name.to_string(),
+            target_name: candidate.target.name.to_string(),
             migration,
         }
     }
@@ -174,11 +172,10 @@ impl<'tcx> LateLintPass<'tcx> for ConstructorLikeFreeFunctions {
         self.constructions
             .record_function(cx, kind, body, span, def_id);
         self.collections.record_function(cx, kind, body, def_id);
-        let Some(analyze_candidate) = self.constructions.analyze_candidate(def_id) else {
+        let Some(candidate) = self.constructions.candidate(def_id) else {
             return;
         };
-        self.conversions
-            .record_function(cx, kind, body, analyze_candidate);
+        self.conversions.record_function(cx, kind, body, candidate);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
@@ -186,27 +183,26 @@ impl<'tcx> LateLintPass<'tcx> for ConstructorLikeFreeFunctions {
         let reportable_conversions = self.conversions.reportable_candidates();
         let conversion_definitions = reportable_conversions
             .into_iter()
-            .map(|analyze_candidate| analyze_candidate.identity.def_id)
+            .map(|candidate| candidate.identity.def_id)
             .collect::<HashSet<_>>();
         let collection_definitions = self.collections.reportable_definitions();
-        for analyze_candidate in &self.constructions.candidates {
+        for candidate in &self.constructions.candidates {
             // Leave receiver-shaped functions and canonical parsers to their stronger rules.
-            if !analyze_candidate.ownership.is_target_same_module
-                || analyze_candidate.ownership.origin != ConstructionOrigin::Free
-                || analyze_candidate.ownership.is_first_input_target
-                || conversion_definitions.contains(&analyze_candidate.function.def_id)
-                || collection_definitions.contains(&analyze_candidate.function.def_id)
+            if !candidate.ownership.is_target_same_module
+                || candidate.ownership.origin != ConstructionOrigin::Free
+                || candidate.ownership.is_first_input_target
+                || conversion_definitions.contains(&candidate.function.def_id)
+                || collection_definitions.contains(&candidate.function.def_id)
             {
                 continue;
             }
-            if Self::parser_has_precedence(&self.constructions, &parser_families, analyze_candidate)
-            {
+            if Self::parser_has_precedence(&self.constructions, &parser_families, candidate) {
                 continue;
             }
 
             // Emit ownership guidance with a migration only when every source check succeeds.
-            let migration = Self::migration(cx, &self.constructions, analyze_candidate);
-            let violation = Violation::from_candidate(cx, analyze_candidate, migration);
+            let migration = Self::migration(cx, &self.constructions, candidate);
+            let violation = Violation::from_candidate(cx, candidate, migration);
             violation.emit(cx);
         }
     }
@@ -238,25 +234,19 @@ impl ConstructorLikeFreeFunctions {
     fn preceding_target_item(
         cx: &LateContext<'_>,
         analysis: &ConstructionAnalysis,
-        analyze_candidate: &ConstructionCandidate,
+        candidate: &ConstructionCandidate,
     ) -> Option<ConstructionAnalysisModuleItem> {
-        // Prepare the values used by this stage.
-        let items = analysis
-            .module_items
-            .get(&analyze_candidate.function.module)?;
+        let items = analysis.module_items.get(&candidate.function.module)?;
         let function_index = items
             .iter()
-            .position(|item| item.def_id == analyze_candidate.function.def_id)?;
+            .position(|item| item.def_id == candidate.function.def_id)?;
         let mut index = function_index.checked_sub(1)?;
 
-        // Prepare the values used by this stage.
         let preceding = items[index];
-        while Self::inherent_impl_target(cx, items[index].def_id)
-            == Some(analyze_candidate.target.def_id)
-        {
+        while Self::inherent_impl_target(cx, items[index].def_id) == Some(candidate.target.def_id) {
             index = index.checked_sub(1)?;
         }
-        (items[index].def_id == analyze_candidate.target.def_id).then_some(preceding)
+        (items[index].def_id == candidate.target.def_id).then_some(preceding)
     }
 
     /// Rejects comments or generated text between the adjacent owner group and function.
@@ -269,8 +259,8 @@ impl ConstructorLikeFreeFunctions {
     }
 
     /// Prevents a move from creating a duplicate associated-function name.
-    fn has_name_collision(cx: &LateContext<'_>, analyze_candidate: &ConstructionCandidate) -> bool {
-        let implementations = cx.tcx.inherent_impls(analyze_candidate.target.def_id);
+    fn has_name_collision(cx: &LateContext<'_>, candidate: &ConstructionCandidate) -> bool {
+        let implementations = cx.tcx.inherent_impls(candidate.target.def_id);
         let associated = implementations.iter().flat_map(|implementation| {
             cx.tcx
                 .associated_items(*implementation)
@@ -278,24 +268,22 @@ impl ConstructorLikeFreeFunctions {
         });
         associated
             .into_iter()
-            .any(|item| item.name() == analyze_candidate.function.name)
+            .any(|item| item.name() == candidate.function.name)
     }
 
-    /// Returns whether a stronger unique-parser diagnostic owns this `analyze_candidate`.
+    /// Returns whether a stronger unique-parser diagnostic owns this `candidate`.
     fn parser_has_precedence(
         analysis: &ConstructionAnalysis,
         families: &HashMap<LocalDefId, Vec<&ConstructionCandidate>>,
-        analyze_candidate: &ConstructionCandidate,
+        candidate: &ConstructionCandidate,
     ) -> bool {
         families
-            .get(&analyze_candidate.target.def_id)
+            .get(&candidate.target.def_id)
             .is_some_and(|family| {
                 family.len() == 1
-                    && family[0].function.def_id == analyze_candidate.function.def_id
-                    && analyze_candidate.has_unqualified_parser_name()
-                    && !analysis
-                        .from_str_targets
-                        .contains(&analyze_candidate.target.def_id)
+                    && family[0].function.def_id == candidate.function.def_id
+                    && candidate.has_unqualified_parser_name()
+                    && !analysis.from_str_targets.contains(&candidate.target.def_id)
             })
     }
 
@@ -303,47 +291,45 @@ impl ConstructorLikeFreeFunctions {
     fn is_migration_source_safe(
         cx: &LateContext<'_>,
         analysis: &ConstructionAnalysis,
-        analyze_candidate: &ConstructionCandidate,
+        candidate: &ConstructionCandidate,
     ) -> bool {
         // Separate declaration safety from cross-reference and destination safety.
-        let source_is_safe = analyze_candidate.migration.is_private
-            && !analyze_candidate.migration.has_attributes
-            && !analyze_candidate.function.item_span.from_expansion();
+        let source_is_safe = candidate.migration.is_private
+            && !candidate.migration.has_attributes
+            && !candidate.function.item_span.from_expansion();
 
         // Require a target that can own a nongeneric adjacent impl.
         let target_is_nongeneric = cx
             .tcx
-            .generics_of(analyze_candidate.target.def_id)
+            .generics_of(candidate.target.def_id)
             .own_params
             .is_empty();
 
         // Reject references mediated through import aliases.
         let is_not_imported = !analysis
             .imported_functions
-            .contains(&analyze_candidate.function.def_id);
+            .contains(&candidate.function.def_id);
 
         // Require every independent migration precondition.
         source_is_safe
             && target_is_nongeneric
             && is_not_imported
-            && !Self::has_name_collision(cx, analyze_candidate)
+            && !Self::has_name_collision(cx, candidate)
     }
 
     /// Builds same-file reference replacements or rejects the whole migration.
     fn reference_edits(
         cx: &LateContext<'_>,
         analysis: &ConstructionAnalysis,
-        analyze_candidate: &ConstructionCandidate,
+        candidate: &ConstructionCandidate,
     ) -> Option<Vec<MigrationEdit>> {
         let source_map = cx.sess().source_map();
-        let candidate_file = source_map.span_to_filename(analyze_candidate.function.item_span);
+        let candidate_file = source_map.span_to_filename(candidate.function.item_span);
         let mut edits = Vec::new();
-        let references = analysis
-            .function_uses
-            .get(&analyze_candidate.function.def_id);
+        let references = analysis.function_uses.get(&candidate.function.def_id);
         for span in references.into_iter().flatten() {
             // Reject overlaps, expansions, and cross-file paths before building an edit.
-            let overlaps_definition = analyze_candidate.function.item_span.contains(*span);
+            let overlaps_definition = candidate.function.item_span.contains(*span);
             if overlaps_definition
                 || span.from_expansion()
                 || source_map.span_to_filename(*span) != candidate_file
@@ -354,7 +340,7 @@ impl ConstructorLikeFreeFunctions {
             // Preserve the exact authored path for an atomic associated-path rewrite.
             edits.push(MigrationEdit {
                 span: *span,
-                replacement: analyze_candidate.qualified_associated_path(cx),
+                replacement: candidate.qualified_associated_path(cx),
             });
         }
         Some(edits)
@@ -363,10 +349,10 @@ impl ConstructorLikeFreeFunctions {
     /// Indents authored function source for insertion inside an inherent impl.
     fn indented_function(
         cx: &LateContext<'_>,
-        analyze_candidate: &ConstructionCandidate,
+        candidate: &ConstructionCandidate,
     ) -> Option<String> {
         let source_map = cx.sess().source_map();
-        let Ok(function) = source_map.span_to_snippet(analyze_candidate.function.item_span) else {
+        let Ok(function) = source_map.span_to_snippet(candidate.function.item_span) else {
             return None;
         };
         let lines = function.lines().map(|line| format!("    {line}"));
@@ -377,23 +363,23 @@ impl ConstructorLikeFreeFunctions {
     fn migration(
         cx: &LateContext<'_>,
         analysis: &ConstructionAnalysis,
-        analyze_candidate: &ConstructionCandidate,
+        candidate: &ConstructionCandidate,
     ) -> Option<Migration> {
         // Require private ordinary source next to the complete target declaration group.
-        if !Self::is_migration_source_safe(cx, analysis, analyze_candidate) {
+        if !Self::is_migration_source_safe(cx, analysis, candidate) {
             return None;
         }
-        let preceding = Self::preceding_target_item(cx, analysis, analyze_candidate)?;
-        if !Self::gap_is_whitespace(cx, preceding.span, analyze_candidate.function.item_span) {
+        let preceding = Self::preceding_target_item(cx, analysis, candidate)?;
+        if !Self::gap_is_whitespace(cx, preceding.span, candidate.function.item_span) {
             return None;
         }
 
         // Construct the definition edit only after every external reference is editable.
-        let references = Self::reference_edits(cx, analysis, analyze_candidate)?;
-        let function = Self::indented_function(cx, analyze_candidate)?;
-        let target = analyze_candidate.target.name;
+        let references = Self::reference_edits(cx, analysis, candidate)?;
+        let function = Self::indented_function(cx, candidate)?;
+        let target = candidate.target.name;
         let definition = MigrationEdit {
-            span: analyze_candidate.function.item_span,
+            span: candidate.function.item_span,
             replacement: format!("impl {target} {{\n{function}\n}}"),
         };
 

@@ -110,10 +110,10 @@ impl LateViolation for Violation {
                         );
                     }
                     Self::AmbiguousOwner { finding } => {
-                        for analyze_candidate in &finding.candidates {
+                        for candidate in &finding.candidates {
                             diag.span_label(
-                                analyze_candidate.span,
-                                format!("`{}` remains a plausible owner", analyze_candidate.name),
+                                candidate.span,
+                                format!("`{}` remains a plausible owner", candidate.name),
                             );
                         }
                     }
@@ -133,7 +133,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// ForeignTypeMethodLikeFreeFunctions: Lint pass
+// ForeignTypeMethodLikeFreeFunctions: Extension trait ownership policy
 // -----------------------------------------------------------------------------
 #[derive(Default)]
 /// Collects visible free functions whose behavior may belong on a foreign type extension trait.

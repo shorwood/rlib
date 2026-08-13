@@ -12,13 +12,17 @@ use rustc_span::{Span, Symbol};
 use super::utils::contracts::{ContractCatalog, StrumDerive};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Divergent public names for one variant
+// -----------------------------------------------------------------------------
+
+/// Variant whose generated naming APIs expose different identities.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `variant` value used by this analysis.
+    /// Variant identity involved in the finding.
     variant: Symbol,
 }
 
@@ -54,10 +58,14 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// StrumDivergentVariantNameContracts: Coherent variant identity policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `StrumDivergentVariantNameContracts` state used by this analysis.
+/// Compares generated variant names with the enum's parsing and display spellings.
 struct StrumDivergentVariantNameContracts {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,
 }
 
@@ -76,14 +84,12 @@ impl LateLintPass<'_> for StrumDivergentVariantNameContracts {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.contracts() {
-            // Reject inputs that do not satisfy this stage.
             if !contract.derives(StrumDerive::VariantNames)
                 || !contract.derives(StrumDerive::EnumString)
             {
                 continue;
             }
 
-            // Prepare the values used by this stage.
             let Some(variant) = contract.enabled_variants().find(|variant| {
                 variant
                     .parser_names
@@ -93,7 +99,6 @@ impl LateLintPass<'_> for StrumDivergentVariantNameContracts {
                 continue;
             };
 
-            // Perform the next step of the analysis.
             Violation {
                 owner: contract.owner,
                 span: variant.span,

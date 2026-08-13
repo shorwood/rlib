@@ -43,18 +43,18 @@ pub struct PolicyLiteralFinding {
 
 impl PolicyLiteralFinding {
     /// Replaces weaker overlapping evidence while preserving one diagnostic per source expression.
-    fn merge(&mut self, analyze_candidate: Self) {
-        let is_stronger = analyze_candidate.evidence_strength > self.evidence_strength
-            || (analyze_candidate.evidence_strength == self.evidence_strength
-                && analyze_candidate.category.evidence_rank() > self.category.evidence_rank());
+    fn merge(&mut self, candidate: Self) {
+        let is_stronger = candidate.evidence_strength > self.evidence_strength
+            || (candidate.evidence_strength == self.evidence_strength
+                && candidate.category.evidence_rank() > self.category.evidence_rank());
         if is_stronger {
-            *self = analyze_candidate;
+            *self = candidate;
             return;
         }
         if self.suggested_name.is_some() {
             return;
         }
-        self.suggested_name = analyze_candidate.suggested_name;
+        self.suggested_name = candidate.suggested_name;
     }
 }
 
@@ -117,18 +117,18 @@ impl<'analysis, 'tcx> PolicyLiteralOriginCollector<'analysis, 'tcx> {
         }
 
         // Require both operands of arithmetic expressions to remain literal-derived.
-        let ExprKind::Binary(analyze_operator, left, right) = expression.kind else {
+        let ExprKind::Binary(operator, left, right) = expression.kind else {
             return false;
         };
-        Self::is_arithmetic(analyze_operator.node)
+        Self::is_arithmetic(operator.node)
             && Self::is_literal_derived(left)
             && Self::is_literal_derived(right)
     }
 
-    /// Returns whether a binary `analyze_operator` can participate in a numeric constant expression.
-    const fn is_arithmetic(analyze_operator: BinOpKind) -> bool {
+    /// Returns whether a binary `operator` can participate in a numeric constant expression.
+    const fn is_arithmetic(operator: BinOpKind) -> bool {
         matches!(
-            analyze_operator,
+            operator,
             BinOpKind::Add
                 | BinOpKind::Sub
                 | BinOpKind::Mul
@@ -403,15 +403,14 @@ impl<'analysis, 'tcx> EvidenceCollector<'analysis, 'tcx> {
     }
 
     /// Deduplicates a finding by exact authored source span.
-    fn record(&mut self, analyze_candidate: PolicyLiteralFinding) {
+    fn record(&mut self, candidate: PolicyLiteralFinding) {
         if let Some(existing) = self.findings.iter_mut().find(|finding| {
-            finding.span.lo() == analyze_candidate.span.lo()
-                && finding.span.hi() == analyze_candidate.span.hi()
+            finding.span.lo() == candidate.span.lo() && finding.span.hi() == candidate.span.hi()
         }) {
-            existing.merge(analyze_candidate);
+            existing.merge(candidate);
             return;
         }
-        self.findings.push(analyze_candidate);
+        self.findings.push(candidate);
     }
 
     /// Starts policy classification with any name-derived local findings.
@@ -663,10 +662,10 @@ struct PolicyComparisonCollector<'tcx> {
 }
 
 impl PolicyComparisonCollector<'_> {
-    /// Returns whether one `analyze_operator` establishes a branch threshold.
-    const fn is_comparison(analyze_operator: BinOpKind) -> bool {
+    /// Returns whether one `operator` establishes a branch threshold.
+    const fn is_comparison(operator: BinOpKind) -> bool {
         matches!(
-            analyze_operator,
+            operator,
             BinOpKind::Eq
                 | BinOpKind::Ne
                 | BinOpKind::Lt
@@ -704,8 +703,8 @@ impl<'tcx> Visitor<'tcx> for PolicyComparisonCollector<'tcx> {
         ) {
             return;
         }
-        if let ExprKind::Binary(analyze_operator, left, right) = expression.kind
-            && Self::is_comparison(analyze_operator.node)
+        if let ExprKind::Binary(operator, left, right) = expression.kind
+            && Self::is_comparison(operator.node)
         {
             // Retain both orientations; literal collection naturally rejects the nonliteral side.
             self.comparisons.push(PolicyComparison {

@@ -30,7 +30,6 @@ pub use parser::Parser;
 
 ## Use instead
 
-
 Expose the defining module and use its canonical path:
 
 ```rust

@@ -89,7 +89,6 @@ impl EarlyViolation for Violation {
     }
 
     fn emit(self, cx: &EarlyContext<'_>) {
-        // Render stable diagnostic layers before moving the remediation category.
         let primary = self.primary_message().into_owned();
         let rationale = self.rationale_message().into_owned();
         let remediation = self.remediation_message().into_owned();

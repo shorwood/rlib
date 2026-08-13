@@ -65,11 +65,12 @@ fn blank_lines_do_not_name_phases() {
     let _two = 2;
     let _three = 3;
     let _four = 4;
-
     let _five = 5;
     let _six = 6;
     let _seven = 7;
     let _eight = 8;
+
+    let _after_boundary = 9;
 }
 
 fn mixed_control_flow_is_one_workflow(enabled: bool) {

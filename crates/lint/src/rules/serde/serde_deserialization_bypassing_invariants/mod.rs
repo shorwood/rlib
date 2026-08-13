@@ -16,13 +16,17 @@ use super::contracts::SerdeContractCatalog;
 use crate::utils::construction_analysis::{ConstructionAnalysis, ConstructionOrigin};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Deserialization bypassing invariants
+// -----------------------------------------------------------------------------
+
+/// Derived deserializer that can construct a restricted-field type directly.
 struct Violation {
-    /// Stores the `type_span` value used by this analysis.
+    /// Authored type declaration whose invariants deserialization can bypass.
     type_span: Span,
-    /// Stores the `constructor_span` value used by this analysis.
+    /// Constructor whose validation establishes the invariant boundary.
     constructor_span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Authored type or member name involved in the wire contract.
     name: String,
 }
 
@@ -68,11 +72,15 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
-/// Carries the `SerdeDeserializationBypassingInvariants` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeDeserializationBypassingInvariants: Validated construction policy
+// -----------------------------------------------------------------------------
+
+/// Rejects derived deserialization that can construct types with restricted fields directly.
 struct SerdeDeserializationBypassingInvariants {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
-    /// Stores the `constructions` value used by this analysis.
+    /// Construction sites correlated with the owning type.
     constructions: ConstructionAnalysis,
 }
 
@@ -110,7 +118,6 @@ impl<'tcx> LateLintPass<'tcx> for SerdeDeserializationBypassingInvariants {
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         let mut reported = HashSet::new();
         for constructor in &self.constructions.candidates {
-            // Reject inputs that do not satisfy this stage.
             if constructor.ownership.origin != ConstructionOrigin::Inherent
                 || !constructor.is_fallible_direct()
                 || !reported.insert(constructor.target.def_id)
@@ -118,7 +125,6 @@ impl<'tcx> LateLintPass<'tcx> for SerdeDeserializationBypassingInvariants {
                 continue;
             }
 
-            // Prepare the values used by this stage.
             let Some(contract) = self
                 .catalog
                 .derived_type(constructor.target.def_id, "Deserialize")
@@ -126,12 +132,10 @@ impl<'tcx> LateLintPass<'tcx> for SerdeDeserializationBypassingInvariants {
                 continue;
             };
 
-            // Reject inputs that do not satisfy this stage.
             if !contract.has_restricted_fields {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 type_span: contract.span,
                 constructor_span: constructor.function.name_span,

@@ -14,21 +14,25 @@ use super::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Default hiding required missing data
+// -----------------------------------------------------------------------------
+
+/// Defaulted field awaiting classification of its domain significance.
 struct Candidate {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `field` value used by this analysis.
+    /// Field name quoted in the diagnostic.
     field: String,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Required domain value silently synthesized when wire data is absent.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `field` value used by this analysis.
+    /// Field name quoted in the diagnostic.
     field: String,
 }
 
@@ -66,18 +70,22 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `is_option` step of the lint analysis.
+/// Returns whether the type is the standard optional container.
 fn is_option(ty: &syn::Type) -> bool {
     matches!(ty, syn::Type::Path(path)
         if path.path.segments.last().is_some_and(|segment| segment.ident == "Option"))
 }
 
 #[derive(Default)]
-/// Carries the `SerdeDefaultsHidingMissingData` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeDefaultsHidingMissingData: Explicit missing-data policy
+// -----------------------------------------------------------------------------
+
+/// Rejects defaults that turn absent required domain data into plausible values.
 struct SerdeDefaultsHidingMissingData {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored Serde declarations awaiting crate-wide contract comparison.
     candidates: Vec<Candidate>,
 }
 
@@ -102,24 +110,20 @@ impl LateLintPass<'_> for SerdeDefaultsHidingMissingData {
             return;
         };
         for field in &structure.fields {
-            // Prepare the values used by this stage.
             let Some(name) = field.ident.as_ref() else {
                 continue;
             };
 
-            // Reject inputs that do not satisfy this stage.
             if field
                 .attrs
                 .iter()
                 .any(|attribute| attribute.path().is_ident("doc"))
                 || is_option(&field.ty)
-                || !SerdeAttributes::analyze_serde_attributes(&field.attrs)
-                    .has(SerdeFlag::ImplicitDefault)
+                || !SerdeAttributes::from_attributes(&field.attrs).has(SerdeFlag::ImplicitDefault)
             {
                 continue;
             }
 
-            // Update the accumulated analysis state.
             self.candidates.push(Candidate {
                 definition: item.owner_id.def_id,
                 span: item.span,
@@ -129,20 +133,18 @@ impl LateLintPass<'_> for SerdeDefaultsHidingMissingData {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
+        for candidate in self.candidates.drain(..) {
             if self
                 .catalog
-                .derived_type(analyze_candidate.definition, "Deserialize")
+                .derived_type(candidate.definition, "Deserialize")
                 .is_none()
             {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                field: analyze_candidate.field,
+                span: candidate.span,
+                field: candidate.field,
             }
             .emit(cx);
         }

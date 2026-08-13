@@ -10,22 +10,26 @@ use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
 use super::config::{BonApiBaselineConfig, BonMemberPath};
-use super::utils::{BonAttributeAnalysis, builder_attribute, is_option_type};
+use super::utils::{BonAttributeAnalysis, OptionType};
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::EarlyViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: New required member outside the API baseline
+// -----------------------------------------------------------------------------
+
+/// Required builder member that existing baseline call sequences cannot supply.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// New member type receiving the diagnostic.
     span: Span,
-    /// Stores the `builder` value used by this analysis.
+    /// Public builder containing the incompatible addition.
     builder: String,
-    /// Stores the `member` value used by this analysis.
+    /// Newly required member.
     member: String,
 }
 
 impl Violation {
-    /// Performs the `member_violation` step of the lint analysis.
+    /// Compares one member with the configured public API baseline.
     fn member_violation(
         cx: &EarlyContext<'_>,
         baseline: &BonApiBaselineConfig,
@@ -33,13 +37,12 @@ impl Violation {
         ty_span: Span,
         attributes: &[rustc_ast::Attribute],
     ) -> Option<Self> {
-        // Reject inputs that do not satisfy this stage.
+        // Existing, defaulted, skipped, and privately initialized members remain compatible.
         if !baseline.contains_builder(member_path.builder)
             || baseline.contains_member(member_path)
             || BonAttributeAnalysis::builder_contains(cx, attributes, "default")
             || BonAttributeAnalysis::builder_contains(cx, attributes, "skip")
             || BonAttributeAnalysis::builder_contains(cx, attributes, "field")
-        // Perform the next step of the analysis.
         {
             return None;
         }
@@ -48,8 +51,7 @@ impl Violation {
             Err(_error) => return None,
         };
 
-        // Prepare the values used by this stage.
-        let required = !is_option_type(&ty)
+        let required = !OptionType::is_option(&ty)
             || BonAttributeAnalysis::builder_contains(cx, attributes, "required");
         required.then_some(Self {
             span: ty_span,
@@ -96,20 +98,22 @@ impl EarlyViolation for Violation {
     }
 }
 
-/// Performs the `parameter_violation` step of the lint analysis.
-fn parameter_violation(
+// -----------------------------------------------------------------------------
+// CompatibilityMember: Function and struct member adapters
+// -----------------------------------------------------------------------------
+
+/// Adapts a function parameter to the shared baseline comparison.
+fn compatibility_member_parameter_violation(
     cx: &EarlyContext<'_>,
     baseline: &BonApiBaselineConfig,
     builder: &str,
     parameter: &Param,
 ) -> Option<Violation> {
-    // Prepare the values used by this stage.
     let member = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
         Ok(member) => member,
         Err(_error) => return None,
     };
 
-    // Perform the next step of the analysis.
     Violation::member_violation(
         cx,
         baseline,
@@ -122,14 +126,13 @@ fn parameter_violation(
     )
 }
 
-/// Performs the `field_violation` step of the lint analysis.
-fn field_violation(
+/// Adapts a struct field to the shared baseline comparison.
+fn compatibility_member_field_violation(
     cx: &EarlyContext<'_>,
     baseline: &BonApiBaselineConfig,
     builder: &str,
     field: &FieldDef,
 ) -> Option<Violation> {
-    // Perform the next step of the analysis.
     Violation::member_violation(
         cx,
         baseline,
@@ -142,14 +145,18 @@ fn field_violation(
     )
 }
 
-/// Carries the `BonRequiredBuilderMembersBreakingCompatibility` state used by this analysis.
+// -----------------------------------------------------------------------------
+// BonRequiredBuilderMembersBreakingCompatibility: Baseline compatibility policy
+// -----------------------------------------------------------------------------
+
+/// Protects configured public builders from newly mandatory call steps.
 struct BonRequiredBuilderMembersBreakingCompatibility {
-    /// Stores the `baseline` value used by this analysis.
+    /// Previously published builders and members used as the compatibility baseline.
     baseline: BonApiBaselineConfig,
 }
 
 impl BonRequiredBuilderMembersBreakingCompatibility {
-    /// Performs the `new` operation for this value.
+    /// Loads the configured Bon API baseline.
     fn new() -> Self {
         Self {
             baseline: LibraryConfig::load().bon_api_baseline,
@@ -171,15 +178,18 @@ impl EarlyLintPass for BonRequiredBuilderMembersBreakingCompatibility {
             return;
         }
         match &item.kind {
-            ItemKind::Fn(function) if builder_attribute(&item.attrs).is_some() => {
+            ItemKind::Fn(function) if BonAttributeAnalysis::builder(&item.attrs).is_some() => {
                 let Some(identifier) = item.kind.ident() else {
                     return;
                 };
                 let builder = identifier.name.to_string();
                 for parameter in &function.sig.decl.inputs {
-                    let Some(violation) =
-                        parameter_violation(cx, &self.baseline, &builder, parameter)
-                    else {
+                    let Some(violation) = compatibility_member_parameter_violation(
+                        cx,
+                        &self.baseline,
+                        &builder,
+                        parameter,
+                    ) else {
                         continue;
                     };
                     violation.emit(cx);
@@ -190,7 +200,8 @@ impl EarlyLintPass for BonRequiredBuilderMembersBreakingCompatibility {
             {
                 let builder = identifier.name.to_string();
                 for field in data.fields() {
-                    let Some(violation) = field_violation(cx, &self.baseline, &builder, field)
+                    let Some(violation) =
+                        compatibility_member_field_violation(cx, &self.baseline, &builder, field)
                     else {
                         continue;
                     };

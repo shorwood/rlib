@@ -44,7 +44,6 @@ fn emit(sink: &FileSink) {
 
 ## Use instead
 
-
 Until a caller accepts something such as `&impl ReportSink` or `&dyn ReportSink`, put the
 behavior on the concrete type:
 

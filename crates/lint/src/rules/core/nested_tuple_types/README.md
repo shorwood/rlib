@@ -23,7 +23,6 @@ fn affected() -> &'static [(&'static Participant, NameTokens)] {
 
 ## Use instead
 
-
 Name the element concept and its roles before placing it in the container:
 
 ```rust

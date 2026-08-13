@@ -1,12 +1,30 @@
 use convert_case::{Case, Casing};
 
 // -----------------------------------------------------------------------------
-// Sentence: Free text casing
+// ProseCase: Sentence normalization
 // -----------------------------------------------------------------------------
 
-/// Converts prose to canonical sentence case.
+/// Capitalizes prose without rewriting authored proper nouns or acronyms.
 pub(super) fn sentence(value: &str) -> String {
-    value.to_case(Case::Sentence)
+    let is_shouting = value
+        .chars()
+        .filter(|character| character.is_alphabetic())
+        .all(char::is_uppercase);
+    if is_shouting {
+        return value.to_case(Case::Sentence);
+    }
+
+    let Some((index, first)) = value
+        .char_indices()
+        .find(|(_, character)| character.is_alphabetic())
+    else {
+        return value.to_owned();
+    };
+    let mut normalized = String::with_capacity(value.len());
+    normalized.push_str(&value[..index]);
+    normalized.extend(first.to_uppercase());
+    normalized.push_str(&value[index + first.len_utf8()..]);
+    normalized
 }
 
 // -----------------------------------------------------------------------------
@@ -21,5 +39,13 @@ mod tests {
     fn normalizes_the_complete_sentence() {
         assert_eq!(sentence("THIS IS LOUD"), "This is loud");
         assert_eq!(sentence("already sentence case"), "Already sentence case");
+        assert_eq!(
+            sentence("authored Bon API policy"),
+            "Authored Bon API policy"
+        );
+        assert_eq!(
+            sentence("policy-bearing source-level contract"),
+            "Policy-bearing source-level contract"
+        );
     }
 }

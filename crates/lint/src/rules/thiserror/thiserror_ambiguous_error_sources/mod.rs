@@ -14,34 +14,18 @@ use super::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `FieldCandidate` state used by this analysis.
-struct FieldCandidate {
-    /// Stores the `name` value used by this analysis.
-    name: String,
-    /// Stores the `target` value used by this analysis.
-    target: LocalDefId,
-    /// Stores the `is_selected` value used by this analysis.
-    is_selected: bool,
-}
+// -----------------------------------------------------------------------------
+// Violation: Ambiguous primary error source
+// -----------------------------------------------------------------------------
 
-/// Carries the `Candidate` state used by this analysis.
-struct Candidate {
-    /// Stores the `definition` value used by this analysis.
-    definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
-    span: Span,
-    /// Stores the `fields` value used by this analysis.
-    fields: Vec<FieldCandidate>,
-}
-
-/// Carries the `Violation` state used by this analysis.
+/// Error type with several plausible causes but no clear causal policy.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Error declaration receiving the diagnostic.
     span: Span,
-    /// Stores the `fields` value used by this analysis.
+    /// Plausible source fields named in the rationale.
     fields: Vec<String>,
-    /// Stores the `is_selected` value used by this analysis.
-    is_selected: Vec<String>,
+    /// Plausible fields selected for the standard source chain.
+    selected_sources: Vec<String>,
 }
 
 impl LateViolation for Violation {
@@ -50,12 +34,12 @@ impl LateViolation for Violation {
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
-        let policy = if self.is_selected.is_empty() {
+        let policy = if self.selected_sources.is_empty() {
             "none is selected for the standard source chain".to_owned()
         } else {
             format!(
                 "only {} enters the standard source chain",
-                self.is_selected.join(", ")
+                self.selected_sources.join(", ")
             )
         };
         Cow::Owned(format!(
@@ -87,8 +71,32 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `causal_name` step of the lint analysis.
-fn causal_name(name: &str) -> bool {
+// -----------------------------------------------------------------------------
+// Candidate: Plausible causal field evidence
+// -----------------------------------------------------------------------------
+
+/// Field whose name and resolved type make it a plausible primary source.
+struct CandidateField {
+    /// Authored field name.
+    name: String,
+    /// Local thiserror type stored by the field.
+    target: LocalDefId,
+    /// Whether the field is selected for `Error::source`.
+    is_primary_source: bool,
+}
+
+/// Error declaration retained until all local thiserror types are known.
+struct Candidate {
+    /// Candidate error definition.
+    definition: LocalDefId,
+    /// Error declaration receiving a later diagnostic.
+    span: Span,
+    /// Fields whose names suggest a causal role.
+    fields: Vec<CandidateField>,
+}
+
+/// Returns whether a field name denotes a primary causal role.
+fn candidate_has_causal_name(name: &str) -> bool {
     if ["related", "suppressed", "fallback", "retry"]
         .iter()
         .any(|role| name.contains(role))
@@ -98,12 +106,16 @@ fn causal_name(name: &str) -> bool {
     matches!(name, "cause" | "error" | "source") || name.ends_with("_error")
 }
 
+// -----------------------------------------------------------------------------
+// ThiserrorAmbiguousErrorSources: Primary source policy
+// -----------------------------------------------------------------------------
+
+/// Correlates causal-looking fields with local derived error types.
 #[derive(Default)]
-/// Carries the `ThiserrorAmbiguousErrorSources` state used by this analysis.
 struct ThiserrorAmbiguousErrorSources {
-    /// Stores the `catalog` value used by this analysis.
+    /// Local thiserror contracts used to validate field targets.
     catalog: ThiserrorContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Error declarations awaiting complete contract information.
     candidates: Vec<Candidate>,
 }
 
@@ -122,13 +134,11 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for ThiserrorAmbiguousErrorSources {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() {
             return;
         }
 
-        // Prepare the values used by this stage.
         let hir_fields = match item.kind {
             ItemKind::Struct(_, _, data) => data.fields().iter().collect::<Vec<_>>(),
             ItemKind::Enum(_, _, definition) => definition
@@ -139,12 +149,10 @@ impl LateLintPass<'_> for ThiserrorAmbiguousErrorSources {
             _ => return,
         };
 
-        // Prepare the values used by this stage.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
-        // Prepare the values used by this stage.
         let syn_fields = match syn::parse_str::<syn::ItemStruct>(&source) {
             Ok(structure) => structure.fields.into_iter().collect::<Vec<_>>(),
             Err(_error) => {
@@ -159,13 +167,12 @@ impl LateLintPass<'_> for ThiserrorAmbiguousErrorSources {
             }
         };
 
-        // Prepare the values used by this stage.
         let fields = syn_fields
             .iter()
             .zip(hir_fields)
             .filter_map(|(field, hir_field)| {
                 let name = field.ident.as_ref()?.to_string();
-                if !causal_name(&name) {
+                if !candidate_has_causal_name(&name) {
                     return None;
                 }
                 let target = cx
@@ -176,15 +183,14 @@ impl LateLintPass<'_> for ThiserrorAmbiguousErrorSources {
                     .did()
                     .as_local()?;
                 let attributes = ThiserrorAttributes::from_attributes(&field.attrs);
-                Some(FieldCandidate {
-                    is_selected: attributes.is_source || name == "source",
+                Some(CandidateField {
+                    is_primary_source: attributes.is_source || name == "source",
                     name,
                     target,
                 })
             })
             .collect();
 
-        // Update the accumulated analysis state.
         self.candidates.push(Candidate {
             definition: item.owner_id.def_id,
             span: item.span,
@@ -193,34 +199,26 @@ impl LateLintPass<'_> for ThiserrorAmbiguousErrorSources {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
-            if self
-                .catalog
-                .derived_type(analyze_candidate.definition)
-                .is_none()
-            {
+        for candidate in self.candidates.drain(..) {
+            if self.catalog.derived_type(candidate.definition).is_none() {
                 continue;
             }
 
-            // Prepare the values used by this stage.
-            let fields = analyze_candidate
+            let fields = candidate
                 .fields
                 .into_iter()
                 .filter(|field| self.catalog.derived_type(field.target).is_some())
                 .collect::<Vec<_>>();
 
-            // Reject inputs that do not satisfy this stage.
             if fields.len() < Self::MINIMUM_CAUSAL_FIELD_CANDIDATES {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                is_selected: fields
+                span: candidate.span,
+                selected_sources: fields
                     .iter()
-                    .filter(|field| field.is_selected)
+                    .filter(|field| field.is_primary_source)
                     .map(|field| format!("`{}`", field.name))
                     .collect(),
                 fields: fields

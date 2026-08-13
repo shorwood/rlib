@@ -259,11 +259,13 @@ impl ParameterSignature {
     }
 
     /// Returns the number of direct authored parameters excluding `self`.
+    #[cfg(feature = "bon")]
     pub(crate) const fn parameter_count(&self) -> usize {
         self.parameters.len()
     }
 
     /// Returns the authored function or method name span.
+    #[cfg(feature = "bon")]
     pub(crate) const fn name_span(&self) -> Span {
         self.span
     }

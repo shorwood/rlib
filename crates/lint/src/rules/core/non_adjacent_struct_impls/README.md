@@ -23,7 +23,6 @@ impl Cache {
 
 ## Use instead
 
-
 Keep the complete impl group directly after the definition:
 
 ```rust

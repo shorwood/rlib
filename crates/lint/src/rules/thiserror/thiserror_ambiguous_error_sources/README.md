@@ -2,14 +2,14 @@
 
 ## What it does
 
-Finds derived thiserror types with multiple causal-looking fields whose resolved local types also
-derive `thiserror::Error`, while only one or none enters the standard source chain.
+Finds derived thiserror types that store several likely causes, even though at most one is exposed
+through `Error::source`.
 
 ## Why is this bad?
 
-The error stores several plausible causes but exposes at most one without explaining the policy.
-Reporters lose part of the failure story and maintainers can accidentally change which cause is
-primary.
+An error may need a primary cause plus related or suppressed failures, but those roles should be
+clear. Otherwise reports lose part of the failure story and a field rename can accidentally change
+which cause callers see.
 
 ## Example
 

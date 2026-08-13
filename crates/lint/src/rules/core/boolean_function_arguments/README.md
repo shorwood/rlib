@@ -26,7 +26,6 @@ render(&document, true, false);
 
 ## Use instead
 
-
 Name the policy through an enum or options type:
 
 ```rust

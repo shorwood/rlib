@@ -143,7 +143,7 @@ impl LateViolation for Violation<'_> {
 }
 
 // -----------------------------------------------------------------------------
-// BooleanFunctionArguments: Lint pass
+// BooleanFunctionArguments: Named choice policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that rejects unnamed boolean policy in function signatures.

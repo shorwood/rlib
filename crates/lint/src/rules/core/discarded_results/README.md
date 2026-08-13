@@ -25,7 +25,6 @@ drop(persist());
 
 ## Use instead
 
-
 Keep the failure visible at a deliberate policy boundary:
 
 ```rust

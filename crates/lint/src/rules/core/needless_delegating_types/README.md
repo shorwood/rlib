@@ -46,7 +46,6 @@ impl Client {
 
 ## Use instead
 
-
 If `Client` owns no validation, lifecycle, representation, or domain policy, use the stored
 type directly:
 

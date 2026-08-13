@@ -28,7 +28,6 @@ fn process(valid: bool) {
 
 ## Use instead
 
-
 Remove the branch around the useful work:
 
 ```rust

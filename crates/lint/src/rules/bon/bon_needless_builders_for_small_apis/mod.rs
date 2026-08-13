@@ -12,11 +12,15 @@ use rustc_span::Span;
 use super::utils::BonAttributeAnalysis;
 use crate::utils::diagnostic::EarlyViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Builder without a naming or staging benefit
+// -----------------------------------------------------------------------------
+
+/// Small private API wrapped in unnecessary generated typestate.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Bon attribute that enables the unnecessary builder.
     span: Span,
-    /// Stores the `parameter_count` value used by this analysis.
+    /// Number of required parameters already clear at the call site.
     parameter_count: usize,
 }
 
@@ -52,7 +56,11 @@ impl EarlyViolation for Violation {
     }
 }
 
-/// Carries the `BonNeedlessBuildersForSmallApis` state used by this analysis.
+// -----------------------------------------------------------------------------
+// BonNeedlessBuildersForSmallApis: Small private API policy
+// -----------------------------------------------------------------------------
+
+/// Rejects builders that add no optionality or argument disambiguation.
 struct BonNeedlessBuildersForSmallApis;
 
 dylint_linting::impl_pre_expansion_lint! {
@@ -67,9 +75,8 @@ impl BonNeedlessBuildersForSmallApis {
     /// Largest private required-only API for which a builder adds no naming value.
     const MAXIMUM_SIMPLE_PARAMETERS: usize = 2;
 
-    /// Performs the `required_distinct_parameters` operation for this value.
+    /// Counts required parameters when their direct call remains unambiguous.
     fn required_distinct_parameters(cx: &EarlyContext<'_>, item: &Item) -> Option<usize> {
-        // Prepare the values used by this stage.
         let ItemKind::Fn(function) = &item.kind else {
             return None;
         };
@@ -78,11 +85,8 @@ impl BonNeedlessBuildersForSmallApis {
             return None;
         }
 
-        // Prepare the values used by this stage.
         let source_map = cx.sess().source_map();
         let mut types = Vec::with_capacity(inputs.len());
-
-        // Process the candidates handled by this stage.
         for parameter in inputs {
             let ty = match source_map.span_to_snippet(parameter.ty.span) {
                 Ok(ty) => ty,
@@ -91,7 +95,7 @@ impl BonNeedlessBuildersForSmallApis {
             types.push(ty);
         }
 
-        // Reject inputs that do not satisfy this stage.
+        // Optional, repeated, or configured parameters still benefit from named setters.
         if types
             .iter()
             .any(|ty| ty.trim_start().starts_with("Option<"))
@@ -106,20 +110,15 @@ impl BonNeedlessBuildersForSmallApis {
 
 impl EarlyLintPass for BonNeedlessBuildersForSmallApis {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
-        // Reject inputs that do not satisfy this stage.
         if !matches!(item.vis.kind, VisibilityKind::Inherited) {
             return;
         }
         let Some(span) = BonAttributeAnalysis::plain_builder(cx, &item.attrs) else {
             return;
         };
-
-        // Prepare the values used by this stage.
         let Some(parameter_count) = Self::required_distinct_parameters(cx, item) else {
             return;
         };
-
-        // Perform the next step of the analysis.
         Violation {
             span,
             parameter_count,

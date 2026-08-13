@@ -13,11 +13,15 @@ use rustc_span::def_id::LocalDefId;
 use super::contracts::BonContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Incomplete builder crossing a boundary
+// -----------------------------------------------------------------------------
+
+/// Generated typestate that escapes its focused construction scope.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Return type or field type carrying the unfinished builder.
     span: Span,
-    /// Stores the `boundary` value used by this analysis.
+    /// Kind of boundary named in the diagnostic.
     boundary: &'static str,
 }
 
@@ -55,31 +59,39 @@ impl LateViolation for Violation {
     }
 }
 
-/// Private function return retained for post-analysis.
-struct FunctionReturn {
+// -----------------------------------------------------------------------------
+// EscapeBoundary: Deferred type evidence
+// -----------------------------------------------------------------------------
+
+/// Private function return retained until type checking is complete.
+struct EscapeBoundaryFunctionReturn {
     /// Function definition owning the return type.
     function: LocalDefId,
     /// Authored return type span.
     span: Span,
 }
 
-/// Private field retained for post-analysis.
-struct StoredField {
+/// Private field retained until type checking is complete.
+struct EscapeBoundaryStoredField {
     /// Field definition owning the stored type.
     field: LocalDefId,
     /// Authored field type span.
     span: Span,
 }
 
+// -----------------------------------------------------------------------------
+// BonEscapingIncompleteBuilders: Focused construction policy
+// -----------------------------------------------------------------------------
+
+/// Finds generated builder types returned or stored before construction finishes.
 #[derive(Default)]
-/// Carries the `BonEscapingIncompleteBuilders` state used by this analysis.
 struct BonEscapingIncompleteBuilders {
-    /// Stores the `catalog` value used by this analysis.
+    /// Bon-generated builder definitions recognized in resolved types.
     catalog: BonContractCatalog,
-    /// Stores the `function_returns` value used by this analysis.
-    function_returns: Vec<FunctionReturn>,
-    /// Stores the `fields` value used by this analysis.
-    fields: Vec<StoredField>,
+    /// Private returns whose resolved output types are checked after collection.
+    function_returns: Vec<EscapeBoundaryFunctionReturn>,
+    /// Private fields whose resolved types are checked after collection.
+    fields: Vec<EscapeBoundaryStoredField>,
 }
 
 dylint_linting::impl_late_lint! {
@@ -102,7 +114,7 @@ impl<'tcx> LateLintPass<'tcx> for BonEscapingIncompleteBuilders {
         let FnRetTy::Return(output) = sig.decl.output else {
             return;
         };
-        self.function_returns.push(FunctionReturn {
+        self.function_returns.push(EscapeBoundaryFunctionReturn {
             function: item.owner_id.def_id,
             span: output.span,
         });
@@ -118,7 +130,7 @@ impl<'tcx> LateLintPass<'tcx> for BonEscapingIncompleteBuilders {
         let FnRetTy::Return(output) = signature.decl.output else {
             return;
         };
-        self.function_returns.push(FunctionReturn {
+        self.function_returns.push(EscapeBoundaryFunctionReturn {
             function: item.owner_id.def_id,
             span: output.span,
         });
@@ -128,21 +140,19 @@ impl<'tcx> LateLintPass<'tcx> for BonEscapingIncompleteBuilders {
         if !(!field.span.from_expansion() && !cx.tcx.visibility(field.def_id).is_public()) {
             return;
         }
-        self.fields.push(StoredField {
+        self.fields.push(EscapeBoundaryStoredField {
             field: field.def_id,
             span: field.ty.span,
         });
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for FunctionReturn { function, span } in &self.function_returns {
+        for EscapeBoundaryFunctionReturn { function, span } in &self.function_returns {
             let output = cx
                 .tcx
-                // Reject inputs that do not satisfy this stage.
                 .fn_sig(*function)
                 .instantiate_identity()
                 .skip_binder()
-                // Perform the next step of the analysis.
                 .output();
             if self.catalog.generated_builder_in_type(output).is_none() {
                 continue;
@@ -153,7 +163,7 @@ impl<'tcx> LateLintPass<'tcx> for BonEscapingIncompleteBuilders {
             }
             .emit(cx);
         }
-        for StoredField { field, span } in &self.fields {
+        for EscapeBoundaryStoredField { field, span } in &self.fields {
             let ty = cx.tcx.type_of(*field).instantiate_identity();
             if self.catalog.generated_builder_in_type(ty).is_none() {
                 continue;

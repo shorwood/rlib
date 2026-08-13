@@ -44,7 +44,6 @@ impl LateViolation for Violation {
     }
 
     fn emit(self, cx: &LateContext<'_>) {
-        // Render stable diagnostic layers before moving method evidence.
         let primary = self.primary_message().into_owned();
         let rationale = self.rationale_message().into_owned();
         let remediation = self.remediation_message().into_owned();

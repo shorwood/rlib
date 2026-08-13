@@ -26,7 +26,6 @@ let entries = load().unwrap_or_default();
 
 ## Use instead
 
-
 Preserve the error or expose the fallback policy where it happens:
 
 ```rust

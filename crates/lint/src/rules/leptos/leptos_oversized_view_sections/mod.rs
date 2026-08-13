@@ -99,13 +99,11 @@ impl<'tcx> LateLintPass<'tcx> for LeptosOversizedViewSections {
             .iter()
             .flat_map(|scope| scope.sections(&self.config))
         {
-            // Prepare the values used by this stage.
             let complexity = section.complexity();
             if complexity <= self.config.max_view_section_complexity {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 owner: view.owner,
                 span: section.heading.span,

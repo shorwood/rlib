@@ -493,7 +493,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// CollectionMethodLikeFreeFunctions: Lint pass
+// CollectionMethodLikeFreeFunctions: Domain collection ownership policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that relocates collection-shaped free functions to domain wrappers.
@@ -513,7 +513,7 @@ impl<'tcx> LateLintPass<'tcx> for CollectionMethodLikeFreeFunctions {
         // Resolve the source map used to exclude externally generated declarations.
         let source_map = cx.sess().source_map();
 
-        // Resolve authored items once so every analyze_candidate sees the same namespace.
+        // Resolve authored items once so every candidate sees the same namespace.
         let resolved = module
             .item_ids
             .iter()
@@ -523,10 +523,10 @@ impl<'tcx> LateLintPass<'tcx> for CollectionMethodLikeFreeFunctions {
             .collect::<Vec<_>>();
 
         for item in &items {
-            let Some(analyze_candidate) = Candidate::discover(cx, item) else {
+            let Some(candidate) = Candidate::discover(cx, item) else {
                 continue;
             };
-            analyze_candidate.violation(cx).emit(cx);
+            candidate.violation(cx).emit(cx);
         }
     }
 }

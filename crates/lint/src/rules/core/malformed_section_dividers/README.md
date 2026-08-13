@@ -3,7 +3,9 @@
 ## What it does
 
 Validates section-divider content and rendered width against the configured template.
-Content uses a PascalCase prefix with an optional sentence-case description after a colon.
+Content uses a PascalCase prefix with an optional sentence-style description after a colon.
+The description starts with a capital letter while preserving authored proper nouns,
+acronyms, and hyphenated technical terms.
 
 ## Why is this bad?
 
@@ -22,7 +24,6 @@ struct Request;
 ```
 
 ## Use instead
-
 
 Render the same content canonically:
 

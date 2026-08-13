@@ -51,12 +51,9 @@ impl LateViolation for Violation {
     }
 
     fn emit(self, cx: &LateContext<'_>) {
-        // Render the stable diagnostic layers before moving an optional replacement.
         let primary_message = self.primary_message().into_owned();
         let rationale_message = self.rationale_message().into_owned();
         let remediation_message = self.remediation_message().into_owned();
-
-        // Emit after resolving whether remediation is a suggestion or manual help.
         cx.emit_span_lint(
             MALFORMED_CODE_PHASE_COMMENTS,
             self.span,
@@ -79,7 +76,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// MalformedCodePhaseComments
+// MalformedCodePhaseComments: Explanatory phase-comment grammar
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that validates authored code-phase comment syntax and placement.

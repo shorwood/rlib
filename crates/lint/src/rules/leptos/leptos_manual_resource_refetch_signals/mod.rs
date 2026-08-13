@@ -74,7 +74,6 @@ dylint_linting::impl_late_lint! {
 impl LeptosManualResourceRefetchSignals {
     /// Returns whether the expression resolves to a tracked reactive `get` operation.
     fn is_reactive_get(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
-        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return false;
         };
@@ -83,7 +82,6 @@ impl LeptosManualResourceRefetchSignals {
         }
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
 
-        // Prepare the values used by this stage.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -92,7 +90,6 @@ impl LeptosManualResourceRefetchSignals {
             return false;
         };
 
-        // Perform the next step of the analysis.
         cx.tcx.crate_name(method.krate).as_str() == "reactive_graph"
             && cx.tcx.item_name(method).as_str() == "get"
             && cx
@@ -113,7 +110,6 @@ impl LeptosManualResourceRefetchSignals {
 
     /// Returns whether the call resolves to `leptos_server::LocalResource::new`.
     fn is_local_resource_new(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
-        // Prepare the values used by this stage.
         let ExprKind::Call(callee, _) = expression.kind else {
             return false;
         };
@@ -121,7 +117,6 @@ impl LeptosManualResourceRefetchSignals {
             return false;
         };
 
-        // Prepare the values used by this stage.
         let Res::Def(_, method) = cx.qpath_res(&path, callee.hir_id) else {
             return false;
         };
@@ -129,13 +124,11 @@ impl LeptosManualResourceRefetchSignals {
             return false;
         };
 
-        // Prepare the values used by this stage.
         let Some(definition) = cx
             .tcx
             .type_of(implementation)
             .instantiate_identity()
             .ty_adt_def()
-        // Perform the next step of the analysis.
         else {
             return false;
         };
@@ -164,7 +157,6 @@ impl LeptosManualResourceRefetchSignals {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosManualResourceRefetchSignals {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
-        // Reject inputs that do not satisfy this stage.
         if !Self::is_reactive_get(cx, expression)
             || !Self::is_discarded(cx, expression)
             || !Self::is_inside_local_resource_fetcher(cx, expression)
@@ -172,7 +164,6 @@ impl<'tcx> LateLintPass<'tcx> for LeptosManualResourceRefetchSignals {
             return;
         }
 
-        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
             span: expression.span,

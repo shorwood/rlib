@@ -38,7 +38,7 @@ impl ExtensionTraitConfig {
         self.max_methods
     }
 
-    /// Performs the `validate` operation for this value.
+    /// Rejects configuration that cannot express a coherent policy.
     fn validate(&self) -> Result<(), String> {
         if self.max_methods == 0 {
             return Err("extension_traits.max_methods must be greater than zero".to_owned());
@@ -85,12 +85,9 @@ impl LateViolation for Violation {
     }
 
     fn emit(self, cx: &LateContext<'_>) {
-        // Render the stable diagnostic layers before moving problem-specific evidence.
         let primary_message = self.primary_message().into_owned();
         let rationale_message = self.rationale_message().into_owned();
         let remediation_message = self.remediation_message().into_owned();
-
-        // Emit the stable layers before consuming the problem-specific evidence.
         cx.emit_span_lint(
             INCOHERENT_EXTENSION_TRAITS,
             self.span,
@@ -124,7 +121,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// IncoherentExtensionTraits: Lint pass
+// IncoherentExtensionTraits: Focused foreign-type vocabulary policy
 // -----------------------------------------------------------------------------
 
 /// Collects extension traits and checks their subject and size boundaries.

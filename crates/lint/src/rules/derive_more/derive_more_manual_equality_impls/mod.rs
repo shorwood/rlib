@@ -16,21 +16,25 @@ use rustc_span::def_id::LocalDefId;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derivable manual equality
+// -----------------------------------------------------------------------------
+
+/// Structural `PartialEq` implementation awaiting its `Eq` companion.
 struct Candidate {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: String,
-    /// Stores the `field_count` value used by this analysis.
+    /// Number of wrapper fields participating in the equality contract.
     field_count: usize,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Complete structural equality contract reproducible by `derive_more`.
 struct Violation {
-    /// Stores the `analyze_candidate` value used by this analysis.
-    analyze_candidate: Candidate,
-    /// Stores the `has_eq` value used by this analysis.
+    /// Equality implementation proven to compare only corresponding fields.
+    candidate: Candidate,
+    /// Whether the type also provides the marker `Eq` contract.
     has_eq: bool,
 }
 
@@ -38,15 +42,15 @@ impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "manual structural equality for `{}` is derivable",
-            self.analyze_candidate.name
+            self.candidate.name
         ))
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "the implementation compares {} corresponding field{} without normalization, adaptation, or external state",
-            self.analyze_candidate.field_count,
-            if self.analyze_candidate.field_count == 1 {
+            self.candidate.field_count,
+            if self.candidate.field_count == 1 {
                 ""
             } else {
                 "s"
@@ -69,11 +73,11 @@ impl LateViolation for Violation {
     fn emit(self, cx: &LateContext<'_>) {
         cx.emit_span_lint(
             DERIVE_MORE_MANUAL_EQUALITY_IMPLS,
-            self.analyze_candidate.span,
+            self.candidate.span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
                 diag.span_label(
-                    self.analyze_candidate.span,
+                    self.candidate.span,
                     "this equality is pure component comparison",
                 );
                 diag.note(self.rationale_message().into_owned());
@@ -94,7 +98,6 @@ struct TraitTarget {
 impl TraitTarget {
     /// Recognizes a relevant equality trait implementation.
     fn for_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
-        // Reject inputs that do not satisfy this stage.
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Impl(_)) {
             return None;
         }
@@ -103,19 +106,16 @@ impl TraitTarget {
             .impl_opt_trait_ref(item.owner_id.def_id)?
             .instantiate_identity();
 
-        // Reject inputs that do not satisfy this stage.
         if cx.tcx.crate_name(trait_ref.def_id.krate).as_str() != "core" {
             return None;
         }
 
-        // Prepare the values used by this stage.
         let name = match cx.tcx.item_name(trait_ref.def_id).as_str() {
             "PartialEq" => "PartialEq",
             "Eq" => "Eq",
             _ => return None,
         };
 
-        // Prepare the values used by this stage.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return None;
         };
@@ -147,7 +147,7 @@ impl<'hir> FieldAccess<'hir> {
     }
 }
 
-/// Performs the `collect_equal_fields` step of the lint analysis.
+/// Collects corresponding field pairs joined exclusively by boolean conjunction.
 fn collect_equal_fields(
     cx: &LateContext<'_>,
     expression: &Expr<'_>,
@@ -155,23 +155,20 @@ fn collect_equal_fields(
     right: rustc_hir::HirId,
     fields: &mut HashSet<String>,
 ) -> Option<()> {
-    // Prepare the values used by this stage.
-    let ExprKind::Binary(analyze_operator, lhs, rhs) = expression.kind else {
+    let ExprKind::Binary(operator, lhs, rhs) = expression.kind else {
         return None;
     };
-    if analyze_operator.node == BinOpKind::And {
+    if operator.node == BinOpKind::And {
         collect_equal_fields(cx, lhs, left, right, fields)?;
         return collect_equal_fields(cx, rhs, left, right, fields);
     }
 
-    // Reject inputs that do not satisfy this stage.
-    if analyze_operator.node != BinOpKind::Eq {
+    if operator.node != BinOpKind::Eq {
         return None;
     }
     let lhs = FieldAccess::from_expr(lhs)?;
     let rhs = FieldAccess::from_expr(rhs)?;
 
-    // Reject inputs that do not satisfy this stage.
     if lhs.field != rhs.field
         || !((DirectForwarding::is_binding(cx, lhs.base, left)
             && DirectForwarding::is_binding(cx, rhs.base, right))
@@ -195,7 +192,6 @@ struct StructuralEquality {
 impl StructuralEquality {
     /// Recognizes a complete structural equality method.
     fn for_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
-        // Prepare the values used by this stage.
         let ImplItemKind::Fn(_, body_id) = item.kind else {
             return None;
         };
@@ -204,7 +200,6 @@ impl StructuralEquality {
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
 
-        // Prepare the values used by this stage.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return None;
         };
@@ -212,7 +207,6 @@ impl StructuralEquality {
             return None;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if implementation_item.items.iter().any(|id| {
             let associated = cx.tcx.hir_impl_item(*id);
             associated.ident.name.as_str() == "ne"
@@ -221,7 +215,6 @@ impl StructuralEquality {
         }
         let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
 
-        // Reject inputs that do not satisfy this stage.
         if cx.tcx.crate_name(trait_ref.def_id.krate).as_str() != "core"
             || cx.tcx.item_name(trait_ref.def_id).as_str() != "PartialEq"
             || trait_ref.self_ty() != trait_ref.args.type_at(1)
@@ -229,7 +222,6 @@ impl StructuralEquality {
             return None;
         }
 
-        // Prepare the values used by this stage.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return None;
         };
@@ -238,7 +230,6 @@ impl StructuralEquality {
         }
         let body = cx.tcx.hir_body(body_id);
 
-        // Prepare the values used by this stage.
         let [left, right] = body.params else {
             return None;
         };
@@ -246,7 +237,6 @@ impl StructuralEquality {
             return None;
         };
 
-        // Prepare the values used by this stage.
         let PatKind::Binding(_, right, _, None) = right.pat.kind else {
             return None;
         };
@@ -260,12 +250,16 @@ impl StructuralEquality {
     }
 }
 
+// -----------------------------------------------------------------------------
+// DeriveMoreManualEqualityImpls: Declarative equality policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `DeriveMoreManualEqualityImpls` state used by this analysis.
+/// Groups structural `PartialEq` and `Eq` implementations by their wrapper type.
 struct DeriveMoreManualEqualityImpls {
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored declarations awaiting association with `derive_more` expansions.
     candidates: HashMap<LocalDefId, Candidate>,
-    /// Stores the `eq_targets` value used by this analysis.
+    /// Types with an authored `Eq` marker implementation.
     eq_targets: HashSet<LocalDefId>,
 }
 
@@ -289,7 +283,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualEqualityImpls {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
-        // Prepare the values used by this stage.
         let Some(StructuralEquality {
             target,
             field_count,
@@ -298,7 +291,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualEqualityImpls {
             return;
         };
 
-        // Update the accumulated analysis state.
         self.candidates.insert(
             target,
             Candidate {
@@ -310,9 +302,9 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualEqualityImpls {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (target, analyze_candidate) in self.candidates.drain() {
+        for (target, candidate) in self.candidates.drain() {
             Violation {
-                analyze_candidate,
+                candidate,
                 has_eq: self.eq_targets.contains(&target),
             }
             .emit(cx);

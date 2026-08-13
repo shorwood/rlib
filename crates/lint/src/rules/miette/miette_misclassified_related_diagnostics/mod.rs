@@ -11,31 +11,35 @@ use rustc_span::Span;
 use super::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
 use crate::utils::diagnostic::LateViolation;
 
-/// Classifies `Kind` cases used by this analysis.
-enum Kind {
-    /// Represents the `CauseAsRelated` case.
+// -----------------------------------------------------------------------------
+// Violation: Diagnostic relationship contradicting its domain role
+// -----------------------------------------------------------------------------
+
+/// Direction in which a field's declared relationship is inverted.
+enum ViolationKind {
+    /// A causal field is presented as an independent sibling.
     CauseAsRelated,
-    /// Represents the `SiblingAsCause` case.
+    /// A sibling collection is presented as the primary cause.
     SiblingAsCause,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Field whose Miette relationship conflicts with its explicit name.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Misclassified field declaration.
     span: Span,
-    /// Stores the `field` value used by this analysis.
+    /// Field name shown to the author.
     field: String,
-    /// Stores the `kind` value used by this analysis.
-    kind: Kind,
+    /// Detected relationship inversion.
+    kind: ViolationKind,
 }
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(match self.kind {
-            Kind::CauseAsRelated => format!(
+            ViolationKind::CauseAsRelated => format!(
                 "causal field `{}` is classified as a related diagnostic",
                 self.field
             ),
-            Kind::SiblingAsCause => format!(
+            ViolationKind::SiblingAsCause => format!(
                 "sibling field `{}` is classified as the diagnostic source",
                 self.field
             ),
@@ -50,10 +54,10 @@ impl LateViolation for Violation {
 
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(match self.kind {
-            Kind::CauseAsRelated => {
+            ViolationKind::CauseAsRelated => {
                 "model the primary failure with `#[diagnostic_source]` and reserve `#[related]` for sibling findings"
             }
-            Kind::SiblingAsCause => {
+            ViolationKind::SiblingAsCause => {
                 "model independent findings with `#[related]` and select one actual causal diagnostic source"
             }
         })
@@ -73,7 +77,7 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `causal_name` step of the lint analysis.
+/// Recognizes field names that explicitly claim a causal role.
 fn causal_name(name: &str) -> bool {
     matches!(
         name,
@@ -81,7 +85,7 @@ fn causal_name(name: &str) -> bool {
     )
 }
 
-/// Performs the `sibling_name` step of the lint analysis.
+/// Recognizes field names that explicitly claim a sibling role.
 fn sibling_name(name: &str) -> bool {
     matches!(
         name,
@@ -89,27 +93,23 @@ fn sibling_name(name: &str) -> bool {
     )
 }
 
-/// Performs the `check_fields` step of the lint analysis.
+/// Reports field names and Miette roles that point in opposite directions.
 fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
     for field in fields {
-        // Prepare the values used by this stage.
         let name = field.name.to_ascii_lowercase();
         let kind = if field.roles.contains(DiagnosticFieldRole::Related) && causal_name(&name) {
-            Some(Kind::CauseAsRelated)
+            Some(ViolationKind::CauseAsRelated)
         } else if field.roles.contains(DiagnosticFieldRole::DiagnosticSource) && sibling_name(&name)
-        // Perform the next step of the analysis.
         {
-            Some(Kind::SiblingAsCause)
+            Some(ViolationKind::SiblingAsCause)
         } else {
             None
         };
 
-        // Prepare the values used by this stage.
         let Some(kind) = kind else {
             continue;
         };
 
-        // Perform the next step of the analysis.
         Violation {
             span: field.span,
             field: field.name.clone(),
@@ -119,10 +119,14 @@ fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
     }
 }
 
+// -----------------------------------------------------------------------------
+// MietteMisclassifiedRelatedDiagnostics: Causal-tree relationship policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `MietteMisclassifiedRelatedDiagnostics` state used by this analysis.
+/// Collects diagnostic field roles before checking relationship intent.
 struct MietteMisclassifiedRelatedDiagnostics {
-    /// Stores the `catalog` value used by this analysis.
+    /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
 dylint_linting::impl_late_lint! {

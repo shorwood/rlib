@@ -13,13 +13,17 @@ use rustc_span::{Span, Symbol};
 use super::utils::contracts::{ContractCatalog, StrumAssociatedItem, StrumDerive};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Enum count disagrees with filtered iteration
+// -----------------------------------------------------------------------------
+
+/// Count contract that includes variants omitted by its companion iterator.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `enum_name` value used by this analysis.
+    /// Enum name quoted in the diagnostic.
     enum_name: Symbol,
 }
 
@@ -55,17 +59,17 @@ impl LateViolation for Violation {
     }
 }
 
-/// Carries the `CountUse` state used by this analysis.
-struct CountUse {
-    /// Stores the `owner` value used by this analysis.
+/// One filtered API that exposes an enum's total count.
+struct ViolationUse {
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `enum_def` value used by this analysis.
+    /// Local enum definition that owns the analyzed contract.
     enum_def: LocalDefId,
 }
 
-/// Performs the `enclosing_name` step of the lint analysis.
+/// Returns the nearest authored item name surrounding a count expression.
 fn enclosing_name(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> Option<Symbol> {
     cx.tcx
         .hir_parent_iter(hir_id)
@@ -76,9 +80,8 @@ fn enclosing_name(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> Option<Symb
         })
 }
 
-/// Performs the `is_subset_name` step of the lint analysis.
+/// Recognizes names that conventionally describe a filtered enum subset.
 fn is_subset_name(name: Symbol) -> bool {
-    // Perform the next step of the analysis.
     [
         "enabled",
         "visible",
@@ -91,13 +94,17 @@ fn is_subset_name(name: Symbol) -> bool {
     .any(|token| name.as_str().contains(token))
 }
 
+// -----------------------------------------------------------------------------
+// StrumFilteredEnumCountContracts: Matching count and iteration policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `StrumFilteredEnumCountContracts` state used by this analysis.
+/// Distinguishes full enum counts from deliberately filtered domain subsets.
 struct StrumFilteredEnumCountContracts {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,
-    /// Stores the `uses` value used by this analysis.
-    uses: Vec<CountUse>,
+    /// Count call sites whose surrounding names imply a filtered subset.
+    uses: Vec<ViolationUse>,
 }
 
 dylint_linting::impl_late_lint! {
@@ -114,7 +121,6 @@ impl LateLintPass<'_> for StrumFilteredEnumCountContracts {
     }
 
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
-        // Prepare the values used by this stage.
         let Some(enum_def) = (StrumAssociatedItem {
             trait_name: "EnumCount",
             item_name: "COUNT",
@@ -126,8 +132,7 @@ impl LateLintPass<'_> for StrumFilteredEnumCountContracts {
             return;
         }
 
-        // Update the accumulated analysis state.
-        self.uses.push(CountUse {
+        self.uses.push(ViolationUse {
             owner: expression.hir_id,
             span: expression.span.source_callsite(),
             enum_def,
@@ -137,7 +142,6 @@ impl LateLintPass<'_> for StrumFilteredEnumCountContracts {
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         let contracts = self.catalog.contracts();
         for count_use in self.uses.drain(..) {
-            // Prepare the values used by this stage.
             let Some(contract) = contracts.iter().find(|contract| {
                 contract.def_id == count_use.enum_def
                     && contract.derives(StrumDerive::EnumCount)
@@ -154,7 +158,6 @@ impl LateLintPass<'_> for StrumFilteredEnumCountContracts {
                 continue;
             };
 
-            // Perform the next step of the analysis.
             Violation {
                 owner: count_use.owner,
                 span: count_use.span,

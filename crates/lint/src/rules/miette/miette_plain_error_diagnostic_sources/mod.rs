@@ -11,11 +11,15 @@ use rustc_span::Span;
 use super::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Diagnostic source exposed only as a plain error
+// -----------------------------------------------------------------------------
+
+/// Nested diagnostic whose structured metadata is not forwarded.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Source field declaration.
     span: Span,
-    /// Stores the `field` value used by this analysis.
+    /// Source field name shown to the author.
     field: String,
 }
 impl LateViolation for Violation {
@@ -51,13 +55,12 @@ impl LateViolation for Violation {
         );
     }
 }
-/// Performs the `check_fields` step of the lint analysis.
+/// Reports nested diagnostics marked only as standard error sources.
 fn check_fields(cx: &LateContext<'_>, catalog: &DiagnosticCatalog, fields: &[DiagnosticField]) {
     for field in fields.iter().filter(|field| {
         field.roles.contains(DiagnosticFieldRole::Source)
             && !field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
     }) {
-        // Prepare the values used by this stage.
         let Some(target) = field.target else {
             continue;
         };
@@ -65,7 +68,6 @@ fn check_fields(cx: &LateContext<'_>, catalog: &DiagnosticCatalog, fields: &[Dia
             continue;
         }
 
-        // Perform the next step of the analysis.
         Violation {
             span: field.span,
             field: field.name.clone(),
@@ -74,10 +76,14 @@ fn check_fields(cx: &LateContext<'_>, catalog: &DiagnosticCatalog, fields: &[Dia
     }
 }
 
+// -----------------------------------------------------------------------------
+// MiettePlainErrorDiagnosticSources: Structured source forwarding
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `MiettePlainErrorDiagnosticSources` state used by this analysis.
+/// Collects diagnostic contracts before resolving nested source types.
 struct MiettePlainErrorDiagnosticSources {
-    /// Stores the `catalog` value used by this analysis.
+    /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
 dylint_linting::impl_late_lint! {

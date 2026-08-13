@@ -16,32 +16,30 @@ use rustc_span::def_id::{DefId, LocalDefId};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
 
+// -----------------------------------------------------------------------------
+// Violation: Derivable forwarding interface
+// -----------------------------------------------------------------------------
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-/// Carries the `Contract` state used by this analysis.
+/// One `derive_more` forwarding contract proven by an authored implementation.
 struct Contract {
-    /// Stores the `derive` value used by this analysis.
+    /// `derive_more` macro capable of replacing the implementation.
     derive: &'static str,
-    /// Stores the `is_forwarding` value used by this analysis.
+    /// Whether the implementation delegates behavior rather than exposing a field directly.
     is_forwarding: bool,
 }
 
-/// Receiver and index arguments required by an indexing operation.
-const INDEX_ARGUMENT_COUNT: usize = 2;
-
-/// Receiver and index bindings required by an indexing implementation.
-const INDEX_BINDING_COUNT: usize = 2;
-
-/// Carries the `Family` state used by this analysis.
+/// Standard interfaces exposing the same wrapper field without additional policy.
 struct Family {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: String,
-    /// Stores the `contracts` value used by this analysis.
+    /// Forwarding interfaces implemented by the same wrapper.
     contracts: Vec<Contract>,
 }
 
-/// Stores the `item` value used by this analysis.
+/// Complete forwarding family proven replaceable by `derive_more`.
 struct Violation(
     /// Forwarding-interface family that triggered the violation.
     Family,
@@ -62,7 +60,6 @@ impl LateViolation for Violation {
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
-        // Prepare the values used by this stage.
         let derives = self
             .0
             .contracts
@@ -71,21 +68,18 @@ impl LateViolation for Violation {
             .collect::<Vec<_>>()
             .join(", ");
 
-        // Prepare the values used by this stage.
         let forwarding = self
             .0
             .contracts
             .iter()
             .any(|contract| contract.is_forwarding);
 
-        // Prepare the values used by this stage.
         let qualifier = if forwarding {
             "; preserve pass-through targets with the corresponding `forward` attribute"
         } else {
             ""
         };
 
-        // Perform the next step of the analysis.
         Cow::Owned(format!(
             "replace this family with `#[derive({derives})]`{qualifier}"
         ))
@@ -102,34 +96,6 @@ impl LateViolation for Violation {
                 diag.help(self.remediation_message().into_owned());
             }),
         );
-    }
-}
-
-/// Performs the `supported_trait` step of the lint analysis.
-fn supported_trait(cx: &LateContext<'_>, trait_id: DefId, method: &str) -> Option<&'static str> {
-    // Reject inputs that do not satisfy this stage.
-    if cx.tcx.crate_name(trait_id.krate).as_str() != "core" {
-        return None;
-    }
-
-    // Classify the current analyze_candidate.
-    match (cx.tcx.item_name(trait_id).as_str(), method) {
-        ("AsRef", "as_ref") => Some("AsRef"),
-        ("AsMut", "as_mut") => Some("AsMut"),
-        ("Deref", "deref") => Some("Deref"),
-        ("DerefMut", "deref_mut") => Some("DerefMut"),
-        ("Index", "index") => Some("Index"),
-        ("IndexMut", "index_mut") => Some("IndexMut"),
-        _ => None,
-    }
-}
-
-/// Performs the `expected_mutability` step of the lint analysis.
-fn expected_mutability(derive: &str) -> Mutability {
-    if matches!(derive, "AsMut" | "DerefMut" | "IndexMut") {
-        Mutability::Mut
-    } else {
-        Mutability::Not
     }
 }
 
@@ -160,7 +126,39 @@ impl<'hir> DirectFieldReference<'hir> {
     }
 }
 
-/// Performs the `field_argument` step of the lint analysis.
+/// Receiver and index arguments required by an indexing operation.
+const INDEX_ARGUMENT_COUNT: usize = 2;
+
+/// Receiver and index bindings required by an indexing implementation.
+const INDEX_BINDING_COUNT: usize = 2;
+
+/// Resolves a supported standard forwarding trait to its derive name.
+fn supported_trait(cx: &LateContext<'_>, trait_id: DefId, method: &str) -> Option<&'static str> {
+    if cx.tcx.crate_name(trait_id.krate).as_str() != "core" {
+        return None;
+    }
+
+    match (cx.tcx.item_name(trait_id).as_str(), method) {
+        ("AsRef", "as_ref") => Some("AsRef"),
+        ("AsMut", "as_mut") => Some("AsMut"),
+        ("Deref", "deref") => Some("Deref"),
+        ("DerefMut", "deref_mut") => Some("DerefMut"),
+        ("Index", "index") => Some("Index"),
+        ("IndexMut", "index_mut") => Some("IndexMut"),
+        _ => None,
+    }
+}
+
+/// Returns the borrow mutability required by a forwarding derive.
+fn expected_mutability(derive: &str) -> Mutability {
+    if matches!(derive, "AsMut" | "DerefMut" | "IndexMut") {
+        Mutability::Mut
+    } else {
+        Mutability::Not
+    }
+}
+
+/// Returns whether an argument is the expected receiver field with matching mutability.
 fn field_argument(
     cx: &LateContext<'_>,
     expression: &Expr<'_>,
@@ -196,14 +194,12 @@ impl ContractTarget {
         derive: &'static str,
         definition: LocalDefId,
     ) -> Option<Self> {
-        // Prepare the values used by this stage.
         let call = DirectForwarding::call(cx, owner, expression)?;
         if cx.tcx.trait_of_assoc(call.target) != Some(trait_id) {
             return None;
         }
         let first = call.arguments.first()?;
 
-        // Reject inputs that do not satisfy this stage.
         if !field_argument(cx, first, bindings[0], expected_mutability(derive)) {
             return None;
         }
@@ -214,7 +210,6 @@ impl ContractTarget {
             return None;
         }
 
-        // Return the completed analysis result.
         Some(Self {
             definition,
             contract: Contract {
@@ -226,7 +221,6 @@ impl ContractTarget {
 
     /// Recognizes one exact field forwarding contract.
     fn for_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
-        // Prepare the values used by this stage.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
@@ -235,7 +229,6 @@ impl ContractTarget {
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
 
-        // Prepare the values used by this stage.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return None;
         };
@@ -244,7 +237,6 @@ impl ContractTarget {
         };
         let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
 
-        // Prepare the values used by this stage.
         let derive = supported_trait(cx, trait_id, item.ident.name.as_str())?;
         let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
         let ty::Adt(wrapper, _) = trait_ref.self_ty().kind() else {
@@ -252,7 +244,6 @@ impl ContractTarget {
         };
         let definition = wrapper.did().as_local()?;
 
-        // Reject inputs that do not satisfy this stage.
         if !wrapper.is_struct() {
             return None;
         }
@@ -260,26 +251,22 @@ impl ContractTarget {
         let forwarding =
             DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
 
-        // Prepare the values used by this stage.
         let expected_bindings = if matches!(derive, "Index" | "IndexMut") {
             INDEX_BINDING_COUNT
         } else {
             1
         };
 
-        // Reject inputs that do not satisfy this stage.
         if forwarding.bindings.len() != expected_bindings {
             return None;
         }
         let self_binding = forwarding.bindings[0];
 
-        // Reject inputs that do not satisfy this stage.
         if !matches!(derive, "Index" | "IndexMut")
             && let Some(field) = DirectFieldReference::from_expr(forwarding.forwarded)
             && field.mutability == expected_mutability(derive)
             && DirectForwarding::is_binding(cx, field.base, self_binding)
         {
-            // Prepare the values used by this stage.
             let field_type = cx.tcx.typeck(forwarding.typeck_owner).expr_ty(field.field);
             let output = cx
                 .tcx
@@ -288,12 +275,10 @@ impl ContractTarget {
                 .skip_binder()
                 .output();
 
-            // Prepare the values used by this stage.
             let ty::Ref(_, target, _) = output.kind() else {
                 return None;
             };
 
-            // Return the completed analysis result.
             return Some(Self {
                 definition,
                 contract: Contract {
@@ -303,7 +288,6 @@ impl ContractTarget {
             });
         }
 
-        // Perform the next step of the analysis.
         Self::from_forwarded_call(
             cx,
             forwarding.typeck_owner,
@@ -316,10 +300,14 @@ impl ContractTarget {
     }
 }
 
+// -----------------------------------------------------------------------------
+// DeriveMoreManualForwardingInterfaces: Declarative forwarding policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `DeriveMoreManualForwardingInterfaces` state used by this analysis.
+/// Groups transparent forwarding implementations by their wrapper type.
 struct DeriveMoreManualForwardingInterfaces {
-    /// Stores the `families` value used by this analysis.
+    /// Forwarding families accumulated until every implementation is known.
     families: HashMap<LocalDefId, Family>,
 }
 

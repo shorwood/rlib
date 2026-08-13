@@ -17,43 +17,89 @@ use super::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `SourceField` state used by this analysis.
-struct SourceField {
-    /// Stores the `span` value used by this analysis.
+// -----------------------------------------------------------------------------
+// Backtrace: Captured and forwarded trace evidence
+// -----------------------------------------------------------------------------
+
+/// Source field and its backtrace-forwarding role.
+struct BacktraceSourceField {
+    /// Source field receiving a forwarding diagnostic.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Authored source field name.
     name: String,
-    /// Stores the `target` value used by this analysis.
+    /// Local error type stored by the source field.
     target: LocalDefId,
-    /// Stores the `is_forwarding_backtrace` value used by this analysis.
+    /// Whether `#[backtrace]` forwards the source's existing trace.
     is_forwarding_backtrace: bool,
 }
 
+/// Captured traces and source links declared by one error type.
 #[derive(Default)]
-/// Carries the `ErrorShape` state used by this analysis.
-struct ErrorShape {
-    /// Stores the `captures` value used by this analysis.
+struct BacktraceShape {
+    /// Fields that capture a new standard backtrace.
     captures: Vec<Span>,
-    /// Stores the `sources` value used by this analysis.
-    sources: Vec<SourceField>,
+    /// Source fields that may forward an existing trace.
+    sources: Vec<BacktraceSourceField>,
 }
 
-/// Classifies `ViolationKind` cases used by this analysis.
+impl BacktraceShape {
+    /// Returns whether a field has the standard `Backtrace` type.
+    fn is_std(cx: &LateContext<'_>, field_type: ty::Ty<'_>) -> bool {
+        let Some(definition) = field_type.ty_adt_def() else {
+            return false;
+        };
+        cx.tcx.crate_name(definition.did().krate).as_str() == "std"
+            && cx.tcx.item_name(definition.did()).as_str() == "Backtrace"
+    }
+
+    /// Adds one source-level field to this error's backtrace shape.
+    fn record_field(&mut self, cx: &LateContext<'_>, field: &syn::Field, hir_field: &FieldDef<'_>) {
+        let Some(name) = field.ident.as_ref().map(ToString::to_string) else {
+            return;
+        };
+        let attributes = ThiserrorAttributes::from_attributes(&field.attrs);
+        let field_type = cx.tcx.type_of(hir_field.def_id).instantiate_identity();
+        let is_backtrace = attributes.is_backtrace || Self::is_std(cx, field_type);
+        let is_source = attributes.is_source || name == "source";
+
+        if is_source {
+            if let Some(target) = field_type
+                .ty_adt_def()
+                .and_then(|definition| definition.did().as_local())
+            {
+                self.sources.push(BacktraceSourceField {
+                    span: hir_field.span,
+                    name,
+                    target,
+                    is_forwarding_backtrace: is_backtrace,
+                });
+            }
+        } else if is_backtrace {
+            self.captures.push(hir_field.span);
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Violation: Broken backtrace continuity
+// -----------------------------------------------------------------------------
+
+/// Distinguishes redundant capture from missing source forwarding.
 enum ViolationKind {
-    /// Represents the `DuplicateCapture` case.
+    /// A wrapper captures again although its source already has a trace.
     DuplicateCapture,
-    /// Stores the `field` value used by this analysis.
+    /// A source has a trace but the wrapper does not forward it.
     MissingForwarding {
         /// Backtrace field that is not forwarded.
         field: String,
     },
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Derived error whose trace capture or forwarding breaks causal continuity.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Capture or source field receiving the diagnostic.
     span: Span,
-    /// Stores the `kind` value used by this analysis.
+    /// Specific continuity failure.
     kind: ViolationKind,
 }
 
@@ -70,7 +116,6 @@ impl LateViolation for Violation {
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
-        // Classify the current analyze_candidate.
         match self.kind {
             ViolationKind::DuplicateCapture => Cow::Borrowed(
                 "capturing again at the wrapper duplicates allocation and can hide the original failure location",
@@ -106,58 +151,19 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `is_std_backtrace` step of the lint analysis.
-fn is_std_backtrace(cx: &LateContext<'_>, field_type: ty::Ty<'_>) -> bool {
-    let Some(definition) = field_type.ty_adt_def() else {
-        return false;
-    };
-    cx.tcx.crate_name(definition.did().krate).as_str() == "std"
-        && cx.tcx.item_name(definition.did()).as_str() == "Backtrace"
-}
+// -----------------------------------------------------------------------------
+// ThiserrorUnpropagatedErrorBacktraces: Trace continuity policy
+// -----------------------------------------------------------------------------
 
-/// Performs the `record_field` step of the lint analysis.
-fn record_field(
-    cx: &LateContext<'_>,
-    shape: &mut ErrorShape,
-    field: &syn::Field,
-    hir_field: &FieldDef<'_>,
-) {
-    // Prepare the values used by this stage.
-    let Some(name) = field.ident.as_ref().map(ToString::to_string) else {
-        return;
-    };
-    let attributes = ThiserrorAttributes::from_attributes(&field.attrs);
-    let field_type = cx.tcx.type_of(hir_field.def_id).instantiate_identity();
-    let is_backtrace = attributes.is_backtrace || is_std_backtrace(cx, field_type);
-    let is_source = attributes.is_source || name == "source";
-
-    // Reject inputs that do not satisfy this stage.
-    if is_source {
-        if let Some(target) = field_type
-            .ty_adt_def()
-            .and_then(|definition| definition.did().as_local())
-        {
-            shape.sources.push(SourceField {
-                span: hir_field.span,
-                name,
-                target,
-                is_forwarding_backtrace: is_backtrace,
-            });
-        }
-    } else if is_backtrace {
-        shape.captures.push(hir_field.span);
-    }
-}
-
+/// Resolves backtrace availability through chains of local derived errors.
 #[derive(Default)]
-/// Carries the `ThiserrorUnpropagatedErrorBacktraces` state used by this analysis.
 struct ThiserrorUnpropagatedErrorBacktraces {
-    /// Stores the `catalog` value used by this analysis.
+    /// Local derived error contracts.
     catalog: ThiserrorContractCatalog,
-    /// Stores the `order` value used by this analysis.
+    /// Authored error definitions in stable source order.
     order: Vec<LocalDefId>,
-    /// Stores the `shapes` value used by this analysis.
-    shapes: HashMap<LocalDefId, ErrorShape>,
+    /// Backtrace shapes indexed by local error definition.
+    shapes: HashMap<LocalDefId, BacktraceShape>,
 }
 
 dylint_linting::impl_late_lint! {
@@ -170,13 +176,11 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() {
             return;
         }
 
-        // Prepare the values used by this stage.
         let hir_fields = match item.kind {
             ItemKind::Struct(_, _, data) => data.fields().iter().collect::<Vec<_>>(),
             _ => return,
@@ -185,16 +189,14 @@ impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
             return;
         };
 
-        // Prepare the values used by this stage.
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
         let syn_fields = structure.fields.into_iter().collect::<Vec<_>>();
-        let mut shape = ErrorShape::default();
+        let mut shape = BacktraceShape::default();
 
-        // Process the candidates handled by this stage.
         for (field, hir_field) in syn_fields.iter().zip(hir_fields) {
-            record_field(cx, &mut shape, field, hir_field);
+            shape.record_field(cx, field, hir_field);
         }
         self.order.push(item.owner_id.def_id);
         self.shapes.insert(item.owner_id.def_id, shape);
@@ -236,7 +238,7 @@ impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
 }
 
 impl ThiserrorUnpropagatedErrorBacktraces {
-    /// Performs the `provides_backtrace` operation for this value.
+    /// Recursively determines whether an error captures or forwards a trace.
     fn provides_backtrace(
         &self,
         definition: LocalDefId,
@@ -257,7 +259,7 @@ impl ThiserrorUnpropagatedErrorBacktraces {
         result
     }
 
-    /// Performs the `source_provides_backtrace` operation for this value.
+    /// Starts a cycle-safe backtrace availability query for one source type.
     fn source_provides_backtrace(&self, definition: LocalDefId) -> bool {
         self.provides_backtrace(definition, &mut HashSet::new())
     }

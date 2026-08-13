@@ -9,36 +9,38 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{BonAttributeAnalysis, builder_attribute, has_attribute, is_option_type};
+use super::utils::{BonAttributeAnalysis, OptionType};
 use crate::utils::diagnostic::EarlyViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Policy-bearing member with implicit omission
+// -----------------------------------------------------------------------------
+
+/// Optional builder member whose absence should be a conscious caller choice.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Optional type receiving the diagnostic.
     span: Span,
-    /// Stores the `member` value used by this analysis.
+    /// Policy-bearing member named in the diagnostic.
     member: String,
 }
 
 impl Violation {
     /// Builds a violation for an undocumented policy-bearing optional parameter.
     fn from_parameter(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Self> {
-        // Prepare the values used by this stage.
         let source_map = cx.sess().source_map();
         let ty = match source_map.span_to_snippet(parameter.ty.span) {
             Ok(ty) => ty,
             Err(_error) => return None,
         };
 
-        // Reject inputs that do not satisfy this stage.
-        if !is_option_type(&ty)
+        // An explicit requirement or documentation makes omission policy visible.
+        if !OptionType::is_option(&ty)
             || BonAttributeAnalysis::builder_contains(cx, &parameter.attrs, "required")
-            || has_attribute(&parameter.attrs, "doc")
+            || BonAttributeAnalysis::has(&parameter.attrs, "doc")
         {
             return None;
         }
 
-        // Prepare the values used by this stage.
         let member = match source_map.span_to_snippet(parameter.pat.span) {
             Ok(member) => member,
             Err(_error) => return None,
@@ -48,7 +50,6 @@ impl Violation {
         .trim_start_matches("ref ")
         .to_owned();
 
-        // Perform the next step of the analysis.
         Self::is_policy_bearing(&member).then_some(Self {
             span: parameter.ty.span,
             member,
@@ -100,7 +101,11 @@ impl EarlyViolation for Violation {
     }
 }
 
-/// Carries the `BonImplicitOptionalBuilderMembers` state used by this analysis.
+// -----------------------------------------------------------------------------
+// BonImplicitOptionalBuilderMembers: Explicit omission policy
+// -----------------------------------------------------------------------------
+
+/// Requires policy-bearing optional members to declare how omission is handled.
 struct BonImplicitOptionalBuilderMembers;
 
 dylint_linting::impl_pre_expansion_lint! {
@@ -116,7 +121,7 @@ impl EarlyLintPass for BonImplicitOptionalBuilderMembers {
         let ItemKind::Fn(function) = &item.kind else {
             return;
         };
-        if builder_attribute(&item.attrs).is_none()
+        if BonAttributeAnalysis::builder(&item.attrs).is_none()
             || (BonAttributeAnalysis::builder_contains(cx, &item.attrs, "on(")
                 && BonAttributeAnalysis::builder_contains(cx, &item.attrs, "required"))
         {

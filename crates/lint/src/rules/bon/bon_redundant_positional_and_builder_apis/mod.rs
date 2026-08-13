@@ -9,16 +9,20 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{BonAttributeAnalysis, builder_attribute};
+use super::utils::BonAttributeAnalysis;
 use crate::utils::diagnostic::EarlyViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Builder retaining a positional-heavy contract
+// -----------------------------------------------------------------------------
+
+/// Public builder whose entry and finish functions carry too many inputs.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Builder attribute receiving the diagnostic.
     span: Span,
-    /// Stores the `positional` value used by this analysis.
+    /// Members kept positional by start or finish policy.
     positional: usize,
-    /// Stores the `total` value used by this analysis.
+    /// Total members exposed by the builder.
     total: usize,
 }
 
@@ -59,7 +63,11 @@ impl EarlyViolation for Violation {
     }
 }
 
-/// Carries the `BonRedundantPositionalAndBuilderApis` state used by this analysis.
+// -----------------------------------------------------------------------------
+// BonRedundantPositionalAndBuilderApis: Named-argument policy
+// -----------------------------------------------------------------------------
+
+/// Ensures large public builders retain the readability benefit of named setters.
 struct BonRedundantPositionalAndBuilderApis;
 
 impl BonRedundantPositionalAndBuilderApis {
@@ -83,21 +91,18 @@ dylint_linting::impl_pre_expansion_lint! {
 
 impl EarlyLintPass for BonRedundantPositionalAndBuilderApis {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
-        // Prepare the values used by this stage.
         let ItemKind::Fn(function) = &item.kind else {
             return;
         };
-        let Some(attribute) = builder_attribute(&item.attrs) else {
+        let Some(attribute) = BonAttributeAnalysis::builder(&item.attrs) else {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if !matches!(item.vis.kind, VisibilityKind::Public) {
             return;
         }
         let total = function.sig.decl.inputs.len();
 
-        // Prepare the values used by this stage.
         let positional = function
             .sig
             .decl
@@ -109,7 +114,7 @@ impl EarlyLintPass for BonRedundantPositionalAndBuilderApis {
             })
             .count();
 
-        // Reject inputs that do not satisfy this stage.
+        // Small or predominantly named APIs retain a useful builder contract.
         if !(total >= Self::MINIMUM_TOTAL_MEMBERS
             && positional >= Self::MINIMUM_POSITIONAL_MEMBERS
             && positional * Self::POSITIONAL_SHARE_DENOMINATOR >= total)

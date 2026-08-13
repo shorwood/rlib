@@ -40,7 +40,6 @@ for _attempt in 0..3 {
 
 ## Use instead
 
-
 Give each decision a domain-specific constant, even when it currently has only one use:
 
 ```rust

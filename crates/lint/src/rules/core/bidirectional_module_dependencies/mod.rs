@@ -168,9 +168,8 @@ impl BidirectionalModuleDependencies {
     /// Emits a diagnostic when the latest dependency completes an unreported cycle.
     fn report_cycle(&mut self, cx: &LateContext<'_>, dependency: ModuleDependency) {
         // Locate the import that closes the dependency cycle.
-        let Some(reverse) = self.dependencies.iter().find(|analyze_candidate| {
-            analyze_candidate.source == dependency.target
-                && analyze_candidate.target == dependency.source
+        let Some(reverse) = self.dependencies.iter().find(|candidate| {
+            candidate.source == dependency.target && candidate.target == dependency.source
         }) else {
             return;
         };

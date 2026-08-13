@@ -15,13 +15,17 @@ use super::contracts::BonContractCatalog;
 use crate::utils::construction_analysis::{ConstructionAnalysis, ConstructionOrigin};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Builder bypassing a checked constructor
+// -----------------------------------------------------------------------------
+
+/// Derived builder that can assemble a restricted type without validation.
 struct Violation {
-    /// Stores the `struct_span` value used by this analysis.
+    /// Struct declaration that derives raw-field construction.
     struct_span: Span,
-    /// Stores the `constructor_span` value used by this analysis.
+    /// Fallible constructor that owns the type's invariant checks.
     constructor_span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Restricted type named in the diagnostic.
     name: String,
 }
 
@@ -66,12 +70,16 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// BonBuildersBypassingConstructionInvariants: Checked construction policy
+// -----------------------------------------------------------------------------
+
+/// Correlates Bon derives with fallible inherent constructors.
 #[derive(Default)]
-/// Carries the `BonBuildersBypassingConstructionInvariants` state used by this analysis.
 struct BonBuildersBypassingConstructionInvariants {
-    /// Stores the `catalog` value used by this analysis.
+    /// Bon derive contracts indexed by their target type.
     catalog: BonContractCatalog,
-    /// Stores the `constructions` value used by this analysis.
+    /// Authored constructors and their construction origins.
     constructions: ConstructionAnalysis,
 }
 
@@ -108,14 +116,13 @@ impl<'tcx> LateLintPass<'tcx> for BonBuildersBypassingConstructionInvariants {
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         for constructor in &self.constructions.candidates {
-            // Reject inputs that do not satisfy this stage.
+            // Only inherent fallible constructors can serve as invariant boundaries.
             if constructor.ownership.origin != ConstructionOrigin::Inherent
                 || !constructor.is_fallible_direct()
             {
                 continue;
             }
 
-            // Prepare the values used by this stage.
             let Some(contract) = self.catalog.derived_struct(constructor.target.def_id) else {
                 continue;
             };
@@ -123,7 +130,6 @@ impl<'tcx> LateLintPass<'tcx> for BonBuildersBypassingConstructionInvariants {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 struct_span: contract.span,
                 constructor_span: constructor.function.name_span,

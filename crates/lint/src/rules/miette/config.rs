@@ -2,9 +2,9 @@ use serde::Deserialize;
 
 #[derive(Clone, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
-/// Carries the `MietteHelpConfig` state used by this analysis.
+/// Project vocabulary that is too vague to serve as diagnostic help.
 pub struct MietteHelpConfig {
-    /// Stores the `generic_phrases` value used by this analysis.
+    /// Case-insensitive phrases that should be replaced by concrete recovery steps.
     pub(super) generic_phrases: Vec<String>,
 }
 

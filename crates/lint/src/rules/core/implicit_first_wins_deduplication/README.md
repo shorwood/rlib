@@ -27,7 +27,6 @@ let unique = participants.iter().filter(|item| seen.insert(item.id));
 
 ## Use instead
 
-
 Collect by key and state how collisions are resolved instead:
 
 ```rust

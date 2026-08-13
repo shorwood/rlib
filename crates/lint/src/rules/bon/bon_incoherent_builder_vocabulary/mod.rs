@@ -9,28 +9,31 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{BonAttributeAnalysis, ConfiguredIdentifier, builder_attribute};
+use super::utils::{BonAttributeAnalysis, ConfiguredIdentifier};
 use crate::utils::diagnostic::EarlyViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Generated name erasing domain vocabulary
+// -----------------------------------------------------------------------------
+
+/// Generic Bon name replacing a more specific authored name.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Bon attribute containing the generic override.
     span: Span,
-    /// Stores the `configured` value used by this analysis.
+    /// Generated name selected by the override.
     configured: String,
-    /// Stores the `established` value used by this analysis.
+    /// Domain name already established by the declaration.
     established: String,
 }
 
 impl Violation {
-    /// Performs the `member_violation` step of the lint analysis.
+    /// Builds a violation when a member override discards specific vocabulary.
     fn member_violation(
         cx: &EarlyContext<'_>,
         attributes: &[rustc_ast::Attribute],
         established: String,
     ) -> Option<Self> {
-        // Prepare the values used by this stage.
-        let attribute = builder_attribute(attributes)?;
+        let attribute = BonAttributeAnalysis::builder(attributes)?;
         let source = match BonAttributeAnalysis::source(cx, attribute) {
             Ok(source) => source,
             Err(_error) => return None,
@@ -41,8 +44,9 @@ impl Violation {
         }
         .parse()?;
 
-        // Perform the next step of the analysis.
-        (generic_member(&configured) && !generic_member(&established)).then_some(Self {
+        (builder_vocabulary_generic_member(&configured)
+            && !builder_vocabulary_generic_member(&established))
+        .then_some(Self {
             span: attribute.span,
             configured,
             established,
@@ -84,18 +88,25 @@ impl EarlyViolation for Violation {
     }
 }
 
-/// Performs the `generic_operation` step of the lint analysis.
-fn generic_operation(name: &str) -> bool {
+// -----------------------------------------------------------------------------
+// BuilderVocabulary: Generic-name classification
+// -----------------------------------------------------------------------------
+
+/// Returns whether a generated operation name lacks domain meaning.
+fn builder_vocabulary_generic_operation(name: &str) -> bool {
     matches!(name, "done" | "execute" | "finish" | "process" | "run")
 }
 
-/// Performs the `generic_member` step of the lint analysis.
-fn generic_member(name: &str) -> bool {
+/// Returns whether a generated member name lacks domain meaning.
+fn builder_vocabulary_generic_member(name: &str) -> bool {
     matches!(name, "arg" | "data" | "item" | "param" | "thing" | "value")
 }
 
-/// Performs the `parameter_violation` step of the lint analysis.
-fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
+/// Checks a function parameter's configured setter name.
+fn builder_vocabulary_parameter_violation(
+    cx: &EarlyContext<'_>,
+    parameter: &Param,
+) -> Option<Violation> {
     let established = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
         Ok(established) => established,
         Err(_error) => return None,
@@ -103,18 +114,25 @@ fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Viola
     Violation::member_violation(cx, &parameter.attrs, established.trim().to_owned())
 }
 
-/// Performs the `field_violation` step of the lint analysis.
-fn field_violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Violation> {
+/// Checks a struct field's configured setter name.
+fn builder_vocabulary_field_violation(
+    cx: &EarlyContext<'_>,
+    field: &FieldDef,
+) -> Option<Violation> {
     Violation::member_violation(cx, &field.attrs, field.ident?.name.to_string())
 }
 
-/// Carries the `BonIncoherentBuilderVocabulary` state used by this analysis.
+// -----------------------------------------------------------------------------
+// BonIncoherentBuilderVocabulary: Domain naming policy
+// -----------------------------------------------------------------------------
+
+/// Preserves authored domain vocabulary in Bon-generated entry points and setters.
 struct BonIncoherentBuilderVocabulary;
 
 impl BonIncoherentBuilderVocabulary {
     /// Checks the configured builder vocabulary and every function parameter.
     fn check_function(cx: &EarlyContext<'_>, item: &Item, function: &Fn) {
-        let Some(attribute) = builder_attribute(&item.attrs) else {
+        let Some(attribute) = BonAttributeAnalysis::builder(&item.attrs) else {
             return;
         };
         let operation = item
@@ -131,7 +149,7 @@ impl BonIncoherentBuilderVocabulary {
                     key,
                 })
                 .parse()
-                    && generic_operation(&configured)
+                    && builder_vocabulary_generic_operation(&configured)
                     && !operation.split('_').any(|word| word == configured)
                 {
                     Violation {
@@ -147,7 +165,7 @@ impl BonIncoherentBuilderVocabulary {
 
         // Diagnose parameter-level vocabulary independently.
         for parameter in &function.sig.decl.inputs {
-            let Some(violation) = parameter_violation(cx, parameter) else {
+            let Some(violation) = builder_vocabulary_parameter_violation(cx, parameter) else {
                 continue;
             };
             violation.emit(cx);
@@ -173,7 +191,7 @@ impl EarlyLintPass for BonIncoherentBuilderVocabulary {
                 if BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
             {
                 for field in data.fields() {
-                    let Some(violation) = field_violation(cx, field) else {
+                    let Some(violation) = builder_vocabulary_field_violation(cx, field) else {
                         continue;
                     };
                     violation.emit(cx);

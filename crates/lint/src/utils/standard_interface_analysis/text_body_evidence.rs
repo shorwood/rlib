@@ -35,7 +35,7 @@ impl TextBodyEvidence {
         };
         analyzer.visit_expr(body.value);
 
-        // Return only the two facts needed for analyze_candidate classification.
+        // Return only the two facts needed for candidate classification.
         Self {
             has_input_use: analyzer.has_input_use,
             has_display_delegation: analyzer.has_display_delegation,

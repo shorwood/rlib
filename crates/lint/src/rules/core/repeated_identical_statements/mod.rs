@@ -53,7 +53,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// RepeatedIdenticalStatements: Lint pass
+// RepeatedIdenticalStatements: Explicit repetition policy
 // -----------------------------------------------------------------------------
 
 /// Compares neighboring statements within each authored block.

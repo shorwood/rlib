@@ -14,21 +14,25 @@ use super::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Incompatible flattened unknown-field policies
+// -----------------------------------------------------------------------------
+
+/// Flattened field awaiting comparison with its outer unknown-field policy.
 struct Candidate {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `fields` value used by this analysis.
+    /// Authored fields relevant to the contract.
     fields: Vec<String>,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Flattened map that defeats the outer type's unknown-field rejection.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `fields` value used by this analysis.
+    /// Authored fields relevant to the contract.
     fields: Vec<String>,
 }
 
@@ -78,11 +82,15 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
-/// Carries the `SerdeFlattenedUnknownFieldPolicies` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeFlattenedUnknownFieldPolicies: Coherent unknown-field policy
+// -----------------------------------------------------------------------------
+
+/// Rejects flattened maps whose unknown-field behavior contradicts the outer type.
 struct SerdeFlattenedUnknownFieldPolicies {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored Serde declarations awaiting crate-wide contract comparison.
     candidates: Vec<Candidate>,
 }
 
@@ -96,7 +104,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
             return;
@@ -105,23 +112,17 @@ impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
             return;
         };
 
-        // Prepare the values used by this stage.
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
-        if !SerdeAttributes::analyze_serde_attributes(&structure.attrs)
-            .has(SerdeFlag::DenyUnknownFields)
-        {
+        if !SerdeAttributes::from_attributes(&structure.attrs).has(SerdeFlag::DenyUnknownFields) {
             return;
         }
 
-        // Prepare the values used by this stage.
         let fields = structure
             .fields
             .iter()
-            .filter(|field| {
-                SerdeAttributes::analyze_serde_attributes(&field.attrs).has(SerdeFlag::Flatten)
-            })
+            .filter(|field| SerdeAttributes::from_attributes(&field.attrs).has(SerdeFlag::Flatten))
             .map(|field| {
                 field
                     .ident
@@ -130,12 +131,10 @@ impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
             })
             .collect::<Vec<_>>();
 
-        // Reject inputs that do not satisfy this stage.
         if fields.is_empty() {
             return;
         }
 
-        // Update the accumulated analysis state.
         self.candidates.push(Candidate {
             definition: item.owner_id.def_id,
             span: item.span,
@@ -144,20 +143,18 @@ impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
+        for candidate in self.candidates.drain(..) {
             if self
                 .catalog
-                .derived_type(analyze_candidate.definition, "Deserialize")
+                .derived_type(candidate.definition, "Deserialize")
                 .is_none()
             {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                fields: analyze_candidate.fields,
+                span: candidate.span,
+                fields: candidate.fields,
             }
             .emit(cx);
         }

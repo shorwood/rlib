@@ -12,15 +12,19 @@ use rustc_span::Span;
 use crate::rules::leptos::utils::view_structure::{LeptosViewStructureConfig, ViewCallSites};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: View attribute group too broad to scan
+// -----------------------------------------------------------------------------
+
+/// Attribute group too large to communicate one coherent responsibility.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `complexity` value used by this analysis.
+    /// Direct authored complexity charged to this construct.
     complexity: usize,
-    /// Stores the `maximum` value used by this analysis.
+    /// Configured maximum attributes allowed under one responsibility heading.
     maximum: usize,
 }
 
@@ -59,16 +63,20 @@ impl LateViolation for Violation {
     }
 }
 
-/// Carries the `LeptosOversizedViewAttributeGroups` state used by this analysis.
+// -----------------------------------------------------------------------------
+// LeptosOversizedViewAttributeGroups: Focused attribute-group policy
+// -----------------------------------------------------------------------------
+
+/// Rejects attribute groups too large to communicate one coherent responsibility.
 struct LeptosOversizedViewAttributeGroups {
-    /// Stores the `config` value used by this analysis.
+    /// Validated project policy applied by this lint pass.
     config: LeptosViewStructureConfig,
-    /// Stores the `views` value used by this analysis.
+    /// Parsed `view!` invocations awaiting attribute-group sizing.
     views: ViewCallSites,
 }
 
 impl LeptosOversizedViewAttributeGroups {
-    /// Performs the `new` operation for this value.
+    /// Starts view analysis with the configured group-size limit.
     fn new() -> Self {
         Self {
             config: LeptosViewStructureConfig::from_config(),
@@ -95,7 +103,6 @@ impl<'tcx> LateLintPass<'tcx> for LeptosOversizedViewAttributeGroups {
             .iter()
             .flat_map(|element| element.groups(&self.config))
         {
-            // Prepare the values used by this stage.
             let complexity = group.complexity();
             if complexity <= self.config.max_view_attribute_group_complexity {
                 continue;
@@ -104,7 +111,6 @@ impl<'tcx> LateLintPass<'tcx> for LeptosOversizedViewAttributeGroups {
                 continue;
             };
 
-            // Perform the next step of the analysis.
             Violation {
                 owner: view.owner,
                 span: group.heading.span.with_hi(last.span.hi()),

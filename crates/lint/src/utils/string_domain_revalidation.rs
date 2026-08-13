@@ -13,14 +13,14 @@ use super::parameter_analysis::Parameter;
 use super::string_domain_vocabulary::StringDomainSymbolExt;
 
 /// Collects local bindings referenced by one expression.
-struct BindingCollector<'analysis, 'tcx> {
+struct RevalidationBindingCollector<'analysis, 'tcx> {
     /// Compiler context used to resolve paths.
     cx: &'analysis LateContext<'tcx>,
     /// Resolved local binding identities.
     bindings: HashSet<HirId>,
 }
 
-impl<'tcx> Visitor<'tcx> for BindingCollector<'_, 'tcx> {
+impl<'tcx> Visitor<'tcx> for RevalidationBindingCollector<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         if let ExprKind::Path(path) = expression.kind
             && let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id)
@@ -33,12 +33,12 @@ impl<'tcx> Visitor<'tcx> for BindingCollector<'_, 'tcx> {
 
 #[derive(Default)]
 /// Finds returns without descending into nested closures.
-struct ReturnFinder {
+struct RevalidationReturnFinder {
     /// Whether a return expression was encountered.
     has_return: bool,
 }
 
-impl<'tcx> Visitor<'tcx> for ReturnFinder {
+impl<'tcx> Visitor<'tcx> for RevalidationReturnFinder {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         if matches!(expression.kind, ExprKind::Ret(_)) {
             self.has_return = true;
@@ -74,14 +74,14 @@ impl<'analysis, 'tcx> RevalidationVisitor<'analysis, 'tcx> {
 
     /// Returns whether an expression contains an explicit function return.
     fn contains_return(expression: &'tcx Expr<'tcx>) -> bool {
-        let mut finder = ReturnFinder::default();
+        let mut finder = RevalidationReturnFinder::default();
         finder.visit_expr(expression);
         finder.has_return
     }
 
     /// Records parameter bindings used anywhere inside an expression.
     fn record_bindings(&mut self, expression: &'tcx Expr<'tcx>) {
-        let mut collector = BindingCollector {
+        let mut collector = RevalidationBindingCollector {
             cx: self.cx,
             bindings: HashSet::new(),
         };
@@ -140,6 +140,10 @@ impl<'tcx> Visitor<'tcx> for RevalidationVisitor<'_, 'tcx> {
         intravisit::walk_expr(self, expression);
     }
 }
+
+// -----------------------------------------------------------------------------
+// StringDomainBodyExt: Function-level revalidation query
+// -----------------------------------------------------------------------------
 
 /// Revalidation queries colocated with compiler function bodies.
 pub(super) trait StringDomainBodyExt {

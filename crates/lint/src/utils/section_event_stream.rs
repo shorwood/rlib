@@ -18,6 +18,9 @@ use crate::utils::section_analysis::{
 };
 use crate::utils::source_provenance::ItemProvenanceExt;
 
+/// Smallest declaration group that can contain more than one responsibility.
+const MINIMUM_MULTIPLE_FAMILY_SIZE: usize = 2;
+
 // -----------------------------------------------------------------------------
 // SectionEventCandidate: Section events and participants
 // -----------------------------------------------------------------------------
@@ -40,14 +43,14 @@ pub(super) struct SectionEventCandidate {
     name: String,
     /// Complete declaration source range.
     span: Span,
-    /// Whether this `analyze_candidate` introduces a nominal type.
+    /// Whether this `candidate` introduces a nominal type.
     is_nominal_declaration: bool,
     /// Whether this declaration requires a divider even when it stands alone.
     is_standalone_divider_required: bool,
 }
 
 impl SectionEventCandidate {
-    /// Converts a section-relevant module item into a source `analyze_candidate`.
+    /// Converts a section-relevant module item into a source `candidate`.
     pub(super) fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         // Ignore declarations whose source was synthesized by expansion.
         if item.span.from_expansion() || item.is_framework_generated() {
@@ -103,7 +106,7 @@ impl SectionEventCandidate {
         }
     }
 
-    /// Builds a `analyze_candidate` from an item whose definition and name are direct.
+    /// Builds a `candidate` from an item whose definition and name are direct.
     fn from_named_item(
         cx: &LateContext<'_>,
         item: &Item<'_>,
@@ -118,7 +121,7 @@ impl SectionEventCandidate {
         }
     }
 
-    /// Converts a direct inherent implementation into a `analyze_candidate` for its self type.
+    /// Converts a direct inherent implementation into a `candidate` for its self type.
     fn from_impl(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         // Resolve the implementation's nominal self type and local definition.
         let self_type = cx.tcx.type_of(item.owner_id).instantiate_identity();
@@ -177,17 +180,17 @@ impl SectionEventStreamCandidates {
     fn record_distinct_declaration(
         positions: &mut HashMap<LocalDefId, usize>,
         declarations: &mut Vec<SectionParticipant>,
-        analyze_candidate: SectionParticipant,
+        candidate: SectionParticipant,
     ) {
-        let Some(index) = positions.get(&analyze_candidate.def_id).copied() else {
-            positions.insert(analyze_candidate.def_id, declarations.len());
-            declarations.push(analyze_candidate);
+        let Some(index) = positions.get(&candidate.def_id).copied() else {
+            positions.insert(candidate.def_id, declarations.len());
+            declarations.push(candidate);
             return;
         };
-        if !analyze_candidate.is_nominal || declarations[index].is_nominal {
+        if !candidate.is_nominal || declarations[index].is_nominal {
             return;
         }
-        declarations[index] = analyze_candidate;
+        declarations[index] = candidate;
     }
 
     /// Returns whether the group contains no declarations.
@@ -200,13 +203,13 @@ impl SectionEventStreamCandidates {
         let mut positions = HashMap::<LocalDefId, usize>::new();
         let mut declarations = Vec::<SectionParticipant>::new();
         for participant in &self.0 {
-            let analyze_candidate = SectionParticipant {
+            let candidate = SectionParticipant {
                 def_id: participant.def_id,
                 name: participant.name.clone(),
                 span: participant.span,
                 is_nominal: participant.is_nominal_declaration,
             };
-            Self::record_distinct_declaration(&mut positions, &mut declarations, analyze_candidate);
+            Self::record_distinct_declaration(&mut positions, &mut declarations, candidate);
         }
 
         // Return declarations in authored order after collapsing their impls.
@@ -214,7 +217,7 @@ impl SectionEventStreamCandidates {
         declarations
     }
 
-    /// Returns `analyze_candidate` names in their authored order.
+    /// Returns `candidate` names in their authored order.
     fn names(&self) -> Vec<&str> {
         self.0
             .iter()
@@ -237,8 +240,35 @@ impl SectionEventStreamCandidates {
         }
     }
 
-    /// Formats a stable, deduplicated set of `analyze_candidate` names for diagnostics.
-    pub(super) fn formatted_names(&self) -> String {
+    /// Formats the nominal concepts that determine section responsibility.
+    pub(super) fn formatted_family_names(&self) -> String {
+        let mut names = self.family_names();
+        names.sort_unstable();
+        names.dedup();
+        names
+            .into_iter()
+            .map(|name| format!("`{name}`"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// Returns whether the declarations expose several independent naming families.
+    pub(super) fn has_multiple_conceptual_families(
+        &self,
+        namespace: Option<&ModuleNamespace>,
+    ) -> bool {
+        let names = self.family_names();
+        if names.len() < MINIMUM_MULTIPLE_FAMILY_SIZE {
+            return false;
+        }
+        let Some(prefix) = identifier_case::longest_common_pascal_prefix(&names) else {
+            return true;
+        };
+        namespace.is_some_and(|namespace| namespace.contains(&prefix))
+    }
+
+    /// Formats a stable, deduplicated set of `candidate` names for diagnostics.
+    fn formatted_names(&self) -> String {
         // Stabilize and deduplicate authored participant names.
         let mut names = self.names();
         names.sort_unstable();
@@ -262,9 +292,14 @@ impl SectionEventStreamCandidates {
         self.0.push(participant);
     }
 
-    /// Returns whether this group is large enough to need navigation boundaries.
-    fn requires_divider(&self, max_declarations_per_section: usize) -> bool {
+    /// Returns whether this group needs explicit conceptual navigation.
+    fn requires_divider(
+        &self,
+        max_declarations_per_section: usize,
+        namespace: Option<&ModuleNamespace>,
+    ) -> bool {
         self.distinct_declarations().len() > max_declarations_per_section
+            || self.has_multiple_conceptual_families(namespace)
             || self
                 .0
                 .iter()
@@ -272,7 +307,13 @@ impl SectionEventStreamCandidates {
     }
 
     /// Produces naming-first guidance for a declaration group without a divider.
-    fn missing_guidance(&self) -> String {
+    fn missing_guidance(&self, namespace: Option<&ModuleNamespace>) -> String {
+        if self.has_multiple_conceptual_families(namespace) {
+            return format!(
+                "add responsibility-based sections for the independently named concepts {}",
+                self.formatted_family_names()
+            );
+        }
         let names = self.names();
 
         // Turn the inferred prefix, or its absence, into naming-first guidance.
@@ -288,12 +329,17 @@ impl SectionEventStreamCandidates {
     }
 
     /// Builds the missing-divider finding for this nonempty declaration group.
-    fn missing_finding(&self) -> SectionFinding {
+    fn missing_finding(&self, namespace: Option<&ModuleNamespace>) -> SectionFinding {
         // Prefer an inferred family prefix while keeping naming guidance actionable.
-        let guidance = self.missing_guidance();
+        let guidance = self.missing_guidance(namespace);
+        let message = if self.has_multiple_conceptual_families(namespace) {
+            "independently named module concepts are not separated by section dividers"
+        } else {
+            "module declarations are not covered by a section divider"
+        };
         SectionFinding {
             span: self.0[0].span,
-            message: "module declarations are not covered by a section divider".to_owned(),
+            message: message.to_owned(),
             help: guidance,
             replacement: None,
         }
@@ -334,11 +380,13 @@ impl SectionEventStreamState {
 
     /// Reports and clears declarations accumulated outside a section.
     fn record_uncovered(&mut self, analyzer: &SectionAnalyzer) {
-        if self
-            .uncovered
-            .requires_divider(analyzer.max_declarations_per_section)
-        {
-            self.analysis.missing.push(self.uncovered.missing_finding());
+        if self.uncovered.requires_divider(
+            analyzer.max_declarations_per_section,
+            self.namespace.as_ref(),
+        ) {
+            self.analysis
+                .missing
+                .push(self.uncovered.missing_finding(self.namespace.as_ref()));
         }
         self.uncovered.clear();
     }

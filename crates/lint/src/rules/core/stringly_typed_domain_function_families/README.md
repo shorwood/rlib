@@ -23,7 +23,6 @@ fn slug_path(slug: &str) -> PathBuf {}
 
 ## Use instead
 
-
 Introduce one domain value that owns the invariant and behavior:
 
 ```rust

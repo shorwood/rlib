@@ -14,13 +14,17 @@ use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Primitive context value without domain identity
+// -----------------------------------------------------------------------------
+
+/// Context boundary carrying a primitive type without a domain identity.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `ty` value used by this analysis.
+    /// Resolved type involved in the contract.
     ty: String,
 }
 
@@ -58,73 +62,18 @@ impl LateViolation for Violation {
     }
 }
 
-/// Carries the `LeptosPrimitiveContextValues` state used by this analysis.
-struct LeptosPrimitiveContextValues;
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub LEPTOS_PRIMITIVE_CONTEXT_VALUES,
-    Warn,
-    "rejects Leptos contexts without nominal domain identity",
-    LeptosPrimitiveContextValues
-}
-
-impl LateLintPass<'_> for LeptosPrimitiveContextValues {
-    fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
-        // Reject inputs that do not satisfy this stage.
-        if expression.span.from_expansion() {
-            return;
-        }
-        let ExprKind::Call(callee, arguments) = expression.kind else {
-            return;
-        };
-
-        // Prepare the values used by this stage.
-        let Some(operation) = ContextOperation::analyze_context_operation(cx, callee) else {
-            return;
-        };
-
-        // Prepare the values used by this stage.
-        let ty = match operation {
-            ContextOperation::Provide => {
-                let [value] = arguments else { return };
-                cx.typeck_results().expr_ty(value)
-            }
-            ContextOperation::Consume => {
-                let generic_arguments = cx.typeck_results().node_args(callee.hir_id);
-                let Some(ty) = generic_arguments.types().next() else {
-                    return;
-                };
-                ty
-            }
-        };
-
-        // Reject inputs that do not satisfy this stage.
-        if !(ambiguous_context_type(cx, ty)) {
-            return;
-        }
-        Violation {
-            owner: expression.hir_id,
-            span: expression.span.source_callsite(),
-            ty: ty.to_string(),
-        }
-        .emit(cx);
-    }
-}
-
 #[derive(Clone, Copy)]
-/// Classifies `ContextOperation` cases used by this analysis.
+/// Direction in which a value crosses a Leptos context boundary.
 enum ContextOperation {
-    /// Represents the `Provide` case.
+    /// Makes a value available to descendants.
     Provide,
-    /// Represents the `Consume` case.
+    /// Retrieves a value supplied by an ancestor.
     Consume,
 }
 
 impl ContextOperation {
-    /// Performs the `analyze_context_operation` step of the lint analysis.
-    fn analyze_context_operation(cx: &LateContext<'_>, callee: &Expr<'_>) -> Option<Self> {
-        // Prepare the values used by this stage.
+    /// Classifies one context read or write and records its value type.
+    fn from_callee(cx: &LateContext<'_>, callee: &Expr<'_>) -> Option<Self> {
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
@@ -133,7 +82,6 @@ impl ContextOperation {
         };
         let path = cx.tcx.def_path_str(definition);
 
-        // Reject inputs that do not satisfy this stage.
         if !path.contains("context")
             || !matches!(
                 cx.tcx.crate_name(definition.krate).as_str(),
@@ -143,7 +91,6 @@ impl ContextOperation {
             return None;
         }
 
-        // Classify the current analyze_candidate.
         match cx.tcx.item_name(definition).as_str() {
             "provide_context" => Some(Self::Provide),
             "use_context" | "expect_context" => Some(Self::Consume),
@@ -152,9 +99,8 @@ impl ContextOperation {
     }
 }
 
-/// Performs the `ambiguous_context_type` step of the lint analysis.
+/// Returns a primitive or generic container type that lacks a domain identity.
 fn ambiguous_context_type(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
-    // Prepare the values used by this stage.
     let ty = ty.peel_refs();
     if ty.is_bool()
         || ty.is_char()
@@ -162,7 +108,6 @@ fn ambiguous_context_type(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
         || ty.is_floating_point()
         || ty.is_str()
         || matches!(ty.kind(), ty::Tuple(_) | ty::Array(..) | ty::Slice(_))
-    // Perform the next step of the analysis.
     {
         return true;
     }
@@ -171,10 +116,8 @@ fn ambiguous_context_type(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
     };
     let name = cx.tcx.item_name(definition.did());
 
-    // Prepare the values used by this stage.
     let crate_name = cx.tcx.crate_name(definition.did().krate);
 
-    // Perform the next step of the analysis.
     matches!(
         (crate_name.as_str(), name.as_str()),
         (
@@ -196,4 +139,58 @@ fn ambiguous_context_type(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
                     | "ArcStoredValue"
             )
     )
+}
+
+// -----------------------------------------------------------------------------
+// LeptosPrimitiveContextValues: Domain-specific context identity policy
+// -----------------------------------------------------------------------------
+
+/// Rejects context values whose type cannot distinguish one domain service from another.
+struct LeptosPrimitiveContextValues;
+
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub LEPTOS_PRIMITIVE_CONTEXT_VALUES,
+    Warn,
+    "rejects Leptos contexts without nominal domain identity",
+    LeptosPrimitiveContextValues
+}
+
+impl LateLintPass<'_> for LeptosPrimitiveContextValues {
+    fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        if expression.span.from_expansion() {
+            return;
+        }
+        let ExprKind::Call(callee, arguments) = expression.kind else {
+            return;
+        };
+
+        let Some(operation) = ContextOperation::from_callee(cx, callee) else {
+            return;
+        };
+
+        let ty = match operation {
+            ContextOperation::Provide => {
+                let [value] = arguments else { return };
+                cx.typeck_results().expr_ty(value)
+            }
+            ContextOperation::Consume => {
+                let generic_arguments = cx.typeck_results().node_args(callee.hir_id);
+                let Some(ty) = generic_arguments.types().next() else {
+                    return;
+                };
+                ty
+            }
+        };
+
+        if !(ambiguous_context_type(cx, ty)) {
+            return;
+        }
+        Violation {
+            owner: expression.hir_id,
+            span: expression.span.source_callsite(),
+            ty: ty.to_string(),
+        }
+        .emit(cx);
+    }
 }

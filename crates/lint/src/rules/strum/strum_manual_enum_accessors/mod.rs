@@ -18,13 +18,13 @@ use crate::utils::variant_methods::AccessorFamilyAnalyzer;
 
 /// Complete tuple-variant accessor family reproducible by `EnumTryAs`.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `enum_name` value used by this analysis.
+    /// Enum name quoted in the diagnostic.
     enum_name: Symbol,
-    /// Stores the `is_public_api` value used by this analysis.
+    /// Whether replacement would change a public API.
     is_public_api: bool,
 }
 
@@ -49,12 +49,10 @@ impl LateViolation for Violation {
     }
 
     fn emit(self, cx: &LateContext<'_>) {
-        // Prepare the values used by this stage.
         let primary = self.primary_message().into_owned();
         let rationale = self.rationale_message().into_owned();
         let remediation = self.remediation_message().into_owned();
 
-        // Perform the next step of the analysis.
         cx.tcx.emit_node_span_lint(
             STRUM_MANUAL_ENUM_ACCESSORS,
             self.owner,
@@ -77,7 +75,7 @@ impl LateViolation for Violation {
 #[derive(Default)]
 /// Finds complete manual tuple-variant accessor families reproducible by `EnumTryAs`.
 struct StrumManualEnumAccessors {
-    /// Stores the `analyzer` value used by this analysis.
+    /// Shared collector that proves an accessor exists for every eligible variant.
     analyzer: AccessorFamilyAnalyzer,
 }
 

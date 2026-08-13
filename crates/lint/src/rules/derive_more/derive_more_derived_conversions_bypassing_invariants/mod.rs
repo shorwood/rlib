@@ -16,15 +16,19 @@ use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::construction_analysis::{ConstructionAnalysis, ConstructionOrigin};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derived conversion bypassing invariants
+// -----------------------------------------------------------------------------
+
+/// Generated conversion that exposes construction protected by field visibility.
 struct Violation {
-    /// Stores the `struct_span` value used by this analysis.
+    /// Type declaration whose generated API may bypass its invariant.
     struct_span: Span,
-    /// Stores the `constructor_span` value used by this analysis.
+    /// Constructor whose validation establishes the invariant boundary.
     constructor_span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: String,
-    /// Stores the `derives` value used by this analysis.
+    /// Derive macros that establish the generated behavior.
     derives: Vec<&'static str>,
 }
 
@@ -71,12 +75,16 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// DeriveMoreDerivedConversionsBypassingInvariants: Safe conversion policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `DeriveMoreDerivedConversionsBypassingInvariants` state used by this analysis.
+/// Rejects generated conversions that bypass restricted-field construction policy.
 struct DeriveMoreDerivedConversionsBypassingInvariants {
-    /// Stores the `catalog` value used by this analysis.
+    /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,
-    /// Stores the `constructions` value used by this analysis.
+    /// Construction sites correlated with the owning type.
     constructions: ConstructionAnalysis,
 }
 
@@ -114,7 +122,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreDerivedConversionsBypassingInvariant
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         let mut reported = HashSet::new();
         for constructor in &self.constructions.candidates {
-            // Reject inputs that do not satisfy this stage.
             if constructor.ownership.origin != ConstructionOrigin::Inherent
                 || !constructor.is_fallible_direct()
                 || !reported.insert(constructor.target.def_id)
@@ -122,7 +129,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreDerivedConversionsBypassingInvariant
                 continue;
             }
 
-            // Prepare the values used by this stage.
             let derives = self
                 .catalog
                 .derives_for(constructor.target.def_id, &["From", "TryFrom"]);
@@ -130,7 +136,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreDerivedConversionsBypassingInvariant
                 continue;
             }
 
-            // Prepare the values used by this stage.
             let Some(contract) = self.catalog.type_contract(constructor.target.def_id) else {
                 continue;
             };
@@ -138,7 +143,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreDerivedConversionsBypassingInvariant
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 struct_span: contract.span,
                 constructor_span: constructor.function.name_span,

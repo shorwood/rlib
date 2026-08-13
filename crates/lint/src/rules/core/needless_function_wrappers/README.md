@@ -21,7 +21,6 @@ fn parse(input: &str) -> usize { parse_document(input) }
 
 ## Use instead
 
-
 Remove the wrapper and have callers use the implementation directly:
 
 ```rust

@@ -13,15 +13,19 @@ use rustc_span::Span;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derivable manual Diagnostic implementation
+// -----------------------------------------------------------------------------
+
+/// Manual Miette implementation expressible through derive attributes.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs the manual implementation finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Complete implementation declaration.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Implementing type name.
     name: String,
-    /// Stores the `methods` value used by this analysis.
+    /// Derivable methods used to explain the finding.
     methods: Vec<String>,
 }
 impl LateViolation for Violation {
@@ -68,7 +72,7 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `some_argument` step of the lint analysis.
+/// Extracts the sole value wrapped by `Some`.
 fn some_argument(expression: &syn::Expr) -> Option<&syn::Expr> {
     let syn::Expr::Call(call) = expression else {
         return None;
@@ -81,7 +85,7 @@ fn some_argument(expression: &syn::Expr) -> Option<&syn::Expr> {
     call.args.first()
 }
 
-/// Performs the `static_box` step of the lint analysis.
+/// Recognizes boxed static text used by code, help, and URL methods.
 fn static_box(expression: &syn::Expr) -> bool {
     let Some(syn::Expr::Call(boxed)) = some_argument(expression) else {
         return false;
@@ -90,12 +94,12 @@ fn static_box(expression: &syn::Expr) -> bool {
         && matches!(boxed.args.first(), Some(syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(_), .. })) if boxed.args.len() == 1)
 }
 
-/// Performs the `static_severity` step of the lint analysis.
+/// Recognizes a static Miette severity variant wrapped by `Some`.
 fn static_severity(expression: &syn::Expr) -> bool {
     matches!(some_argument(expression), Some(syn::Expr::Path(path)) if path.path.segments.last().is_some_and(|segment| matches!(segment.ident.to_string().as_str(), "Error" | "Warning" | "Advice")))
 }
 
-/// Performs the `direct_reference` step of the lint analysis.
+/// Recognizes a direct reference to one field on `self`.
 fn direct_reference(expression: &syn::Expr) -> bool {
     let Some(syn::Expr::Reference(reference)) = some_argument(expression) else {
         return false;
@@ -103,7 +107,7 @@ fn direct_reference(expression: &syn::Expr) -> bool {
     matches!(reference.expr.as_ref(), syn::Expr::Field(field) if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self")))
 }
 
-/// Performs the `derivable_methods` step of the lint analysis.
+/// Returns all methods when the complete implementation is derive-equivalent.
 fn derivable_methods(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Vec<String>> {
     let source = AuthoredItemSource::for_item(cx, item)?;
     let implementation = match syn::parse_str::<syn::ItemImpl>(&source) {
@@ -112,7 +116,6 @@ fn derivable_methods(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Vec<String
     };
     let mut names = Vec::new();
     for member in implementation.items {
-        // Prepare the values used by this stage.
         let syn::ImplItem::Fn(method) = member else {
             return None;
         };
@@ -121,7 +124,6 @@ fn derivable_methods(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Vec<String
             return None;
         };
 
-        // Prepare the values used by this stage.
         let derivable = match name.as_str() {
             "code" | "help" | "url" => static_box(expression),
             "severity" => static_severity(expression),
@@ -129,7 +131,6 @@ fn derivable_methods(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Vec<String
             _ => false,
         };
 
-        // Reject inputs that do not satisfy this stage.
         if !derivable {
             return None;
         }
@@ -138,7 +139,11 @@ fn derivable_methods(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Vec<String
     Some(names)
 }
 
-/// Carries the `MietteManualDiagnosticImpls` state used by this analysis.
+// -----------------------------------------------------------------------------
+// MietteManualDiagnosticImpls: Declarative diagnostic implementation policy
+// -----------------------------------------------------------------------------
+
+/// Detects complete manual implementations that Miette can derive.
 struct MietteManualDiagnosticImpls;
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
@@ -149,7 +154,6 @@ dylint_linting::impl_late_lint! {
 }
 impl LateLintPass<'_> for MietteManualDiagnosticImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Prepare the values used by this stage.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
@@ -157,7 +161,6 @@ impl LateLintPass<'_> for MietteManualDiagnosticImpls {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(trait_id) = implementation
             .of_trait
             .and_then(|reference| reference.trait_ref.trait_def_id())
@@ -165,14 +168,12 @@ impl LateLintPass<'_> for MietteManualDiagnosticImpls {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if cx.tcx.crate_name(trait_id.krate).as_str() != "miette"
             || cx.tcx.item_name(trait_id).as_str() != "Diagnostic"
         {
             return;
         }
 
-        // Prepare the values used by this stage.
         let trait_ref = cx
             .tcx
             .impl_trait_ref(item.owner_id.def_id)
@@ -181,19 +182,16 @@ impl LateLintPass<'_> for MietteManualDiagnosticImpls {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if definition.did().as_local().is_none()
             || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
         {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(methods) = derivable_methods(cx, item) else {
             return;
         };
 
-        // Perform the next step of the analysis.
         Violation {
             owner: item.hir_id(),
             span: item.span,

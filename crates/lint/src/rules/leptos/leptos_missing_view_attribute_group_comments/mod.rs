@@ -16,17 +16,17 @@ use crate::utils::diagnostic::LateViolation;
 // Violation: Unnamed opening tag responsibilities
 // -----------------------------------------------------------------------------
 
-/// Carries the `Violation` state used by this analysis.
+/// Element whose distinct attribute responsibilities lack group headings.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Element or attribute name involved in the view-structure finding.
     name: String,
-    /// Stores the `complexity` value used by this analysis.
+    /// Direct authored complexity charged to this construct.
     complexity: usize,
-    /// Stores the `categories` value used by this analysis.
+    /// Consecutive attribute responsibilities lacking an authored group heading.
     categories: usize,
 }
 
@@ -69,11 +69,11 @@ impl LateViolation for Violation {
 // LeptosMissingViewAttributeGroupComments: Opening tag layout policy
 // -----------------------------------------------------------------------------
 
-/// Carries the `LeptosMissingViewAttributeGroupComments` state used by this analysis.
+/// Requires headings when one element's attributes serve several responsibilities.
 struct LeptosMissingViewAttributeGroupComments {
-    /// Stores the `config` value used by this analysis.
+    /// Validated project policy applied by this lint pass.
     config: LeptosViewStructureConfig,
-    /// Stores the `views` value used by this analysis.
+    /// Parsed `view!` invocations awaiting attribute-group analysis.
     views: ViewCallSites,
 }
 
@@ -84,7 +84,7 @@ impl LeptosMissingViewAttributeGroupComments {
     /// Minimum authored groups that demonstrate meaningful organization.
     const MINIMUM_AUTHORED_GROUPS: usize = 2;
 
-    /// Performs the `new` operation for this value.
+    /// Starts view analysis with the configured attribute-group threshold.
     fn new() -> Self {
         Self {
             config: LeptosViewStructureConfig::from_config(),
@@ -107,7 +107,6 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMissingViewAttributeGroupComments {
             return;
         };
         for element in &view.elements {
-            // Prepare the values used by this stage.
             let complexity = element.complexity();
             let categories = element.category_count();
             if complexity <= self.config.max_unnamed_view_attribute_complexity
@@ -117,7 +116,6 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMissingViewAttributeGroupComments {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 owner: view.owner,
                 span: element.span,

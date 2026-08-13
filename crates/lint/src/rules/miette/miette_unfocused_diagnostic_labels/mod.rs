@@ -11,11 +11,15 @@ use rustc_span::Span;
 use super::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Competing labels without a primary location
+// -----------------------------------------------------------------------------
+
+/// Multi-label diagnostic whose causal span is ambiguous.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Diagnostic declaration containing the labels.
     span: Span,
-    /// Stores the `labels` value used by this analysis.
+    /// Competing label field names shown to the author.
     labels: Vec<String>,
 }
 
@@ -55,15 +59,14 @@ impl LateViolation for Violation {
         );
     }
 }
-/// Performs the `check_fields` step of the lint analysis.
+/// Reports multi-label diagnostics that do not select a primary label.
 fn check_fields(cx: &LateContext<'_>, span: Span, fields: &[DiagnosticField]) {
-    // Prepare the values used by this stage.
     let labels = fields
         .iter()
         .filter(|field| field.roles.contains(DiagnosticFieldRole::Label))
         .collect::<Vec<_>>();
 
-    // Reject inputs that do not satisfy this stage.
+    // A single label needs no ranking; an explicit primary resolves competition.
     if labels.len() < Violation::MINIMUM_COMPETING_LABELS
         || labels
             .iter()
@@ -72,7 +75,6 @@ fn check_fields(cx: &LateContext<'_>, span: Span, fields: &[DiagnosticField]) {
         return;
     }
 
-    // Perform the next step of the analysis.
     Violation {
         span,
         labels: labels
@@ -83,10 +85,14 @@ fn check_fields(cx: &LateContext<'_>, span: Span, fields: &[DiagnosticField]) {
     .emit(cx);
 }
 
+// -----------------------------------------------------------------------------
+// MietteUnfocusedDiagnosticLabels: Explicit label focus policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `MietteUnfocusedDiagnosticLabels` state used by this analysis.
+/// Collects diagnostic field roles before checking label focus.
 struct MietteUnfocusedDiagnosticLabels {
-    /// Stores the `catalog` value used by this analysis.
+    /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
 dylint_linting::impl_late_lint! {

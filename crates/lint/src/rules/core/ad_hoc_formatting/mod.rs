@@ -111,12 +111,12 @@ impl LateViolation for Violation {
             first.source.span,
             DiagDecorator(|diag| {
                 diag.primary_message(primary);
-                for analyze_candidate in self.finding.candidates {
+                for candidate in self.finding.candidates {
                     diag.span_label(
-                        analyze_candidate.source.span,
+                        candidate.source.span,
                         format!(
                             "`{}` contributes this representation",
-                            analyze_candidate.source.name
+                            candidate.source.name
                         ),
                     );
                 }

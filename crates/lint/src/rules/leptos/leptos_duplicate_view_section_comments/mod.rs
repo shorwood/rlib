@@ -94,20 +94,17 @@ impl<'tcx> LateLintPass<'tcx> for LeptosDuplicateViewSectionComments {
         for scope in &view.scopes {
             let mut first_by_name = HashMap::new();
             for section in scope.sections(&self.config) {
-                // Prepare the values used by this stage.
                 let content = section
                     .heading
                     .canonical_content(&self.config)
                     .expect("sections have canonical headings");
 
-                // Prepare the values used by this stage.
                 let normalized = content
                     .split_whitespace()
                     .map(str::to_lowercase)
                     .collect::<Vec<_>>()
                     .join(" ");
 
-                // Reject inputs that do not satisfy this stage.
                 if let Some(original) = first_by_name.get(&normalized) {
                     Violation {
                         owner: view.owner,

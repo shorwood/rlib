@@ -2,13 +2,13 @@
 
 ## What it does
 
-Finds a unique causal-looking field whose resolved local type derives `thiserror::Error` but which
-is omitted from the containing derived error's standard source chain.
+Finds a single likely cause that is itself a local thiserror type but is omitted from the containing
+error's `Error::source` chain.
 
 ## Why is this bad?
 
-The nested cause is displayed or stored but unavailable to `std::error::Error::source`, so reporters,
-downcasts, and debugging tools lose the causal chain.
+The nested cause is displayed or stored but unavailable through `Error::source`, so reports and
+debugging tools stop at the wrapper instead of reaching the original failure.
 
 ## Example
 

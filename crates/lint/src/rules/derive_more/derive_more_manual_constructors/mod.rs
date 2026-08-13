@@ -26,13 +26,17 @@ struct ParameterBinding {
     name: Symbol,
 }
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derivable manual constructor
+// -----------------------------------------------------------------------------
+
+/// Policy-free field constructor reproducible by `derive_more`.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `type_name` value used by this analysis.
+    /// Type name quoted in the diagnostic.
     type_name: Symbol,
 }
 
@@ -71,7 +75,7 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `parameter_bindings` step of the lint analysis.
+/// Collects plain constructor parameter names in declaration order.
 fn parameter_bindings(body: &rustc_hir::Body<'_>) -> Option<Vec<ParameterBinding>> {
     body.params
         .iter()
@@ -87,9 +91,8 @@ fn parameter_bindings(body: &rustc_hir::Body<'_>) -> Option<Vec<ParameterBinding
         .collect()
 }
 
-/// Performs the `path_targets` step of the lint analysis.
+/// Returns whether a construction path names the enclosing type.
 fn path_targets(cx: &LateContext<'_>, resolution: Res, definition: DefId) -> bool {
-    // Classify the current analyze_candidate.
     match resolution {
         Res::Def(_, target) => target == definition,
         Res::SelfTyAlias { alias_to, .. } => cx
@@ -102,7 +105,7 @@ fn path_targets(cx: &LateContext<'_>, resolution: Res, definition: DefId) -> boo
     }
 }
 
-/// Performs the `exact_field_assembly` step of the lint analysis.
+/// Proves that a constructor assigns every parameter directly to its matching field.
 fn exact_field_assembly(
     cx: &LateContext<'_>,
     definition: DefId,
@@ -134,7 +137,11 @@ fn exact_field_assembly(
     }
 }
 
-/// Carries the `DeriveMoreManualConstructors` state used by this analysis.
+// -----------------------------------------------------------------------------
+// DeriveMoreManualConstructors: Declarative construction policy
+// -----------------------------------------------------------------------------
+
+/// Finds policy-free constructors reproducible by `derive_more`'s `Constructor` derive.
 struct DeriveMoreManualConstructors;
 
 dylint_linting::impl_late_lint! {
@@ -147,12 +154,10 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for DeriveMoreManualConstructors {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        // Prepare the values used by this stage.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if item.ident.name.as_str() != "new"
             || item.span.from_expansion()
             || signature.decl.implicit_self.has_implicit_self()
@@ -162,7 +167,6 @@ impl LateLintPass<'_> for DeriveMoreManualConstructors {
             || !item.generics.params.is_empty()
             || !cx.tcx.visibility(item.owner_id.def_id).is_public()
             || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
-        // Perform the next step of the analysis.
         {
             return;
         }
@@ -171,7 +175,6 @@ impl LateLintPass<'_> for DeriveMoreManualConstructors {
             return;
         };
 
-        // Prepare the values used by this stage.
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return;
         };
@@ -179,13 +182,11 @@ impl LateLintPass<'_> for DeriveMoreManualConstructors {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(definition) = cx
             .tcx
             .type_of(implementation)
             .instantiate_identity()
             .ty_adt_def()
-        // Perform the next step of the analysis.
         else {
             return;
         };
@@ -194,7 +195,6 @@ impl LateLintPass<'_> for DeriveMoreManualConstructors {
         }
         let body = cx.tcx.hir_body(body_id);
 
-        // Prepare the values used by this stage.
         let Some(bindings) = parameter_bindings(body) else {
             return;
         };
@@ -202,7 +202,6 @@ impl LateLintPass<'_> for DeriveMoreManualConstructors {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if !exact_field_assembly(
             cx,
             definition.did(),
@@ -213,7 +212,6 @@ impl LateLintPass<'_> for DeriveMoreManualConstructors {
             return;
         }
 
-        // Perform the next step of the analysis.
         Violation {
             owner: item.hir_id(),
             span: item.span,

@@ -313,7 +313,7 @@ impl ConfidenceEvidence {
 
 /// Nominal declaration whose redundant section prefix can be removed.
 struct FamilyCandidate<'section> {
-    /// Authored declaration represented by this `analyze_candidate`.
+    /// Authored declaration represented by this `candidate`.
     participant: &'section SectionParticipant,
     /// Role-bearing name tokens left after removing the section prefix.
     name: NameTokens,

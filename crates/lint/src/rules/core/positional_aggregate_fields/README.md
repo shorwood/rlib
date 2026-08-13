@@ -25,7 +25,6 @@ enum Finding {
 
 ## Use instead
 
-
 Use record fields that state what each value means:
 
 ```rust

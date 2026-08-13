@@ -11,33 +11,47 @@ use rustc_span::def_id::LocalDefId;
 
 use crate::utils::source_provenance::AuthoredItemSource;
 
+// -----------------------------------------------------------------------------
+// DiagnosticField: Presentation roles and referenced types
+// -----------------------------------------------------------------------------
+
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
-/// Classifies `DiagnosticFieldRole` cases used by this analysis.
+/// Miette presentation behavior assigned to a diagnostic field.
 pub enum DiagnosticFieldRole {
-    /// Represents the `DiagnosticSource` case.
+    /// Forwards another diagnostic's structured metadata.
     DiagnosticSource,
-    /// Represents the `Label` case.
+    /// Selects a span within source code.
     Label,
-    /// Represents the `Primary` case.
+    /// Marks a label as the diagnostic's principal location.
     Primary,
-    /// Represents the `Related` case.
+    /// Presents independent sibling diagnostics.
     Related,
-    /// Represents the `Source` case.
+    /// Participates in the standard error source chain.
     Source,
-    /// Represents the `SourceCode` case.
+    /// Supplies text from which labels render excerpts.
     SourceCode,
 }
 
 #[derive(Clone, Default)]
-/// Carries the `DiagnosticFieldRoles` state used by this analysis.
+/// Set of Miette roles authored on one field.
 pub struct DiagnosticFieldRoles {
-    /// Stores the `values` value used by this analysis.
+    /// Distinct roles recognized from field attributes and conventions.
     values: HashSet<DiagnosticFieldRole>,
 }
 
 impl DiagnosticFieldRoles {
-    /// Performs the `analyze_diagnostic_field_roles` step of the lint analysis.
-    fn analyze_diagnostic_field_roles(attributes: &[syn::Attribute]) -> Self {
+    /// Returns whether the field carries a particular presentation role.
+    pub(super) fn contains(&self, role: DiagnosticFieldRole) -> bool {
+        self.values.contains(&role)
+    }
+
+    /// Adds an explicitly authored or convention-derived role.
+    fn insert(&mut self, role: DiagnosticFieldRole) {
+        self.values.insert(role);
+    }
+
+    /// Interprets the Miette attributes attached to a field.
+    fn from_attributes(attributes: &[syn::Attribute]) -> Self {
         let mut roles = Self::default();
         for attribute in attributes {
             if attribute.path().is_ident("diagnostic_source") {
@@ -65,49 +79,41 @@ impl DiagnosticFieldRoles {
     }
 }
 
-impl DiagnosticFieldRoles {
-    /// Performs the `contains` operation for this value.
-    pub(super) fn contains(&self, role: DiagnosticFieldRole) -> bool {
-        self.values.contains(&role)
-    }
-
-    /// Performs the `insert` operation for this value.
-    fn insert(&mut self, role: DiagnosticFieldRole) {
-        self.values.insert(role);
-    }
-}
-
 #[derive(Clone)]
-/// Carries the `DiagnosticField` state used by this analysis.
+/// Field-level evidence shared by the Miette policy lints.
 pub struct DiagnosticField {
-    /// Stores the `span` value used by this analysis.
+    /// Authored field declaration.
     pub(super) span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Named field or tuple position.
     pub(super) name: String,
-    /// Stores the `roles` value used by this analysis.
+    /// Presentation roles assigned to the field.
     pub(super) roles: DiagnosticFieldRoles,
-    /// Stores the `target` value used by this analysis.
+    /// Local named type referenced directly by the field, when available.
     pub(super) target: Option<LocalDefId>,
 }
 
+// -----------------------------------------------------------------------------
+// DiagnosticMetadata: Static derive metadata
+// -----------------------------------------------------------------------------
+
 #[derive(Clone, Default)]
-/// Carries the `DiagnosticMetadata` state used by this analysis.
+/// Static metadata declared through `#[diagnostic(...)]`.
 pub struct DiagnosticMetadata {
-    /// Stores the `code` value used by this analysis.
+    /// Stable machine identifier, when declared.
     pub(super) code: Option<String>,
-    /// Stores the `help` value used by this analysis.
+    /// Static recovery guidance, when declared.
     pub(super) help: Option<String>,
-    /// Stores the `severity` value used by this analysis.
+    /// Declared Miette severity, when overridden.
     pub(super) severity: Option<String>,
-    /// Stores the `url` value used by this analysis.
+    /// External documentation link, when declared.
     pub(super) url: Option<String>,
-    /// Stores the `is_transparent` value used by this analysis.
+    /// Whether presentation delegates to a nested diagnostic.
     pub(super) is_transparent: bool,
 }
 
 impl DiagnosticMetadata {
-    /// Performs the `analyze_diagnostic_metadata` step of the lint analysis.
-    fn analyze_diagnostic_metadata(attributes: &[syn::Attribute]) -> Self {
+    /// Interprets static metadata from diagnostic attributes.
+    fn from_attributes(attributes: &[syn::Attribute]) -> Self {
         let mut metadata = Self::default();
         for attribute in attributes
             .iter()
@@ -149,31 +155,73 @@ impl DiagnosticMetadata {
     }
 }
 
+// -----------------------------------------------------------------------------
+// DiagnosticMember: Variant-level diagnostic contract
+// -----------------------------------------------------------------------------
+
 #[derive(Clone)]
-/// Carries the `DiagnosticMember` state used by this analysis.
+/// Effective diagnostic contract for one enum variant.
 pub struct DiagnosticMember {
-    /// Stores the `span` value used by this analysis.
+    /// Authored variant declaration.
     pub(super) span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Variant name.
     pub(super) name: String,
-    /// Stores the `metadata` value used by this analysis.
+    /// Metadata declared directly on the variant.
     pub(super) metadata: DiagnosticMetadata,
-    /// Stores the `fields` value used by this analysis.
+    /// Variant fields and their presentation roles.
     pub(super) fields: Vec<DiagnosticField>,
 }
 
+/// Correlates authored field attributes with resolved HIR field types.
+fn diagnostic_fields(
+    cx: &LateContext<'_>,
+    fields: &syn::Fields,
+    hir_fields: &[rustc_hir::FieldDef<'_>],
+) -> Vec<DiagnosticField> {
+    fields
+        .iter()
+        .zip(hir_fields)
+        .enumerate()
+        .map(|(index, (field, hir_field))| {
+            let name = field
+                .ident
+                .as_ref()
+                .map_or_else(|| index.to_string(), ToString::to_string);
+            let mut roles = DiagnosticFieldRoles::from_attributes(&field.attrs);
+            if name == "source" {
+                roles.insert(DiagnosticFieldRole::Source);
+            }
+            DiagnosticField {
+                span: hir_field.span,
+                name,
+                roles,
+                target: cx
+                    .tcx
+                    .type_of(hir_field.def_id)
+                    .instantiate_identity()
+                    .ty_adt_def()
+                    .and_then(|definition| definition.did().as_local()),
+            }
+        })
+        .collect()
+}
+
+// -----------------------------------------------------------------------------
+// DiagnosticContract: Complete type-level diagnostic contract
+// -----------------------------------------------------------------------------
+
 #[derive(Clone)]
-/// Carries the `DiagnosticContract` state used by this analysis.
+/// Authored Miette diagnostic type and its variant-level contracts.
 pub struct DiagnosticContract {
-    /// Stores the `span` value used by this analysis.
+    /// Authored type declaration.
     pub(super) span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Diagnostic type name.
     pub(super) name: String,
-    /// Stores the `metadata` value used by this analysis.
+    /// Metadata shared by the complete type.
     pub(super) metadata: DiagnosticMetadata,
-    /// Stores the `fields` value used by this analysis.
+    /// Fields on a diagnostic struct.
     pub(super) fields: Vec<DiagnosticField>,
-    /// Stores the `members` value used by this analysis.
+    /// Variant contracts on a diagnostic enum.
     pub(super) members: Vec<DiagnosticMember>,
 }
 
@@ -197,7 +245,7 @@ impl DiagnosticContract {
             .map(|(variant, hir_variant)| DiagnosticMember {
                 span: hir_variant.span,
                 name: variant.ident.to_string(),
-                metadata: DiagnosticMetadata::analyze_diagnostic_metadata(&variant.attrs),
+                metadata: DiagnosticMetadata::from_attributes(&variant.attrs),
                 fields: diagnostic_fields(cx, &variant.fields, hir_variant.data.fields()),
             })
             .collect();
@@ -205,58 +253,28 @@ impl DiagnosticContract {
         Some(Self {
             span: item.span,
             name: identifier.name.to_string(),
-            metadata: DiagnosticMetadata::analyze_diagnostic_metadata(&enumeration.attrs),
+            metadata: DiagnosticMetadata::from_attributes(&enumeration.attrs),
             fields: Vec::new(),
             members,
         })
     }
 }
 
-/// Performs the `diagnostic_fields` step of the lint analysis.
-fn diagnostic_fields(
-    cx: &LateContext<'_>,
-    fields: &syn::Fields,
-    hir_fields: &[rustc_hir::FieldDef<'_>],
-) -> Vec<DiagnosticField> {
-    fields
-        .iter()
-        .zip(hir_fields)
-        .enumerate()
-        .map(|(index, (field, hir_field))| {
-            let name = field
-                .ident
-                .as_ref()
-                .map_or_else(|| index.to_string(), ToString::to_string);
-            let mut roles = DiagnosticFieldRoles::analyze_diagnostic_field_roles(&field.attrs);
-            if name == "source" {
-                roles.insert(DiagnosticFieldRole::Source);
-            }
-            DiagnosticField {
-                span: hir_field.span,
-                name,
-                roles,
-                target: cx
-                    .tcx
-                    .type_of(hir_field.def_id)
-                    .instantiate_identity()
-                    .ty_adt_def()
-                    .and_then(|definition| definition.did().as_local()),
-            }
-        })
-        .collect()
-}
+// -----------------------------------------------------------------------------
+// DiagnosticCatalog: Crate-wide derived diagnostic index
+// -----------------------------------------------------------------------------
 
 #[derive(Default)]
-/// Carries the `DiagnosticCatalog` state used by this analysis.
+/// Index of authored contracts confirmed to derive `miette::Diagnostic`.
 pub struct DiagnosticCatalog {
-    /// Stores the `contracts` value used by this analysis.
+    /// Parsed contracts keyed by their local type definition.
     contracts: HashMap<LocalDefId, DiagnosticContract>,
-    /// Stores the `derives` value used by this analysis.
+    /// Types confirmed by generated Miette implementation expansions.
     derives: HashSet<LocalDefId>,
 }
 
 impl DiagnosticCatalog {
-    /// Performs the `derived_contracts` operation for this value.
+    /// Iterates confirmed derived contracts in source order.
     pub(super) fn derived_contracts(&self) -> impl Iterator<Item = &DiagnosticContract> {
         let mut contracts = self
             .derives
@@ -267,7 +285,7 @@ impl DiagnosticCatalog {
         contracts.into_iter()
     }
 
-    /// Performs the `derived_type` operation for this value.
+    /// Resolves a local type only when Miette generated its implementation.
     pub(super) fn derived_type(&self, definition: LocalDefId) -> Option<&DiagnosticContract> {
         self.derives
             .contains(&definition)
@@ -275,9 +293,9 @@ impl DiagnosticCatalog {
             .flatten()
     }
 
-    /// Performs the `record_generated_impl` operation for this value.
+    /// Records the target of a Miette-generated `Diagnostic` implementation.
     fn record_generated_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Reject inputs that do not satisfy this stage.
+        // Macro provenance distinguishes a real derive from unrelated implementations.
         if !matches!(item.kind, ItemKind::Impl(_))
             || !item.span.macro_backtrace().any(|expansion| {
                 expansion.macro_def_id.is_some_and(|definition| {
@@ -289,23 +307,20 @@ impl DiagnosticCatalog {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(definition) = cx
             .tcx
             .type_of(item.owner_id)
             .instantiate_identity()
             .ty_adt_def()
             .and_then(|definition| definition.did().as_local())
-        // Perform the next step of the analysis.
         else {
             return;
         };
         self.derives.insert(definition);
     }
 
-    /// Performs the `check_item` operation for this value.
+    /// Records authored diagnostic types and generated derive evidence.
     pub(super) fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Reject inputs that do not satisfy this stage.
         if item.span.from_expansion() {
             self.record_generated_impl(cx, item);
             return;
@@ -314,7 +329,6 @@ impl DiagnosticCatalog {
             return;
         };
 
-        // Prepare the values used by this stage.
         let contract = match item.kind {
             ItemKind::Struct(identifier, _, data) => {
                 let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
@@ -323,7 +337,7 @@ impl DiagnosticCatalog {
                 DiagnosticContract {
                     span: item.span,
                     name: identifier.name.to_string(),
-                    metadata: DiagnosticMetadata::analyze_diagnostic_metadata(&structure.attrs),
+                    metadata: DiagnosticMetadata::from_attributes(&structure.attrs),
                     fields: diagnostic_fields(cx, &structure.fields, data.fields()),
                     members: Vec::new(),
                 }
@@ -337,7 +351,6 @@ impl DiagnosticCatalog {
             _ => return,
         };
 
-        // Update the accumulated analysis state.
         self.contracts.insert(item.owner_id.def_id, contract);
     }
 }

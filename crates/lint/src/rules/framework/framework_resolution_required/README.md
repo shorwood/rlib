@@ -2,13 +2,14 @@
 
 ## What it does
 
-Reports a framework suggested fix that has multiple eligible providers but no explicit provider
-selection in the `rlib-lint` Dylint configuration.
+Reports a derivable contract when several enabled libraries could provide it and the project has
+not chosen which library owns that contract.
 
 ## Why is this bad?
 
-Choosing a derive provider changes generated traits, methods, and compatibility guarantees. A lint
-must not turn dependency presence or source order into an implicit project policy.
+The libraries may produce similar code today while exposing different traits, helper methods, and
+upgrade paths. Choosing whichever dependency happens to be present makes public behavior change for
+reasons unrelated to the source being linted.
 
 ## Example
 
@@ -23,9 +24,14 @@ impl Stage {
 Select the intended provider explicitly in the workspace-root `dylint.toml`:
 
 ```rust,ignore
-// dylint.toml: [rlib-lint.derive_resolution]
-// enum_variant_collection = "strum_variant_array"
-// enum_variant_predicates = "strum_enum_is"
-// enum_display = "strum_display"
-// enum_string_parsing = "strum_enum_string"
+[rlib-lint.derive_resolution]
+enum_variant_collection = "strum_variant_array"
+enum_variant_predicates = "strum_enum_is"
+enum_display = "strum_display"
+enum_string_parsing = "strum_enum_string"
+error_implementation = "thiserror_error"
+error_variant_conversion = "thiserror_from"
 ```
+
+Only configure choices that apply to the enabled libraries. The lint does not pick a provider or
+silently prefer one based on dependency order.

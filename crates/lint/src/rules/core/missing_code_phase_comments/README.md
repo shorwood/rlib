@@ -2,21 +2,21 @@
 
 ## What it does
 
-Finds named functions and methods whose direct block surface exceeds the configured limit
-without being divided into short, explanatory phases. Nested hand-written blocks are measured
-independently so their implementation does not inflate the containing phase. Declarative
-struct literals and literal-only match mappings count as one operation regardless of their
-formatting. The physical line limit and comment prefix are configurable through the shared
-`function_structure` table.
+Finds oversized phases in named functions and methods once the author has established phase
+boundaries. A blank line or an existing phase comment establishes a boundary; concise phases
+need no narration, and the lint does not invent phases in uninterrupted code merely because a
+line threshold was crossed. Nested hand-written blocks are measured independently, while
+declarative struct literals and literal-only match mappings count as one operation regardless
+of formatting.
 
 ## Why is this bad?
 
-A long uninterrupted sequence forces readers to reconstruct where preparation ends and the
-next operation begins. Natural prose comments provide navigation when the work remains
-inherently sequential. Treating control flow as self-explanatory hides mixed workflows,
-while counting nested bodies against their parent reports the same complexity twice.
+Once an authored phase itself becomes long, an unexplained boundary makes readers infer both
+its purpose and where its responsibility should end. Natural prose can name a real transition;
+extraction is preferable when a named phase still contains too much work. Concise phases and
+purely uninterrupted work need no generated narration.
 
-For a three-line limit, this run has no named phases:
+For a three-line limit, the oversized first phase has no explanation:
 
 ## Example
 
@@ -26,22 +26,25 @@ fn prepare() {
     let trimmed = input.trim();
     let length = trimmed.len();
     let empty = trimmed.is_empty();
+
+    consume(length, empty);
 }
 ```
 
 ## Use instead
 
-
-Explain every phase, including the first, and keep each below the configured limit:
+Name the real transition and keep each phase below the configured limit:
 
 ```rust
 fn prepare() {
-    // Read and normalize the input before deriving its properties.
+    // Read and normalize the input.
     let input = String::new();
     let trimmed = input.trim();
 
     // Derive the properties consumed by the caller.
     let length = trimmed.len();
     let empty = trimmed.is_empty();
+
+    consume(length, empty);
 }
 ```

@@ -12,15 +12,26 @@ struct AcceptedError;
 struct AcceptedInput;
 
 // -----------------------------------------------------------------------------
-// Overloaded
+// Transport
 // -----------------------------------------------------------------------------
 
-struct Overloaded;
-struct OverloadedBuilder;
-struct OverloadedConfig;
-struct OverloadedError;
-struct OverloadedInput;
-struct OverloadedOutput;
+struct Request;
+struct RequestBuilder;
+struct RequestHeaders;
+struct Response;
+struct ResponseBuilder;
+struct TransportError;
+
+// -----------------------------------------------------------------------------
+// Cohesive
+// -----------------------------------------------------------------------------
+
+struct Cohesive;
+struct CohesiveBuilder;
+struct CohesiveConfig;
+struct CohesiveError;
+struct CohesiveInput;
+struct CohesiveOutput;
 
 mod module_namespace {
     // -----------------------------------------------------------------------------

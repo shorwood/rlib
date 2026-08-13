@@ -27,7 +27,6 @@ impl User {
 
 ## Use instead
 
-
 Keeping both declarations in the owning file makes the type self-contained:
 
 ```rust

@@ -25,7 +25,6 @@ evidence.add("contiguous");
 
 ## Use instead
 
-
 Remove the duplicate, or expose intentional multiplicity through the relevant abstraction:
 
 ```rust

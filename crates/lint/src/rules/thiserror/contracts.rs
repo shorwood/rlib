@@ -8,24 +8,27 @@ use rustc_hir::{Item, ItemKind};
 use rustc_lint::LateContext;
 use rustc_span::def_id::LocalDefId;
 
+// -----------------------------------------------------------------------------
+// ThiserrorContractCatalog: Derived error recognition
+// -----------------------------------------------------------------------------
+
+/// Authored error types correlated with thiserror-generated implementations.
 #[derive(Default)]
-/// Carries the `ThiserrorContractCatalog` state used by this analysis.
 pub struct ThiserrorContractCatalog {
-    /// Stores the `types` value used by this analysis.
+    /// Authored local structs and enums eligible to be errors.
     types: HashSet<LocalDefId>,
-    /// Stores the `derives` value used by this analysis.
+    /// Local types for which thiserror generated an `Error` implementation.
     derives: HashSet<LocalDefId>,
 }
 
 impl ThiserrorContractCatalog {
-    /// Performs the `derived_type` operation for this value.
+    /// Returns whether an authored local type derives thiserror's `Error` contract.
     pub(crate) fn derived_type(&self, definition: LocalDefId) -> Option<()> {
         (self.derives.contains(&definition) && self.types.contains(&definition)).then_some(())
     }
 
-    /// Performs the `record_generated_impl` operation for this value.
+    /// Correlates a generated `Error` implementation with its authored target.
     fn record_generated_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Reject inputs that do not satisfy this stage.
         if !matches!(item.kind, ItemKind::Impl(_))
             || !item.span.macro_backtrace().any(|expansion| {
                 expansion.macro_def_id.is_some_and(|definition| {
@@ -37,21 +40,19 @@ impl ThiserrorContractCatalog {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(definition) = cx
             .tcx
             .type_of(item.owner_id)
             .instantiate_identity()
             .ty_adt_def()
             .and_then(|definition| definition.did().as_local())
-        // Perform the next step of the analysis.
         else {
             return;
         };
         self.derives.insert(definition);
     }
 
-    /// Performs the `check_item` operation for this value.
+    /// Records either generated derive evidence or an authored error-shaped type.
     pub(crate) fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         if item.span.from_expansion() {
             self.record_generated_impl(cx, item);
@@ -63,14 +64,19 @@ impl ThiserrorContractCatalog {
         self.types.insert(item.owner_id.def_id);
     }
 }
+
+// -----------------------------------------------------------------------------
+// ThiserrorAttributes: Field role classification
+// -----------------------------------------------------------------------------
+
+/// Causal and backtrace roles declared on one thiserror field.
 #[derive(Default)]
-/// Carries the `ThiserrorAttributes` state used by this analysis.
 pub(super) struct ThiserrorAttributes {
-    /// Stores the `source` value used by this analysis.
+    /// Whether the field participates in `Error::source`.
     pub(super) is_source: bool,
-    /// Stores the `from` value used by this analysis.
+    /// Whether the field also generates an input conversion.
     pub(super) is_from: bool,
-    /// Stores the `backtrace` value used by this analysis.
+    /// Whether the field supplies captured or forwarded backtrace state.
     pub(super) is_backtrace: bool,
 }
 
@@ -92,9 +98,12 @@ impl ThiserrorAttributes {
     }
 }
 
-/// Performs the `static_error_message` step of the lint analysis.
+// -----------------------------------------------------------------------------
+// StaticErrorMessage: Literal presentation extraction
+// -----------------------------------------------------------------------------
+
+/// Returns an error message only when it contains no interpolation.
 pub(super) fn static_error_message(attributes: &[syn::Attribute]) -> Option<String> {
-    // Prepare the values used by this stage.
     let attribute = attributes
         .iter()
         .find(|attribute| attribute.path().is_ident("error"))?;
@@ -103,6 +112,5 @@ pub(super) fn static_error_message(attributes: &[syn::Attribute]) -> Option<Stri
         Err(_error) => return None,
     };
 
-    // Perform the next step of the analysis.
     (!message.contains('{')).then_some(message)
 }

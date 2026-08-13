@@ -23,7 +23,6 @@ struct Connection;
 
 ## Use instead
 
-
 Declare the dependency before the code that uses it:
 
 ```rust

@@ -12,13 +12,17 @@ use rustc_span::Span;
 use super::utils::contracts::{ContractCatalog, EnumContract, StrumDerive, VariantContract};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Conflicting serialized names for one variant
+// -----------------------------------------------------------------------------
+
+/// Variant whose Strum attributes admit incompatible serialized names.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `detail` value used by this analysis.
+    /// Specific alias collision or unstable output choice shown to the user.
     detail: String,
 }
 
@@ -49,9 +53,8 @@ impl Violation {
         None
     }
 
-    /// Performs the `classify` step of the lint analysis.
+    /// Classifies the resolved contract without relying on source spelling alone.
     fn classify(contract: &EnumContract) -> Option<Self> {
-        // Reject inputs that do not satisfy this stage.
         if contract.derives(StrumDerive::EnumString) {
             let variants = contract.enabled_variants().collect::<Vec<_>>();
             for (index, left) in variants.iter().enumerate() {
@@ -63,7 +66,6 @@ impl Violation {
             }
         }
 
-        // Prepare the values used by this stage.
         let has_output = [
             StrumDerive::Display,
             StrumDerive::AsRefStr,
@@ -73,14 +75,12 @@ impl Violation {
         .into_iter()
         .any(|derive| contract.derives(derive));
 
-        // Prepare the values used by this stage.
         let variant = has_output.then(|| {
             contract
                 .enabled_variants()
                 .find(|variant| variant.parser_names.len() > 1 && !variant.has_explicit_output)
         })??;
 
-        // Return the completed analysis result.
         Some(Self {
             owner: contract.owner,
             span: variant.span,
@@ -119,10 +119,14 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// StrumConflictingEnumSerializations: Unambiguous enum text policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `StrumConflictingEnumSerializations` state used by this analysis.
+/// Collects enum contracts and rejects ambiguous Strum text representations.
 struct StrumConflictingEnumSerializations {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,
 }
 

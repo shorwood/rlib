@@ -55,7 +55,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// MismatchedSectionDividerPrefixes
+// MismatchedSectionDividerPrefixes: Divider-to-family naming policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that compares divider prefixes with declaration-family names.

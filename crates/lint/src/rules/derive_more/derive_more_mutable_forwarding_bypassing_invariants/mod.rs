@@ -16,15 +16,19 @@ use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::construction_analysis::{ConstructionAnalysis, ConstructionOrigin};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Mutable forwarding bypassing invariants
+// -----------------------------------------------------------------------------
+
+/// Generated mutable interface that exposes invariant-bearing inner state.
 struct Violation {
-    /// Stores the `struct_span` value used by this analysis.
+    /// Type declaration whose generated API may bypass its invariant.
     struct_span: Span,
-    /// Stores the `constructor_span` value used by this analysis.
+    /// Constructor whose validation establishes the invariant boundary.
     constructor_span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: String,
-    /// Stores the `derives` value used by this analysis.
+    /// Derive macros that establish the generated behavior.
     derives: Vec<&'static str>,
 }
 
@@ -68,12 +72,16 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// DeriveMoreMutableForwardingBypassingInvariants: Safe mutation policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `DeriveMoreMutableForwardingBypassingInvariants` state used by this analysis.
+/// Rejects generated mutable forwarding that exposes invariant-bearing inner state.
 struct DeriveMoreMutableForwardingBypassingInvariants {
-    /// Stores the `catalog` value used by this analysis.
+    /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,
-    /// Stores the `constructions` value used by this analysis.
+    /// Construction sites correlated with the owning type.
     constructions: ConstructionAnalysis,
 }
 
@@ -111,7 +119,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreMutableForwardingBypassingInvariants
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         let mut reported = HashSet::new();
         for constructor in &self.constructions.candidates {
-            // Reject inputs that do not satisfy this stage.
             if constructor.ownership.origin != ConstructionOrigin::Inherent
                 || !constructor.is_fallible_direct()
                 || !reported.insert(constructor.target.def_id)
@@ -119,7 +126,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreMutableForwardingBypassingInvariants
                 continue;
             }
 
-            // Prepare the values used by this stage.
             let derives = self.catalog.derives_for(
                 constructor.target.def_id,
                 &["AsMut", "DerefMut", "IndexMut"],
@@ -128,7 +134,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreMutableForwardingBypassingInvariants
                 continue;
             }
 
-            // Prepare the values used by this stage.
             let Some(contract) = self.catalog.type_contract(constructor.target.def_id) else {
                 continue;
             };
@@ -136,7 +141,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreMutableForwardingBypassingInvariants
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 struct_span: contract.span,
                 constructor_span: constructor.function.name_span,

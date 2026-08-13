@@ -12,11 +12,15 @@ use rustc_span::Span;
 use super::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Unstable diagnostic documentation URL
+// -----------------------------------------------------------------------------
+
+/// Diagnostic metadata that cannot serve as a durable external link.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Diagnostic declaration carrying the URL.
     span: Span,
-    /// Stores the `url` value used by this analysis.
+    /// Authored URL quoted in the diagnostic.
     url: String,
 }
 
@@ -52,7 +56,7 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `stable_url` step of the lint analysis.
+/// Returns whether a URL is a static public HTTPS address.
 fn stable_url(url: &str) -> bool {
     url.starts_with("https://")
         && !url.contains('{')
@@ -62,9 +66,8 @@ fn stable_url(url: &str) -> bool {
         && url[8..].contains('.')
 }
 
-/// Performs the `check_url` step of the lint analysis.
+/// Reports a present URL that is unsuitable for durable documentation.
 fn check_url(cx: &LateContext<'_>, span: Span, url: Option<&str>) {
-    // Prepare the values used by this stage.
     let Some(url) = url else {
         return;
     };
@@ -72,7 +75,6 @@ fn check_url(cx: &LateContext<'_>, span: Span, url: Option<&str>) {
         return;
     }
 
-    // Perform the next step of the analysis.
     Violation {
         span,
         url: url.to_owned(),
@@ -80,10 +82,14 @@ fn check_url(cx: &LateContext<'_>, span: Span, url: Option<&str>) {
     .emit(cx);
 }
 
+// -----------------------------------------------------------------------------
+// MietteUnstableDiagnosticUrls: Durable documentation links
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `MietteUnstableDiagnosticUrls` state used by this analysis.
+/// Collects derived diagnostic URLs before validating their stability.
 struct MietteUnstableDiagnosticUrls {
-    /// Stores the `catalog` value used by this analysis.
+    /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
 

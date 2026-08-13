@@ -42,7 +42,6 @@ fn inspect(value: String) -> usize {
 
 ## Use instead
 
-
 When both parameters are only ever `String`, express the current design directly:
 
 ```rust

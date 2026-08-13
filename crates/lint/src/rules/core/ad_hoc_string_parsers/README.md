@@ -31,7 +31,6 @@ fn parse_user_id(source: &str) -> Result<UserId, std::num::ParseIntError> {
 
 ## Use instead
 
-
 Prefer making the canonical conversion explicit on the parsed type:
 
 ```rust

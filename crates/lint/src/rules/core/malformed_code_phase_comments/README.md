@@ -27,7 +27,6 @@ fn prepare() {
 
 ## Use instead
 
-
 Put concise sentence-style prose directly before the phase:
 
 ```rust

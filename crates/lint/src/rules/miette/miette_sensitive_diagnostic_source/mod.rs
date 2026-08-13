@@ -28,11 +28,15 @@ const SENSITIVE_TERMS: &[&str] = &[
     "private_content",
 ];
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Sensitive content exposed as source code
+// -----------------------------------------------------------------------------
+
+/// Source-code field whose name indicates confidential content.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Sensitive field declaration.
     span: Span,
-    /// Stores the `field` value used by this analysis.
+    /// Field name shown to the author.
     field: String,
 }
 impl LateViolation for Violation {
@@ -68,17 +72,15 @@ impl LateViolation for Violation {
         );
     }
 }
-/// Performs the `sensitive_name` step of the lint analysis.
+/// Matches exact and qualified sensitive field names.
 fn sensitive_name(name: &str) -> bool {
-    // Prepare the values used by this stage.
     let name = name.to_ascii_lowercase();
 
-    // Perform the next step of the analysis.
     SENSITIVE_TERMS
         .iter()
         .any(|term| name == *term || name.ends_with(&format!("_{term}")))
 }
-/// Performs the `check_fields` step of the lint analysis.
+/// Reports sensitive fields exposed through Miette's source rendering.
 fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
     for field in fields.iter().filter(|field| {
         field.roles.contains(DiagnosticFieldRole::SourceCode) && sensitive_name(&field.name)
@@ -91,10 +93,14 @@ fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
     }
 }
 
+// -----------------------------------------------------------------------------
+// MietteSensitiveDiagnosticSource: Confidential source-rendering policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `MietteSensitiveDiagnosticSource` state used by this analysis.
+/// Collects diagnostic field roles before checking sensitive source exposure.
 struct MietteSensitiveDiagnosticSource {
-    /// Stores the `catalog` value used by this analysis.
+    /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
 dylint_linting::impl_late_lint! {

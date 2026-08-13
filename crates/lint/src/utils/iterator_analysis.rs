@@ -190,11 +190,11 @@ impl IteratorAnalysis {
     pub fn findings(&self) -> Vec<&IteratorCandidate> {
         // Group all traversal candidates by the receiver that would own `Iterator`.
         let mut families = HashMap::<LocalDefId, Vec<&IteratorCandidate>>::new();
-        for analyze_candidate in &self.candidates {
+        for candidate in &self.candidates {
             families
-                .entry(analyze_candidate.type_def_id)
+                .entry(candidate.type_def_id)
                 .or_default()
-                .push(analyze_candidate);
+                .push(candidate);
         }
 
         // Retain only unique traversals without existing or reusable iteration ownership.
@@ -208,7 +208,7 @@ impl IteratorAnalysis {
             }
             findings.push(family[0]);
         }
-        findings.sort_unstable_by_key(|analyze_candidate| analyze_candidate.source.name_span.lo());
+        findings.sort_unstable_by_key(|candidate| candidate.source.name_span.lo());
         findings
     }
 }

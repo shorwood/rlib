@@ -26,6 +26,24 @@ mod nested {
     struct NestedMissing;
 }
 
+mod distinct_concepts {
+    struct Reader;
+    struct Writer;
+}
+
+mod cohesive_family {
+    struct Request;
+    struct RequestBuilder;
+}
+
+mod serde {
+    mod contracts {
+        struct SerdeAttributes;
+        struct SerdeCase;
+        struct SerdeContractCatalog;
+    }
+}
+
 macro_rules! generated_type {
     () => {
         struct Generated;

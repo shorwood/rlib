@@ -13,15 +13,19 @@ use super::utils::authored_contracts::StringTableCandidate;
 use super::utils::contracts::ContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Hand-maintained variant-name table
+// -----------------------------------------------------------------------------
+
+/// Complete variant-name mapping reproducible by `VariantNames`.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `enum_name` value used by this analysis.
+    /// Enum name quoted in the diagnostic.
     enum_name: Symbol,
-    /// Stores the `is_public` value used by this analysis.
+    /// Whether the declaration is visible outside its defining module.
     is_public: bool,
 }
 
@@ -58,12 +62,16 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// StrumManualVariantNames: Generated variant-name policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `StrumManualVariantNames` state used by this analysis.
+/// Finds authored variant-name tables equivalent to Strum's generated names.
 struct StrumManualVariantNames {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,
-    /// Stores the `tables` value used by this analysis.
+    /// Authored name tables awaiting comparison with their enum contracts.
     tables: Vec<StringTableCandidate>,
 }
 
@@ -93,12 +101,10 @@ impl LateLintPass<'_> for StrumManualVariantNames {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for table in self.tables.drain(..) {
-            // Prepare the values used by this stage.
             let Some(contract) = self.catalog.matching_string_table(&table) else {
                 continue;
             };
 
-            // Perform the next step of the analysis.
             Violation {
                 owner: table.owner,
                 span: table.span,

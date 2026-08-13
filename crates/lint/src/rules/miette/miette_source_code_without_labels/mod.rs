@@ -14,6 +14,10 @@ use super::contracts::{
 };
 use crate::utils::diagnostic::LateViolation;
 
+// -----------------------------------------------------------------------------
+// Transparency: Diagnostic label ownership
+// -----------------------------------------------------------------------------
+
 /// Whether a diagnostic delegates presentation to another diagnostic.
 #[derive(Clone, Copy)]
 enum Transparency {
@@ -48,11 +52,15 @@ impl Transparency {
     }
 }
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Source code without a diagnostic focus
+// -----------------------------------------------------------------------------
+
+/// Source-code fields retained without metadata that selects a relevant span.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Diagnostic declaration containing the source.
     span: Span,
-    /// Stores the `sources` value used by this analysis.
+    /// Source-code field names shown to the author.
     sources: Vec<String>,
 }
 impl LateViolation for Violation {
@@ -87,20 +95,19 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `check_fields` step of the lint analysis.
+/// Reports source storage with no label or nested diagnostic to focus it.
 fn check_fields(
     cx: &LateContext<'_>,
     span: Span,
     fields: &[DiagnosticField],
     transparency: Transparency,
 ) {
-    // Prepare the values used by this stage.
     let sources = fields
         .iter()
         .filter(|field| field.roles.contains(DiagnosticFieldRole::SourceCode))
         .collect::<Vec<_>>();
 
-    // Reject inputs that do not satisfy this stage.
+    // Delegation or any local focus makes the retained source useful.
     if sources.is_empty()
         || transparency.is_transparent()
         || fields.iter().any(|field| {
@@ -112,7 +119,6 @@ fn check_fields(
         return;
     }
 
-    // Perform the next step of the analysis.
     Violation {
         span,
         sources: sources
@@ -123,10 +129,14 @@ fn check_fields(
     .emit(cx);
 }
 
+// -----------------------------------------------------------------------------
+// MietteSourceCodeWithoutLabels: Focused source-retention policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `MietteSourceCodeWithoutLabels` state used by this analysis.
+/// Collects diagnostic field roles before checking source focus.
 struct MietteSourceCodeWithoutLabels {
-    /// Stores the `catalog` value used by this analysis.
+    /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
 dylint_linting::impl_late_lint! {

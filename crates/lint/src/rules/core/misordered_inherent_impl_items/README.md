@@ -26,7 +26,6 @@ impl Session {
 
 ## Use instead
 
-
 Put the constructor before the dependent method:
 
 ```rust

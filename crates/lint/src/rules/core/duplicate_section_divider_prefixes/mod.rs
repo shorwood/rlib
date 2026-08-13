@@ -55,7 +55,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// DuplicateSectionDividerPrefixes
+// DuplicateSectionDividerPrefixes: Single boundary per naming family
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that rejects reused section family prefixes.

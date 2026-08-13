@@ -13,17 +13,21 @@ use serde::Deserialize;
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::EarlyViolation;
 
+// -----------------------------------------------------------------------------
+// LeptosServerAuthorizationConfig: Explicit endpoint-security vocabulary
+// -----------------------------------------------------------------------------
+
 #[derive(Clone, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
-/// Carries the `LeptosServerAuthorizationConfig` state used by this analysis.
+/// Project vocabulary used to recognize sensitive work and authorization boundaries.
 pub struct LeptosServerAuthorizationConfig {
-    /// Stores the `sensitive_call_terms` value used by this analysis.
+    /// Call-name fragments that identify protected domain operations.
     sensitive_call_terms: Vec<String>,
-    /// Stores the `authorization_functions` value used by this analysis.
+    /// Function names treated as explicit authorization checks.
     authorization_functions: Vec<String>,
-    /// Stores the `protected_endpoint_attributes` value used by this analysis.
+    /// Endpoint attributes that declare an authorization requirement.
     protected_endpoint_attributes: Vec<String>,
-    /// Stores the `public_endpoint_attributes` value used by this analysis.
+    /// Endpoint attributes that explicitly declare anonymous access.
     public_endpoint_attributes: Vec<String>,
 }
 
@@ -51,9 +55,8 @@ impl Default for LeptosServerAuthorizationConfig {
 }
 
 impl LeptosServerAuthorizationConfig {
-    /// Performs the `validate` operation for this value.
+    /// Rejects configuration that cannot express a coherent policy.
     fn validate(&self) -> Result<(), String> {
-        // Prepare the values used by this stage.
         let entries = self
             .sensitive_call_terms
             .iter()
@@ -61,7 +64,6 @@ impl LeptosServerAuthorizationConfig {
             .chain(&self.protected_endpoint_attributes)
             .chain(&self.public_endpoint_attributes);
 
-        // Reject inputs that do not satisfy this stage.
         if entries.clone().any(|entry| entry.trim().is_empty()) {
             return Err("authorization vocabulary entries must not be empty".to_owned());
         }
@@ -71,7 +73,7 @@ impl LeptosServerAuthorizationConfig {
         Ok(())
     }
 
-    /// Performs the `from_config` operation for this value.
+    /// Resolves authorization vocabulary from project configuration or defaults.
     fn from_config() -> Self {
         let config = LibraryConfig::load().leptos_server_authorization;
         config.validate().unwrap_or_else(|message| {
@@ -80,6 +82,10 @@ impl LeptosServerAuthorizationConfig {
         config
     }
 }
+
+// -----------------------------------------------------------------------------
+// Violation: Sensitive server endpoint without authorization evidence
+// -----------------------------------------------------------------------------
 
 /// Names the source text and call term used by one search.
 #[derive(Clone, Copy)]
@@ -98,11 +104,11 @@ struct SensitiveCall {
     operation: String,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Sensitive server operation reached before an authorization boundary.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `operation` value used by this analysis.
+    /// Sensitive operation reached before a proven authorization boundary.
     operation: String,
 }
 
@@ -140,33 +146,37 @@ impl EarlyViolation for Violation {
     }
 }
 
-/// Carries the `LeptosServerFunctionsWithoutAuthorizationBoundaries` state used by this analysis.
+// -----------------------------------------------------------------------------
+// LeptosServerFunctionsWithoutAuthorizationBoundaries: Endpoint policy
+// -----------------------------------------------------------------------------
+
+/// Verifies that sensitive server-function work follows an explicit authorization boundary.
 struct LeptosServerFunctionsWithoutAuthorizationBoundaries {
-    /// Stores the `config` value used by this analysis.
+    /// Validated project policy applied by this lint pass.
     config: LeptosServerAuthorizationConfig,
 }
 
 impl LeptosServerFunctionsWithoutAuthorizationBoundaries {
-    /// Performs the `new` operation for this value.
+    /// Starts endpoint analysis with the project's authorization vocabulary.
     fn new() -> Self {
         Self {
             config: LeptosServerAuthorizationConfig::from_config(),
         }
     }
 
-    /// Performs the `attribute_name` operation for this value.
+    /// Recovers the final path segment of an authored attribute.
     fn attribute_name(attribute: &rustc_ast::Attribute) -> Option<rustc_span::Symbol> {
         attribute.path().last().copied()
     }
 
-    /// Performs the `is_server_function` operation for this value.
+    /// Returns whether a function carries Leptos's server endpoint attribute.
     fn is_server_function(item: &Item) -> bool {
         item.attrs.iter().any(|attribute| {
             Self::attribute_name(attribute).is_some_and(|name| name.as_str() == "server")
         })
     }
 
-    /// Performs the `call_position` operation for this value.
+    /// Locates an observed call within the authored function body.
     fn call_position(search: CallSearch<'_>) -> Option<usize> {
         search
             .source
@@ -179,7 +189,7 @@ impl LeptosServerFunctionsWithoutAuthorizationBoundaries {
             })
     }
 
-    /// Performs the `brace_depth` operation for this value.
+    /// Computes lexical nesting at a source offset while ignoring quoted braces.
     fn brace_depth(source: &str) -> usize {
         source.bytes().fold(0_usize, |depth, byte| match byte {
             b'{' => depth + 1,
@@ -188,7 +198,7 @@ impl LeptosServerFunctionsWithoutAuthorizationBoundaries {
         })
     }
 
-    /// Performs the `has_marker` operation for this value.
+    /// Returns whether an endpoint carries one configured policy attribute.
     fn has_marker(&self, item: &Item) -> bool {
         self.config
             .protected_endpoint_attributes
@@ -201,7 +211,7 @@ impl LeptosServerFunctionsWithoutAuthorizationBoundaries {
             })
     }
 
-    /// Performs the `first_sensitive_call` operation for this value.
+    /// Finds the earliest configured sensitive operation in the endpoint body.
     fn first_sensitive_call(&self, body: &str) -> Option<SensitiveCall> {
         self.config
             .sensitive_call_terms
@@ -217,7 +227,7 @@ impl LeptosServerFunctionsWithoutAuthorizationBoundaries {
             })
     }
 
-    /// Performs the `authorization_precedes` operation for this value.
+    /// Proves that an authorization call occurs earlier in the same lexical scope.
     fn authorization_precedes(&self, body: &str, sensitive: usize) -> bool {
         self.config.authorization_functions.iter().any(|helper| {
             Self::call_position(CallSearch {
@@ -241,7 +251,6 @@ dylint_linting::impl_pre_expansion_lint! {
 
 impl EarlyLintPass for LeptosServerFunctionsWithoutAuthorizationBoundaries {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
-        // Reject inputs that do not satisfy this stage.
         if !matches!(item.kind, ItemKind::Fn { .. }) {
             return;
         }
@@ -249,7 +258,6 @@ impl EarlyLintPass for LeptosServerFunctionsWithoutAuthorizationBoundaries {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if !Self::is_server_function(item) {
             return;
         }
@@ -257,7 +265,6 @@ impl EarlyLintPass for LeptosServerFunctionsWithoutAuthorizationBoundaries {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(body_start) = source.find('{') else {
             return;
         };
@@ -270,12 +277,10 @@ impl EarlyLintPass for LeptosServerFunctionsWithoutAuthorizationBoundaries {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if self.authorization_precedes(body, position) {
             return;
         }
 
-        // Perform the next step of the analysis.
         Violation {
             span: item.span,
             operation,

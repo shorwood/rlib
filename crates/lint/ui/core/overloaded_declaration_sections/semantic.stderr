@@ -1,8 +1,8 @@
-warning: section `Overloaded` contains 6 distinct declarations, exceeding the configured maximum of 5
+warning: section `Transport` mixes 6 declarations from several naming families, exceeding the configured maximum of 5
   --> $DIR/semantic.rs:14:1
    |
 LL | / // -----------------------------------------------------------------------------
-LL | | // Overloaded
+LL | | // Transport
 LL | | // -----------------------------------------------------------------------------
    | |________________________________________________________________________________^
    |
@@ -14,8 +14,8 @@ note: the lint level is defined here
 LL | #![warn(overloaded_declaration_sections)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-warning: section `ModuleNamespace` contains 6 distinct declarations, exceeding the configured maximum of 5
-  --> $DIR/semantic.rs:26:5
+warning: section `ModuleNamespace` mixes 6 declarations from several naming families, exceeding the configured maximum of 5
+  --> $DIR/semantic.rs:37:5
    |
 LL | /     // -----------------------------------------------------------------------------
 LL | |     // ModuleNamespace

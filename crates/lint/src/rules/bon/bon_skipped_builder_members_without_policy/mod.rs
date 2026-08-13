@@ -9,36 +9,38 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{BonAttributeAnalysis, builder_attribute, has_attribute};
+use super::utils::BonAttributeAnalysis;
 use crate::utils::diagnostic::EarlyViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Skipped member with implicit initialization
+// -----------------------------------------------------------------------------
+
+/// Skipped field whose construction policy is only `Default::default()`.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Bare `#[builder(skip)]` attribute receiving the diagnostic.
     span: Span,
-    /// Stores the `member` value used by this analysis.
+    /// Skipped member named in the diagnostic.
     member: String,
 }
 
 impl Violation {
     /// Builds a violation for a skipped field without an explicit policy.
     fn from_field(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Self> {
-        // Prepare the values used by this stage.
-        let attribute = builder_attribute(&field.attrs)?;
+        let attribute = BonAttributeAnalysis::builder(&field.attrs)?;
         let source = match BonAttributeAnalysis::source(cx, attribute) {
             Ok(source) => source,
             Err(_error) => return None,
         };
 
-        // Reject inputs that do not satisfy this stage.
+        // Documentation and marker fields make the implicit default intentional.
         if source.split_whitespace().collect::<String>() != "#[builder(skip)]"
-            || has_attribute(&field.attrs, "doc")
+            || BonAttributeAnalysis::has(&field.attrs, "doc")
             || cx
                 .sess()
                 .source_map()
                 .span_to_snippet(field.ty.span)
                 .is_ok_and(|ty| ty.contains("PhantomData"))
-        // Perform the next step of the analysis.
         {
             return None;
         }
@@ -83,7 +85,11 @@ impl EarlyViolation for Violation {
     }
 }
 
-/// Carries the `BonSkippedBuilderMembersWithoutPolicy` state used by this analysis.
+// -----------------------------------------------------------------------------
+// BonSkippedBuilderMembersWithoutPolicy: Visible initialization policy
+// -----------------------------------------------------------------------------
+
+/// Requires skipped fields to explain or encode how they are initialized.
 struct BonSkippedBuilderMembersWithoutPolicy;
 
 dylint_linting::impl_pre_expansion_lint! {

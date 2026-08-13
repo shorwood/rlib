@@ -53,7 +53,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// BareTupleTypes: Lint pass
+// BareTupleTypes: Named aggregate policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that rejects explicit root tuple types without semantic field names.

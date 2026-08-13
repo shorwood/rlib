@@ -36,7 +36,6 @@ let function_return = if returns_unit {
 
 ## Use instead
 
-
 Put the classification beside the enum and name the source concept. Prefer passing the
 source value itself when doing so keeps the predicate private:
 

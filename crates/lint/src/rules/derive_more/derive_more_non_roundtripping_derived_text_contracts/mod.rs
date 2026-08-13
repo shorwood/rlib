@@ -17,17 +17,21 @@ use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Generated text contract that cannot round-trip
+// -----------------------------------------------------------------------------
+
+/// Derived display grammar awaiting comparison with the type's parser.
 struct Candidate {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: Symbol,
-    /// Stores the `format` value used by this analysis.
+    /// Explicit display grammar that the transparent parser cannot consume.
     format: String,
 }
 
-/// Stores the `item` value used by this analysis.
+/// Derived display and parsing pair proven unable to round-trip.
 struct Violation(
     /// Derived text contract that cannot round-trip.
     Candidate,
@@ -68,16 +72,14 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `explicit_nontransparent_format` step of the lint analysis.
+/// Recovers an authored `derive_more` display format that adds text around a field.
 fn explicit_nontransparent_format(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
-    // Prepare the values used by this stage.
     let source = AuthoredItemSource::for_item(cx, item)?;
     let item = match syn::parse_str::<syn::ItemStruct>(&source) {
         Ok(item) => item,
         Err(_error) => return None,
     };
 
-    // Prepare the values used by this stage.
     let attribute = item
         .attrs
         .iter()
@@ -87,12 +89,11 @@ fn explicit_nontransparent_format(cx: &LateContext<'_>, item: &Item<'_>) -> Opti
         Err(_error) => return None,
     };
 
-    // Prepare the values used by this stage.
     let format = format.value();
     (!matches!(format.as_str(), "{}" | "{_0}" | "{0}")).then_some(format)
 }
 
-/// Performs the `has_numeric_field` step of the lint analysis.
+/// Returns whether the newtype field uses a primitive numeric parser.
 fn has_numeric_field(cx: &LateContext<'_>, definition: LocalDefId) -> bool {
     let definition = cx.tcx.adt_def(definition);
     let Some(field) = definition.non_enum_variant().fields.iter().next() else {
@@ -104,12 +105,16 @@ fn has_numeric_field(cx: &LateContext<'_>, definition: LocalDefId) -> bool {
     )
 }
 
+// -----------------------------------------------------------------------------
+// DeriveMoreNonRoundtrippingDerivedTextContracts: Round-trip text policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `DeriveMoreNonRoundtrippingDerivedTextContracts` state used by this analysis.
+/// Correlates generated display grammars with transparent parsing behavior.
 struct DeriveMoreNonRoundtrippingDerivedTextContracts {
-    /// Stores the `catalog` value used by this analysis.
+    /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored declarations awaiting association with `derive_more` expansions.
     candidates: HashMap<LocalDefId, Candidate>,
 }
 
@@ -123,7 +128,6 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreNonRoundtrippingDerivedTextContracts {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() {
             return;
@@ -132,7 +136,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreNonRoundtrippingDerivedTextContracts
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if data.fields().len() != 1 {
             return;
         }
@@ -140,7 +143,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreNonRoundtrippingDerivedTextContracts
             return;
         };
 
-        // Update the accumulated analysis state.
         self.candidates.insert(
             item.owner_id.def_id,
             Candidate {
@@ -152,14 +154,14 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreNonRoundtrippingDerivedTextContracts
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (definition, analyze_candidate) in self.candidates.drain() {
+        for (definition, candidate) in self.candidates.drain() {
             if self.catalog.derived_type(definition, "Display").is_none()
                 || self.catalog.derived_type(definition, "FromStr").is_none()
                 || !has_numeric_field(cx, definition)
             {
                 continue;
             }
-            Violation(analyze_candidate).emit(cx);
+            Violation(candidate).emit(cx);
         }
     }
 }

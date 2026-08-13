@@ -28,7 +28,6 @@ struct RequestBuilder;
 
 ## Use instead
 
-
 Keep the family under one divider:
 
 ```rust

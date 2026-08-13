@@ -15,25 +15,17 @@ use super::contracts::{ThiserrorContractCatalog, static_error_message};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
-struct Candidate {
-    /// Stores the `definition` value used by this analysis.
-    definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
-    span: Span,
-    /// Stores the `message` value used by this analysis.
-    message: String,
-    /// Stores the `variants` value used by this analysis.
-    variants: Vec<String>,
-}
+// -----------------------------------------------------------------------------
+// Violation: Duplicate static variant messages
+// -----------------------------------------------------------------------------
 
-/// Carries the `Violation` state used by this analysis.
+/// Derived variants that lose their distinction when displayed.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Error enum receiving the diagnostic.
     span: Span,
-    /// Stores the `message` value used by this analysis.
+    /// Static message shared by multiple variants.
     message: String,
-    /// Stores the `variants` value used by this analysis.
+    /// Distinct variants rendering that message.
     variants: Vec<String>,
 }
 
@@ -75,12 +67,32 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Candidate: Duplicate message evidence
+// -----------------------------------------------------------------------------
+
+/// Duplicate group retained until the enum's thiserror derive is confirmed.
+struct Candidate {
+    /// Candidate enum definition.
+    definition: LocalDefId,
+    /// Enum declaration receiving a later diagnostic.
+    span: Span,
+    /// Static message shared by the variants.
+    message: String,
+    /// Variants that render the shared message.
+    variants: Vec<String>,
+}
+
+// -----------------------------------------------------------------------------
+// ThiserrorDuplicateErrorMessages: Distinct presentation policy
+// -----------------------------------------------------------------------------
+
+/// Groups static messages and validates their enums against thiserror contracts.
 #[derive(Default)]
-/// Carries the `ThiserrorDuplicateErrorMessages` state used by this analysis.
 struct ThiserrorDuplicateErrorMessages {
-    /// Stores the `catalog` value used by this analysis.
+    /// Local derived error contracts.
     catalog: ThiserrorContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Duplicate message groups awaiting derive confirmation.
     candidates: Vec<Candidate>,
 }
 
@@ -130,21 +142,15 @@ impl LateLintPass<'_> for ThiserrorDuplicateErrorMessages {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
-            if self
-                .catalog
-                .derived_type(analyze_candidate.definition)
-                .is_none()
-            {
+        for candidate in self.candidates.drain(..) {
+            if self.catalog.derived_type(candidate.definition).is_none() {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                message: analyze_candidate.message,
-                variants: analyze_candidate.variants,
+                span: candidate.span,
+                message: candidate.message,
+                variants: candidate.variants,
             }
             .emit(cx);
         }

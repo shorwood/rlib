@@ -29,4 +29,16 @@ struct LongDescription;
 
 struct Present;
 
+// -----------------------------------------------------------------------------
+// PublicContract: Authored Bon API policy
+// -----------------------------------------------------------------------------
+
+struct PublicContract;
+
+// -----------------------------------------------------------------------------
+// SourceContract: Policy-bearing source-level behavior
+// -----------------------------------------------------------------------------
+
+struct SourceContract;
+
 fn main() {}

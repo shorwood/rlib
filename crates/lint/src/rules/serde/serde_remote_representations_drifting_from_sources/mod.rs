@@ -15,31 +15,35 @@ use super::contracts::{SerdeAttributes, SerdeContractCatalog};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `SourceSchema` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Remote representation drifting from its source
+// -----------------------------------------------------------------------------
+
+/// Current field schema of a type represented through Serde's remote mechanism.
 struct SourceSchema {
-    /// Stores the `fields` value used by this analysis.
+    /// Authored fields relevant to the contract.
     fields: BTreeSet<String>,
 }
 
-/// Carries the `RemoteCandidate` state used by this analysis.
+/// Authored remote representation awaiting comparison with its source type.
 struct RemoteCandidate {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `source` value used by this analysis.
+    /// Authored source used to recover framework metadata.
     source: String,
-    /// Stores the `fields` value used by this analysis.
+    /// Authored fields relevant to the contract.
     fields: BTreeSet<String>,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Remote representation missing fields from its current source type.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `source` value used by this analysis.
+    /// Authored source used to recover framework metadata.
     source: String,
-    /// Stores the `missing` value used by this analysis.
+    /// Source fields absent from the remote representation.
     missing: Vec<String>,
 }
 
@@ -87,13 +91,17 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
-/// Carries the `SerdeRemoteRepresentationsDriftingFromSources` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeRemoteRepresentationsDriftingFromSources: Synchronized schema policy
+// -----------------------------------------------------------------------------
+
+/// Correlates remote Serde representations with their current source declarations.
 struct SerdeRemoteRepresentationsDriftingFromSources {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
-    /// Stores the `sources` value used by this analysis.
+    /// Source schemas keyed by the type path used in `remote` attributes.
     sources: HashMap<String, Vec<SourceSchema>>,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored Serde declarations awaiting crate-wide contract comparison.
     candidates: Vec<RemoteCandidate>,
 }
 
@@ -107,7 +115,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
             return;
@@ -116,20 +123,17 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
             return;
         };
 
-        // Prepare the values used by this stage.
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
 
-        // Prepare the values used by this stage.
         let fields = structure
             .fields
             .iter()
             .filter_map(|field| field.ident.as_ref().map(ToString::to_string))
             .collect::<BTreeSet<_>>();
-        let attributes = SerdeAttributes::analyze_serde_attributes(&structure.attrs);
+        let attributes = SerdeAttributes::from_attributes(&structure.attrs);
 
-        // Prepare the values used by this stage.
         let Some(remote) = attributes.remote else {
             self.sources
                 .entry(structure.ident.to_string())
@@ -138,7 +142,6 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if structure
             .attrs
             .iter()
@@ -147,7 +150,6 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
             return;
         }
 
-        // Update the accumulated analysis state.
         self.candidates.push(RemoteCandidate {
             definition: item.owner_id.def_id,
             span: item.span,
@@ -157,49 +159,42 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
+        for candidate in self.candidates.drain(..) {
             if self
                 .catalog
-                .derived_type(analyze_candidate.definition, "Serialize")
+                .derived_type(candidate.definition, "Serialize")
                 .is_none()
                 && self
                     .catalog
-                    .derived_type(analyze_candidate.definition, "Deserialize")
+                    .derived_type(candidate.definition, "Deserialize")
                     .is_none()
-            // Perform the next step of the analysis.
             {
                 continue;
             }
 
-            // Prepare the values used by this stage.
-            let source_name = analyze_candidate
+            let source_name = candidate
                 .source
                 .rsplit("::")
                 .next()
-                .unwrap_or(&analyze_candidate.source);
+                .unwrap_or(&candidate.source);
 
-            // Prepare the values used by this stage.
             let Some([source]) = self.sources.get(source_name).map(Vec::as_slice) else {
                 continue;
             };
 
-            // Prepare the values used by this stage.
             let missing = source
                 .fields
-                .difference(&analyze_candidate.fields)
+                .difference(&candidate.fields)
                 .map(|name| format!("`{name}`"))
                 .collect::<Vec<_>>();
 
-            // Reject inputs that do not satisfy this stage.
             if missing.is_empty() {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                source: analyze_candidate.source,
+                span: candidate.span,
+                source: candidate.source,
                 missing,
             }
             .emit(cx);

@@ -23,7 +23,6 @@ let accepted = is_final && left_matches || right_matches;
 
 ## Use instead
 
-
 Parenthesize the alternatives to state that intention directly:
 
 ```rust

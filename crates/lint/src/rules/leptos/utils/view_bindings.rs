@@ -11,6 +11,10 @@ use rustc_lint::LateContext;
 use rustc_span::def_id::LocalDefId;
 use rustc_span::hygiene::{ExpnKind, MacroKind};
 
+// -----------------------------------------------------------------------------
+// ViewBindings: Exclusive native binding analysis
+// -----------------------------------------------------------------------------
+
 /// Whether an expression carries the binding through only transparent syntax.
 enum Origin {
     /// The analyzed binding is absent from the expression.

@@ -14,21 +14,25 @@ use super::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Sensitive field serialized by default
+// -----------------------------------------------------------------------------
+
+/// Sensitive-looking field awaiting carrier-type and explicit-policy checks.
 struct Candidate {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `fields` value used by this analysis.
+    /// Authored fields relevant to the contract.
     fields: Vec<String>,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Raw secret-bearing field included unchanged in serialized output.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `fields` value used by this analysis.
+    /// Authored fields relevant to the contract.
     fields: Vec<String>,
 }
 
@@ -77,12 +81,10 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `sensitive_name` step of the lint analysis.
+/// Recognizes field names conventionally associated with credentials or secret material.
 fn sensitive_name(name: &str) -> bool {
-    // Prepare the values used by this stage.
     let name = name.to_ascii_lowercase();
 
-    // Perform the next step of the analysis.
     [
         "password",
         "passphrase",
@@ -99,24 +101,22 @@ fn sensitive_name(name: &str) -> bool {
     .any(|term| name == *term || name.ends_with(&format!("_{term}")))
 }
 
-/// Performs the `is_u8` step of the lint analysis.
+/// Returns whether a type is the primitive byte type.
 fn is_u8(ty: &syn::Type) -> bool {
     matches!(ty, syn::Type::Path(path)
         if path.path.segments.last().is_some_and(|segment| segment.ident == "u8"))
 }
 
-/// Performs the `raw_secret_carrier` step of the lint analysis.
+/// Recognizes strings and byte containers that can expose raw secret material.
 fn raw_secret_carrier(ty: &syn::Type) -> bool {
     match ty {
         syn::Type::Array(array) => is_u8(&array.elem),
         syn::Type::Slice(slice) => is_u8(&slice.elem),
         syn::Type::Path(path) => {
-            // Prepare the values used by this stage.
             let Some(segment) = path.path.segments.last() else {
                 return false;
             };
 
-            // Classify the current analyze_candidate.
             match segment.ident.to_string().as_str() {
                 "String" => true,
                 "Vec" => match &segment.arguments {
@@ -132,7 +132,7 @@ fn raw_secret_carrier(ty: &syn::Type) -> bool {
     }
 }
 
-/// Performs the `explicit_sensitive_policy` step of the lint analysis.
+/// Returns whether Serde attributes explicitly omit or transform a sensitive field.
 fn explicit_sensitive_policy(path: &str) -> bool {
     let path = path.to_ascii_lowercase();
     ["redact", "secret", "encrypt", "mask"]
@@ -141,11 +141,15 @@ fn explicit_sensitive_policy(path: &str) -> bool {
 }
 
 #[derive(Default)]
-/// Carries the `SerdeSensitiveFieldsSerializedByDefault` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeSensitiveFieldsSerializedByDefault: Explicit disclosure policy
+// -----------------------------------------------------------------------------
+
+/// Rejects sensitive-looking fields that Serde would expose unchanged by default.
 struct SerdeSensitiveFieldsSerializedByDefault {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored Serde declarations awaiting crate-wide contract comparison.
     candidates: Vec<Candidate>,
 }
 
@@ -159,7 +163,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
             return;
@@ -168,7 +171,6 @@ impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
             return;
         };
 
-        // Prepare the values used by this stage.
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
@@ -176,13 +178,12 @@ impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
             return;
         }
 
-        // Prepare the values used by this stage.
         let fields = structure
             .fields
             .iter()
             .filter_map(|field| {
                 let name = field.ident.as_ref()?.to_string();
-                let attributes = SerdeAttributes::analyze_serde_attributes(&field.attrs);
+                let attributes = SerdeAttributes::from_attributes(&field.attrs);
                 if attributes.has(SerdeFlag::SkipSerialize)
                     || !sensitive_name(&name)
                     || !raw_secret_carrier(&field.ty)
@@ -197,12 +198,10 @@ impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
             })
             .collect::<Vec<_>>();
 
-        // Reject inputs that do not satisfy this stage.
         if fields.is_empty() {
             return;
         }
 
-        // Update the accumulated analysis state.
         self.candidates.push(Candidate {
             definition: item.owner_id.def_id,
             span: item.span,
@@ -211,20 +210,18 @@ impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
+        for candidate in self.candidates.drain(..) {
             if self
                 .catalog
-                .derived_type(analyze_candidate.definition, "Serialize")
+                .derived_type(candidate.definition, "Serialize")
                 .is_none()
             {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                fields: analyze_candidate.fields,
+                span: candidate.span,
+                fields: candidate.fields,
             }
             .emit(cx);
         }

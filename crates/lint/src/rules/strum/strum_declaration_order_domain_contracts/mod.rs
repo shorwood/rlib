@@ -12,11 +12,15 @@ use rustc_span::Span;
 use super::utils::contracts::StrumAssociatedItem;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Declaration order exposed as domain meaning
+// -----------------------------------------------------------------------------
+
+/// Enum API that turns incidental declaration order into a domain contract.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
 }
 
@@ -49,7 +53,7 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `order_sensitive_context` step of the lint analysis.
+/// Recognizes APIs whose vocabulary makes declaration order part of the domain contract.
 fn order_sensitive_context(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> bool {
     let name = cx
         .tcx
@@ -76,7 +80,11 @@ fn order_sensitive_context(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> bo
     })
 }
 
-/// Carries the `StrumDeclarationOrderDomainContracts` state used by this analysis.
+// -----------------------------------------------------------------------------
+// StrumDeclarationOrderDomainContracts: Explicit ordering policy
+// -----------------------------------------------------------------------------
+
+/// Detects Strum APIs whose behavior depends on variant declaration order.
 struct StrumDeclarationOrderDomainContracts;
 
 dylint_linting::impl_late_lint! {
@@ -89,12 +97,10 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for StrumDeclarationOrderDomainContracts {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
-        // Reject inputs that do not satisfy this stage.
         if expression.span.from_expansion() || !order_sensitive_context(cx, expression.hir_id) {
             return;
         }
 
-        // Prepare the values used by this stage.
         let associated = match expression.kind {
             ExprKind::Call(callee, []) => Some(callee),
             ExprKind::Path(_)
@@ -111,7 +117,6 @@ impl LateLintPass<'_> for StrumDeclarationOrderDomainContracts {
             _ => None,
         };
 
-        // Prepare the values used by this stage.
         let Some(associated) = associated else { return };
         let is_order_source = (StrumAssociatedItem {
             trait_name: "IntoEnumIterator",
@@ -126,7 +131,6 @@ impl LateLintPass<'_> for StrumDeclarationOrderDomainContracts {
             .enum_definition(cx, associated)
             .is_some();
 
-        // Reject inputs that do not satisfy this stage.
         if !(is_order_source) {
             return;
         }

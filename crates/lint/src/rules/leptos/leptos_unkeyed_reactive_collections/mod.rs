@@ -86,7 +86,6 @@ impl LeptosUnkeyedReactiveCollections {
         expression: &Expr<'_>,
         identity: TraitMethodIdentity,
     ) -> bool {
-        // Prepare the values used by this stage.
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
         let Some(method) = cx
             .tcx
@@ -96,7 +95,6 @@ impl LeptosUnkeyedReactiveCollections {
             return false;
         };
 
-        // Perform the next step of the analysis.
         cx.tcx.crate_name(method.krate).as_str() == identity.defining_crate
             && cx.tcx.item_name(method).as_str() == identity.method
             && cx.tcx.trait_of_assoc(method).is_some_and(|trait_id| {
@@ -128,7 +126,6 @@ impl LeptosUnkeyedReactiveCollections {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosUnkeyedReactiveCollections {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
-        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, receiver, arguments, _) = expression.kind else {
             return;
         };
@@ -149,12 +146,10 @@ impl<'tcx> LateLintPass<'tcx> for LeptosUnkeyedReactiveCollections {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if map.ident.name.as_str() != "map" || !Self::chain_contains_reactive_get(cx, collection) {
             return;
         }
 
-        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
             span: expression.span,

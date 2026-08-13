@@ -32,7 +32,6 @@ impl Report {
 
 ## Use instead
 
-
 Separate each associated item with one empty line:
 
 ```rust

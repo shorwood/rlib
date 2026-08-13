@@ -15,13 +15,17 @@ use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::construction_analysis::{ConstructionAnalysis, ConstructionOrigin};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derived constructor bypassing invariants
+// -----------------------------------------------------------------------------
+
+/// Generated constructor that exposes construction protected by field visibility.
 struct Violation {
-    /// Stores the `struct_span` value used by this analysis.
+    /// Type declaration whose generated API may bypass its invariant.
     struct_span: Span,
-    /// Stores the `constructor_span` value used by this analysis.
+    /// Constructor whose validation establishes the invariant boundary.
     constructor_span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: String,
 }
 
@@ -63,12 +67,16 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// DeriveMoreDerivedConstructorsBypassingInvariants: Safe construction policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `DeriveMoreDerivedConstructorsBypassingInvariants` state used by this analysis.
+/// Rejects generated constructors that expose types with restricted fields.
 struct DeriveMoreDerivedConstructorsBypassingInvariants {
-    /// Stores the `catalog` value used by this analysis.
+    /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,
-    /// Stores the `constructions` value used by this analysis.
+    /// Construction sites correlated with the owning type.
     constructions: ConstructionAnalysis,
 }
 
@@ -105,14 +113,12 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreDerivedConstructorsBypassingInvarian
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         for constructor in &self.constructions.candidates {
-            // Reject inputs that do not satisfy this stage.
             if constructor.ownership.origin != ConstructionOrigin::Inherent
                 || !constructor.is_fallible_direct()
             {
                 continue;
             }
 
-            // Prepare the values used by this stage.
             let Some(contract) = self
                 .catalog
                 .derived_type(constructor.target.def_id, "Constructor")
@@ -120,12 +126,10 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreDerivedConstructorsBypassingInvarian
                 continue;
             };
 
-            // Reject inputs that do not satisfy this stage.
             if !contract.has_restricted_fields {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 struct_span: contract.span,
                 constructor_span: constructor.function.name_span,

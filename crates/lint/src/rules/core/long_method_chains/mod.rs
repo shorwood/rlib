@@ -57,7 +57,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// LongMethodChains
+// LongMethodChains: Readable transformation-pipeline policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that limits calls in one fluent method chain.

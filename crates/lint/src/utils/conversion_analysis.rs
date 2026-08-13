@@ -202,7 +202,7 @@ struct ConversionPair {
     target: ConversionType,
 }
 #[derive(Clone)]
-/// Standard conversion contract implied by a `analyze_candidate`'s exact return shape.
+/// Standard conversion contract implied by a `candidate`'s exact return shape.
 pub enum ConversionContract {
     /// Direct result suitable for `From` and reciprocal `Into`.
     Infallible,
@@ -300,7 +300,7 @@ impl ConversionConfidence {
 // ConversionCandidate: Diagnostic record
 // -----------------------------------------------------------------------------
 #[derive(Clone)]
-/// Authored function identity and source ranges for one conversion `analyze_candidate`.
+/// Authored function identity and source ranges for one conversion `candidate`.
 pub struct ConversionCandidateIdentity {
     /// Function definition used for cross-lint precedence.
     pub(crate) def_id: LocalDefId,
@@ -319,15 +319,13 @@ impl ConversionCandidateIdentity {
     fn from_construction(
         cx: &LateContext<'_>,
         body: &Body<'_>,
-        analyze_candidate: &ConstructionCandidate,
+        candidate: &ConstructionCandidate,
     ) -> Self {
         Self {
-            def_id: analyze_candidate.function.def_id,
-            hir_id: cx
-                .tcx
-                .local_def_id_to_hir_id(analyze_candidate.function.def_id),
-            name: analyze_candidate.function.name,
-            name_span: analyze_candidate.function.name_span,
+            def_id: candidate.function.def_id,
+            hir_id: cx.tcx.local_def_id_to_hir_id(candidate.function.def_id),
+            name: candidate.function.name,
+            name_span: candidate.function.name_span,
             source_span: body.params[0].span,
         }
     }
@@ -393,10 +391,10 @@ impl ConversionAnalysis {
     fn return_contract<'tcx>(
         cx: &LateContext<'tcx>,
         output: Ty<'tcx>,
-        analyze_candidate: &ConstructionCandidate,
+        candidate: &ConstructionCandidate,
     ) -> Option<ConversionReturn<'tcx>> {
         // Map the construction shape to its precise standard conversion contract.
-        match analyze_candidate.target.return_shape {
+        match candidate.target.return_shape {
             ConstructionReturn::Direct => Some(ConversionReturn::infallible(output)),
             ConstructionReturn::FallibleDirect => ConversionReturn::fallible(cx, output),
             ConstructionReturn::Contained => None,
@@ -506,7 +504,7 @@ impl ConversionAnalysis {
         cx: &LateContext<'tcx>,
         kind: FnKind<'tcx>,
         body: &'tcx Body<'tcx>,
-        analyze_candidate: &ConstructionCandidate,
+        candidate: &ConstructionCandidate,
     ) {
         // Reject closures and function contracts outside ordinary safe runtime Rust.
         let header = match kind {
@@ -525,7 +523,7 @@ impl ConversionAnalysis {
         }
 
         // Reject unresolved type and constant parameters while permitting erased lifetimes.
-        let generics = cx.tcx.generics_of(analyze_candidate.function.def_id);
+        let generics = cx.tcx.generics_of(candidate.function.def_id);
         let has_unresolved_family_parameter = generics
             .own_params
             .iter()
@@ -537,7 +535,7 @@ impl ConversionAnalysis {
         // Require exactly one semantic source and one authored source pattern.
         let signature = cx
             .tcx
-            .fn_sig(analyze_candidate.function.def_id)
+            .fn_sig(candidate.function.def_id)
             .instantiate_identity()
             .skip_binder();
         if signature.inputs().len() != 1 || body.params.len() != 1 {
@@ -551,7 +549,7 @@ impl ConversionAnalysis {
         };
 
         // Resolve the exact direct or fallible target contract.
-        let Some(return_) = Self::return_contract(cx, signature.output(), analyze_candidate) else {
+        let Some(return_) = Self::return_contract(cx, signature.output(), candidate) else {
             return;
         };
         let target_ty = return_.target;
@@ -570,25 +568,24 @@ impl ConversionAnalysis {
         .visit_pat(body.params[0].pat);
 
         // Follow derived bindings and effects through the complete function body.
-        let mut evidence =
-            ConversionEvidence::new(cx, analyze_candidate.target.def_id, source_bindings);
+        let mut evidence = ConversionEvidence::new(cx, candidate.target.def_id, source_bindings);
         evidence.visit_expr(body.value);
         if !evidence.has_source_reached_target {
             return;
         }
         self.target_owned_definitions
-            .insert(analyze_candidate.function.def_id);
+            .insert(candidate.function.def_id);
 
         // Apply parser, effect, policy, and confidence classification.
-        let name = analyze_candidate.function.name;
+        let name = candidate.function.name;
         let has_hard_exclusion = Self::has_hard_name_exclusion(name.as_str());
-        let parser_owned = analyze_candidate.is_text_parser() && source.is_str_slice();
+        let parser_owned = candidate.is_text_parser() && source.is_str_slice();
         let is_reportable = !has_hard_exclusion && !evidence.has_effect && !parser_owned;
         let pair = ConversionPair { source, target };
         let confidence = Self::confidence(name.as_str(), source_ty, target_ty);
 
         // Retain complete diagnostic and family context until crate traversal ends.
-        let identity = ConversionCandidateIdentity::from_construction(cx, body, analyze_candidate);
+        let identity = ConversionCandidateIdentity::from_construction(cx, body, candidate);
         let semantics = ConversionCandidateSemantics::new(
             source_ty.to_string(),
             target_ty.to_string(),
@@ -596,7 +593,7 @@ impl ConversionAnalysis {
             confidence,
         );
 
-        // Store the compact analyze_candidate beside its pair-selection policy.
+        // Store the compact candidate beside its pair-selection policy.
         self.candidates.push(ConversionCandidate {
             identity,
             semantics,
@@ -609,15 +606,12 @@ impl ConversionAnalysis {
     pub(crate) fn reportable_candidates(&self) -> Vec<&ConversionCandidate> {
         // Group policy-eligible candidates by their exact semantic pair.
         let mut families = HashMap::<&ConversionPair, Vec<&ConversionCandidate>>::new();
-        for analyze_candidate in self
+        for candidate in self
             .candidates
             .iter()
-            .filter(|analyze_candidate| analyze_candidate.is_reportable)
+            .filter(|candidate| candidate.is_reportable)
         {
-            families
-                .entry(&analyze_candidate.pair)
-                .or_default()
-                .push(analyze_candidate);
+            families.entry(&candidate.pair).or_default().push(candidate);
         }
 
         // Keep only unique families that no standard implementation already owns.
@@ -628,8 +622,7 @@ impl ConversionAnalysis {
         let mut candidates = unoccupied.collect::<Vec<_>>();
 
         // Stabilize emission independently from hash-map iteration order.
-        candidates
-            .sort_unstable_by_key(|analyze_candidate| analyze_candidate.identity.name_span.lo());
+        candidates.sort_unstable_by_key(|candidate| candidate.identity.name_span.lo());
         candidates
     }
 
@@ -702,7 +695,7 @@ const CONVERSION_EVIDENCE_EFFECT_PREFIXES: &[&str] = &[
 struct ConversionEvidence<'analysis, 'tcx> {
     /// Compiler context whose typeck results cover the visited body.
     cx: &'analysis LateContext<'tcx>,
-    /// Nominal type promised by the `analyze_candidate`'s return contract.
+    /// Nominal type promised by the `candidate`'s return contract.
     target: LocalDefId,
     /// Local bindings transitively derived from the sole source parameter.
     tainted: HashSet<HirId>,
@@ -713,7 +706,7 @@ struct ConversionEvidence<'analysis, 'tcx> {
 }
 
 impl<'analysis, 'tcx> ConversionEvidence<'analysis, 'tcx> {
-    /// Starts source-flow and effect analysis for one `analyze_candidate` body.
+    /// Starts source-flow and effect analysis for one `candidate` body.
     const fn new(
         cx: &'analysis LateContext<'tcx>,
         target: LocalDefId,

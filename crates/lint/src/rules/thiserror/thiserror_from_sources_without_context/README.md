@@ -2,8 +2,8 @@
 
 ## What it does
 
-Finds context-free transparent `#[from]` variants used by `?` at two or more distinctly named
-operations in a function returning the containing thiserror type.
+Finds transparent `#[from]` variants that receive failures from two or more differently named
+operations in the same function.
 
 ## Why is this bad?
 

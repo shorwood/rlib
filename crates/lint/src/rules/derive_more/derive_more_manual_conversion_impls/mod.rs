@@ -38,13 +38,17 @@ impl<'tcx> OneFieldStruct<'tcx> {
     }
 }
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derivable conversion implementation
+// -----------------------------------------------------------------------------
+
+/// Transparent wrapping or extraction implementation reproducible by `derive_more`.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `derive` value used by this analysis.
+    /// `derive_more` macro capable of replacing the implementation.
     derive: &'static str,
-    /// Stores the `wrapper` value used by this analysis.
+    /// Wrapper type whose conversion is transparent.
     wrapper: String,
 }
 
@@ -83,7 +87,7 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `exact_wrapping` step of the lint analysis.
+/// Recognizes `From` implementations that only place an input in a newtype.
 fn exact_wrapping<'tcx>(
     cx: &LateContext<'tcx>,
     wrapper: ty::Ty<'tcx>,
@@ -92,7 +96,6 @@ fn exact_wrapping<'tcx>(
     expression: &rustc_hir::Expr<'_>,
     binding: rustc_hir::HirId,
 ) -> Option<String> {
-    // Prepare the values used by this stage.
     let OneFieldStruct {
         definition,
         arguments,
@@ -103,7 +106,6 @@ fn exact_wrapping<'tcx>(
     };
     let field = definition.non_enum_variant().fields.iter().next()?;
 
-    // Prepare the values used by this stage.
     let is_wrapper_constructor =
         call.target == definition.did() || cx.tcx.opt_parent(call.target) == Some(definition.did());
     (is_wrapper_constructor
@@ -112,7 +114,7 @@ fn exact_wrapping<'tcx>(
         .then(|| cx.tcx.item_name(definition.did()).to_string())
 }
 
-/// Performs the `exact_extraction` step of the lint analysis.
+/// Recognizes `Into` implementations that only return a newtype's field.
 fn exact_extraction<'tcx>(
     cx: &LateContext<'tcx>,
     wrapper: ty::Ty<'tcx>,
@@ -120,7 +122,6 @@ fn exact_extraction<'tcx>(
     expression: &rustc_hir::Expr<'_>,
     binding: rustc_hir::HirId,
 ) -> Option<String> {
-    // Prepare the values used by this stage.
     let OneFieldStruct {
         definition,
         arguments,
@@ -130,14 +131,17 @@ fn exact_extraction<'tcx>(
     };
     let sole_field = definition.non_enum_variant().fields.iter().next()?;
 
-    // Perform the next step of the analysis.
     (field.name.as_str() == "0"
         && DirectForwarding::is_binding(cx, base, binding)
         && sole_field.ty(cx.tcx, arguments) == inner)
         .then(|| cx.tcx.item_name(definition.did()).to_string())
 }
 
-/// Carries the `DeriveMoreManualConversionImpls` state used by this analysis.
+// -----------------------------------------------------------------------------
+// DeriveMoreManualConversionImpls: Declarative conversion policy
+// -----------------------------------------------------------------------------
+
+/// Finds transparent conversion implementations reproducible by `derive_more`.
 struct DeriveMoreManualConversionImpls;
 
 dylint_linting::impl_late_lint! {
@@ -150,7 +154,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        // Prepare the values used by this stage.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return;
         };
@@ -159,7 +162,6 @@ impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
 
-        // Prepare the values used by this stage.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return;
         };
@@ -167,7 +169,6 @@ impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
             return;
         };
 
-        // Prepare the values used by this stage.
         let Some(trait_ref) = implementation_item
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
@@ -175,7 +176,6 @@ impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if cx.tcx.crate_name(trait_ref.krate).as_str() != "core"
             || cx.tcx.item_name(trait_ref).as_str() != "From"
             || item.ident.name.as_str() != "from"
@@ -184,13 +184,11 @@ impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
         }
         let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
 
-        // Prepare the values used by this stage.
         let source = trait_ref.args.type_at(1);
         let target = trait_ref.self_ty();
         let body = cx.tcx.hir_body(body_id);
         let Some(forwarding) =
             DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)
-        // Perform the next step of the analysis.
         else {
             return;
         };
@@ -198,7 +196,6 @@ impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if let Some(wrapper) = exact_wrapping(
             cx,
             target,
@@ -215,7 +212,6 @@ impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
             .emit(cx);
         } else if let Some(wrapper) =
             exact_extraction(cx, source, target, forwarding.forwarded, *binding)
-        // Perform the next step of the analysis.
         {
             Violation {
                 span: parent.span,

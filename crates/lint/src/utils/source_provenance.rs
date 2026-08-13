@@ -9,6 +9,10 @@ use rustc_hir::{FieldDef, Item};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::Span;
 
+// -----------------------------------------------------------------------------
+// SpanProvenanceExt: Build-output source recognition
+// -----------------------------------------------------------------------------
+
 /// Build-output provenance available directly on compiler spans.
 pub trait SpanProvenanceExt {
     /// Returns whether this span belongs to build-script output rather than package source.
@@ -27,6 +31,10 @@ impl SpanProvenanceExt for Span {
     }
 }
 
+// -----------------------------------------------------------------------------
+// ItemProvenanceExt: Framework-generated item recognition
+// -----------------------------------------------------------------------------
+
 /// Framework provenance available directly on HIR items.
 pub trait ItemProvenanceExt {
     /// Returns whether this item is synthetic framework glue at an authored call site.
@@ -41,17 +49,32 @@ impl ItemProvenanceExt for Item<'_> {
     }
 }
 
+// -----------------------------------------------------------------------------
+// AuthoredItemSource: Complete source recovery for one HIR item
+// -----------------------------------------------------------------------------
+
 /// Source text for one item, including every compiler-recorded outer attribute.
+#[cfg(any(
+    feature = "derive_more",
+    feature = "miette",
+    feature = "serde",
+    feature = "thiserror"
+))]
 #[derive(derive_more::Deref)]
 pub struct AuthoredItemSource(
     /// Complete parseable source for the item.
     String,
 );
 
+#[cfg(any(
+    feature = "derive_more",
+    feature = "miette",
+    feature = "serde",
+    feature = "thiserror"
+))]
 impl AuthoredItemSource {
     /// Returns an authored item together with its immediately preceding outer attributes.
     pub(crate) fn for_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
-        // Prepare the values used by this stage.
         let source_map = cx.tcx.sess.source_map();
         let item_source = match source_map.span_to_snippet(item.span) {
             Ok(source) => source,
@@ -104,7 +127,6 @@ impl AuthoredItemSource {
             break;
         }
 
-        // Return the completed analysis result.
         Some(Self(format!(
             "{}{}",
             &file_source[start..offset],
@@ -112,6 +134,10 @@ impl AuthoredItemSource {
         )))
     }
 }
+
+// -----------------------------------------------------------------------------
+// FieldProvenanceExt: Framework-generated field recognition
+// -----------------------------------------------------------------------------
 
 /// Framework provenance available directly on apparent HIR fields.
 pub trait FieldProvenanceExt {

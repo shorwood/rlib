@@ -9,18 +9,22 @@ use rustc_lint::LateContext;
 use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 
+// -----------------------------------------------------------------------------
+// DeriveMoreTypeContract: Authored invariants and generated derive identity
+// -----------------------------------------------------------------------------
+
 #[derive(Clone)]
-/// Carries the `DeriveMoreTypeContract` state used by this analysis.
+/// Authored type shape and `derive_more` macros that govern one local declaration.
 pub(super) struct DeriveMoreTypeContract {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     pub(super) span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     pub(super) name: Symbol,
-    /// Stores the `has_restricted_fields` value used by this analysis.
+    /// Whether field visibility prevents generated construction from widening access.
     pub(super) has_restricted_fields: bool,
 }
 
-/// Performs the `derive_more_expansion` step of the lint analysis.
+/// Resolves the `derive_more` macro responsible for one generated item.
 fn derive_more_expansion(cx: &LateContext<'_>, span: Span) -> Option<&'static str> {
     span.macro_backtrace().find_map(|expansion| {
         let definition = expansion.macro_def_id?;
@@ -67,17 +71,22 @@ fn derive_more_expansion(cx: &LateContext<'_>, span: Span) -> Option<&'static st
         }
     })
 }
+
+// -----------------------------------------------------------------------------
+// DeriveMoreContractCatalog: Authored and generated contract correlation
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `DeriveMoreContractCatalog` state used by this analysis.
+/// Correlates authored type declarations with their `derive_more` expansions.
 pub(super) struct DeriveMoreContractCatalog {
-    /// Stores the `types` value used by this analysis.
+    /// Authored type contracts keyed by their compiler identity.
     types: HashMap<LocalDefId, DeriveMoreTypeContract>,
-    /// Stores the `derives` value used by this analysis.
+    /// Derive macros that establish the generated behavior.
     derives: HashMap<&'static str, HashSet<LocalDefId>>,
 }
 
 impl DeriveMoreContractCatalog {
-    /// Performs the `derived_type` operation for this value.
+    /// Resolves a local type confirmed to use the framework derive.
     pub(super) fn derived_type(
         &self,
         def_id: LocalDefId,
@@ -90,7 +99,7 @@ impl DeriveMoreContractCatalog {
             .flatten()
     }
 
-    /// Performs the `derives_for` operation for this value.
+    /// Returns the `derive_more` macros associated with one local type.
     pub(super) fn derives_for(
         &self,
         def_id: LocalDefId,
@@ -107,14 +116,13 @@ impl DeriveMoreContractCatalog {
             .collect()
     }
 
-    /// Performs the `type_contract` operation for this value.
+    /// Returns the completed authored and generated contract for one local type.
     pub(super) fn type_contract(&self, def_id: LocalDefId) -> Option<&DeriveMoreTypeContract> {
         self.types.get(&def_id)
     }
 
-    /// Performs the `record_generated_impl` operation for this value.
+    /// Records the target of a framework-generated implementation.
     fn record_generated_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Reject inputs that do not satisfy this stage.
         if !matches!(item.kind, ItemKind::Impl(_)) {
             return;
         }
@@ -122,29 +130,25 @@ impl DeriveMoreContractCatalog {
             return;
         };
 
-        // Prepare the values used by this stage.
         let Some(definition) = cx
             .tcx
             .type_of(item.owner_id)
             .instantiate_identity()
             .ty_adt_def()
             .and_then(|definition| definition.did().as_local())
-        // Perform the next step of the analysis.
         else {
             return;
         };
         self.derives.entry(derive).or_default().insert(definition);
     }
 
-    /// Performs the `check_item` operation for this value.
+    /// Records authored contracts and generated implementation evidence.
     pub(super) fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Reject inputs that do not satisfy this stage.
         if item.span.from_expansion() {
             self.record_generated_impl(cx, item);
             return;
         }
 
-        // Prepare the values used by this stage.
         let (identifier, has_restricted_fields) = match item.kind {
             ItemKind::Struct(identifier, _, data) => (
                 identifier,
@@ -161,7 +165,6 @@ impl DeriveMoreContractCatalog {
             _ => return,
         };
 
-        // Update the accumulated analysis state.
         self.types.insert(
             item.owner_id.def_id,
             DeriveMoreTypeContract {

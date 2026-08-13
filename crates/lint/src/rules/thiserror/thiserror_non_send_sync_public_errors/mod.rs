@@ -16,50 +16,17 @@ use rustc_span::def_id::LocalDefId;
 use super::contracts::ThiserrorContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
-/// Tracks whether type traversal has entered a channel payload.
-#[derive(Clone, Copy)]
-enum ChannelNesting {
-    /// The current type is outside a channel payload.
-    OutsideChannel,
-    /// The current type is inside a channel payload.
-    InsideChannel,
-}
+// -----------------------------------------------------------------------------
+// Violation: Local-only error crossing a public channel
+// -----------------------------------------------------------------------------
 
-impl ChannelNesting {
-    /// Returns whether traversal is within a channel payload.
-    const fn is_inside(self) -> bool {
-        matches!(self, Self::InsideChannel)
-    }
-
-    /// Advances traversal after inspecting the current nominal type path.
-    fn entering(self, path: &str) -> Self {
-        if self.is_inside()
-            || ["::mpsc::Sender", "::mpsc::SyncSender", "::mpsc::Receiver"]
-                .iter()
-                .any(|suffix| path.ends_with(suffix))
-        {
-            Self::InsideChannel
-        } else {
-            Self::OutsideChannel
-        }
-    }
-}
-
-/// Carries the `ErrorCandidate` state used by this analysis.
-struct ErrorCandidate {
-    /// Stores the `span` value used by this analysis.
-    span: Span,
-    /// Stores the `blockers` value used by this analysis.
-    blockers: Vec<String>,
-}
-
-/// Carries the `Violation` state used by this analysis.
+/// Public thiserror type transported where `Send` and `Sync` are expected.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Error declaration receiving the diagnostic.
     span: Span,
-    /// Stores the `boundary` value used by this analysis.
+    /// Public function exposing the channel transport.
     boundary: String,
-    /// Stores the `blockers` value used by this analysis.
+    /// Field representations preventing thread-safe transport.
     blockers: Vec<String>,
 }
 
@@ -104,27 +71,57 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `collect_channel_errors` step of the lint analysis.
-fn collect_channel_errors(
+// -----------------------------------------------------------------------------
+// ChannelNesting: Transport payload traversal
+// -----------------------------------------------------------------------------
+
+/// Tracks whether type traversal has entered a channel payload.
+#[derive(Clone, Copy)]
+enum ChannelNesting {
+    /// The current type is outside a channel payload.
+    OutsideChannel,
+    /// The current type is inside a channel payload.
+    InsideChannel,
+}
+
+impl ChannelNesting {
+    /// Returns whether traversal is within a channel payload.
+    const fn is_inside(self) -> bool {
+        matches!(self, Self::InsideChannel)
+    }
+
+    /// Advances traversal after inspecting the current nominal type path.
+    fn entering(self, path: &str) -> Self {
+        if self.is_inside()
+            || ["::mpsc::Sender", "::mpsc::SyncSender", "::mpsc::Receiver"]
+                .iter()
+                .any(|suffix| path.ends_with(suffix))
+        {
+            Self::InsideChannel
+        } else {
+            Self::OutsideChannel
+        }
+    }
+}
+
+/// Collects local types nested within channel payloads.
+fn channel_nesting_collect_errors(
     cx: &LateContext<'_>,
     ty: Ty<'_>,
     nesting: ChannelNesting,
     errors: &mut HashSet<LocalDefId>,
 ) {
-    // Prepare the values used by this stage.
     let ty::Adt(definition, arguments) = ty.kind() else {
         return;
     };
     let path = cx.tcx.def_path_str(definition.did());
 
-    // Prepare the values used by this stage.
     let nesting = nesting.entering(&path);
     let channel = nesting.is_inside();
     if channel && let Some(local) = definition.did().as_local() {
         errors.insert(local);
     }
 
-    // Process the candidates handled by this stage.
     for nested in arguments.types() {
         if channel
             && let ty::Adt(nested_definition, _) = nested.kind()
@@ -132,18 +129,34 @@ fn collect_channel_errors(
         {
             errors.insert(local);
         }
-        collect_channel_errors(cx, nested, nesting, errors);
+        channel_nesting_collect_errors(cx, nested, nesting, errors);
     }
 }
 
+// -----------------------------------------------------------------------------
+// ThreadSafetyCandidate: Blocking field evidence
+// -----------------------------------------------------------------------------
+
+/// Public error and the fields preventing thread-safe transport.
+struct ThreadSafetyCandidate {
+    /// Error declaration receiving a later diagnostic.
+    span: Span,
+    /// Local-only field representations.
+    blockers: Vec<String>,
+}
+
+// -----------------------------------------------------------------------------
+// ThiserrorNonSendSyncPublicErrors: Public channel safety policy
+// -----------------------------------------------------------------------------
+
+/// Correlates local-only public errors with channel-returning APIs.
 #[derive(Default)]
-/// Carries the `ThiserrorNonSendSyncPublicErrors` state used by this analysis.
 struct ThiserrorNonSendSyncPublicErrors {
-    /// Stores the `catalog` value used by this analysis.
+    /// Local derived error contracts.
     catalog: ThiserrorContractCatalog,
-    /// Stores the `errors` value used by this analysis.
-    errors: HashMap<LocalDefId, ErrorCandidate>,
-    /// Stores the `boundaries` value used by this analysis.
+    /// Public errors with fields that block thread-safe transport.
+    errors: HashMap<LocalDefId, ThreadSafetyCandidate>,
+    /// Public channel-returning functions indexed by transported error type.
     boundaries: HashMap<LocalDefId, String>,
 }
 
@@ -157,13 +170,11 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for ThiserrorNonSendSyncPublicErrors {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() {
             return;
         }
 
-        // Classify the current analyze_candidate.
         match item.kind {
             ItemKind::Struct(_, _, data) | ItemKind::Union(_, _, data) => {
                 self.record_error(cx, item, data.fields().iter());
@@ -176,29 +187,14 @@ impl LateLintPass<'_> for ThiserrorNonSendSyncPublicErrors {
                 self.record_error(cx, item, fields);
             }
             ItemKind::Fn { .. } if cx.tcx.visibility(item.owner_id.def_id).is_public() => {
-                // Prepare the values used by this stage.
-                let output = cx
-                    .tcx
-                    .fn_sig(item.owner_id.def_id)
-                    .instantiate_identity()
-                    .skip_binder()
-                    .output();
-                let mut errors = HashSet::new();
-
-                // Perform the next step of the analysis.
-                collect_channel_errors(cx, output, ChannelNesting::OutsideChannel, &mut errors);
-                for error in errors {
-                    self.boundaries
-                        .insert(error, cx.tcx.item_name(item.owner_id.def_id).to_string());
-                }
+                self.record_public_channel_boundary(cx, item);
             }
             _ => {}
         }
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for (definition, analyze_candidate) in self.errors.drain() {
-            // Prepare the values used by this stage.
+        for (definition, candidate) in self.errors.drain() {
             let Some(boundary) = self.boundaries.get(&definition) else {
                 continue;
             };
@@ -206,11 +202,10 @@ impl LateLintPass<'_> for ThiserrorNonSendSyncPublicErrors {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
+                span: candidate.span,
                 boundary: boundary.clone(),
-                blockers: analyze_candidate.blockers,
+                blockers: candidate.blockers,
             }
             .emit(cx);
         }
@@ -218,19 +213,33 @@ impl LateLintPass<'_> for ThiserrorNonSendSyncPublicErrors {
 }
 
 impl ThiserrorNonSendSyncPublicErrors {
-    /// Performs the `record_error` operation for this value.
+    /// Records local errors transported by one public channel-returning function.
+    fn record_public_channel_boundary(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        let output = cx
+            .tcx
+            .fn_sig(item.owner_id.def_id)
+            .instantiate_identity()
+            .skip_binder()
+            .output();
+        let mut errors = HashSet::new();
+        channel_nesting_collect_errors(cx, output, ChannelNesting::OutsideChannel, &mut errors);
+        for error in errors {
+            self.boundaries
+                .insert(error, cx.tcx.item_name(item.owner_id.def_id).to_string());
+        }
+    }
+
+    /// Records public errors containing known local-only field representations.
     fn record_error<'hir>(
         &mut self,
         cx: &LateContext<'_>,
         item: &Item<'_>,
         fields: impl IntoIterator<Item = &'hir rustc_hir::FieldDef<'hir>>,
     ) {
-        // Reject inputs that do not satisfy this stage.
         if !cx.tcx.visibility(item.owner_id.def_id).is_public() {
             return;
         }
 
-        // Prepare the values used by this stage.
         let blockers = fields
             .into_iter()
             .filter_map(|field| {
@@ -246,15 +255,13 @@ impl ThiserrorNonSendSyncPublicErrors {
             })
             .collect::<Vec<_>>();
 
-        // Reject inputs that do not satisfy this stage.
         if blockers.is_empty() {
             return;
         }
 
-        // Update the accumulated analysis state.
         self.errors.insert(
             item.owner_id.def_id,
-            ErrorCandidate {
+            ThreadSafetyCandidate {
                 span: item.span,
                 blockers,
             },

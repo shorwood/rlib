@@ -15,15 +15,15 @@ use crate::utils::diagnostic::LateViolation;
 // Violation: Hydration shape mismatch
 // -----------------------------------------------------------------------------
 
-/// Carries the `Violation` state used by this analysis.
+/// Environment branch whose server and browser markup shapes cannot hydrate safely.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `server_shape` value used by this analysis.
+    /// Markup structure produced when the server-only branch is selected.
     server_shape: Vec<String>,
-    /// Stores the `browser_shape` value used by this analysis.
+    /// Markup structure produced when the browser-only branch is selected.
     browser_shape: Vec<String>,
 }
 
@@ -67,7 +67,7 @@ impl LateViolation for Violation {
 // LeptosHydrationDivergentViews: Initial view parity policy
 // -----------------------------------------------------------------------------
 
-/// Carries the `LeptosHydrationDivergentViews` state used by this analysis.
+/// Rejects environment branches that produce incompatible hydration structures.
 struct LeptosHydrationDivergentViews;
 
 dylint_linting::impl_late_lint! {
@@ -79,7 +79,7 @@ dylint_linting::impl_late_lint! {
 }
 
 impl LeptosHydrationDivergentViews {
-    /// Performs the `environment_condition` operation for this value.
+    /// Recognizes a condition that selects server or browser execution.
     fn environment_condition(source: &str) -> bool {
         let compact = source.split_ascii_whitespace().collect::<String>();
         compact.contains("cfg!(target_arch=\"wasm32\")")
@@ -87,7 +87,7 @@ impl LeptosHydrationDivergentViews {
             || compact.contains("cfg!(feature=\"hydrate\")")
     }
 
-    /// Performs the `view_shape` operation for this value.
+    /// Reduces one branch to the element and text structure relevant to hydration.
     fn view_shape(source: &str) -> Option<Vec<String>> {
         if !source.contains("view!") {
             return None;
@@ -120,7 +120,6 @@ impl LeptosHydrationDivergentViews {
 
 impl LateLintPass<'_> for LeptosHydrationDivergentViews {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
-        // Reject inputs that do not satisfy this stage.
         if expression.span.from_expansion() {
             return;
         }
@@ -129,7 +128,6 @@ impl LateLintPass<'_> for LeptosHydrationDivergentViews {
         };
         let source_map = cx.sess().source_map();
 
-        // Prepare the values used by this stage.
         let Ok(condition_source) = source_map.span_to_snippet(condition.span) else {
             return;
         };
@@ -137,7 +135,6 @@ impl LateLintPass<'_> for LeptosHydrationDivergentViews {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Ok(then_source) = source_map.span_to_snippet(then_branch.span) else {
             return;
         };
@@ -145,7 +142,6 @@ impl LateLintPass<'_> for LeptosHydrationDivergentViews {
             return;
         };
 
-        // Prepare the values used by this stage.
         let (Some(then_shape), Some(else_shape)) = (
             Self::view_shape(&then_source),
             Self::view_shape(&else_source),
@@ -153,12 +149,10 @@ impl LateLintPass<'_> for LeptosHydrationDivergentViews {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if then_shape == else_shape {
             return;
         }
 
-        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
             span: expression.span,

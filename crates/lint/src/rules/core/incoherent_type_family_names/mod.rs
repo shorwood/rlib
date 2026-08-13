@@ -52,12 +52,9 @@ impl LateViolation for Violation {
     }
 
     fn emit(self, cx: &LateContext<'_>) {
-        // Render the stable diagnostic layers before moving declaration labels.
         let primary_message = self.primary_message().into_owned();
         let rationale_message = self.rationale_message().into_owned();
         let remediation_message = self.remediation_message().into_owned();
-
-        // Emit the stable layers before consuming declaration-specific labels.
         cx.emit_span_lint(
             INCOHERENT_TYPE_FAMILY_NAMES,
             self.span,

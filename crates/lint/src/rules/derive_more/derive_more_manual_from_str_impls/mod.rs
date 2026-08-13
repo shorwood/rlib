@@ -13,13 +13,17 @@ use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derivable string parser implementation
+// -----------------------------------------------------------------------------
+
+/// Transparent parsing implementation reproducible by `derive_more`.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: String,
 }
 
@@ -58,7 +62,7 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `exact_parse_receiver` step of the lint analysis.
+/// Recognizes parsing that forwards the complete input to a newtype field parser.
 fn exact_parse_receiver(expression: &syn::Expr, parameter: &syn::Ident) -> bool {
     match expression {
         syn::Expr::MethodCall(parse) => {
@@ -75,9 +79,8 @@ fn exact_parse_receiver(expression: &syn::Expr, parameter: &syn::Ident) -> bool 
     }
 }
 
-/// Performs the `exact_forwarding_source` step of the lint analysis.
+/// Proves that `FromStr` only parses and wraps a single field.
 fn exact_forwarding_source(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
-    // Prepare the values used by this stage.
     let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
         return false;
     };
@@ -85,7 +88,6 @@ fn exact_forwarding_source(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
         return false;
     };
     let [syn::FnArg::Typed(parameter)] = method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
-    // Perform the next step of the analysis.
     else {
         return false;
     };
@@ -93,7 +95,6 @@ fn exact_forwarding_source(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
         return false;
     };
 
-    // Prepare the values used by this stage.
     let [syn::Stmt::Expr(expression, _)] = method.block.stmts.as_slice() else {
         return false;
     };
@@ -101,7 +102,6 @@ fn exact_forwarding_source(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
         return false;
     };
 
-    // Reject inputs that do not satisfy this stage.
     if map.method != "map" || map.args.len() != 1 {
         return false;
     }
@@ -109,14 +109,17 @@ fn exact_forwarding_source(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
         return false;
     };
 
-    // Reject inputs that do not satisfy this stage.
     if !constructor.path.is_ident("Self") {
         return false;
     }
     exact_parse_receiver(map.receiver.as_ref(), &parameter.ident)
 }
 
-/// Carries the `DeriveMoreManualFromStrImpls` state used by this analysis.
+// -----------------------------------------------------------------------------
+// DeriveMoreManualFromStrImpls: Declarative parsing policy
+// -----------------------------------------------------------------------------
+
+/// Finds transparent parsing implementations reproducible by `derive_more`.
 struct DeriveMoreManualFromStrImpls;
 
 dylint_linting::impl_late_lint! {
@@ -129,14 +132,12 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for DeriveMoreManualFromStrImpls {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        // Prepare the values used by this stage.
         let ImplItemKind::Fn(_, _) = item.kind else {
             return;
         };
         if item.ident.name.as_str() != "from_str"
             || item.span.from_expansion()
             || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
-        // Perform the next step of the analysis.
         {
             return;
         }
@@ -145,20 +146,17 @@ impl LateLintPass<'_> for DeriveMoreManualFromStrImpls {
             return;
         };
 
-        // Prepare the values used by this stage.
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return;
         };
         let Some(trait_id) = implementation_item
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
-        // Perform the next step of the analysis.
         else {
             return;
         };
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core"
             || cx.tcx.item_name(trait_id).as_str() != "FromStr"
-        // Perform the next step of the analysis.
         {
             return;
         }
@@ -167,7 +165,6 @@ impl LateLintPass<'_> for DeriveMoreManualFromStrImpls {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
             || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
@@ -176,7 +173,6 @@ impl LateLintPass<'_> for DeriveMoreManualFromStrImpls {
             return;
         }
 
-        // Perform the next step of the analysis.
         Violation {
             owner: item.hir_id(),
             span: parent.span,

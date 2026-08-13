@@ -8,7 +8,7 @@ LL | |     }
 LL | | }
    | |_^
    |
-   = note: thiserror `#[from]` and derive_more `From` can both generate this exact source-bearing variant conversion
+   = note: thiserror `#[from]` and derive_more `From` can both generate this source-bearing variant conversion
    = help: set `derive_resolution.error_variant_conversion` to `thiserror_from` or `derive_more_from`
    = note: `#[warn(framework_resolution_required)]` on by default
 

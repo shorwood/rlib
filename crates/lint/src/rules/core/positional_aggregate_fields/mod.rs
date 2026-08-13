@@ -52,7 +52,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// PositionalAggregateFields: Lint pass
+// PositionalAggregateFields: Named field policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that rejects aggregates with several unnamed field roles.

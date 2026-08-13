@@ -55,11 +55,8 @@ impl LateViolation for Violation {
     }
 
     fn emit(self, cx: &LateContext<'_>) {
-        // Render the stable explanation before moving optional source edits.
         let rationale = self.rationale_message().into_owned();
         let remediation = self.remediation_message().into_owned();
-
-        // Emit after resolving whether the exact order can be applied atomically.
         cx.tcx.emit_node_span_lint(
             MISORDERED_TYPE_DECLARATIONS,
             self.hir_id,
@@ -86,7 +83,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// MisorderedTypeDeclarations
+// MisorderedTypeDeclarations: Dependency-first type layout policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that dependency-orders nominal types within authored sections.
@@ -190,6 +187,7 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedTypeDeclarations {
             }
             let mut span = item.span;
             let mut defs = vec![item.owner_id.def_id];
+            let mut dependencies = item.dependencies(cx.tcx);
 
             // Extend the group through directly following inherent implementations.
             let following_impls = items[index + 1..].iter().take_while(|following| {
@@ -198,6 +196,7 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedTypeDeclarations {
             for following in following_impls {
                 span = span.with_hi(following.span.hi());
                 defs.push(following.owner_id.def_id);
+                dependencies.extend(following.dependencies(cx.tcx));
             }
 
             // Materialize one dependency node for the complete type declaration group.
@@ -216,7 +215,7 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedTypeDeclarations {
                 category: 0,
                 // Visibility is intentionally neutral: independent types retain authored order.
                 is_outward_visible: false,
-                dependencies: item.dependencies(cx.tcx),
+                dependencies,
             };
 
             // Combine the source identity and ordering constraints as one movable node.

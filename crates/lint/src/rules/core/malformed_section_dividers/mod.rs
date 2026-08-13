@@ -110,7 +110,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// MalformedSectionDividers: Lint pass
+// MalformedSectionDividers: Canonical divider syntax policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that validates configured section-divider syntax and width.

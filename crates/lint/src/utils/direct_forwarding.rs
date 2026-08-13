@@ -9,7 +9,7 @@ use rustc_lint::LateContext;
 use rustc_span::symbol::sym;
 
 /// A direct call and its semantic argument order.
-pub struct Call<'hir> {
+pub struct DirectCall<'hir> {
     /// Resolved function or method target.
     pub(crate) target: DefId,
     /// Receiver followed by explicit arguments for methods, or ordinary arguments for functions.
@@ -19,7 +19,7 @@ pub struct Call<'hir> {
 }
 
 /// The one call expression and parameter bindings found in a forwarding body.
-pub struct Expression<'hir> {
+pub struct DirectForwardingExpression<'hir> {
     /// Direct call remaining after transparent syntax is removed.
     pub(crate) forwarded: &'hir Expr<'hir>,
     /// Plain parameter binding identities in declaration order.
@@ -53,7 +53,7 @@ impl DirectForwarding {
         def_id: LocalDefId,
         header: FnHeader,
         body: &'hir Body<'hir>,
-    ) -> Option<Expression<'hir>> {
+    ) -> Option<DirectForwardingExpression<'hir>> {
         // Reject destructured parameters before matching their uses by identity.
         let mut parameter_bindings = Vec::with_capacity(body.params.len());
         for parameter in body.params {
@@ -67,7 +67,7 @@ impl DirectForwarding {
         if header.is_async() {
             return Self::async_expression(cx, body, &parameter_bindings);
         }
-        Some(Expression {
+        Some(DirectForwardingExpression {
             forwarded: Self::single_body_expression(body.value)?,
             bindings: parameter_bindings,
             typeck_owner: def_id,
@@ -79,7 +79,7 @@ impl DirectForwarding {
         cx: &LateContext<'_>,
         owner: LocalDefId,
         expression: &'hir Expr<'hir>,
-    ) -> Option<Call<'hir>> {
+    ) -> Option<DirectCall<'hir>> {
         match expression.kind {
             ExprKind::Call(callee, arguments) => Self::function_call(cx, callee, arguments),
             ExprKind::MethodCall(_, receiver, arguments, _) => {
@@ -118,14 +118,13 @@ impl DirectForwarding {
         cx: &LateContext<'_>,
         callee: &Expr<'_>,
         arguments: &'hir [Expr<'hir>],
-    ) -> Option<Call<'hir>> {
+    ) -> Option<DirectCall<'hir>> {
         // Resolve the authored path before packaging its ordinary argument order.
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
         let resolution = cx.qpath_res(&path, callee.hir_id);
 
-        // Prepare the values used by this stage.
         let target = match resolution {
             Res::SelfCtor(implementation) => cx
                 .tcx
@@ -137,7 +136,7 @@ impl DirectForwarding {
         };
 
         // Preserve ordinary authored argument order for exact-forwarding comparison.
-        Some(Call {
+        Some(DirectCall {
             target,
             arguments: arguments.iter().collect(),
             is_method: false,
@@ -151,7 +150,7 @@ impl DirectForwarding {
         expression: &'hir Expr<'hir>,
         receiver: &'hir Expr<'hir>,
         arguments: &'hir [Expr<'hir>],
-    ) -> Option<Call<'hir>> {
+    ) -> Option<DirectCall<'hir>> {
         // Resolve the selected method before rebuilding semantic argument order.
         let target = cx
             .tcx
@@ -162,7 +161,7 @@ impl DirectForwarding {
         forwarded.extend(arguments);
 
         // Preserve method syntax as evidence for receiver-specific policies.
-        Some(Call {
+        Some(DirectCall {
             target,
             arguments: forwarded,
             is_method: true,
@@ -174,7 +173,7 @@ impl DirectForwarding {
         cx: &LateContext<'hir>,
         body: &'hir Body<'hir>,
         outer_bindings: &[HirId],
-    ) -> Option<Expression<'hir>> {
+    ) -> Option<DirectForwardingExpression<'hir>> {
         // Resolve the compiler-generated coroutine block and binding remap.
         let ExprKind::Closure(closure) = body.value.kind else {
             return None;
@@ -211,7 +210,7 @@ impl DirectForwarding {
         }
 
         // Package the forwarded expression after semantic await validation.
-        Some(Expression {
+        Some(DirectForwardingExpression {
             forwarded,
             bindings: inner_bindings,
             typeck_owner: owner,

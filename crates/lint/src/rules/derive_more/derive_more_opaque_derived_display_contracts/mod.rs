@@ -13,19 +13,23 @@ use rustc_span::def_id::LocalDefId;
 use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Opaque generated display contract
+// -----------------------------------------------------------------------------
+
+/// Public derived display contract awaiting authored-format inspection.
 struct Candidate {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Public display contract whose generated grammar is not explicit in source.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: String,
 }
 
@@ -63,12 +67,16 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// DeriveMoreOpaqueDerivedDisplayContracts: Transparent display policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `DeriveMoreOpaqueDerivedDisplayContracts` state used by this analysis.
+/// Rejects public derived display formats whose authored grammar is not explicit.
 struct DeriveMoreOpaqueDerivedDisplayContracts {
-    /// Stores the `catalog` value used by this analysis.
+    /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored declarations awaiting association with `derive_more` expansions.
     candidates: Vec<Candidate>,
 }
 
@@ -86,7 +94,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
     }
 
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
-        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return;
         };
@@ -94,14 +101,12 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
             .tcx
             .typeck(expression.hir_id.owner.def_id)
             .type_dependent_def_id(expression.hir_id)
-        // Perform the next step of the analysis.
         else {
             return;
         };
         let path = cx.tcx.def_path_str(target);
         if cx.tcx.item_name(target).as_str() != "insert"
             || (!path.contains("collections::HashMap") && !path.contains("collections::BTreeMap"))
-        // Perform the next step of the analysis.
         {
             return;
         }
@@ -109,7 +114,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
             return;
         };
 
-        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, source, to_string_arguments, _) = key.kind else {
             return;
         };
@@ -117,7 +121,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(to_string) = cx
             .tcx
             .typeck(key.hir_id.owner.def_id)
@@ -126,7 +129,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if cx.tcx.item_name(to_string).as_str() != "to_string"
             || cx
                 .tcx
@@ -136,7 +138,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(definition) = cx
             .tcx
             .typeck(key.hir_id.owner.def_id)
@@ -144,7 +145,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
             .peel_refs()
             .ty_adt_def()
             .and_then(|definition| definition.did().as_local())
-        // Perform the next step of the analysis.
         else {
             return;
         };
@@ -155,18 +155,13 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Prepare the values used by this stage.
-            let Some(contract) = self
-                .catalog
-                .derived_type(analyze_candidate.definition, "Display")
-            else {
+        for candidate in self.candidates.drain(..) {
+            let Some(contract) = self.catalog.derived_type(candidate.definition, "Display") else {
                 continue;
             };
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
+                span: candidate.span,
                 name: contract.name.to_string(),
             }
             .emit(cx);

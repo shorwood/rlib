@@ -16,28 +16,31 @@ use rustc_span::Span;
 #[cfg(feature = "thiserror")]
 use crate::rules::framework::config::{DeriveResolutionConfig, ErrorImplementationProvider};
 #[cfg(feature = "thiserror")]
-use crate::rules::thiserror::manual_error::Catalog as ManualErrorCatalog;
+use crate::rules::thiserror::manual_error::ManualErrorCatalog;
 #[cfg(feature = "thiserror")]
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Candidate: Derivable manual error implementation evidence
+// -----------------------------------------------------------------------------
+
+/// Manual error implementation awaiting source-field and framework ownership checks.
 struct Candidate {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: String,
 }
 
 impl Candidate {
-    /// Performs the `analyze_candidate` step of the lint analysis.
-    fn analyze_candidate(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
-        // Prepare the values used by this stage.
+    /// Recovers the authored error implementation and its target type.
+    fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         let ItemKind::Impl(implementation) = item.kind else {
             return None;
         };
@@ -45,13 +48,11 @@ impl Candidate {
             return None;
         }
 
-        // Prepare the values used by this stage.
         let trait_id = implementation
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())?;
         if cx.tcx.item_name(trait_id).as_str() != "Error"
             || !matches!(cx.tcx.crate_name(trait_id.krate).as_str(), "core" | "std")
-        // Perform the next step of the analysis.
         {
             return None;
         }
@@ -60,7 +61,6 @@ impl Candidate {
             .impl_trait_ref(item.owner_id.def_id)
             .instantiate_identity();
 
-        // Prepare the values used by this stage.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return None;
         };
@@ -72,7 +72,6 @@ impl Candidate {
             return None;
         }
 
-        // Return the completed analysis result.
         Some(Self {
             definition: definition.did().as_local()?,
             owner: item.hir_id(),
@@ -82,13 +81,17 @@ impl Candidate {
     }
 }
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derivable manual error implementation
+// -----------------------------------------------------------------------------
+
+/// Error implementation proven equivalent to `derive_more`'s generated behavior.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: String,
 }
 
@@ -127,9 +130,8 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `conventional_source` step of the lint analysis.
+/// Finds the unique field conventionally acting as an error source.
 fn conventional_source(method: &syn::ImplItemFn) -> bool {
-    // Reject inputs that do not satisfy this stage.
     if method.sig.ident != "source" {
         return false;
     }
@@ -137,7 +139,6 @@ fn conventional_source(method: &syn::ImplItemFn) -> bool {
         return false;
     };
 
-    // Reject inputs that do not satisfy this stage.
     if !matches!(call.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Some")) {
         return false;
     }
@@ -145,19 +146,14 @@ fn conventional_source(method: &syn::ImplItemFn) -> bool {
         return false;
     }
 
-    // Prepare the values used by this stage.
     let Some(argument) = call.args.first() else {
         return false;
     };
 
-    // Prepare the values used by this stage.
     let syn::Expr::Reference(reference) = argument else {
         return false;
     };
 
-    // Perform the next step of the analysis.
-
-    // Perform the next step of the analysis.
     matches!(
         reference.expr.as_ref(),
         syn::Expr::Field(field)
@@ -166,9 +162,8 @@ fn conventional_source(method: &syn::ImplItemFn) -> bool {
     )
 }
 
-/// Performs the `is_derivable_error_impl` step of the lint analysis.
+/// Proves that `source` only returns the conventional field as a trait object.
 fn is_derivable_error_impl(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
-    // Prepare the values used by this stage.
     let Some(source) = AuthoredItemSource::for_item(cx, item) else {
         return false;
     };
@@ -176,7 +171,6 @@ fn is_derivable_error_impl(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
         return false;
     };
 
-    // Classify the current analyze_candidate.
     match implementation.items.as_slice() {
         [] => true,
         [syn::ImplItem::Fn(method)] => conventional_source(method),
@@ -184,20 +178,24 @@ fn is_derivable_error_impl(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
     }
 }
 
-/// Carries the `DeriveMoreManualErrorImpls` state used by this analysis.
+// -----------------------------------------------------------------------------
+// DeriveMoreManualErrorImpls: Declarative error policy
+// -----------------------------------------------------------------------------
+
+/// Correlates derivable `Error` implementations with overlapping thiserror policy.
 struct DeriveMoreManualErrorImpls {
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored declarations awaiting association with `derive_more` expansions.
     candidates: Vec<Candidate>,
     #[cfg(feature = "thiserror")]
-    /// Stores the `config` value used by this analysis.
+    /// Validated project policy applied by this lint pass.
     config: DeriveResolutionConfig,
     #[cfg(feature = "thiserror")]
-    /// Stores the `overlaps` value used by this analysis.
+    /// Types that thiserror already owns under the configured framework resolution.
     overlaps: ManualErrorCatalog,
 }
 
 impl DeriveMoreManualErrorImpls {
-    /// Performs the `new` operation for this value.
+    /// Starts error analysis with no manual implementations or framework overlaps.
     fn new() -> Self {
         Self {
             candidates: Vec::new(),
@@ -208,7 +206,7 @@ impl DeriveMoreManualErrorImpls {
         }
     }
 
-    /// Performs the `selected` operation for this value.
+    /// Resolves the configured provider when several implementations are available.
     fn selected(&self, definition: LocalDefId) -> bool {
         #[cfg(feature = "thiserror")]
         if self.overlaps.contains(definition) {
@@ -232,21 +230,21 @@ impl LateLintPass<'_> for DeriveMoreManualErrorImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         #[cfg(feature = "thiserror")]
         self.overlaps.check_item(cx, item);
-        let Some(analyze_candidate) = Candidate::analyze_candidate(cx, item) else {
+        let Some(candidate) = Candidate::from_item(cx, item) else {
             return;
         };
-        self.candidates.push(analyze_candidate);
+        self.candidates.push(candidate);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in mem::take(&mut self.candidates) {
-            if !self.selected(analyze_candidate.definition) {
+        for candidate in mem::take(&mut self.candidates) {
+            if !self.selected(candidate.definition) {
                 continue;
             }
             Violation {
-                owner: analyze_candidate.owner,
-                span: analyze_candidate.span,
-                name: analyze_candidate.name,
+                owner: candidate.owner,
+                span: candidate.span,
+                name: candidate.name,
             }
             .emit(cx);
         }

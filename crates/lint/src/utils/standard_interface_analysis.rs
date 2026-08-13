@@ -397,7 +397,7 @@ pub struct StandardInterfaceAnalysis {
     /// Types implementing `std::error::Error`.
     error: HashSet<LocalDefId>,
     /// Error implementations overriding `source`.
-    analyze_error_source: HashSet<LocalDefId>,
+    error_source: HashSet<LocalDefId>,
     /// Types implementing Serde serialization.
     serialized: HashSet<LocalDefId>,
 }
@@ -463,8 +463,8 @@ impl StandardInterfaceAnalysis {
             let formatting = self
                 .formatting
                 .iter()
-                .filter(|analyze_candidate| analyze_candidate.target == *target)
-                .map(|analyze_candidate| analyze_candidate.source.span);
+                .filter(|candidate| candidate.target == *target)
+                .map(|candidate| candidate.source.span);
             let mut presentation_spans = declaration.evidence.presentation_spans.clone();
             presentation_spans.extend(formatting);
 
@@ -502,7 +502,7 @@ impl StandardInterfaceAnalysis {
             if requires_error && !self.error.contains(target) {
                 missing.push(ErrorInterfaceContract::Error);
             }
-            if !causal_spans.is_empty() && !self.analyze_error_source.contains(target) {
+            if !causal_spans.is_empty() && !self.error_source.contains(target) {
                 missing.push(ErrorInterfaceContract::Source);
             }
             if missing.is_empty() {
@@ -545,10 +545,10 @@ impl StandardInterfaceAnalysis {
     pub fn formatting_findings(&self, cx: &LateContext<'_>) -> Vec<FormattingFinding> {
         let error_targets = self.reportable_error_targets();
         let mut families = HashMap::<LocalDefId, Vec<FormattingCandidate>>::new();
-        for analyze_candidate in &self.formatting {
+        for candidate in &self.formatting {
             // Error-specific and secret-bearing ownership supersede formatting advice.
-            let is_error = error_targets.contains(&analyze_candidate.target);
-            let declaration = self.types.get(&analyze_candidate.target);
+            let is_error = error_targets.contains(&candidate.target);
+            let declaration = self.types.get(&candidate.target);
             let is_secret = declaration.is_some_and(|ty| ty.classification.is_secret);
             if is_error || is_secret {
                 continue;
@@ -556,15 +556,15 @@ impl StandardInterfaceAnalysis {
 
             // Group every remaining helper by represented local type.
             families
-                .entry(analyze_candidate.target)
+                .entry(candidate.target)
                 .or_default()
-                .push(analyze_candidate.clone());
+                .push(candidate.clone());
         }
         let mut findings = Vec::new();
         for (target, mut family) in families {
             // Classify missing, competing, or redundant canonical ownership.
             let problem = if self.display.contains(&target) {
-                family.retain(|analyze_candidate| analyze_candidate.has_display_delegation);
+                family.retain(|candidate| candidate.has_display_delegation);
                 FormattingProblem::RedundantDisplay
             } else if family.len() > 1 {
                 FormattingProblem::Ambiguous
@@ -576,7 +576,7 @@ impl StandardInterfaceAnalysis {
             }
 
             // Retain one deterministically ordered family diagnostic.
-            family.sort_by_key(|analyze_candidate| analyze_candidate.source.span.lo());
+            family.sort_by_key(|candidate| candidate.source.span.lo());
             findings.push(FormattingFinding {
                 target_name: cx.tcx.def_path_str(target.to_def_id()),
                 candidates: family,
@@ -591,9 +591,7 @@ impl StandardInterfaceAnalysis {
     pub fn reportable_formatting_definitions(&self, cx: &LateContext<'_>) -> HashSet<LocalDefId> {
         let findings = self.formatting_findings(cx);
         let candidates = findings.into_iter().flat_map(|finding| finding.candidates);
-        candidates
-            .map(|analyze_candidate| analyze_candidate.def_id)
-            .collect()
+        candidates.map(|candidate| candidate.def_id).collect()
     }
 
     /// Records one eligible authored local struct or enum.
@@ -683,7 +681,7 @@ impl StandardInterfaceAnalysis {
                     == "source"
             });
             if has_source {
-                self.analyze_error_source.insert(target);
+                self.error_source.insert(target);
             }
             return;
         }
@@ -835,13 +833,13 @@ impl StandardInterfaceAnalysis {
         };
 
         // Combine source identity with protocol classification.
-        let analyze_candidate = FormattingCandidate {
+        let candidate = FormattingCandidate {
             def_id,
             source,
             has_display_delegation: evidence.has_display_delegation,
             target,
         };
-        self.formatting.push(analyze_candidate);
+        self.formatting.push(candidate);
     }
 
     /// Records inferred standard `Result` expressions as active error-interface evidence.

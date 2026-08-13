@@ -95,7 +95,7 @@ impl ResultOperation {
 // ResultCallParts: Resolved call syntax
 // -----------------------------------------------------------------------------
 
-/// Syntax-independent components of one `analyze_candidate` result operation.
+/// Syntax-independent components of one `candidate` result operation.
 struct ResultCallParts<'hir> {
     /// Associated operation selected by method resolution or UFCS.
     definition: DefId,

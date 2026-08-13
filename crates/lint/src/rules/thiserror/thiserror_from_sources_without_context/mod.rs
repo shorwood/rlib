@@ -18,29 +18,17 @@ use super::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `ErrorCandidate` state used by this analysis.
-struct ErrorCandidate {
-    /// Stores the `span` value used by this analysis.
-    span: Span,
-    /// Stores the `variant` value used by this analysis.
-    variant: String,
-}
+// -----------------------------------------------------------------------------
+// Violation: Transparent conversion losing operation context
+// -----------------------------------------------------------------------------
 
-/// Carries the `UseCandidate` state used by this analysis.
-struct UseCandidate {
-    /// Stores the `error` value used by this analysis.
-    error: LocalDefId,
-    /// Stores the `operations` value used by this analysis.
-    operations: BTreeSet<String>,
-}
-
-/// Carries the `Violation` state used by this analysis.
+/// `#[from]` variant shared by several distinct propagation sites.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Error enum receiving the diagnostic.
     span: Span,
-    /// Stores the `variant` value used by this analysis.
+    /// Transparent conversion variant.
     variant: String,
-    /// Stores the `operations` value used by this analysis.
+    /// Distinct propagated operations named in the rationale.
     operations: Vec<String>,
 }
 
@@ -80,44 +68,78 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `operation_name` step of the lint analysis.
-fn operation_name(expression: &syn::Expr) -> Option<String> {
-    // Classify the current analyze_candidate.
-    match expression {
-        syn::Expr::Call(call) => match call.func.as_ref() {
-            syn::Expr::Path(path) => Some(path.path.segments.last()?.ident.to_string()),
-            _ => None,
-        },
-        syn::Expr::MethodCall(call) => Some(call.method.to_string()),
-        _ => None,
-    }
+// -----------------------------------------------------------------------------
+// ContextCandidate: Error declarations and propagation uses
+// -----------------------------------------------------------------------------
+
+/// Transparent conversion variant retained for use-site correlation.
+struct ContextCandidateError {
+    /// Error enum receiving a later diagnostic.
+    span: Span,
+    /// Sole transparent `#[from]` variant.
+    variant: String,
 }
 
-#[derive(Default)]
-/// Carries the `TryOperationVisitor` state used by this analysis.
-struct TryOperationVisitor {
-    /// Stores the `operations` value used by this analysis.
+/// Function result and the propagated operations it contains.
+struct ContextCandidateUse {
+    /// Local error returned by the function.
+    error: LocalDefId,
+    /// Named calls immediately propagated with `?`.
     operations: BTreeSet<String>,
+}
+
+// -----------------------------------------------------------------------------
+// TryOperationVisitor: Propagated call discovery
+// -----------------------------------------------------------------------------
+
+/// Collects names of calls whose results are immediately propagated.
+#[derive(Default)]
+struct TryOperationVisitor {
+    /// Distinct operation names found beneath `?` expressions.
+    operations: BTreeSet<String>,
+}
+
+impl TryOperationVisitor {
+    /// Names direct function and method calls beneath a `?` expression.
+    fn operation_name(expression: &syn::Expr) -> Option<String> {
+        match expression {
+            syn::Expr::Call(call) => match call.func.as_ref() {
+                syn::Expr::Path(path) => Some(path.path.segments.last()?.ident.to_string()),
+                _ => None,
+            },
+            syn::Expr::MethodCall(call) => Some(call.method.to_string()),
+            _ => None,
+        }
+    }
 }
 
 impl<'ast> Visit<'ast> for TryOperationVisitor {
     fn visit_expr_try(&mut self, expression: &'ast syn::ExprTry) {
-        if let Some(operation) = operation_name(&expression.expr) {
+        if let Some(operation) = Self::operation_name(&expression.expr) {
             self.operations.insert(operation);
         }
         visit_expr_try(self, expression);
     }
 }
 
+// -----------------------------------------------------------------------------
+// ThiserrorFromSourcesWithoutContext: Context-preserving conversion policy
+// -----------------------------------------------------------------------------
+
+/// Correlates transparent conversion variants with their propagation sites.
 #[derive(Default)]
-/// Carries the `ThiserrorFromSourcesWithoutContext` state used by this analysis.
 struct ThiserrorFromSourcesWithoutContext {
-    /// Stores the `catalog` value used by this analysis.
+    /// Local derived error contracts.
     catalog: ThiserrorContractCatalog,
-    /// Stores the `errors` value used by this analysis.
-    errors: HashMap<LocalDefId, ErrorCandidate>,
-    /// Stores the `uses` value used by this analysis.
-    uses: Vec<UseCandidate>,
+    /// Transparent variants indexed by their error enum.
+    errors: HashMap<LocalDefId, ContextCandidateError>,
+    /// Functions returning those errors and their propagated operations.
+    uses: Vec<ContextCandidateUse>,
+}
+
+impl ThiserrorFromSourcesWithoutContext {
+    /// Smallest propagation chain that demonstrates repeated context loss.
+    const MINIMUM_PROPAGATION_OPERATIONS: usize = 2;
 }
 
 dylint_linting::impl_late_lint! {
@@ -142,21 +164,16 @@ impl LateLintPass<'_> for ThiserrorFromSourcesWithoutContext {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        /// Smallest propagation chain that demonstrates repeated context loss.
-        const MINIMUM_PROPAGATION_OPERATIONS: usize = 2;
-
         for usage in self.uses.drain(..) {
-            // Prepare the values used by this stage.
             let Some(error) = self.errors.get(&usage.error) else {
                 continue;
             };
             if self.catalog.derived_type(usage.error).is_none()
-                || usage.operations.len() < MINIMUM_PROPAGATION_OPERATIONS
+                || usage.operations.len() < Self::MINIMUM_PROPAGATION_OPERATIONS
             {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 span: error.span,
                 variant: error.variant.clone(),
@@ -172,9 +189,8 @@ impl LateLintPass<'_> for ThiserrorFromSourcesWithoutContext {
 }
 
 impl ThiserrorFromSourcesWithoutContext {
-    /// Performs the `record_error` operation for this value.
+    /// Records an enum with exactly one transparent `#[from]` variant.
     fn record_error(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Prepare the values used by this stage.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
@@ -182,7 +198,6 @@ impl ThiserrorFromSourcesWithoutContext {
             return;
         };
 
-        // Prepare the values used by this stage.
         let variants = enumeration
             .variants
             .iter()
@@ -202,24 +217,21 @@ impl ThiserrorFromSourcesWithoutContext {
             })
             .collect::<Vec<_>>();
 
-        // Prepare the values used by this stage.
         let [variant] = variants.as_slice() else {
             return;
         };
 
-        // Update the accumulated analysis state.
         self.errors.insert(
             item.owner_id.def_id,
-            ErrorCandidate {
+            ContextCandidateError {
                 span: item.span,
                 variant: variant.clone(),
             },
         );
     }
 
-    /// Performs the `record_uses` operation for this value.
+    /// Records propagated operations in a function returning a local error.
     fn record_uses(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Prepare the values used by this stage.
         let output = cx
             .tcx
             .fn_sig(item.owner_id.def_id)
@@ -227,7 +239,6 @@ impl ThiserrorFromSourcesWithoutContext {
             .skip_binder()
             .output();
 
-        // Prepare the values used by this stage.
         let ty::Adt(result, arguments) = output.kind() else {
             return;
         };
@@ -235,7 +246,6 @@ impl ThiserrorFromSourcesWithoutContext {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(error) = arguments
             .type_at(1)
             .ty_adt_def()
@@ -244,7 +254,6 @@ impl ThiserrorFromSourcesWithoutContext {
             return;
         };
 
-        // Prepare the values used by this stage.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
@@ -253,9 +262,8 @@ impl ThiserrorFromSourcesWithoutContext {
         };
         let mut visitor = TryOperationVisitor::default();
 
-        // Perform the next step of the analysis.
         visitor.visit_block(&function.block);
-        self.uses.push(UseCandidate {
+        self.uses.push(ContextCandidateUse {
             error,
             operations: visitor.operations,
         });

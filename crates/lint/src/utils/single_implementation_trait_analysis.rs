@@ -141,20 +141,17 @@ impl SingleImplementationTraitAnalyzer {
         let mut findings = Vec::new();
 
         // Evaluate each declaration against complete implementation and consumer evidence.
-        for analyze_candidate in self.traits.into_values() {
+        for candidate in self.traits.into_values() {
             // Reject any structural reason the trait is intentionally abstract or open-ended.
-            if analyze_candidate.is_sealed
-                || self.consumers.contains(&analyze_candidate.def_id)
-                || self
-                    .ineligible_implementations
-                    .contains(&analyze_candidate.def_id)
+            if candidate.is_sealed
+                || self.consumers.contains(&candidate.def_id)
+                || self.ineligible_implementations.contains(&candidate.def_id)
             {
                 continue;
             }
 
             // Require exactly one eligible implementation after considering every active block.
-            let Some(mut trait_implementations) = implementations.remove(&analyze_candidate.def_id)
-            else {
+            let Some(mut trait_implementations) = implementations.remove(&candidate.def_id) else {
                 continue;
             };
             if trait_implementations.len() != 1 {
@@ -166,7 +163,7 @@ impl SingleImplementationTraitAnalyzer {
             let exported = cx
                 .tcx
                 .effective_visibilities(())
-                .is_exported(analyze_candidate.def_id);
+                .is_exported(candidate.def_id);
             if !binary && package.preserves_exported_public_items() && exported {
                 continue;
             }
@@ -176,10 +173,10 @@ impl SingleImplementationTraitAnalyzer {
 
             // Preserve declaration evidence independently from its sole implementation.
             let declaration = SingleImplementationTraitDeclaration {
-                def_id: analyze_candidate.def_id,
-                hir_id: analyze_candidate.hir_id,
-                span: analyze_candidate.span,
-                name: analyze_candidate.name,
+                def_id: candidate.def_id,
+                hir_id: candidate.hir_id,
+                span: candidate.span,
+                name: candidate.name,
             };
 
             // Join both evidence records with the package-policy decision.
@@ -238,7 +235,7 @@ impl SingleImplementationTraitAnalyzer {
             || (is_exported && has_private_supertrait);
 
         // Retain the source identity only after every eligibility decision is complete.
-        let analyze_candidate = SingleImplementationTraitCandidate {
+        let candidate = SingleImplementationTraitCandidate {
             def_id: item.owner_id.def_id,
             hir_id: item.hir_id(),
             span: ident.span,
@@ -247,7 +244,7 @@ impl SingleImplementationTraitAnalyzer {
         };
 
         // Index the declaration by the identity shared with trait references and impl blocks.
-        self.traits.insert(item.owner_id.def_id, analyze_candidate);
+        self.traits.insert(item.owner_id.def_id, candidate);
     }
 
     /// Classifies one local trait implementation and retains concrete local evidence.
@@ -262,7 +259,7 @@ impl SingleImplementationTraitAnalyzer {
             return;
         };
 
-        // Foreign traits cannot match a analyze_candidate declared by this compilation.
+        // Foreign traits cannot match a candidate declared by this compilation.
         let Some(local_trait) = trait_ref.trait_ref.trait_def_id().and_then(DefId::as_local) else {
             return;
         };

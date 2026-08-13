@@ -19,9 +19,9 @@ use crate::utils::source_provenance::SpanProvenanceExt;
 // Violation: Missing code phase explanation diagnostic
 // -----------------------------------------------------------------------------
 
-/// Oversized direct statement phase without an authored explanation.
+/// Authored function phase whose purpose or scope remains unclear.
 struct Violation {
-    /// Continuous phase span used as the primary diagnostic location.
+    /// Phase span used as the primary diagnostic location.
     span: Span,
     /// Analyzer-derived message containing the measured phase size.
     primary_message: String,
@@ -36,7 +36,7 @@ impl LateViolation for Violation {
 
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
-            "the uninterrupted statements conceal the purpose and boundary of this stage of the function",
+            "visible phase boundaries should name a real transition, and each named phase should remain small enough to follow",
         )
     }
 
@@ -58,7 +58,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// MissingCodePhaseComments
+// MissingCodePhaseComments: Authored workflow boundary policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that requires explanations for oversized direct code phases.

@@ -14,15 +14,19 @@ use rustc_span::Span;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derivable operator implementation
+// -----------------------------------------------------------------------------
+
+/// Transparent operator implementation proven reproducible by `derive_more`.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: String,
-    /// Stores the `derive` value used by this analysis.
+    /// `derive_more` macro capable of replacing the implementation.
     derive: String,
 }
 
@@ -62,21 +66,21 @@ impl LateViolation for Violation {
     }
 }
 
-/// Classifies `Operator` cases used by this analysis.
+/// Syntax predicate required for each family of derivable operators.
 enum Operator {
-    /// Stores the `syn` value used by this analysis.
+    /// Syntax predicate for the corresponding binary operator token.
     Binary(
-        /// Predicate matching the supported binary `analyze_operator`.
+        /// Predicate matching the supported binary `operator`.
         fn(&syn::BinOp) -> bool,
     ),
-    /// Stores the `syn` value used by this analysis.
+    /// Syntax predicate for the corresponding unary operator token.
     Unary(
-        /// Predicate matching the supported unary `analyze_operator`.
+        /// Predicate matching the supported unary `operator`.
         fn(&syn::UnOp) -> bool,
     ),
-    /// Stores the `syn` value used by this analysis.
+    /// Syntax predicate for the corresponding assignment operator token.
     Assignment(
-        /// Predicate matching the supported assignment `analyze_operator`.
+        /// Predicate matching the supported assignment `operator`.
         fn(&syn::BinOp) -> bool,
     ),
 }
@@ -129,15 +133,15 @@ impl Operator {
         })
     }
 
-    /// Performs the `analyze_operator` step of the lint analysis.
-    fn analyze_operator(derive: &str) -> Option<Self> {
+    /// Returns whether the syntax operator matches this derive contract.
+    fn from_derive(derive: &str) -> Option<Self> {
         Self::binary(derive)
             .or_else(|| Self::unary(derive))
             .or_else(|| Self::assignment(derive))
     }
 }
 
-/// Performs the `constructed_argument` step of the lint analysis.
+/// Extracts the sole expression used to reconstruct a newtype result.
 fn constructed_argument(method: &syn::ImplItemFn) -> Option<&syn::Expr> {
     let [syn::Stmt::Expr(syn::Expr::Call(construction), _)] = method.block.stmts.as_slice() else {
         return None;
@@ -150,7 +154,7 @@ fn constructed_argument(method: &syn::ImplItemFn) -> Option<&syn::Expr> {
     construction.args.first()
 }
 
-/// Performs the `operator_method` step of the lint analysis.
+/// Returns the standard method name implemented by an operator derive.
 fn operator_method(derive: &str) -> &str {
     match derive {
         "Add" => "add",
@@ -179,7 +183,7 @@ fn operator_method(derive: &str) -> &str {
     }
 }
 
-/// Performs the `output_method` step of the lint analysis.
+/// Returns the associated output declaration required by non-assignment operators.
 fn output_method<'a>(items: &'a [syn::ImplItem], derive: &str) -> Option<&'a syn::ImplItemFn> {
     let [syn::ImplItem::Type(output), syn::ImplItem::Fn(method)] = items else {
         return None;
@@ -190,7 +194,7 @@ fn output_method<'a>(items: &'a [syn::ImplItem], derive: &str) -> Option<&'a syn
     .then_some(method)
 }
 
-/// Performs the `field_of` step of the lint analysis.
+/// Returns whether an expression selects a field from the named binding.
 fn field_of(expression: &syn::Expr, receiver: &str) -> bool {
     matches!(
         expression,
@@ -200,9 +204,8 @@ fn field_of(expression: &syn::Expr, receiver: &str) -> bool {
     )
 }
 
-/// Performs the `exact_operator_source` step of the lint analysis.
+/// Proves that an authored operator applies directly to corresponding newtype fields.
 fn exact_operator_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) -> bool {
-    // Prepare the values used by this stage.
     let Some(source) = AuthoredItemSource::for_item(cx, item) else {
         return false;
     };
@@ -210,27 +213,20 @@ fn exact_operator_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) ->
         return false;
     };
 
-    // Prepare the values used by this stage.
-    let Some(analyze_operator) = Operator::analyze_operator(derive) else {
+    let Some(operator) = Operator::from_derive(derive) else {
         return false;
     };
 
-    // Classify the current analyze_candidate.
-    match analyze_operator {
+    match operator {
         Operator::Binary(expected) => {
-            // Prepare the values used by this stage.
             let Some(method) = output_method(&implementation.items, derive) else {
                 return false;
             };
 
-            // Prepare the values used by this stage.
             let Some(argument) = constructed_argument(method) else {
                 return false;
             };
 
-            // Perform the next step of the analysis.
-
-            // Perform the next step of the analysis.
             matches!(argument, syn::Expr::Binary(operation)
                 if expected(&operation.op)
                     && field_of(&operation.left, "self")
@@ -247,7 +243,6 @@ fn exact_operator_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) ->
                 if expected(&operation.op) && field_of(&operation.expr, "self"))
         }
         Operator::Assignment(expected) => {
-            // Prepare the values used by this stage.
             let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
                 return false;
             };
@@ -255,7 +250,6 @@ fn exact_operator_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) ->
                 return false;
             }
             let [syn::Stmt::Expr(syn::Expr::Binary(operation), _)] = method.block.stmts.as_slice()
-            // Perform the next step of the analysis.
             else {
                 return false;
             };
@@ -266,7 +260,11 @@ fn exact_operator_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) ->
     }
 }
 
-/// Carries the `DeriveMoreManualOperatorImpls` state used by this analysis.
+// -----------------------------------------------------------------------------
+// DeriveMoreManualOperatorImpls: Declarative operator policy
+// -----------------------------------------------------------------------------
+
+/// Finds transparent operator implementations reproducible by `derive_more`.
 struct DeriveMoreManualOperatorImpls;
 
 dylint_linting::impl_late_lint! {
@@ -279,7 +277,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Prepare the values used by this stage.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
@@ -287,7 +284,6 @@ impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(trait_id) = implementation
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
@@ -296,15 +292,13 @@ impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
         };
         let derive_name = cx.tcx.item_name(trait_id);
 
-        // Prepare the values used by this stage.
         let derive = derive_name.as_str();
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core"
-            || Operator::analyze_operator(derive).is_none()
+            || Operator::from_derive(derive).is_none()
         {
             return;
         }
 
-        // Prepare the values used by this stage.
         let trait_ref = cx
             .tcx
             .impl_trait_ref(item.owner_id.def_id)
@@ -313,7 +307,6 @@ impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
             || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
@@ -322,7 +315,6 @@ impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
             return;
         }
 
-        // Perform the next step of the analysis.
         Violation {
             owner: item.hir_id(),
             span: item.span,

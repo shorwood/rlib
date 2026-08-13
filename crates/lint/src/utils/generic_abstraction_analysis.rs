@@ -469,7 +469,7 @@ impl GenericAbstractionAnalyzer {
             parameters,
         };
 
-        // Index the complete analyze_candidate after every eligibility decision is complete.
+        // Index the complete candidate after every eligibility decision is complete.
         self.declarations.insert(declaration.def_id, declaration);
     }
 

@@ -201,7 +201,7 @@ impl ForeignTypeAnalyzer {
                         .nominal_parameters
                         .iter()
                         .map(|parameter| parameter.def_id)
-                        .filter(|analyze_candidate| *analyze_candidate != foreign),
+                        .filter(|candidate| *candidate != foreign),
                 );
             }
         }

@@ -14,15 +14,19 @@ use rustc_span::Span;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derivable aggregation implementation
+// -----------------------------------------------------------------------------
+
+/// Transparent `Sum` or `Product` implementation reproducible by `derive_more`.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: String,
-    /// Stores the `derive` value used by this analysis.
+    /// `derive_more` macro capable of replacing the implementation.
     derive: String,
 }
 
@@ -62,9 +66,8 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `exact_aggregation_source` step of the lint analysis.
+/// Proves that aggregation maps inputs to the sole field and wraps the result unchanged.
 fn exact_aggregation_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) -> bool {
-    // Prepare the values used by this stage.
     let Some(source) = AuthoredItemSource::for_item(cx, item) else {
         return false;
     };
@@ -72,7 +75,6 @@ fn exact_aggregation_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str)
         return false;
     };
 
-    // Prepare the values used by this stage.
     let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
         return false;
     };
@@ -81,7 +83,6 @@ fn exact_aggregation_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str)
         return false;
     }
 
-    // Prepare the values used by this stage.
     let [syn::FnArg::Typed(parameter)] = method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
     else {
         return false;
@@ -90,7 +91,6 @@ fn exact_aggregation_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str)
         return false;
     };
 
-    // Prepare the values used by this stage.
     let [syn::Stmt::Expr(syn::Expr::Call(construction), _)] = method.block.stmts.as_slice() else {
         return false;
     };
@@ -103,7 +103,6 @@ fn exact_aggregation_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str)
         return false;
     };
 
-    // Reject inputs that do not satisfy this stage.
     if aggregation.method != expected_method || !aggregation.args.is_empty() {
         return false;
     }
@@ -111,7 +110,6 @@ fn exact_aggregation_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str)
         return false;
     };
 
-    // Reject inputs that do not satisfy this stage.
     if map.method != "map"
         || !matches!(map.receiver.as_ref(), syn::Expr::Path(path) if path.path.is_ident(&parameter.ident))
         || map.args.len() != 1
@@ -119,19 +117,14 @@ fn exact_aggregation_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str)
         return false;
     }
 
-    // Prepare the values used by this stage.
     let Some(syn::Expr::Closure(projection)) = map.args.first() else {
         return false;
     };
 
-    // Prepare the values used by this stage.
     let [syn::Pat::Ident(value)] = projection.inputs.iter().collect::<Vec<_>>().as_slice() else {
         return false;
     };
 
-    // Perform the next step of the analysis.
-
-    // Perform the next step of the analysis.
     matches!(
         projection.body.as_ref(),
         syn::Expr::Field(field)
@@ -140,7 +133,11 @@ fn exact_aggregation_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str)
     )
 }
 
-/// Carries the `DeriveMoreManualAggregationImpls` state used by this analysis.
+// -----------------------------------------------------------------------------
+// DeriveMoreManualAggregationImpls: Declarative aggregation policy
+// -----------------------------------------------------------------------------
+
+/// Finds `Sum` and `Product` implementations reproducible by `derive_more`.
 struct DeriveMoreManualAggregationImpls;
 
 dylint_linting::impl_late_lint! {
@@ -153,7 +150,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Prepare the values used by this stage.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
@@ -161,7 +157,6 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(trait_id) = implementation
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
@@ -170,7 +165,6 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
         };
         let derive_name = cx.tcx.item_name(trait_id);
 
-        // Prepare the values used by this stage.
         let derive = derive_name.as_str();
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core"
             || !matches!(derive, "Sum" | "Product")
@@ -178,7 +172,6 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
             return;
         }
 
-        // Prepare the values used by this stage.
         let trait_ref = cx
             .tcx
             .impl_trait_ref(item.owner_id.def_id)
@@ -187,7 +180,6 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
             || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
@@ -196,7 +188,6 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
             return;
         }
 
-        // Perform the next step of the analysis.
         Violation {
             owner: item.hir_id(),
             span: item.span,

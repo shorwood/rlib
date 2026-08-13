@@ -7,7 +7,7 @@ use rustc_lint::{LateContext, LintContext};
 use rustc_span::{BytePos, Span};
 
 /// Authored ordinary line comment with source position metadata.
-pub(super) struct Comment {
+pub(super) struct FunctionLayoutComment {
     /// Exact source range of the comment token.
     pub(super) span: Span,
     /// One-based physical source line containing the comment.
@@ -16,7 +16,7 @@ pub(super) struct Comment {
     pub(super) text: String,
 }
 
-impl Comment {
+impl FunctionLayoutComment {
     /// Converts lexer offsets into a source-mapped ordinary line comment.
     fn from_token(
         cx: &LateContext<'_>,
@@ -44,25 +44,25 @@ impl Comment {
 }
 
 /// Source-position queries colocated with compiler byte positions.
-pub(super) trait SourcePositionExt {
+pub(super) trait FunctionLayoutPositionExt {
     /// Maps this byte position to its one-based physical source line.
     fn source_line(self, cx: &LateContext<'_>) -> usize;
 }
 
-impl SourcePositionExt for BytePos {
+impl FunctionLayoutPositionExt for BytePos {
     fn source_line(self, cx: &LateContext<'_>) -> usize {
         cx.sess().source_map().lookup_char_pos(self).line
     }
 }
 
 /// Authored-source queries colocated with compiler spans.
-pub(super) trait SourceSpanExt {
+pub(super) trait FunctionLayoutSpanExt {
     /// Lexes all authored ordinary line comments from this source gap.
-    fn comments(self, cx: &LateContext<'_>) -> Vec<Comment>;
+    fn comments(self, cx: &LateContext<'_>) -> Vec<FunctionLayoutComment>;
 }
 
-impl SourceSpanExt for Span {
-    fn comments(self, cx: &LateContext<'_>) -> Vec<Comment> {
+impl FunctionLayoutSpanExt for Span {
+    fn comments(self, cx: &LateContext<'_>) -> Vec<FunctionLayoutComment> {
         if self.is_empty() || self.from_expansion() {
             return Vec::new();
         }
@@ -77,7 +77,9 @@ impl SourceSpanExt for Span {
             let length = usize::try_from(token.len).expect("token length should fit usize");
             let end = offset + length;
             if matches!(token.kind, TokenKind::LineComment { doc_style: None }) {
-                comments.push(Comment::from_token(cx, &source, self, offset, end));
+                comments.push(FunctionLayoutComment::from_token(
+                    cx, &source, self, offset, end,
+                ));
             }
             offset = end;
         }

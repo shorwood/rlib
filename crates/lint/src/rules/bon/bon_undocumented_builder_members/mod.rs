@@ -9,43 +9,46 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{BonAttributeAnalysis, builder_attribute, has_attribute, is_option_type};
+use super::utils::{BonAttributeAnalysis, OptionType};
 use crate::utils::diagnostic::EarlyViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Public member with undocumented generated behavior
+// -----------------------------------------------------------------------------
+
+/// Public builder member whose non-obvious setter contract lacks documentation.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Member type receiving the diagnostic.
     span: Span,
-    /// Stores the `member` value used by this analysis.
+    /// Public member named in the diagnostic.
     member: String,
-    /// Stores the `behavior` value used by this analysis.
+    /// Optional, default, conversion, or hidden behavior requiring explanation.
     behavior: &'static str,
 }
 
 impl Violation {
-    /// Performs the `member_violation` step of the lint analysis.
+    /// Classifies undocumented behavior attached to one builder member.
     fn member_violation(
         cx: &EarlyContext<'_>,
         attributes: &[rustc_ast::Attribute],
         ty_span: Span,
         member: &str,
     ) -> Option<Self> {
-        // Prepare the values used by this stage.
-        let builder_documents = builder_attribute(attributes).is_some_and(|attribute| {
-            BonAttributeAnalysis::source(cx, attribute).is_ok_and(|source| source.contains("doc"))
-        });
-        if has_attribute(attributes, "doc") || builder_documents {
+        let builder_documents =
+            BonAttributeAnalysis::builder(attributes).is_some_and(|attribute| {
+                BonAttributeAnalysis::source(cx, attribute)
+                    .is_ok_and(|source| source.contains("doc"))
+            });
+        if BonAttributeAnalysis::has(attributes, "doc") || builder_documents {
             return None;
         }
 
-        // Prepare the values used by this stage.
         let ty = match cx.sess().source_map().span_to_snippet(ty_span) {
             Ok(ty) => ty,
             Err(_error) => return None,
         };
-        let behavior = if is_option_type(&ty)
+        let behavior = if OptionType::is_option(&ty)
             && !BonAttributeAnalysis::builder_contains(cx, attributes, "required")
-        // Perform the next step of the analysis.
         {
             "optional"
         } else if BonAttributeAnalysis::builder_contains(cx, attributes, "default") {
@@ -63,7 +66,6 @@ impl Violation {
             "hidden initialization"
         };
 
-        // Return the completed analysis result.
         Some(Self {
             span: ty_span,
             member: member.trim().to_owned(),
@@ -106,8 +108,15 @@ impl EarlyViolation for Violation {
     }
 }
 
-/// Performs the `parameter_violation` step of the lint analysis.
-fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
+// -----------------------------------------------------------------------------
+// MemberDocumentation: Function and struct member adapters
+// -----------------------------------------------------------------------------
+
+/// Checks documentation on a builder function parameter.
+fn member_documentation_parameter_violation(
+    cx: &EarlyContext<'_>,
+    parameter: &Param,
+) -> Option<Violation> {
     let member = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
         Ok(member) => member,
         Err(_error) => return None,
@@ -115,8 +124,11 @@ fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Viola
     Violation::member_violation(cx, &parameter.attrs, parameter.ty.span, &member)
 }
 
-/// Performs the `field_violation` step of the lint analysis.
-fn field_violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Violation> {
+/// Checks documentation on a derived builder field.
+fn member_documentation_field_violation(
+    cx: &EarlyContext<'_>,
+    field: &FieldDef,
+) -> Option<Violation> {
     Violation::member_violation(
         cx,
         &field.attrs,
@@ -125,7 +137,11 @@ fn field_violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Violation>
     )
 }
 
-/// Carries the `BonUndocumentedBuilderMembers` state used by this analysis.
+// -----------------------------------------------------------------------------
+// BonUndocumentedBuilderMembers: Public setter documentation policy
+// -----------------------------------------------------------------------------
+
+/// Requires public generated setters to explain non-obvious behavior.
 struct BonUndocumentedBuilderMembers;
 
 dylint_linting::impl_pre_expansion_lint! {
@@ -142,9 +158,10 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
             return;
         }
         match &item.kind {
-            ItemKind::Fn(function) if builder_attribute(&item.attrs).is_some() => {
+            ItemKind::Fn(function) if BonAttributeAnalysis::builder(&item.attrs).is_some() => {
                 for parameter in &function.sig.decl.inputs {
-                    let Some(violation) = parameter_violation(cx, parameter) else {
+                    let Some(violation) = member_documentation_parameter_violation(cx, parameter)
+                    else {
                         continue;
                     };
                     violation.emit(cx);
@@ -154,7 +171,7 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
                 if BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
             {
                 for field in data.fields() {
-                    let Some(violation) = field_violation(cx, field) else {
+                    let Some(violation) = member_documentation_field_violation(cx, field) else {
                         continue;
                     };
                     violation.emit(cx);

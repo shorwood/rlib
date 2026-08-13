@@ -2,14 +2,13 @@
 
 ## What it does
 
-Finds public derived thiserror types exposed through public channel APIs while a concrete field type
-is known to prevent `Send` or `Sync`.
+Finds public thiserror types sent through public channel APIs even though one of their fields is
+known to be limited to the current thread.
 
 ## Why is this bad?
 
-The interface advertises a cross-thread transport for an error value that cannot satisfy the
-expected auto traits. This usually surfaces later as an integration failure far from the field that
-caused it.
+The interface promises that the error can cross threads, but its stored data breaks that promise.
+The compiler error often appears at a distant call site instead of beside the field that caused it.
 
 ## Example
 

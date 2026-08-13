@@ -145,7 +145,7 @@ impl RedundantWrapper {
         }
     }
 
-    /// Prevents receiver auto-deref from turning a meaningful adapter into a `analyze_candidate` while still
+    /// Prevents receiver auto-deref from turning a meaningful adapter into a `candidate` while still
     /// allowing wrappers that call a method from another impl block for the same type.
     fn shares_inherent_type(cx: &LateContext<'_>, wrapper: LocalDefId, target: LocalDefId) -> bool {
         // Require both functions to belong to inherent implementation blocks.
@@ -263,7 +263,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// NeedlessFunctionWrappers: Lint pass
+// NeedlessFunctionWrappers: Behavioral indirection policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that detects semantically empty forwarding functions.

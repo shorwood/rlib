@@ -131,7 +131,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// CrossFileStructImpls: Lint pass
+// CrossFileStructImpls: Type colocation policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that keeps direct impls in their struct's physical file.

@@ -14,15 +14,19 @@ use crate::rules::leptos::utils::view_structure::{
 };
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: View attribute under a mismatched heading
+// -----------------------------------------------------------------------------
+
+/// View attribute placed under a heading for a different responsibility.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `attribute` value used by this analysis.
+    /// Attribute whose semantic category contradicts its group heading.
     attribute: String,
-    /// Stores the `heading` value used by this analysis.
+    /// Authored heading that claims this group.
     heading: String,
 }
 
@@ -69,11 +73,15 @@ struct DeclaredCategory {
     words: &'static [&'static str],
 }
 
-/// Carries the `LeptosMismatchedViewAttributeGroups` state used by this analysis.
+// -----------------------------------------------------------------------------
+// LeptosMismatchedViewAttributeGroups: Coherent attribute grouping policy
+// -----------------------------------------------------------------------------
+
+/// Verifies that each view attribute matches its authored responsibility heading.
 struct LeptosMismatchedViewAttributeGroups {
-    /// Stores the `config` value used by this analysis.
+    /// Validated project policy applied by this lint pass.
     config: LeptosViewStructureConfig,
-    /// Stores the `views` value used by this analysis.
+    /// Parsed `view!` invocations awaiting heading-to-attribute comparison.
     views: ViewCallSites,
 }
 
@@ -110,7 +118,7 @@ impl LeptosMismatchedViewAttributeGroups {
         },
     ];
 
-    /// Performs the `new` operation for this value.
+    /// Starts view analysis with no parsed macro invocations.
     fn new() -> Self {
         Self {
             config: LeptosViewStructureConfig::from_config(),
@@ -118,12 +126,10 @@ impl LeptosMismatchedViewAttributeGroups {
         }
     }
 
-    /// Performs the `declared_category` operation for this value.
+    /// Maps an authored group heading to the responsibility it declares.
     fn declared_category(heading: &str) -> Option<ViewAttributeCategory> {
-        // Prepare the values used by this stage.
         let heading = heading.to_ascii_lowercase();
 
-        // Prepare the values used by this stage.
         let matches = Self::DECLARED_CATEGORIES
             .iter()
             .filter_map(|declared| {
@@ -135,16 +141,14 @@ impl LeptosMismatchedViewAttributeGroups {
             })
             .collect::<Vec<_>>();
 
-        // Prepare the values used by this stage.
         let [category] = matches.as_slice() else {
             return None;
         };
         Some(*category)
     }
 
-    /// Performs the `compatible` operation for this value.
+    /// Returns whether an attribute belongs under the declared responsibility.
     fn compatible(declared: ViewAttributeCategory, actual: ViewAttributeCategory) -> bool {
-        // Perform the next step of the analysis.
         declared == actual
             || actual == ViewAttributeCategory::Other
             || matches!(
@@ -182,12 +186,10 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMismatchedViewAttributeGroups {
                     continue;
                 };
                 for attribute in group.attributes {
-                    // Reject inputs that do not satisfy this stage.
                     if Self::compatible(declared, attribute.category) {
                         continue;
                     }
 
-                    // Perform the next step of the analysis.
                     Violation {
                         owner: view.owner,
                         span: attribute.span,

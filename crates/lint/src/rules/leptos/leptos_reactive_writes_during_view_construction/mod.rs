@@ -125,7 +125,6 @@ impl LeptosReactiveWritesDuringViewConstruction {
             return false;
         };
 
-        // Prepare the values used by this stage.
         let Some(definition) = cx
             .tcx
             .type_of(implementation)

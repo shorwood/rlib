@@ -7,7 +7,7 @@ LL | |         fn works() {}
 LL | |     }
    | |_____^
    |
-   = note: without an explicit boundary, neighboring declarations do not reveal whether they intentionally form one naming family
+   = note: without explicit boundaries, readers must infer whether neighboring declarations form one responsibility or several
    = help: add a divider for `Tests`, after first checking whether any outlier should be renamed into that family
 note: the lint level is defined here
   --> $DIR/active_tests.rs:4:9

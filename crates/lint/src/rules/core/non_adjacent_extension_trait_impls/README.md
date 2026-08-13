@@ -29,7 +29,6 @@ impl ItemExt for Item<'_> {
 
 ## Use instead
 
-
 Keep the complete extension beside its declaration:
 
 ```rust

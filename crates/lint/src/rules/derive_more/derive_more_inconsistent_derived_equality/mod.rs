@@ -16,21 +16,25 @@ use rustc_span::{Span, Symbol};
 use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `EqualitySelection` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Inconsistent generated equality laws
+// -----------------------------------------------------------------------------
+
+/// Fields omitted from `derive_more` equality for one local type.
 struct EqualitySelection {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: Symbol,
-    /// Stores the `skipped` value used by this analysis.
+    /// Number of fields deliberately excluded from equality.
     skipped: usize,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Equality selection paired with generated law traits that observe different fields.
 struct Violation {
-    /// Stores the `selection` value used by this analysis.
+    /// Authored equality field selection that establishes the mismatch.
     selection: EqualitySelection,
-    /// Stores the `conflicting` value used by this analysis.
+    /// Generated law traits that still observe the skipped fields.
     conflicting: Vec<&'static str>,
 }
 
@@ -85,9 +89,52 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `equality_skip_count` step of the lint analysis.
+/// Identifies a generated law trait and the local type it governs.
+struct GeneratedLawTrait {
+    /// Local type receiving the generated implementation.
+    target: LocalDefId,
+    /// Law trait implemented by the generated code.
+    contract: &'static str,
+}
+
+impl GeneratedLawTrait {
+    /// Recognizes a generated hash or ordering implementation.
+    fn for_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+        if !matches!(item.kind, ItemKind::Impl(_)) {
+            return None;
+        }
+        let trait_ref = cx
+            .tcx
+            .impl_opt_trait_ref(item.owner_id.def_id)?
+            .instantiate_identity();
+
+        let contract = match cx.tcx.item_name(trait_ref.def_id).as_str() {
+            "Hash" => "Hash",
+            "Ord" => "Ord",
+            _ => return None,
+        };
+
+        let is_matching_derive = item.span.macro_backtrace().any(|expansion| {
+            expansion
+                .macro_def_id
+                .is_some_and(|definition| cx.tcx.item_name(definition).as_str() == contract)
+        });
+
+        if !is_matching_derive {
+            return None;
+        }
+        let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
+            return None;
+        };
+        Some(Self {
+            target: definition.did().as_local()?,
+            contract,
+        })
+    }
+}
+
+/// Counts fields omitted from `derive_more` equality.
 fn equality_skip_count(cx: &LateContext<'_>, item: &Item<'_>) -> usize {
-    // Prepare the values used by this stage.
     let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
         return 0;
     };
@@ -95,7 +142,6 @@ fn equality_skip_count(cx: &LateContext<'_>, item: &Item<'_>) -> usize {
         return 0;
     };
 
-    // Perform the next step of the analysis.
     item.fields
         .iter()
         .filter(|field| {
@@ -119,62 +165,18 @@ fn equality_skip_count(cx: &LateContext<'_>, item: &Item<'_>) -> usize {
         .count()
 }
 
-/// Identifies a generated law trait and the local type it governs.
-struct GeneratedLawTrait {
-    /// Local type receiving the generated implementation.
-    target: LocalDefId,
-    /// Law trait implemented by the generated code.
-    contract: &'static str,
-}
-
-impl GeneratedLawTrait {
-    /// Recognizes a generated hash or ordering implementation.
-    fn for_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
-        // Reject inputs that do not satisfy this stage.
-        if !matches!(item.kind, ItemKind::Impl(_)) {
-            return None;
-        }
-        let trait_ref = cx
-            .tcx
-            .impl_opt_trait_ref(item.owner_id.def_id)?
-            .instantiate_identity();
-
-        // Prepare the values used by this stage.
-        let contract = match cx.tcx.item_name(trait_ref.def_id).as_str() {
-            "Hash" => "Hash",
-            "Ord" => "Ord",
-            _ => return None,
-        };
-
-        // Prepare the values used by this stage.
-        let is_matching_derive = item.span.macro_backtrace().any(|expansion| {
-            expansion
-                .macro_def_id
-                .is_some_and(|definition| cx.tcx.item_name(definition).as_str() == contract)
-        });
-
-        // Reject inputs that do not satisfy this stage.
-        if !is_matching_derive {
-            return None;
-        }
-        let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
-            return None;
-        };
-        Some(Self {
-            target: definition.did().as_local()?,
-            contract,
-        })
-    }
-}
+// -----------------------------------------------------------------------------
+// DeriveMoreInconsistentDerivedEquality: Coherent equality policy
+// -----------------------------------------------------------------------------
 
 #[derive(Default)]
-/// Carries the `DeriveMoreInconsistentDerivedEquality` state used by this analysis.
+/// Correlates `derive_more` equality selections with generated hash and order laws.
 struct DeriveMoreInconsistentDerivedEquality {
-    /// Stores the `catalog` value used by this analysis.
+    /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,
-    /// Stores the `selections` value used by this analysis.
+    /// Per-type equality selections recovered from authored attributes.
     selections: HashMap<LocalDefId, EqualitySelection>,
-    /// Stores the `law_traits` value used by this analysis.
+    /// Generated `Hash` and `Ord` implementations awaiting cross-contract comparison.
     law_traits: HashMap<LocalDefId, HashSet<&'static str>>,
 }
 
@@ -188,7 +190,6 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreInconsistentDerivedEquality {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() {
             if let Some(generated) = GeneratedLawTrait::for_item(cx, item) {
@@ -200,19 +201,15 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreInconsistentDerivedEquality {
             return;
         }
 
-        // Prepare the values used by this stage.
         let ItemKind::Struct(identifier, _, _) = item.kind else {
             return;
         };
         let skipped = equality_skip_count(cx, item);
 
-        // Reject inputs that do not satisfy this stage.
         if skipped == 0 {
             return;
         }
 
-        // Update the accumulated analysis state.
-        // Update the accumulated analysis state.
         self.selections.insert(
             item.owner_id.def_id,
             EqualitySelection {
@@ -225,7 +222,6 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreInconsistentDerivedEquality {
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         for (definition, selection) in self.selections.drain() {
-            // Reject inputs that do not satisfy this stage.
             if self.catalog.derived_type(definition, "PartialEq").is_none() {
                 continue;
             }
@@ -233,13 +229,11 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreInconsistentDerivedEquality {
                 continue;
             };
 
-            // Prepare the values used by this stage.
             let conflicting = ["Hash", "Ord"]
                 .into_iter()
                 .filter(|contract| contracts.contains(contract))
                 .collect::<Vec<_>>();
 
-            // Reject inputs that do not satisfy this stage.
             if conflicting.is_empty() {
                 continue;
             }

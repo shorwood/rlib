@@ -12,11 +12,15 @@ use rustc_span::Span;
 use super::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Malformed diagnostic code
+// -----------------------------------------------------------------------------
+
+/// Diagnostic code whose spelling is unsuitable as a stable identifier.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Diagnostic declaration carrying the code.
     span: Span,
-    /// Stores the `code` value used by this analysis.
+    /// Authored code quoted in the diagnostic.
     code: String,
 }
 
@@ -54,15 +58,14 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `valid_code` step of the lint analysis.
+/// Accepts namespaced snake-case codes and conventional letter-number codes.
 fn valid_code(code: &str) -> bool {
     /// Namespace and local name required by a qualified diagnostic code.
     const MINIMUM_QUALIFIED_CODE_SEGMENTS: usize = 2;
 
-    // Prepare the values used by this stage.
     let segments = code.split("::").collect::<Vec<_>>();
 
-    // Reject inputs that do not satisfy this stage.
+    // Qualified codes reserve each segment for a stable machine-oriented name.
     if segments.len() >= MINIMUM_QUALIFIED_CODE_SEGMENTS {
         return segments.iter().all(|segment| {
             !segment.is_empty()
@@ -76,10 +79,8 @@ fn valid_code(code: &str) -> bool {
         });
     }
 
-    // Prepare the values used by this stage.
     let letters = code.chars().take_while(char::is_ascii_alphabetic).count();
 
-    // Perform the next step of the analysis.
     letters > 0
         && letters < code.len()
         && code[..letters]
@@ -90,9 +91,8 @@ fn valid_code(code: &str) -> bool {
             .all(|character| character.is_ascii_digit())
 }
 
-/// Performs the `check_code` step of the lint analysis.
+/// Reports a present code that does not use either accepted shape.
 fn check_code(cx: &LateContext<'_>, span: Span, code: Option<&str>) {
-    // Prepare the values used by this stage.
     let Some(code) = code else {
         return;
     };
@@ -100,7 +100,6 @@ fn check_code(cx: &LateContext<'_>, span: Span, code: Option<&str>) {
         return;
     }
 
-    // Perform the next step of the analysis.
     Violation {
         span,
         code: code.to_owned(),
@@ -108,10 +107,14 @@ fn check_code(cx: &LateContext<'_>, span: Span, code: Option<&str>) {
     .emit(cx);
 }
 
+// -----------------------------------------------------------------------------
+// MietteMalformedDiagnosticCodes: Stable code spelling policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `MietteMalformedDiagnosticCodes` state used by this analysis.
+/// Collects derived diagnostic codes before validating their spelling.
 struct MietteMalformedDiagnosticCodes {
-    /// Stores the `catalog` value used by this analysis.
+    /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
 

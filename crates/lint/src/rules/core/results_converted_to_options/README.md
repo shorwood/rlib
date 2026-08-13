@@ -25,7 +25,6 @@ let cached = load().ok();
 
 ## Use instead
 
-
 Keep the Result intact, or make the translation reviewable in hand-written control flow:
 
 ```rust

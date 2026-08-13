@@ -14,29 +14,33 @@ use super::contracts::{SerdeAttributes, SerdeContractCatalog};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Asymmetric serialization contract
+// -----------------------------------------------------------------------------
+
+/// Public Serde type awaiting comparison of its two wire directions.
 struct Candidate {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `declaration` value used by this analysis.
+    /// Qualified declaration name shown in the diagnostic.
     declaration: String,
-    /// Stores the `serialize` value used by this analysis.
+    /// Effective name written during serialization.
     serialize: String,
-    /// Stores the `deserialize` value used by this analysis.
+    /// Primary name accepted during deserialization.
     deserialize: String,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Public type with incompatible serialization and deserialization contracts.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `declaration` value used by this analysis.
+    /// Qualified declaration name shown in the diagnostic.
     declaration: String,
-    /// Stores the `serialize` value used by this analysis.
+    /// Effective name written during serialization.
     serialize: String,
-    /// Stores the `deserialize` value used by this analysis.
+    /// Primary name accepted during deserialization.
     deserialize: String,
 }
 
@@ -76,11 +80,15 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
-/// Carries the `SerdeAsymmetricSerdeContracts` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeAsymmetricSerdeContracts: Symmetric wire-contract policy
+// -----------------------------------------------------------------------------
+
+/// Finds public types whose serialization and deserialization contracts disagree.
 struct SerdeAsymmetricSerdeContracts {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored Serde declarations awaiting crate-wide contract comparison.
     candidates: Vec<Candidate>,
 }
 
@@ -94,7 +102,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() {
             return;
@@ -103,15 +110,12 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
             return;
         };
 
-        // Prepare the values used by this stage.
         let members = match item.kind {
             ItemKind::Struct(..) => {
-                // Prepare the values used by this stage.
                 let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
                     return;
                 };
 
-                // Perform the next step of the analysis.
                 structure
                     .fields
                     .iter()
@@ -133,30 +137,25 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
             _ => return,
         };
 
-        // Process the candidates handled by this stage.
         for (declaration, attributes) in members {
-            // Reject inputs that do not satisfy this stage.
             if attributes
                 .iter()
                 .any(|attribute| attribute.path().is_ident("doc"))
             {
                 continue;
             }
-            let attributes = SerdeAttributes::analyze_serde_attributes(&attributes);
+            let attributes = SerdeAttributes::from_attributes(&attributes);
 
-            // Prepare the values used by this stage.
             let (Some(serialize), Some(deserialize)) =
                 (attributes.rename_serialize, attributes.rename_deserialize)
             else {
                 continue;
             };
 
-            // Reject inputs that do not satisfy this stage.
             if serialize == deserialize {
                 continue;
             }
 
-            // Update the accumulated analysis state.
             self.candidates.push(Candidate {
                 definition: item.owner_id.def_id,
                 span: item.span,
@@ -168,27 +167,24 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
+        for candidate in self.candidates.drain(..) {
             if self
                 .catalog
-                .derived_type(analyze_candidate.definition, "Serialize")
+                .derived_type(candidate.definition, "Serialize")
                 .is_none()
                 || self
                     .catalog
-                    .derived_type(analyze_candidate.definition, "Deserialize")
+                    .derived_type(candidate.definition, "Deserialize")
                     .is_none()
-            // Perform the next step of the analysis.
             {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                declaration: analyze_candidate.declaration,
-                serialize: analyze_candidate.serialize,
-                deserialize: analyze_candidate.deserialize,
+                span: candidate.span,
+                declaration: candidate.declaration,
+                serialize: candidate.serialize,
+                deserialize: candidate.deserialize,
             }
             .emit(cx);
         }

@@ -67,7 +67,7 @@ impl MigrationEdits {
     }
 }
 
-/// Cross-reference indexes consulted while constructing one `analyze_candidate` migration.
+/// Cross-reference indexes consulted while constructing one `candidate` migration.
 struct MigrationReferences<'rule> {
     /// All candidates, used to prevent overlapping simultaneous migrations.
     candidates: &'rule [MethodCandidate],
@@ -84,20 +84,20 @@ pub struct MigrationBuilder<'rule, 'cx, 'tcx> {
     /// Compiler context used for snippets, paths, and source ownership.
     cx: &'cx LateContext<'tcx>,
     /// Candidate currently being migrated.
-    analyze_candidate: &'rule MethodCandidate,
+    candidate: &'rule MethodCandidate,
     /// Cross-reference indexes needed to validate and rewrite the migration.
     references: MigrationReferences<'rule>,
-    /// Replacements applied inside the `analyze_candidate`'s whole-item edit.
+    /// Replacements applied inside the `candidate`'s whole-item edit.
     internal_edits: MigrationEdits,
-    /// Call-site replacements outside the `analyze_candidate` function.
+    /// Call-site replacements outside the `candidate` function.
     external_edits: Vec<MigrationEdit>,
 }
 
 impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
-    /// Starts an empty migration for one `analyze_candidate`.
+    /// Starts an empty migration for one `candidate`.
     pub(crate) fn new(
         cx: &'cx LateContext<'tcx>,
-        analyze_candidate: &'rule MethodCandidate,
+        candidate: &'rule MethodCandidate,
         candidates: &'rule [MethodCandidate],
         binding_uses: &'rule HashMap<HirId, Vec<MethodCandidateBindingUse>>,
         function_uses: &'rule HashMap<LocalDefId, Vec<Span>>,
@@ -111,27 +111,24 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
             imported_functions,
         };
 
-        // Initialize analyze_candidate-local edits independently from external call-site edits.
+        // Initialize candidate-local edits independently from external call-site edits.
         Self {
             cx,
-            analyze_candidate,
+            candidate,
             references,
             internal_edits: MigrationEdits::default(),
             external_edits: Vec::new(),
         }
     }
 
-    /// Returns whether migrating `other` would overlap this `analyze_candidate`'s whole-item edit.
+    /// Returns whether migrating `other` would overlap this `candidate`'s whole-item edit.
     fn overlaps_candidate_migration(&self, other: &MethodCandidate) -> bool {
-        other.function.def_id != self.analyze_candidate.function.def_id
+        other.function.def_id != self.candidate.function.def_id
             && self
                 .references
                 .function_uses
                 .get(&other.function.def_id)
-                .is_some_and(|uses| {
-                    uses.iter()
-                        .any(|span| self.analyze_candidate.contains(*span))
-                })
+                .is_some_and(|uses| uses.iter().any(|span| self.candidate.contains(*span)))
     }
 
     /// Rejects moves that cannot be applied as one complete, non-overlapping change.
@@ -140,33 +137,28 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
     /// Rustfix would otherwise try to edit at the same time.
     fn check_whole_migration_is_safe(&self) -> Option<()> {
         // Require editable local syntax with no imported alias contract.
-        if !self.analyze_candidate.migration.is_suggestible
+        if !self.candidate.migration.is_suggestible
             || self
                 .references
                 .imported_functions
-                .contains(&self.analyze_candidate.function.def_id)
+                .contains(&self.candidate.function.def_id)
         {
             return None;
         }
 
         // Generic call paths may carry turbofish arguments. Rewriting those correctly needs more
         // than replacing the resolved function path, so generic migrations currently stay local.
-        if self
-            .analyze_candidate
-            .migration
-            .impl_generics_span
-            .is_some()
+        if self.candidate.migration.impl_generics_span.is_some()
             && self
                 .references
                 .function_uses
-                .contains_key(&self.analyze_candidate.function.def_id)
-        // Perform the next step of the analysis.
+                .contains_key(&self.candidate.function.def_id)
         {
             return None;
         }
 
         // Rustfix applies all machine suggestions together. If this function refers to another
-        // analyze_candidate, moving both would produce overlapping whole-item edits. Keep the caller as a
+        // candidate, moving both would produce overlapping whole-item edits. Keep the caller as a
         // warning-only case and let the callee safely rewrite the reference inside it.
         let overlaps_another_migration = self
             .references
@@ -187,7 +179,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
 
     /// Preserves explicit reference syntax while replacing its binding with `self`.
     fn rewrite_reference_receiver(&self, parameter: &str) -> Option<String> {
-        let inner = self.snippet(self.analyze_candidate.receiver.receiver_type_span)?;
+        let inner = self.snippet(self.candidate.receiver.receiver_type_span)?;
         let offset = parameter.rfind(&inner)?;
         format!(
             "{}self{}",
@@ -204,8 +196,8 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
     /// mutability where their meaning is clear.
     fn rewrite_receiver(&mut self) -> Option<String> {
         // Resolve a plain binding and its complete first-parameter source.
-        let binding_name = self.analyze_candidate.migration.binding.name?;
-        let parameter = self.snippet(self.analyze_candidate.receiver.parameter_span)?;
+        let binding_name = self.candidate.migration.binding.name?;
+        let parameter = self.snippet(self.candidate.receiver.parameter_span)?;
         let pattern = parameter.split_once(':')?.0.trim();
         if pattern != binding_name.as_str() && pattern != format!("mut {binding_name}") {
             return None;
@@ -213,56 +205,51 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
 
         // `mut binding: &T` permits reassigning the reference itself. `&mut self` only permits
         // mutating the referent, so that spelling cannot be migrated without semantic analysis.
-        if matches!(
-            self.analyze_candidate.receiver.semantics.kind,
-            ReceiverKind::Ref(_)
-        ) && pattern.starts_with("mut ")
+        if matches!(self.candidate.receiver.semantics.kind, ReceiverKind::Ref(_))
+            && pattern.starts_with("mut ")
         {
             return None;
         }
 
         // Preserve ownership and mutability in the replacement receiver spelling.
-        let receiver = match self.analyze_candidate.receiver.semantics.kind {
+        let receiver = match self.candidate.receiver.semantics.kind {
             ReceiverKind::Value if pattern.starts_with("mut ") => "mut self".to_owned(),
             ReceiverKind::Value => "self".to_owned(),
             ReceiverKind::Ref(_) => self.rewrite_reference_receiver(&parameter)?,
         };
         self.internal_edits
-            .push(self.analyze_candidate.receiver.parameter_span, receiver);
+            .push(self.candidate.receiver.parameter_span, receiver);
 
         // Move safe generic syntax from the function to its new impl header.
-        self.analyze_candidate
-            .migration
-            .impl_generics_span
-            .map_or_else(
-                || Some(String::new()),
-                |span| {
-                    let generics = self.snippet(span)?;
-                    self.internal_edits.push(span, String::new());
-                    Some(generics)
-                },
-            )
+        self.candidate.migration.impl_generics_span.map_or_else(
+            || Some(String::new()),
+            |span| {
+                let generics = self.snippet(span)?;
+                self.internal_edits.push(span, String::new());
+                Some(generics)
+            },
+        )
     }
 
     /// Applies the edits inside the function, wraps it in an `impl`, and adds call-site edits.
     fn finish(mut self, impl_generics: &str) -> Option<Vec<MigrationEdit>> {
-        // Apply analyze_candidate-local rewrites before wrapping the function in its impl.
-        let mut function = self.snippet(self.analyze_candidate.function.item_span)?;
+        // Apply candidate-local rewrites before wrapping the function in its impl.
+        let mut function = self.snippet(self.candidate.function.item_span)?;
         self.internal_edits
-            .apply_to(&mut function, self.analyze_candidate.function.item_span)?;
-        let self_type = self.snippet(self.analyze_candidate.receiver.receiver_type_span)?;
+            .apply_to(&mut function, self.candidate.function.item_span)?;
+        let self_type = self.snippet(self.candidate.receiver.receiver_type_span)?;
         let moved = format!("impl{impl_generics} {self_type} {{\n{function}\n}}");
 
         // Combine the whole-item replacement with every external reference rewrite.
         let mut edits = vec![MigrationEdit {
-            span: self.analyze_candidate.function.item_span,
+            span: self.candidate.function.item_span,
             replacement: moved,
         }];
         edits.append(&mut self.external_edits);
         Some(edits)
     }
 
-    /// Returns whether a source range is ordinary editable text in the `analyze_candidate`'s file.
+    /// Returns whether a source range is ordinary editable text in the `candidate`'s file.
     ///
     /// Macro expansions and other files are rejected because the displayed edit would not own the
     /// text it claims to change.
@@ -270,7 +257,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
         let source_map = self.cx.sess().source_map();
         !span.from_expansion()
             && source_map.span_to_filename(span)
-                == source_map.span_to_filename(self.analyze_candidate.function.item_span)
+                == source_map.span_to_filename(self.candidate.function.item_span)
     }
 
     /// Replaces uses of the old parameter name with `self` inside the function body.
@@ -289,7 +276,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
     /// }
     /// ```
     fn rewrite_binding_uses(&mut self) -> Option<()> {
-        let binding_id = self.analyze_candidate.migration.binding.id?;
+        let binding_id = self.candidate.migration.binding.id?;
         for use_ in self
             .references
             .binding_uses
@@ -297,8 +284,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
             .into_iter()
             .flatten()
         {
-            if !self.analyze_candidate.contains(use_.span)
-                || !self.is_editable_in_candidate_file(use_.span)
+            if !self.candidate.contains(use_.span) || !self.is_editable_in_candidate_file(use_.span)
             {
                 return None;
             }
@@ -312,24 +298,24 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
 
     /// Rewrites calls and function values to use the method's fully qualified path.
     ///
-    /// A reference outside the `analyze_candidate`'s source file makes the whole migration warning-only
+    /// A reference outside the `candidate`'s source file makes the whole migration warning-only
     /// because one-file suggestions must not leave another file broken.
     ///
     /// A call such as `inspect(&item)` becomes `crate::Item::inspect(&item)`. Using the complete
     /// method name also preserves places where the old function was stored as a function value.
     fn rewrite_function_uses(&mut self) -> Option<()> {
-        let qualified_method = self.analyze_candidate.qualified_method_path(self.cx);
+        let qualified_method = self.candidate.qualified_method_path(self.cx);
         for span in self
             .references
             .function_uses
-            .get(&self.analyze_candidate.function.def_id)
+            .get(&self.candidate.function.def_id)
             .into_iter()
             .flatten()
         {
             if !self.is_editable_in_candidate_file(*span) {
                 return None;
             }
-            if self.analyze_candidate.contains(*span) {
+            if self.candidate.contains(*span) {
                 self.internal_edits.push(*span, qualified_method.clone());
             } else {
                 self.external_edits.push(MigrationEdit {

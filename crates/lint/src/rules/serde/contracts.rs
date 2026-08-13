@@ -11,19 +11,23 @@ use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 use strum::EnumProperty as _;
 
+// -----------------------------------------------------------------------------
+// SerdeAttributes: Authored wire policy recovery
+// -----------------------------------------------------------------------------
+
 #[derive(Clone, Copy, strum::EnumProperty)]
-/// Classifies `SerdeDirection` cases used by this analysis.
+/// Direction in which a value crosses its Serde wire boundary.
 pub(super) enum SerdeDirection {
     #[strum(props(label = "serialization"))]
-    /// Represents the `Serialize` case.
+    /// Converts an in-memory value to its wire representation.
     Serialize,
     #[strum(props(label = "deserialization"))]
-    /// Represents the `Deserialize` case.
+    /// Constructs an in-memory value from its wire representation.
     Deserialize,
 }
 
 impl SerdeDirection {
-    /// Performs the `label` operation for this value.
+    /// Returns the public name used when explaining this Serde behavior.
     pub(super) fn label(self) -> &'static str {
         self.get_str("label")
             .expect("every Serde direction declares a label")
@@ -50,34 +54,55 @@ impl SerdeNameScope {
     }
 }
 
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+/// Independent Serde behaviors relevant to cross-rule contract analysis.
+pub(super) enum SerdeFlag {
+    /// Rejects object fields not declared by the target type.
+    DenyUnknownFields,
+    /// Merges a nested value's fields into the surrounding object.
+    Flatten,
+    /// Supplies an explicitly configured value when input is absent.
+    HasDefault,
+    /// Supplies `Default::default()` when input is absent.
+    ImplicitDefault,
+    /// An attribute outside the behaviors consumed by current rules.
+    Other,
+    /// Excludes the declaration while reading wire data.
+    SkipDeserialize,
+    /// Excludes the declaration while writing wire data.
+    SkipSerialize,
+    /// Selects enum variants from their data shape without a tag.
+    Untagged,
+}
+
 #[derive(Default)]
-/// Carries the `SerdeAttributes` state used by this analysis.
+/// Effective Serde naming, omission, adaptation, and representation policy.
 pub(super) struct SerdeAttributes {
-    /// Stores the `rename_serialize` value used by this analysis.
+    /// Explicit wire name used while serializing this declaration.
     pub(super) rename_serialize: Option<String>,
-    /// Stores the `rename_deserialize` value used by this analysis.
+    /// Explicit wire name accepted while deserializing this declaration.
     pub(super) rename_deserialize: Option<String>,
-    /// Stores the `rename_all_serialize` value used by this analysis.
+    /// Case conversion inherited by serialized child names.
     pub(super) rename_all_serialize: Option<String>,
-    /// Stores the `rename_all_deserialize` value used by this analysis.
+    /// Case conversion inherited by deserialized child names.
     pub(super) rename_all_deserialize: Option<String>,
-    /// Stores the `aliases` value used by this analysis.
+    /// Additional wire names accepted during deserialization.
     pub(super) aliases: Vec<String>,
-    /// Stores the `flags` value used by this analysis.
+    /// Independent Serde behaviors enabled by authored attributes.
     flags: HashSet<SerdeFlag>,
-    /// Stores the `skip_serializing_if` value used by this analysis.
+    /// Predicate that conditionally omits this value from serialized output.
     pub(super) skip_serializing_if: Option<String>,
-    /// Stores the `serialize_with` value used by this analysis.
+    /// Authored adapter that controls this value's serialization.
     pub(super) serialize_with: Option<String>,
-    /// Stores the `deserialize_with` value used by this analysis.
+    /// Authored adapter that controls this value's deserialization.
     pub(super) deserialize_with: Option<String>,
-    /// Stores the `remote` value used by this analysis.
+    /// Source type represented by this Serde remote declaration.
     pub(super) remote: Option<String>,
 }
 
 impl SerdeAttributes {
-    /// Performs the `analyze_serde_attributes` step of the lint analysis.
-    pub(super) fn analyze_serde_attributes(attributes: &[syn::Attribute]) -> Self {
+    /// Parses the effective Serde policy from one declaration's attributes.
+    pub(super) fn from_attributes(attributes: &[syn::Attribute]) -> Self {
         let mut result = Self::default();
         for attribute in attributes
             .iter()
@@ -151,12 +176,12 @@ impl SerdeAttributes {
 }
 
 impl SerdeAttributes {
-    /// Performs the `has` operation for this value.
+    /// Returns whether one Serde behavior flag is enabled.
     pub(super) fn has(&self, flag: SerdeFlag) -> bool {
         self.flags.contains(&flag)
     }
 
-    /// Performs the `insert` operation for this value.
+    /// Records one Serde behavior discovered while parsing attributes.
     fn insert(&mut self, flag: SerdeFlag) {
         self.flags.insert(flag);
     }
@@ -187,26 +212,9 @@ impl SerdeAttributes {
     }
 }
 
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
-/// Classifies `SerdeFlag` cases used by this analysis.
-pub(super) enum SerdeFlag {
-    /// Represents the `DenyUnknownFields` case.
-    DenyUnknownFields,
-    /// Represents the `Flatten` case.
-    Flatten,
-    /// Represents the `HasDefault` case.
-    HasDefault,
-    /// Represents the `ImplicitDefault` case.
-    ImplicitDefault,
-    /// Represents the `Other` case.
-    Other,
-    /// Represents the `SkipDeserialize` case.
-    SkipDeserialize,
-    /// Represents the `SkipSerialize` case.
-    SkipSerialize,
-    /// Represents the `Untagged` case.
-    Untagged,
-}
+// -----------------------------------------------------------------------------
+// SerdeCase: Container naming rules
+// -----------------------------------------------------------------------------
 
 /// Applies Serde's supported container case rules to Rust member names.
 pub(super) struct SerdeCase;
@@ -214,7 +222,6 @@ pub(super) struct SerdeCase;
 impl SerdeCase {
     /// Applies an optional Serde case rule to a member name.
     pub(super) fn apply(name: &str, rule: Option<&str>) -> String {
-        // Classify the current analyze_candidate.
         match rule {
             Some("lowercase") => name.to_ascii_lowercase(),
             Some("UPPERCASE") => name.to_ascii_uppercase(),
@@ -229,28 +236,32 @@ impl SerdeCase {
     }
 }
 
+// -----------------------------------------------------------------------------
+// SerdeContractCatalog: Authored and generated contract correlation
+// -----------------------------------------------------------------------------
+
 #[derive(Clone)]
-/// Carries the `SerdeTypeContract` state used by this analysis.
+/// Authored type shape and Serde policy for one local declaration.
 pub(super) struct SerdeTypeContract {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     pub(super) span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Authored type or member name involved in the wire contract.
     pub(super) name: Symbol,
-    /// Stores the `has_restricted_fields` value used by this analysis.
+    /// Whether field visibility protects construction invariants.
     pub(super) has_restricted_fields: bool,
 }
 
 #[derive(Default)]
-/// Carries the `SerdeContractCatalog` state used by this analysis.
+/// Crate-wide Serde contracts keyed by their compiler identities.
 pub(super) struct SerdeContractCatalog {
-    /// Stores the `types` value used by this analysis.
+    /// Authored type contracts available to cross-item Serde rules.
     types: HashMap<LocalDefId, SerdeTypeContract>,
-    /// Stores the `derives` value used by this analysis.
+    /// Derive macros that establish the generated behavior.
     derives: HashMap<&'static str, HashSet<LocalDefId>>,
 }
 
 impl SerdeContractCatalog {
-    /// Performs the `derived_type` operation for this value.
+    /// Resolves a local type confirmed to use the framework derive.
     pub(super) fn derived_type(
         &self,
         definition: LocalDefId,
@@ -263,14 +274,12 @@ impl SerdeContractCatalog {
             .flatten()
     }
 
-    /// Performs the `record_generated_impl` operation for this value.
+    /// Records the target of a framework-generated implementation.
     fn record_generated_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Reject inputs that do not satisfy this stage.
         if !matches!(item.kind, ItemKind::Impl(_)) {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(derive) = item.span.macro_backtrace().find_map(|expansion| {
             let definition = expansion.macro_def_id?;
             (cx.tcx.crate_name(definition.krate).as_str() == "serde_derive")
@@ -284,29 +293,25 @@ impl SerdeContractCatalog {
             return;
         };
 
-        // Prepare the values used by this stage.
         let Some(definition) = cx
             .tcx
             .type_of(item.owner_id)
             .instantiate_identity()
             .ty_adt_def()
             .and_then(|definition| definition.did().as_local())
-        // Perform the next step of the analysis.
         else {
             return;
         };
         self.derives.entry(derive).or_default().insert(definition);
     }
 
-    /// Performs the `check_item` operation for this value.
+    /// Records authored contracts and generated implementation evidence.
     pub(super) fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Reject inputs that do not satisfy this stage.
         if item.span.from_expansion() {
             self.record_generated_impl(cx, item);
             return;
         }
 
-        // Prepare the values used by this stage.
         let (identifier, has_restricted_fields) = match item.kind {
             ItemKind::Struct(identifier, _, data) => (
                 identifier,
@@ -323,7 +328,6 @@ impl SerdeContractCatalog {
             _ => return,
         };
 
-        // Update the accumulated analysis state.
         self.types.insert(
             item.owner_id.def_id,
             SerdeTypeContract {

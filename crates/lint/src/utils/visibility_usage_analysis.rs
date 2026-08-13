@@ -39,7 +39,7 @@ pub(super) enum AuthoredVisibility {
 }
 
 impl AuthoredVisibility {
-    /// Parses a visibility snippet while leaving inherited visibility outside the `analyze_candidate` set.
+    /// Parses a visibility snippet while leaving inherited visibility outside the `candidate` set.
     fn from_source(source: &str) -> Option<Self> {
         // Normalize explicit source before classifying the accepted vocabulary.
         let source = source.trim();
@@ -203,7 +203,7 @@ pub struct VisibilityUsageAnalyzer {
     candidates: HashMap<LocalDefId, VisibilityCandidate>,
     /// Resolved local references indexed by their target definition.
     uses: HashMap<LocalDefId, Vec<VisibilityUse>>,
-    /// Definitions exposed through another `analyze_candidate`'s authored interface.
+    /// Definitions exposed through another `candidate`'s authored interface.
     interface_dependencies: HashMap<LocalDefId, HashSet<LocalDefId>>,
     /// Types named by trait associated-type bindings whose minimum reach is compiler-enforced.
     trait_interface_types: HashSet<LocalDefId>,
@@ -305,7 +305,7 @@ impl VisibilityUsageAnalyzer {
             return;
         }
 
-        // Retain the authored field as an independently narrowable analyze_candidate.
+        // Retain the authored field as an independently narrowable candidate.
         self.record_field_candidate(cx, field);
 
         // Connect field consumers to the aggregate interface that declares its type.
@@ -328,34 +328,29 @@ impl VisibilityUsageAnalyzer {
 
         // Derive one ordered finding for every canonical visibility that can shrink.
         let mut findings = Vec::new();
-        for analyze_candidate in self.candidates.into_values() {
+        for candidate in self.candidates.into_values() {
             // Trait associated types cannot be narrowed independently from their implementation
             // target; rustc rejects a private binding even when no caller names it directly.
             if self
                 .trait_interface_types
-                .contains(&analyze_candidate.identity.def_id)
+                .contains(&candidate.identity.def_id)
             {
                 continue;
             }
 
             // Resolve canonical syntax and references attributed to this declaration.
-            let Some(current) = analyze_candidate.authored.boundary() else {
+            let Some(current) = candidate.authored.boundary() else {
                 continue;
             };
-            let effective_current = current.min(Self::enclosing_boundary(
-                cx.tcx,
-                analyze_candidate.defining_module,
-            ));
+            let effective_current =
+                current.min(Self::enclosing_boundary(cx.tcx, candidate.defining_module));
 
-            // Prepare the values used by this stage.
-            let candidate_uses = uses
-                .remove(&analyze_candidate.identity.def_id)
-                .unwrap_or_default();
+            let candidate_uses = uses.remove(&candidate.identity.def_id).unwrap_or_default();
 
             // Derive the complete use boundary before separating production topology.
             let required = VisibilityBoundary::for_uses(
                 cx.tcx,
-                analyze_candidate.defining_module,
+                candidate.defining_module,
                 candidate_uses.iter().map(|usage| usage.module),
             );
 
@@ -365,18 +360,14 @@ impl VisibilityUsageAnalyzer {
                 .filter(|usage| usage.kind == VisibilityUseKind::Production)
                 .map(|usage| usage.module);
 
-            // Prepare the values used by this stage.
-            let production_required = VisibilityBoundary::for_uses(
-                cx.tcx,
-                analyze_candidate.defining_module,
-                production_modules,
-            );
+            let production_required =
+                VisibilityBoundary::for_uses(cx.tcx, candidate.defining_module, production_modules);
 
             // Preserve downstream APIs only when the package and effective visibility prove them.
             let exported = cx
                 .tcx
                 .effective_visibilities(())
-                .is_exported(analyze_candidate.identity.def_id);
+                .is_exported(candidate.identity.def_id);
 
             // Preserve only externally reachable APIs in packages that may be published.
             let preserve_public = current == VisibilityBoundary::Public
@@ -393,14 +384,14 @@ impl VisibilityUsageAnalyzer {
             }
 
             // Resolve ownership text before packaging declaration source identity.
-            let defining_module = Self::module_name(cx.tcx, analyze_candidate.defining_module);
+            let defining_module = Self::module_name(cx.tcx, candidate.defining_module);
 
             // Package definition and source identity independently from boundary calculation.
             let declaration = VisibilityFindingDeclaration {
-                hir_id: analyze_candidate.identity.hir_id,
-                span: analyze_candidate.identity.span,
-                name: analyze_candidate.identity.name,
-                kind: analyze_candidate.identity.kind,
+                hir_id: candidate.identity.hir_id,
+                span: candidate.identity.span,
+                name: candidate.identity.name,
+                kind: candidate.identity.kind,
                 defining_module,
             };
 
@@ -416,11 +407,7 @@ impl VisibilityUsageAnalyzer {
             findings.push(VisibilityFinding {
                 declaration,
                 boundary,
-                uses: Self::boundary_uses(
-                    analyze_candidate.defining_module,
-                    required,
-                    candidate_uses,
-                ),
+                uses: Self::boundary_uses(candidate.defining_module, required, candidate_uses),
                 is_closed_package_public: current == VisibilityBoundary::Public
                     && package == VisibilityPackagePolicy::Closed,
             });
@@ -495,7 +482,7 @@ impl VisibilityUsageAnalyzer {
         }
     }
 
-    /// Records one `analyze_candidate` after parsing and validating its authored visibility.
+    /// Records one `candidate` after parsing and validating its authored visibility.
     fn record_candidate(
         &mut self,
         cx: &LateContext<'_>,
@@ -550,17 +537,17 @@ impl VisibilityUsageAnalyzer {
         };
 
         // Pair source identity with the semantic module and authored boundary.
-        let analyze_candidate = VisibilityCandidate {
+        let candidate = VisibilityCandidate {
             identity,
             defining_module,
             authored,
         };
 
         // Index the complete declaration by the definition references will resolve to.
-        self.candidates.insert(def_id, analyze_candidate);
+        self.candidates.insert(def_id, candidate);
     }
 
-    /// Adapts one module item to the shared `analyze_candidate` representation.
+    /// Adapts one module item to the shared `candidate` representation.
     fn record_item_candidate(
         &mut self,
         cx: &LateContext<'_>,
@@ -573,7 +560,7 @@ impl VisibilityUsageAnalyzer {
         self.record_candidate(cx, def_id, hir_id, item.vis_span, name, kind);
     }
 
-    /// Adapts one inherent associated item to the shared `analyze_candidate` representation.
+    /// Adapts one inherent associated item to the shared `candidate` representation.
     fn record_impl_item_candidate(
         &mut self,
         cx: &LateContext<'_>,
@@ -586,7 +573,7 @@ impl VisibilityUsageAnalyzer {
         self.record_candidate(cx, def_id, hir_id, vis_span, item.ident.name, kind);
     }
 
-    /// Adapts one struct or union field to the shared `analyze_candidate` representation.
+    /// Adapts one struct or union field to the shared `candidate` representation.
     fn record_field_candidate(&mut self, cx: &LateContext<'_>, field: &FieldDef<'_>) {
         let def_id = field.def_id;
         let hir_id = field.hir_id;
@@ -671,12 +658,12 @@ impl VisibilityUsageAnalyzer {
     /// Returns whether a module lies within a canonical in-source test module.
     fn module_is_test_owned(&self, tcx: TyCtxt<'_>, module: LocalDefId) -> bool {
         let mut cursor = Some(module);
-        while let Some(analyze_candidate) = cursor {
-            if self.test_modules.contains(&analyze_candidate) {
+        while let Some(candidate) = cursor {
+            if self.test_modules.contains(&candidate) {
                 return true;
             }
             cursor = tcx
-                .opt_local_parent(analyze_candidate)
+                .opt_local_parent(candidate)
                 .filter(|parent| tcx.def_kind(*parent) == DefKind::Mod);
         }
         false
@@ -724,7 +711,7 @@ impl VisibilityUsageAnalyzer {
         }
     }
 
-    /// Propagates consumer reach through types exposed by `analyze_candidate` interfaces.
+    /// Propagates consumer reach through types exposed by `candidate` interfaces.
     fn propagate_interface_uses(
         dependencies: &HashMap<LocalDefId, HashSet<LocalDefId>>,
         uses: &mut HashMap<LocalDefId, Vec<VisibilityUse>>,
@@ -773,7 +760,7 @@ impl VisibilityUsageAnalyzer {
         }
     }
 
-    /// Extends one module `analyze_candidate` with references to an item defined beneath it.
+    /// Extends one module `candidate` with references to an item defined beneath it.
     fn extend_module_uses(
         candidates: &HashMap<LocalDefId, VisibilityCandidate>,
         uses: &mut HashMap<LocalDefId, Vec<VisibilityUse>>,
@@ -782,7 +769,7 @@ impl VisibilityUsageAnalyzer {
     ) {
         if candidates
             .get(&module)
-            .is_none_or(|analyze_candidate| analyze_candidate.identity.kind != "module")
+            .is_none_or(|candidate| candidate.identity.kind != "module")
         {
             return;
         }

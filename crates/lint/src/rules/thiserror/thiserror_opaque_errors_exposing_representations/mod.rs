@@ -14,21 +14,15 @@ use super::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
-struct Candidate {
-    /// Stores the `definition` value used by this analysis.
-    definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
-    span: Span,
-    /// Stores the `exposures` value used by this analysis.
-    exposures: Vec<String>,
-}
+// -----------------------------------------------------------------------------
+// Violation: Foreign error representation in a public enum
+// -----------------------------------------------------------------------------
 
-/// Carries the `Violation` state used by this analysis.
+/// Public error enum whose variants expose dependency-specific source types.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Public enum receiving the diagnostic.
     span: Span,
-    /// Stores the `exposures` value used by this analysis.
+    /// Variants and foreign source types exposed to downstream patterns.
     exposures: Vec<String>,
 }
 
@@ -77,12 +71,30 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// Candidate: Public foreign-source evidence
+// -----------------------------------------------------------------------------
+
+/// Foreign source exposures retained until thiserror derivation is confirmed.
+struct Candidate {
+    /// Candidate public error enum definition.
+    definition: LocalDefId,
+    /// Enum declaration receiving a later diagnostic.
+    span: Span,
+    /// Variant and foreign-type descriptions.
+    exposures: Vec<String>,
+}
+
+// -----------------------------------------------------------------------------
+// ThiserrorOpaqueErrorsExposingRepresentations: Stable public shape policy
+// -----------------------------------------------------------------------------
+
+/// Correlates public source-bearing variants with local thiserror contracts.
 #[derive(Default)]
-/// Carries the `ThiserrorOpaqueErrorsExposingRepresentations` state used by this analysis.
 struct ThiserrorOpaqueErrorsExposingRepresentations {
-    /// Stores the `catalog` value used by this analysis.
+    /// Local derived error contracts.
     catalog: ThiserrorContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Public enums awaiting derive confirmation.
     candidates: Vec<Candidate>,
 }
 
@@ -96,7 +108,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         let ItemKind::Enum(_, _, definition) = item.kind else {
             return;
@@ -105,7 +116,6 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
@@ -114,28 +124,24 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
         };
         let mut exposures = Vec::new();
 
-        // Process the candidates handled by this stage.
+        // Inspect only fields that participate in the public causal chain.
         for (variant, hir_variant) in enumeration.variants.iter().zip(definition.variants) {
             for (field, hir_field) in variant.fields.iter().zip(hir_variant.data.fields()) {
-                // Prepare the values used by this stage.
                 let attributes = ThiserrorAttributes::from_attributes(&field.attrs);
                 let conventional_source = field
                     .ident
                     .as_ref()
                     .is_some_and(|identifier| identifier == "source");
 
-                // Reject inputs that do not satisfy this stage.
                 if !attributes.is_source && !conventional_source {
                     continue;
                 }
 
-                // Prepare the values used by this stage.
                 let Some(target) = cx
                     .tcx
                     .type_of(hir_field.def_id)
                     .instantiate_identity()
                     .ty_adt_def()
-                // Perform the next step of the analysis.
                 else {
                     continue;
                 };
@@ -143,7 +149,6 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
                     continue;
                 }
 
-                // Perform the next step of the analysis.
                 exposures.push(format!(
                     "`{}({})`",
                     variant.ident,
@@ -152,12 +157,10 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
             }
         }
 
-        // Reject inputs that do not satisfy this stage.
         if exposures.is_empty() {
             return;
         }
 
-        // Update the accumulated analysis state.
         self.candidates.push(Candidate {
             definition: item.owner_id.def_id,
             span: item.span,
@@ -166,20 +169,14 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
-            if self
-                .catalog
-                .derived_type(analyze_candidate.definition)
-                .is_none()
-            {
+        for candidate in self.candidates.drain(..) {
+            if self.catalog.derived_type(candidate.definition).is_none() {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                exposures: analyze_candidate.exposures,
+                span: candidate.span,
+                exposures: candidate.exposures,
             }
             .emit(cx);
         }

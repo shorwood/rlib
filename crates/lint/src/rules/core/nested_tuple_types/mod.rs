@@ -57,7 +57,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// NestedTupleTypes: Lint pass
+// NestedTupleTypes: Named nested aggregate policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that rejects tuple-shaped components hidden inside explicit types.

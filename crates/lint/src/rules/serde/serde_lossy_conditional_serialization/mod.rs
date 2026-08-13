@@ -14,25 +14,29 @@ use super::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Conditional serialization that loses information
+// -----------------------------------------------------------------------------
+
+/// Conditionally omitted field awaiting domain-type classification.
 struct Candidate {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `field` value used by this analysis.
+    /// Field name quoted in the diagnostic.
     field: String,
-    /// Stores the `predicate` value used by this analysis.
+    /// Authored omission predicate that can discard a meaningful value.
     predicate: String,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Omission predicate that discards a value deserialization cannot recover.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `field` value used by this analysis.
+    /// Field name quoted in the diagnostic.
     field: String,
-    /// Stores the `predicate` value used by this analysis.
+    /// Omission predicate responsible for the lossy wire representation.
     predicate: String,
 }
 
@@ -71,18 +75,22 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `is_option` step of the lint analysis.
+/// Returns whether the type is the standard optional container.
 fn is_option(ty: &syn::Type) -> bool {
     matches!(ty, syn::Type::Path(path)
         if path.path.segments.last().is_some_and(|segment| segment.ident == "Option"))
 }
 
 #[derive(Default)]
-/// Carries the `SerdeLossyConditionalSerialization` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeLossyConditionalSerialization: Round-trip preservation policy
+// -----------------------------------------------------------------------------
+
+/// Rejects conditional serialization that cannot reconstruct the omitted domain value.
 struct SerdeLossyConditionalSerialization {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored Serde declarations awaiting crate-wide contract comparison.
     candidates: Vec<Candidate>,
 }
 
@@ -107,20 +115,17 @@ impl LateLintPass<'_> for SerdeLossyConditionalSerialization {
             return;
         };
         for field in &structure.fields {
-            // Prepare the values used by this stage.
             let Some(name) = field.ident.as_ref() else {
                 continue;
             };
-            let attributes = SerdeAttributes::analyze_serde_attributes(&field.attrs);
+            let attributes = SerdeAttributes::from_attributes(&field.attrs);
             let has_deserialization_fallback =
                 attributes.has(SerdeFlag::HasDefault) || attributes.has(SerdeFlag::SkipDeserialize);
 
-            // Prepare the values used by this stage.
             let Some(predicate) = attributes.skip_serializing_if else {
                 continue;
             };
 
-            // Reject inputs that do not satisfy this stage.
             if has_deserialization_fallback
                 || is_option(&field.ty)
                 || field
@@ -131,7 +136,6 @@ impl LateLintPass<'_> for SerdeLossyConditionalSerialization {
                 continue;
             }
 
-            // Update the accumulated analysis state.
             self.candidates.push(Candidate {
                 definition: item.owner_id.def_id,
                 span: item.span,
@@ -142,26 +146,23 @@ impl LateLintPass<'_> for SerdeLossyConditionalSerialization {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
+        for candidate in self.candidates.drain(..) {
             if self
                 .catalog
-                .derived_type(analyze_candidate.definition, "Serialize")
+                .derived_type(candidate.definition, "Serialize")
                 .is_none()
                 || self
                     .catalog
-                    .derived_type(analyze_candidate.definition, "Deserialize")
+                    .derived_type(candidate.definition, "Deserialize")
                     .is_none()
-            // Perform the next step of the analysis.
             {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                field: analyze_candidate.field,
-                predicate: analyze_candidate.predicate,
+                span: candidate.span,
+                field: candidate.field,
+                predicate: candidate.predicate,
             }
             .emit(cx);
         }

@@ -12,22 +12,25 @@ use rustc_span::{Span, Symbol};
 use super::utils::contracts::{ContractCatalog, EnumContract, StrumDerive};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Displayed enum text rejected by its parser
+// -----------------------------------------------------------------------------
+
+/// Variant whose generated display and parsing contracts do not round-trip.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `variant` value used by this analysis.
+    /// Variant identity involved in the finding.
     variant: Symbol,
-    /// Stores the `output` value used by this analysis.
+    /// Serialized spelling that the parser cannot recover as the same variant.
     output: String,
 }
 
 impl Violation {
-    /// Performs the `classify` step of the lint analysis.
+    /// Classifies the resolved contract without relying on source spelling alone.
     fn classify(contract: &EnumContract) -> Option<Self> {
-        // Prepare the values used by this stage.
         let has_output = [
             StrumDerive::Display,
             StrumDerive::AsRefStr,
@@ -36,7 +39,6 @@ impl Violation {
         .into_iter()
         .any(|derive| contract.derives(derive));
 
-        // Reject inputs that do not satisfy this stage.
         if !contract.derives(StrumDerive::EnumString) || !has_output {
             return None;
         }
@@ -46,14 +48,14 @@ impl Violation {
         {
             let owners = contract
                 .enabled_variants()
-                .filter(|analyze_candidate| {
-                    analyze_candidate.parser_names.iter().any(|name| {
+                .filter(|candidate| {
+                    candidate.parser_names.iter().any(|name| {
                         name == &variant.preferred_name
-                            || (analyze_candidate.is_ascii_case_insensitive
+                            || (candidate.is_ascii_case_insensitive
                                 && name.eq_ignore_ascii_case(&variant.preferred_name))
                     })
                 })
-                .map(|analyze_candidate| analyze_candidate.def_id)
+                .map(|candidate| candidate.def_id)
                 .collect::<Vec<_>>();
             if owners.as_slice() != [variant.def_id] {
                 return Some(Self {
@@ -65,7 +67,6 @@ impl Violation {
             }
         }
 
-        // Perform the next step of the analysis.
         None
     }
 }
@@ -105,10 +106,14 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// StrumNonRoundtrippingEnumStrings: Round-tripping text policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `StrumNonRoundtrippingEnumStrings` state used by this analysis.
+/// Compares each generated Strum output spelling with its parsing contract.
 struct StrumNonRoundtrippingEnumStrings {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,
 }
 

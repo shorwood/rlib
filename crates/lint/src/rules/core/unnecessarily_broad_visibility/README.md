@@ -33,7 +33,6 @@ mod normalization {
 
 ## Use instead
 
-
 If every caller is inside `normalization`, keep ownership local:
 
 ```rust

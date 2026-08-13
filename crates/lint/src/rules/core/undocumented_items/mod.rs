@@ -83,7 +83,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// UndocumentedItems: Lint pass
+// UndocumentedItems: Declaration contract documentation policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that requires semantic declarations to explain their public and internal roles.

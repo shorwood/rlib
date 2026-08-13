@@ -9,20 +9,24 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::manual_error::Catalog as ManualErrorCatalog;
+use super::manual_error::ManualErrorCatalog;
 use crate::rules::framework::config::{DeriveResolutionConfig, ErrorImplementationProvider};
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Manual complete error contract
+// -----------------------------------------------------------------------------
+
+/// Static presentation and conventional source behavior derivable by thiserror.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Error type receiving the diagnostic.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Authored error type name.
     name: String,
-    /// Stores the `message` value used by this analysis.
+    /// Static display message.
     message: String,
-    /// Stores the `source_field` value used by this analysis.
+    /// Conventionally forwarded source field, when present.
     source_field: Option<String>,
 }
 
@@ -64,16 +68,20 @@ impl LateViolation for Violation {
     }
 }
 
-/// Carries the `ThiserrorManualErrorImpls` state used by this analysis.
+// -----------------------------------------------------------------------------
+// ThiserrorManualErrorImpls: Configured complete-error derive policy
+// -----------------------------------------------------------------------------
+
+/// Reports complete manual contracts when thiserror is the selected provider.
 struct ThiserrorManualErrorImpls {
-    /// Stores the `catalog` value used by this analysis.
+    /// Manual display and error implementations correlated by target type.
     catalog: ManualErrorCatalog,
-    /// Stores the `config` value used by this analysis.
+    /// Explicit provider selection shared with overlapping derive frameworks.
     config: DeriveResolutionConfig,
 }
 
 impl ThiserrorManualErrorImpls {
-    /// Performs the `new` operation for this value.
+    /// Loads explicit derive-provider resolution.
     fn new() -> Self {
         Self {
             catalog: ManualErrorCatalog::default(),
@@ -81,8 +89,8 @@ impl ThiserrorManualErrorImpls {
         }
     }
 
-    /// Performs the `selected` operation for this value.
-    fn selected(&self, source_field: Option<&str>) -> bool {
+    /// Returns whether thiserror owns this complete error contract.
+    fn uses_thiserror_provider(&self, source_field: Option<&str>) -> bool {
         if cfg!(feature = "derive_more") && source_field.is_none_or(|field| field == "source") {
             self.config.error_implementation() == Some(ErrorImplementationProvider::ThiserrorError)
         } else {
@@ -105,18 +113,16 @@ impl LateLintPass<'_> for ThiserrorManualErrorImpls {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.catalog.candidates() {
-            // Reject inputs that do not satisfy this stage.
-            if !self.selected(analyze_candidate.source_field.as_deref()) {
+        for candidate in self.catalog.candidates() {
+            if !self.uses_thiserror_provider(candidate.source_field.as_deref()) {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                name: analyze_candidate.name,
-                message: analyze_candidate.message,
-                source_field: analyze_candidate.source_field,
+                span: candidate.span,
+                name: candidate.name,
+                message: candidate.message,
+                source_field: candidate.source_field,
             }
             .emit(cx);
         }

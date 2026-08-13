@@ -15,7 +15,7 @@ pub(super) fn is_configuration_type_name(name: &str) -> bool {
 
 /// Derives a constant name only when authored vocabulary already describes the policy.
 pub(super) fn for_authored_name(name: &str, category: PolicyCategory) -> Option<String> {
-    // Normalize the analyze_candidate before requiring an explicit policy-role word.
+    // Normalize the candidate before requiring an explicit policy-role word.
     let name = name.trim_start_matches('_');
     let canonical_words = words(name);
     if canonical_words.is_empty() {
@@ -49,7 +49,7 @@ impl ConfigurationNameContext<'_> {
             let word = word.to_ascii_lowercase();
             !PolicyCategory::all()
                 .into_iter()
-                .any(|analyze_candidate| analyze_candidate.matches_word(&word))
+                .any(|candidate| candidate.matches_word(&word))
         });
         has_domain_word.then_some(suggestion)
     }

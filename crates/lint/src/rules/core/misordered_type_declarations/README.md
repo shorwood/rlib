@@ -23,7 +23,6 @@ struct Headers;
 
 ## Use instead
 
-
 Put the dependency before the type that consumes it:
 
 ```rust

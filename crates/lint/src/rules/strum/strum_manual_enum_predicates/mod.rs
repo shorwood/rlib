@@ -19,13 +19,13 @@ use crate::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer, Pr
 
 /// Complete enum predicate family reproducible by `EnumIs`.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `enum_name` value used by this analysis.
+    /// Enum name quoted in the diagnostic.
     enum_name: Symbol,
-    /// Stores the `is_public_api` value used by this analysis.
+    /// Whether replacement would change a public API.
     is_public_api: bool,
 }
 
@@ -46,12 +46,10 @@ impl LateViolation for Violation {
     }
 
     fn emit(self, cx: &LateContext<'_>) {
-        // Prepare the values used by this stage.
         let primary = self.primary_message().into_owned();
         let rationale = self.rationale_message().into_owned();
         let remediation = self.remediation_message().into_owned();
 
-        // Perform the next step of the analysis.
         cx.tcx.emit_node_span_lint(
             STRUM_MANUAL_ENUM_PREDICATES,
             self.owner,
@@ -74,9 +72,9 @@ impl LateViolation for Violation {
 
 /// Finds complete manual variant-predicate families reproducible by `EnumIs`.
 struct StrumManualEnumPredicates {
-    /// Stores the `analyzer` value used by this analysis.
+    /// Shared collector that proves a predicate exists for every eligible variant.
     analyzer: PredicateFamilyAnalyzer,
-    /// Stores the `provider` value used by this analysis.
+    /// Explicitly resolved framework provider, when one is available.
     provider: Option<PredicateProvider>,
 }
 
@@ -107,14 +105,12 @@ impl LateLintPass<'_> for StrumManualEnumPredicates {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for family in self.analyzer.complete_families(cx) {
-            // Reject inputs that do not satisfy this stage.
             if !(PredicateFamily::selected(cx, self.provider)
                 == Some(PredicateProvider::StrumEnumIs))
             {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 span: family.span,
                 owner: family.owner,

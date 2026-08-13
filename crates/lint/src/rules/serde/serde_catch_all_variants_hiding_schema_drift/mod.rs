@@ -14,21 +14,25 @@ use super::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Catch-all variant hiding schema drift
+// -----------------------------------------------------------------------------
+
+/// Catch-all variant awaiting external-schema and visibility checks.
 struct Candidate {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `variants` value used by this analysis.
+    /// Variants participating in the analyzed contract.
     variants: Vec<String>,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Catch-all variant that silently absorbs additions to an external schema.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `variants` value used by this analysis.
+    /// Variants participating in the analyzed contract.
     variants: Vec<String>,
 }
 
@@ -73,11 +77,15 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
-/// Carries the `SerdeCatchAllVariantsHidingSchemaDrift` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeCatchAllVariantsHidingSchemaDrift: Visible schema-change policy
+// -----------------------------------------------------------------------------
+
+/// Rejects catch-all variants that silently absorb additions to an external schema.
 struct SerdeCatchAllVariantsHidingSchemaDrift {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored Serde declarations awaiting crate-wide contract comparison.
     candidates: Vec<Candidate>,
 }
 
@@ -91,7 +99,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for SerdeCatchAllVariantsHidingSchemaDrift {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Enum(..)) {
             return;
@@ -100,7 +107,6 @@ impl LateLintPass<'_> for SerdeCatchAllVariantsHidingSchemaDrift {
             return;
         };
 
-        // Prepare the values used by this stage.
         let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
             return;
         };
@@ -108,22 +114,19 @@ impl LateLintPass<'_> for SerdeCatchAllVariantsHidingSchemaDrift {
             return;
         }
 
-        // Prepare the values used by this stage.
         let variants = enumeration
             .variants
             .iter()
             .filter(|variant| {
-                SerdeAttributes::analyze_serde_attributes(&variant.attrs).has(SerdeFlag::Other)
+                SerdeAttributes::from_attributes(&variant.attrs).has(SerdeFlag::Other)
             })
             .map(|variant| format!("`{}`", variant.ident))
             .collect::<Vec<_>>();
 
-        // Reject inputs that do not satisfy this stage.
         if variants.is_empty() {
             return;
         }
 
-        // Update the accumulated analysis state.
         self.candidates.push(Candidate {
             definition: item.owner_id.def_id,
             span: item.span,
@@ -132,20 +135,18 @@ impl LateLintPass<'_> for SerdeCatchAllVariantsHidingSchemaDrift {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
+        for candidate in self.candidates.drain(..) {
             if self
                 .catalog
-                .derived_type(analyze_candidate.definition, "Deserialize")
+                .derived_type(candidate.definition, "Deserialize")
                 .is_none()
             {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                variants: analyze_candidate.variants,
+                span: candidate.span,
+                variants: candidate.variants,
             }
             .emit(cx);
         }

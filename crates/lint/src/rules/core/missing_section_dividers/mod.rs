@@ -33,7 +33,7 @@ impl LateViolation for Violation {
 
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
-            "without an explicit boundary, neighboring declarations do not reveal whether they intentionally form one naming family",
+            "without explicit boundaries, readers must infer whether neighboring declarations form one responsibility or several",
         )
     }
 
@@ -55,7 +55,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// MissingSectionDividers
+// MissingSectionDividers: Responsibility boundary policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that requires authored dividers for declaration families.

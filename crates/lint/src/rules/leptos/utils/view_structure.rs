@@ -15,6 +15,9 @@ use rustc_lint::{LateContext, LintContext};
 use rustc_span::hygiene::{ExpnKind, MacroKind};
 use rustc_span::{BytePos, Span};
 use serde::Deserialize;
+// -----------------------------------------------------------------------------
+// LeptosViewStructureConfig: Authored view-layout policy
+// -----------------------------------------------------------------------------
 use syn::ExprMacro;
 use syn::spanned::Spanned;
 
@@ -52,7 +55,6 @@ impl Default for LeptosViewStructureConfig {
 impl LeptosViewStructureConfig {
     /// Rejects ineffective limits and prefixes that are not ordinary comments.
     fn validate(&self) -> Result<(), String> {
-        // Reject inputs that do not satisfy this stage.
         if self.max_unnamed_view_complexity == 0
             || self.max_view_section_complexity == 0
             || self.max_unnamed_view_attribute_complexity == 0
@@ -61,7 +63,6 @@ impl LeptosViewStructureConfig {
             return Err("Leptos view structure complexity limits must be greater than zero".into());
         }
 
-        // Prepare the values used by this stage.
         let prefix = &self.view_section_comment_prefix;
         if prefix.trim() != prefix
             || prefix.contains(['\n', '\r'])
@@ -86,6 +87,10 @@ impl LeptosViewStructureConfig {
         config
     }
 }
+
+// -----------------------------------------------------------------------------
+// View: Authored structure, attributes, and source locations
+// -----------------------------------------------------------------------------
 
 #[derive(Clone)]
 /// One direct child in an authored sibling scope.
@@ -137,13 +142,11 @@ impl ViewHeading {
         &'heading self,
         config: &LeptosViewStructureConfig,
     ) -> Option<&'heading str> {
-        // Prepare the values used by this stage.
         let content = self
             .text
             .strip_prefix(&config.view_section_comment_prefix)?
             .strip_prefix(' ')?;
 
-        // Perform the next step of the analysis.
         (self.text.starts_with("//")
             && !self.text.contains('\n')
             && !content.ends_with([':', '.', ';', '!', '?', ',', '-'])
@@ -155,6 +158,10 @@ impl ViewHeading {
             .then_some(content)
     }
 }
+
+// -----------------------------------------------------------------------------
+// ViewScope: Direct sibling-scope organization
+// -----------------------------------------------------------------------------
 
 #[derive(Default)]
 /// One independently analyzed direct sibling list.
@@ -173,7 +180,6 @@ impl ViewScope {
 
     /// Partitions canonical named regions without reinterpreting rstml structure.
     pub(crate) fn sections(&self, config: &LeptosViewStructureConfig) -> Vec<ViewSection<'_>> {
-        // Prepare the values used by this stage.
         let starts = self
             .headings
             .iter()
@@ -184,7 +190,6 @@ impl ViewScope {
             })
             .collect::<Vec<_>>();
 
-        // Perform the next step of the analysis.
         starts
             .iter()
             .enumerate()
@@ -201,8 +206,12 @@ impl ViewScope {
     }
 }
 
+// -----------------------------------------------------------------------------
+// ViewStructureAnalysis: Complete authored view model
+// -----------------------------------------------------------------------------
+
 /// Parsed authored structure for one `view!` call.
-pub struct Analysis {
+pub struct ViewStructureAnalysis {
     /// Expanded expression used to honor local lint attributes.
     pub(crate) owner: HirId,
     /// Direct sibling scopes found in the authored view.
@@ -211,10 +220,9 @@ pub struct Analysis {
     pub(crate) elements: Vec<ViewElement>,
 }
 
-impl Analysis {
+impl ViewStructureAnalysis {
     /// Parses the same RSX token tree as Leptos and overlays authored Rust comments.
     fn parse(span: Span, owner: HirId, source: &str) -> Option<Self> {
-        // Prepare the values used by this stage.
         let expression = match syn::parse_str::<ExprMacro>(source) {
             Ok(expression) => expression,
             Err(_error) => return None,
@@ -223,16 +231,14 @@ impl Analysis {
         let tokens = without_global_class(expression.mac.tokens);
         let parser = rstml::Parser::new(rstml::ParserConfig::default().recover_block(true));
 
-        // Prepare the values used by this stage.
         let (nodes, errors) = parser.parse_recoverable(tokens).split_vec();
         if !errors.is_empty() {
             return None;
         }
 
         // Build structural scopes exclusively from rstml's Leptos-compatible node tree.
-        let comments = SourceComment::collect(source);
+        let comments = ViewSourceComment::collect(source);
 
-        // Prepare the values used by this stage.
         let mut builder = ViewScopeBuilder {
             source,
             span,
@@ -241,7 +247,6 @@ impl Analysis {
             elements: Vec::new(),
         };
 
-        // Perform the next step of the analysis.
         builder.collect_scope(&nodes, bounds);
         Some(Self {
             owner,
@@ -251,24 +256,28 @@ impl Analysis {
     }
 }
 
+// -----------------------------------------------------------------------------
+// ViewAttribute: Attribute categories and source evidence
+// -----------------------------------------------------------------------------
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 /// Stable semantic category for an authored attribute or component prop.
 pub enum ViewAttributeCategory {
-    /// Represents the `Identity` case.
+    /// Element identity and naming attributes.
     Identity,
-    /// Represents the `Accessibility` case.
+    /// Accessibility semantics such as roles and ARIA state.
     Accessibility,
-    /// Represents the `State` case.
+    /// Form and interactive state reflected in markup.
     State,
-    /// Represents the `Presentation` case.
+    /// Styling and visual presentation attributes.
     Presentation,
-    /// Represents the `Data` case.
+    /// Application data attached to an element.
     Data,
-    /// Represents the `Behavior` case.
+    /// Event handlers and client-side behavior.
     Behavior,
-    /// Represents the `Integration` case.
+    /// Framework integration attributes such as refs and directives.
     Integration,
-    /// Represents the `Other` case.
+    /// Attributes outside the recognized responsibility vocabulary.
     Other,
 }
 
@@ -325,32 +334,36 @@ impl ViewAttributeCategory {
 #[derive(Clone)]
 /// One direct attribute in an authored opening tag.
 pub struct ViewAttribute {
-    /// Stores the `name` value used by this analysis.
+    /// Element or attribute name involved in the view-structure finding.
     pub(crate) name: String,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     pub(crate) span: Span,
-    /// Stores the `range` value used by this analysis.
+    /// Source offsets covered by this contiguous attribute group.
     range: Range<usize>,
-    /// Stores the `category` value used by this analysis.
+    /// Responsibility inferred from the group's attributes.
     pub(crate) category: ViewAttributeCategory,
-    /// Stores the `complexity` value used by this analysis.
+    /// Direct authored complexity charged to this construct.
     complexity: usize,
 }
 
+// -----------------------------------------------------------------------------
+// ViewElement: Opening-tag structure
+// -----------------------------------------------------------------------------
+
 /// One opening tag with its direct attributes and boundary comments.
 pub struct ViewElement {
-    /// Stores the `name` value used by this analysis.
+    /// Element or attribute name involved in the view-structure finding.
     pub(crate) name: String,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     pub(crate) span: Span,
-    /// Stores the `attributes` value used by this analysis.
+    /// Attributes in authored order with their inferred responsibilities.
     attributes: Vec<ViewAttribute>,
-    /// Stores the `headings` value used by this analysis.
+    /// Authored group headings and their source positions.
     headings: Vec<ViewHeading>,
 }
 
 impl ViewElement {
-    /// Performs the `complexity` operation for this value.
+    /// Computes the direct authored complexity of this construct.
     pub(crate) fn complexity(&self) -> usize {
         self.attributes
             .iter()
@@ -358,7 +371,7 @@ impl ViewElement {
             .sum()
     }
 
-    /// Performs the `category_count` operation for this value.
+    /// Counts attributes assigned to one semantic responsibility.
     pub(crate) fn category_count(&self) -> usize {
         self.attributes
             .iter()
@@ -367,7 +380,7 @@ impl ViewElement {
             .len()
     }
 
-    /// Performs the `group_count` operation for this value.
+    /// Counts attributes covered by one authored group heading.
     pub(crate) fn group_count(&self, config: &LeptosViewStructureConfig) -> usize {
         self.headings
             .iter()
@@ -379,9 +392,8 @@ impl ViewElement {
             .count()
     }
 
-    /// Performs the `groups` operation for this value.
+    /// Partitions attributes according to authored heading boundaries.
     pub(crate) fn groups(&self, config: &LeptosViewStructureConfig) -> Vec<ViewAttributeGroup<'_>> {
-        // Prepare the values used by this stage.
         let starts = self
             .headings
             .iter()
@@ -392,7 +404,6 @@ impl ViewElement {
             })
             .collect::<Vec<_>>();
 
-        // Perform the next step of the analysis.
         starts
             .iter()
             .enumerate()
@@ -409,6 +420,10 @@ impl ViewElement {
     }
 }
 
+// -----------------------------------------------------------------------------
+// ViewSection: Heading-owned sibling nodes
+// -----------------------------------------------------------------------------
+
 /// Nodes introduced by one canonical heading in a direct sibling scope.
 pub struct ViewSection<'scope> {
     /// Canonical heading that names this section.
@@ -424,20 +439,28 @@ impl ViewSection<'_> {
     }
 }
 
+// -----------------------------------------------------------------------------
+// ViewSourceRange: Expanded-call deduplication coordinates
+// -----------------------------------------------------------------------------
+
 /// Stable source coordinates used to deduplicate expanded view calls.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct SourceRange {
+struct ViewSourceRange {
     /// Inclusive low byte position.
     lo: u32,
     /// Exclusive high byte position.
     hi: u32,
 }
 
+// -----------------------------------------------------------------------------
+// ViewCallSites: Per-pass view-call deduplication
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
 /// Stateful deduplication shared by individual view lint passes.
 pub struct ViewCallSites {
     /// Source positions already analyzed for this pass.
-    seen: HashSet<SourceRange>,
+    seen: HashSet<ViewSourceRange>,
 }
 
 impl ViewCallSites {
@@ -446,27 +469,29 @@ impl ViewCallSites {
         &mut self,
         cx: &LateContext<'_>,
         expression: &Expr<'_>,
-    ) -> Option<Analysis> {
-        // Prepare the values used by this stage.
+    ) -> Option<ViewStructureAnalysis> {
         let span = expression.span.macro_backtrace().find_map(|expansion| {
             matches!(expansion.kind, ExpnKind::Macro(MacroKind::Bang, name) if name.as_str() == "view")
                 .then_some(expansion.call_site)
         })?;
-        if !self.seen.insert(SourceRange {
+        if !self.seen.insert(ViewSourceRange {
             lo: span.lo().0,
             hi: span.hi().0,
         }) {
             return None;
         }
 
-        // Prepare the values used by this stage.
         let source = match cx.sess().source_map().span_to_snippet(span) {
             Ok(source) => source,
             Err(_error) => return None,
         };
-        Analysis::parse(span, expression.hir_id, &source)
+        ViewStructureAnalysis::parse(span, expression.hir_id, &source)
     }
 }
+
+// -----------------------------------------------------------------------------
+// ViewScopeBuilder: Rstml-to-policy model projection
+// -----------------------------------------------------------------------------
 
 /// Projects rstml nodes into the small stable model used by the lint family.
 struct ViewScopeBuilder<'source> {
@@ -475,7 +500,7 @@ struct ViewScopeBuilder<'source> {
     /// Rustc span corresponding to source byte zero.
     span: Span,
     /// Ordinary Rust comments retained separately from the token stream.
-    comments: &'source [SourceComment],
+    comments: &'source [ViewSourceComment],
     /// Completed sibling scopes.
     scopes: Vec<ViewScope>,
     /// Completed authored opening tags.
@@ -494,13 +519,11 @@ impl ViewScopeBuilder<'_> {
 
     /// Converts one structural rstml node into a direct-view participant.
     fn project_node(&self, node: &Node) -> Option<ViewNode> {
-        // Prepare the values used by this stage.
         let range = node.span().byte_range();
         if range.start >= range.end || range.end > self.source.len() {
             return None;
         }
 
-        // Prepare the values used by this stage.
         let (complexity, name, literal) = match node {
             Node::Element(element) => {
                 let name = element.name().to_string();
@@ -526,7 +549,6 @@ impl ViewScopeBuilder<'_> {
             | Node::Custom(_) => return None,
         };
 
-        // Return the completed analysis result.
         Some(ViewNode {
             span: self.to_rustc_span(&range),
             range,
@@ -578,7 +600,6 @@ impl ViewScopeBuilder<'_> {
 
     /// Projects one opening tag into the shared attribute-group model.
     fn collect_element(&mut self, element: &NodeElement<rstml::Infallible>) {
-        // Prepare the values used by this stage.
         let attributes = element
             .attributes()
             .iter()
@@ -609,14 +630,12 @@ impl ViewScopeBuilder<'_> {
             })
             .collect::<Vec<_>>();
 
-        // Reject inputs that do not satisfy this stage.
         if attributes.is_empty() {
             return;
         }
         let opening = element.open_tag.span().byte_range();
         let bounds = opening.clone();
 
-        // Prepare the values used by this stage.
         let headings = self.collect_headings_for_ranges(
             &attributes
                 .iter()
@@ -625,7 +644,6 @@ impl ViewScopeBuilder<'_> {
             &bounds,
         );
 
-        // Update the accumulated analysis state.
         self.elements.push(ViewElement {
             name: element.name().to_string(),
             span: self.to_rustc_span(&opening),
@@ -647,7 +665,6 @@ impl ViewScopeBuilder<'_> {
 
     /// Collects one sibling scope, flattening fragments but not element descendants.
     fn collect_scope(&mut self, nodes: &[Node], bounds: Range<usize>) {
-        // Prepare the values used by this stage.
         let mut direct = Vec::new();
         flatten_fragments(nodes, &mut direct);
         let projected = direct
@@ -656,7 +673,6 @@ impl ViewScopeBuilder<'_> {
             .collect::<Vec<_>>();
         let headings = self.collect_headings(&projected, &bounds);
 
-        // Update the accumulated analysis state.
         self.scopes.push(ViewScope {
             nodes: projected,
             headings,
@@ -681,16 +697,20 @@ impl ViewScopeBuilder<'_> {
     }
 }
 
+// -----------------------------------------------------------------------------
+// ViewAttributeGroup: Heading-owned attribute runs
+// -----------------------------------------------------------------------------
+
 /// Consecutive attributes introduced by one canonical heading.
 pub struct ViewAttributeGroup<'element> {
-    /// Stores the `heading` value used by this analysis.
+    /// Authored heading that claims this group.
     pub(crate) heading: &'element ViewHeading,
-    /// Stores the `attributes` value used by this analysis.
+    /// Attribute names and source positions recovered from one element.
     pub(crate) attributes: &'element [ViewAttribute],
 }
 
 impl ViewAttributeGroup<'_> {
-    /// Performs the `complexity` operation for this value.
+    /// Computes the direct authored complexity of this construct.
     pub(crate) fn complexity(&self) -> usize {
         self.attributes
             .iter()
@@ -712,21 +732,18 @@ fn flatten_fragments<'node>(nodes: &'node [Node], direct: &mut Vec<&'node Node>)
 
 /// Mirrors Leptos's optional `class=value,` prelude before rstml parsing.
 fn without_global_class(tokens: TokenStream) -> TokenStream {
-    // Prepare the values used by this stage.
     let mut tokens = tokens.into_iter();
     let first = tokens.next();
     let second = tokens.next();
     let third = tokens.next();
     let fourth = tokens.next();
 
-    // Prepare the values used by this stage.
     let has_global_class = matches!(
         (&first, &second, &fourth),
         (Some(TokenTree::Ident(name)), Some(TokenTree::Punct(eq)), Some(TokenTree::Punct(comma)))
             if name == "class" && eq.as_char() == '=' && comma.as_char() == ','
     );
 
-    // Reject inputs that do not satisfy this stage.
     if has_global_class {
         tokens.collect()
     } else {
@@ -764,15 +781,19 @@ fn direct_literal(element: &NodeElement<rstml::Infallible>) -> Option<String> {
     Some(text.value_string())
 }
 
+// -----------------------------------------------------------------------------
+// ViewSourceComment: Authored comment recovery
+// -----------------------------------------------------------------------------
+
 /// Ordinary Rust line comment omitted from proc-macro token streams.
-struct SourceComment {
+struct ViewSourceComment {
     /// Source-relative byte range.
     range: Range<usize>,
     /// Complete authored token text.
     text: String,
 }
 
-impl SourceComment {
+impl ViewSourceComment {
     /// Lexes comments without interpreting any RSX grammar.
     fn collect(source: &str) -> Vec<Self> {
         let mut comments = Vec::new();
@@ -799,10 +820,10 @@ impl SourceComment {
 mod tests {
     use super::rustc_hir::CRATE_HIR_ID;
     use super::rustc_span::{BytePos, Span};
-    use super::{Analysis, LeptosViewStructureConfig};
+    use super::{LeptosViewStructureConfig, ViewStructureAnalysis};
 
-    fn parse(source: &str) -> Analysis {
-        Analysis::parse(
+    fn parse(source: &str) -> ViewStructureAnalysis {
+        ViewStructureAnalysis::parse(
             Span::with_root_ctxt(
                 BytePos(0),
                 BytePos(u32::try_from(source.len()).expect("test view fits in a source span")),

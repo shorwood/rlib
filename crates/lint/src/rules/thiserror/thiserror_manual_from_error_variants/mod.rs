@@ -15,13 +15,17 @@ use crate::rules::framework::config::{DeriveResolutionConfig, ErrorVariantConver
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Manual conversion into a thiserror variant
+// -----------------------------------------------------------------------------
+
+/// Exact source wrapper that thiserror can derive with `#[from]`.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Manual implementation receiving the diagnostic.
     span: Span,
-    /// Stores the `error` value used by this analysis.
+    /// Target error enum.
     error: String,
-    /// Stores the `variant` value used by this analysis.
+    /// Variant that wraps the source value.
     variant: String,
 }
 
@@ -57,18 +61,22 @@ impl LateViolation for Violation {
     }
 }
 
-/// Carries the `ThiserrorManualFromErrorVariants` state used by this analysis.
+// -----------------------------------------------------------------------------
+// ThiserrorManualFromErrorVariants: Configured conversion provider policy
+// -----------------------------------------------------------------------------
+
+/// Reports derivable conversions when thiserror owns variant conversion policy.
 struct ThiserrorManualFromErrorVariants {
-    /// Stores the `catalog` value used by this analysis.
+    /// Local derived error contracts.
     catalog: ThiserrorContractCatalog,
-    /// Stores the `config` value used by this analysis.
+    /// Explicit provider selection shared with overlapping derive frameworks.
     config: DeriveResolutionConfig,
-    /// Stores the `candidates` value used by this analysis.
+    /// Exact manual wrappers awaiting derive confirmation.
     candidates: Vec<ManualFromCandidate>,
 }
 
 impl ThiserrorManualFromErrorVariants {
-    /// Performs the `new` operation for this value.
+    /// Loads explicit derive-provider resolution.
     fn new() -> Self {
         Self {
             catalog: ThiserrorContractCatalog::default(),
@@ -77,8 +85,8 @@ impl ThiserrorManualFromErrorVariants {
         }
     }
 
-    /// Performs the `selected` operation for this value.
-    fn selected(&self) -> bool {
+    /// Returns whether configuration assigns this conversion to thiserror.
+    fn uses_thiserror_provider(&self) -> bool {
         if cfg!(feature = "derive_more") {
             self.config.error_variant_conversion()
                 == Some(ErrorVariantConversionProvider::ThiserrorFrom)
@@ -104,31 +112,25 @@ impl LateLintPass<'_> for ThiserrorManualFromErrorVariants {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        let Some(analyze_candidate) = ManualFromCandidate::from_impl_item(cx, item) else {
+        let Some(candidate) = ManualFromCandidate::from_impl_item(cx, item) else {
             return;
         };
-        self.candidates.push(analyze_candidate);
+        self.candidates.push(candidate);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        if !self.selected() {
+        if !self.uses_thiserror_provider() {
             return;
         }
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
-            if self
-                .catalog
-                .derived_type(analyze_candidate.definition)
-                .is_none()
-            {
+        for candidate in self.candidates.drain(..) {
+            if self.catalog.derived_type(candidate.definition).is_none() {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                error: analyze_candidate.error,
-                variant: analyze_candidate.variant,
+                span: candidate.span,
+                error: candidate.error,
+                variant: candidate.variant,
             }
             .emit(cx);
         }

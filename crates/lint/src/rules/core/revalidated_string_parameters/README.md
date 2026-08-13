@@ -30,7 +30,6 @@ fn subscribe(email: &str) -> Result<()> {
 
 ## Use instead
 
-
 Establish validity once and make invalid construction impossible:
 
 ```rust

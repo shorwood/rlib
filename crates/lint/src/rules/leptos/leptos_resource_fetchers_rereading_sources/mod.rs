@@ -13,11 +13,15 @@ use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Resource fetcher rereading its reactive source
+// -----------------------------------------------------------------------------
+
+/// Resource fetcher that rereads a signal already represented by its source value.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
 }
 
@@ -68,17 +72,17 @@ struct ReactiveRead {
     span: Span,
 }
 
-/// Carries the `ReactiveReads` state used by this analysis.
+/// Reactive source reads observed while visiting one resource fetcher.
 struct ReactiveReads<'analysis, 'tcx> {
-    /// Stores the `cx` value used by this analysis.
+    /// Compiler context used to resolve calls and captured bindings.
     cx: &'analysis LateContext<'tcx>,
-    /// Stores the `reads` value used by this analysis.
+    /// Reactive getters called from the fetcher closure.
     reads: Vec<ReactiveRead>,
-    /// Stores the `parameter_bindings` value used by this analysis.
+    /// Values already supplied by the resource source closure.
     parameter_bindings: Vec<HirId>,
-    /// Stores the `used_parameters` value used by this analysis.
+    /// Source parameters actually consumed by the fetcher.
     used_parameters: Vec<HirId>,
-    /// Stores the `body_depth` value used by this analysis.
+    /// Nesting depth used to avoid attributing reads from nested closures.
     body_depth: u8,
 }
 
@@ -86,7 +90,7 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
     /// Deepest closure body that executes as part of the analyzed resource closure.
     const MAXIMUM_RESOURCE_BODY_DEPTH: u8 = 2;
 
-    /// Performs the `new` operation for this value.
+    /// Starts reactive-read collection for one resource fetcher body.
     const fn new(cx: &'analysis LateContext<'tcx>) -> Self {
         Self {
             cx,
@@ -97,9 +101,8 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
         }
     }
 
-    /// Performs the `is_reactive_get` operation for this value.
+    /// Recognizes a signal getter and resolves its receiver binding.
     fn is_reactive_get(&self, expression: &Expr<'_>) -> bool {
-        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return false;
         };
@@ -108,7 +111,6 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
         }
         let owner = self.cx.tcx.hir_enclosing_body_owner(expression.hir_id);
 
-        // Prepare the values used by this stage.
         let Some(method) = self
             .cx
             .tcx
@@ -118,7 +120,6 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
             return false;
         };
 
-        // Update the accumulated analysis state.
         self.cx.tcx.crate_name(method.krate).as_str() == "reactive_graph"
             && self.cx.tcx.item_name(method).as_str() == "get"
             && self
@@ -128,7 +129,7 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
                 .is_some_and(|trait_id| self.cx.tcx.item_name(trait_id).as_str() == "Get")
     }
 
-    /// Performs the `ignored_source` operation for this value.
+    /// Returns whether the fetcher deliberately ignores its source argument.
     fn ignored_source(&self) -> bool {
         self.parameter_bindings
             .iter()
@@ -147,7 +148,6 @@ impl<'tcx> Visitor<'tcx> for ReactiveReads<'_, 'tcx> {
     }
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        // Reject inputs that do not satisfy this stage.
         if let ExprKind::Path(path) = expression.kind
             && let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id)
             && self.parameter_bindings.contains(&binding)
@@ -156,7 +156,6 @@ impl<'tcx> Visitor<'tcx> for ReactiveReads<'_, 'tcx> {
             self.used_parameters.push(binding);
         }
 
-        // Reject inputs that do not satisfy this stage.
         if self.is_reactive_get(expression)
             && let ExprKind::MethodCall(_, receiver, _, _) = expression.kind
             && let ExprKind::Path(path) = receiver.kind
@@ -172,9 +171,9 @@ impl<'tcx> Visitor<'tcx> for ReactiveReads<'_, 'tcx> {
     }
 }
 
-/// Carries the `ParameterBindings` state used by this analysis.
+/// Bindings introduced by the resource fetcher's source parameter pattern.
 struct ParameterBindings<'bindings> {
-    /// Stores the `bindings` value used by this analysis.
+    /// HIR identities of every binding introduced by the pattern.
     bindings: &'bindings mut Vec<HirId>,
 }
 
@@ -195,7 +194,11 @@ struct ResourceClosures<'tcx> {
     fetcher: &'tcx Expr<'tcx>,
 }
 
-/// Carries the `LeptosResourceFetchersRereadingSources` state used by this analysis.
+// -----------------------------------------------------------------------------
+// LeptosResourceFetchersRereadingSources: Explicit fetcher-input policy
+// -----------------------------------------------------------------------------
+
+/// Finds fetchers that reread signals instead of using their tracked source value.
 struct LeptosResourceFetchersRereadingSources;
 
 dylint_linting::impl_late_lint! {
@@ -207,12 +210,11 @@ dylint_linting::impl_late_lint! {
 }
 
 impl LeptosResourceFetchersRereadingSources {
-    /// Performs the `closures` operation for this value.
+    /// Extracts the source and fetcher closures from a resource constructor call.
     fn closures<'tcx>(
         cx: &LateContext<'tcx>,
         expression: &'tcx Expr<'tcx>,
     ) -> Option<ResourceClosures<'tcx>> {
-        // Prepare the values used by this stage.
         let ExprKind::Call(callee, arguments) = expression.kind else {
             return None;
         };
@@ -220,7 +222,6 @@ impl LeptosResourceFetchersRereadingSources {
             return None;
         };
 
-        // Prepare the values used by this stage.
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
@@ -228,7 +229,6 @@ impl LeptosResourceFetchersRereadingSources {
             return None;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if cx.tcx.crate_name(method.krate).as_str() != "leptos_server"
             || cx.tcx.item_name(method).as_str() != "new"
         {
@@ -236,14 +236,12 @@ impl LeptosResourceFetchersRereadingSources {
         }
         let implementation = cx.tcx.impl_of_assoc(method)?;
 
-        // Prepare the values used by this stage.
         let definition = cx
             .tcx
             .type_of(implementation)
             .instantiate_identity()
             .ty_adt_def()?;
 
-        // Perform the next step of the analysis.
         matches!(
             cx.tcx.item_name(definition.did()).as_str(),
             "Resource" | "ArcResource"
@@ -251,7 +249,7 @@ impl LeptosResourceFetchersRereadingSources {
         .then_some(ResourceClosures { source, fetcher })
     }
 
-    /// Performs the `analyze` operation for this value.
+    /// Compares tracked source bindings with reactive reads in the fetcher.
     fn analyze<'analysis, 'tcx>(
         cx: &'analysis LateContext<'tcx>,
         closure: &'tcx Expr<'tcx>,
@@ -277,7 +275,6 @@ impl LeptosResourceFetchersRereadingSources {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosResourceFetchersRereadingSources {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
-        // Prepare the values used by this stage.
         let Some(ResourceClosures { source, fetcher }) = Self::closures(cx, expression) else {
             return;
         };
@@ -285,7 +282,6 @@ impl<'tcx> LateLintPass<'tcx> for LeptosResourceFetchersRereadingSources {
             return;
         };
 
-        // Prepare the values used by this stage.
         let Some(fetcher) = Self::analyze(cx, fetcher, ReactiveParameterCollection::Collect) else {
             return;
         };
@@ -293,7 +289,6 @@ impl<'tcx> LateLintPass<'tcx> for LeptosResourceFetchersRereadingSources {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(read) = fetcher.reads.iter().find(|read| {
             source
                 .reads
@@ -303,7 +298,6 @@ impl<'tcx> LateLintPass<'tcx> for LeptosResourceFetchersRereadingSources {
             return;
         };
 
-        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
             span: read.span,

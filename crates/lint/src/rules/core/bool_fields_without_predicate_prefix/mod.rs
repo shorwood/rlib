@@ -61,7 +61,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// BoolFieldsWithoutPredicatePrefix: Lint pass
+// BoolFieldsWithoutPredicatePrefix: Predicate naming policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that requires boolean field names to read as predicates.

@@ -13,15 +13,19 @@ use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Dynamic error exposed by a public function
+// -----------------------------------------------------------------------------
+
+/// A public function whose error type erases its failure vocabulary.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Function used to honor local lint attributes.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Public function highlighted by the diagnostic.
     span: Span,
-    /// Stores the `function` value used by this analysis.
+    /// Function name shown to the caller.
     function: String,
-    /// Stores the `error` value used by this analysis.
+    /// Dynamic error type exposed by the function.
     error: String,
 }
 
@@ -63,8 +67,15 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `boxed_error_trait` step of the lint analysis.
-fn boxed_error_trait(cx: &LateContext<'_>, inner: Ty<'_>) -> Option<String> {
+// -----------------------------------------------------------------------------
+// DynamicError: Erased error recognition
+// -----------------------------------------------------------------------------
+
+/// Success and error arguments carried by `Result`.
+const DYNAMIC_ERROR_RESULT_TYPE_ARGUMENT_COUNT: usize = 2;
+
+/// Recognizes `Box<dyn std::error::Error>` and its `core` spelling.
+fn dynamic_error_boxed_trait_name(cx: &LateContext<'_>, inner: Ty<'_>) -> Option<String> {
     let ty::Dynamic(predicates, ..) = inner.kind() else {
         return None;
     };
@@ -75,7 +86,7 @@ fn boxed_error_trait(cx: &LateContext<'_>, inner: Ty<'_>) -> Option<String> {
     .then(|| "Box<dyn Error>".to_owned())
 }
 
-/// Performs the `dynamic_error_name` step of the lint analysis.
+/// Names dynamic error types that should stay behind a concrete domain error.
 fn dynamic_error_name(cx: &LateContext<'_>, error: Ty<'_>) -> Option<String> {
     if let ty::Adt(definition, arguments) = error.kind() {
         let name_symbol = cx.tcx.item_name(definition.did());
@@ -86,13 +97,17 @@ fn dynamic_error_name(cx: &LateContext<'_>, error: Ty<'_>) -> Option<String> {
             return Some(format!("{krate}::{name}"));
         }
         if krate == "alloc" && name == "Box" && !arguments.is_empty() {
-            return boxed_error_trait(cx, arguments.type_at(0));
+            return dynamic_error_boxed_trait_name(cx, arguments.type_at(0));
         }
     }
     None
 }
 
-/// Carries the `ThiserrorDynamicErrorsInLibraryInterfaces` state used by this analysis.
+// -----------------------------------------------------------------------------
+// ThiserrorDynamicErrorsInLibraryInterfaces: Concrete public error policy
+// -----------------------------------------------------------------------------
+
+/// Checks public functions for dynamically typed errors.
 struct ThiserrorDynamicErrorsInLibraryInterfaces;
 
 dylint_linting::impl_late_lint! {
@@ -105,11 +120,7 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for ThiserrorDynamicErrorsInLibraryInterfaces {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        /// Success and error arguments carried by `Result`.
-        // Fix the expected shape before inspecting a function's result type.
-        const RESULT_TYPE_ARGUMENT_COUNT: usize = 2;
-
-        // Reject inputs that do not satisfy this stage.
+        // Limit the policy to authored public functions.
         if item.span.from_expansion()
             || !matches!(item.kind, ItemKind::Fn { .. })
             || !cx.tcx.visibility(item.owner_id.def_id).is_public()
@@ -117,7 +128,7 @@ impl LateLintPass<'_> for ThiserrorDynamicErrorsInLibraryInterfaces {
             return;
         }
 
-        // Prepare the values used by this stage.
+        // Resolve the function's concrete return contract.
         let output = cx
             .tcx
             .fn_sig(item.owner_id.def_id)
@@ -125,23 +136,21 @@ impl LateLintPass<'_> for ThiserrorDynamicErrorsInLibraryInterfaces {
             .skip_binder()
             .output();
 
-        // Prepare the values used by this stage.
         let ty::Adt(result, arguments) = output.kind() else {
             return;
         };
         if cx.tcx.item_name(result.did()).as_str() != "Result"
-            || arguments.len() != RESULT_TYPE_ARGUMENT_COUNT
+            || arguments.len() != DYNAMIC_ERROR_RESULT_TYPE_ARGUMENT_COUNT
         {
             return;
         }
         let error = arguments.type_at(1);
 
-        // Prepare the values used by this stage.
+        // Report only error types that erase the public failure vocabulary.
         let Some(error_name) = dynamic_error_name(cx, error) else {
             return;
         };
 
-        // Perform the next step of the analysis.
         Violation {
             owner: item.hir_id(),
             span: item.span,

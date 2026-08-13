@@ -30,6 +30,8 @@ enum FunctionLayoutPhaseHeader {
     Present,
     /// The phase is currently unnamed.
     Missing,
+    /// No authored boundary starts a new phase here.
+    Continuous,
 }
 
 impl FunctionLayoutPhaseHeader {
@@ -37,8 +39,10 @@ impl FunctionLayoutPhaseHeader {
     const fn from_entry_gap(gap: &FunctionLayoutEntryGap) -> Self {
         if gap.has_valid_header {
             Self::Present
-        } else {
+        } else if gap.has_visual_boundary {
             Self::Missing
+        } else {
+            Self::Continuous
         }
     }
 }
@@ -289,13 +293,11 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
 
         // Select guidance that matches the phase's missing name or excessive size.
         let help = if matches!(header, FunctionLayoutPhaseHeader::Present) {
-            format!(
-                "split this phase with `{}` explanatory comments or extract named operations",
-                self.config.phase_comment_prefix
-            )
+            "extract a named operation; add another phase only when the work has a separate responsibility"
+                .to_owned()
         } else {
             format!(
-                "name this phase with a `{}` explanatory comment or extract a named operation",
+                "replace the blank-line boundary with a concise `{}` explanation or extract a named operation",
                 self.config.phase_comment_prefix
             )
         };
@@ -319,23 +321,34 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
             .iter()
             .map(|entry| entry.direct_line_count(self.cx))
             .collect::<Vec<_>>();
-        if line_counts.iter().sum::<usize>() <= self.config.max_phase_lines {
+        let total_lines = line_counts.iter().sum::<usize>();
+        if total_lines <= self.config.max_phase_lines {
             return;
         }
 
-        // Treat every valid explanation as the start of a distinct semantic phase.
+        let has_authored_phases = matches!(headers[0], FunctionLayoutPhaseHeader::Present)
+            || headers[1..]
+                .iter()
+                .any(|header| !matches!(header, FunctionLayoutPhaseHeader::Continuous));
+        if !has_authored_phases {
+            return;
+        }
+
+        // Treat comments and blank-line boundaries as authored semantic phases.
         let mut phase_start = 0;
         for index in 1..=entries.len() {
-            if index < entries.len() && matches!(headers[index], FunctionLayoutPhaseHeader::Missing)
+            if index < entries.len()
+                && matches!(headers[index], FunctionLayoutPhaseHeader::Continuous)
             {
                 continue;
             }
             let lines = line_counts[phase_start..index].iter().sum::<usize>();
-            let header = headers[phase_start];
+            let header = match headers[phase_start] {
+                FunctionLayoutPhaseHeader::Continuous => FunctionLayoutPhaseHeader::Missing,
+                header => header,
+            };
             let phase = &entries[phase_start..index];
-            if matches!(header, FunctionLayoutPhaseHeader::Missing)
-                || lines > self.config.max_phase_lines
-            {
+            if lines > self.config.max_phase_lines {
                 self.record_oversized_phase(phase, lines, header);
             }
             phase_start = index;

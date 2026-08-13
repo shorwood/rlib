@@ -25,7 +25,6 @@ fn partition() -> (Accepted, Rejected) {
 
 ## Use instead
 
-
 Introduce a record whose type and fields explain the result:
 
 ```rust

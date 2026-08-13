@@ -23,7 +23,6 @@ struct Window {
 
 ## Use instead
 
-
 Prefixing them makes their role explicit wherever the fields are read:
 
 ```rust

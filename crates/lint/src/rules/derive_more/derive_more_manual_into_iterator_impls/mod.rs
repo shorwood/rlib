@@ -17,18 +17,18 @@ use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-/// Classifies `Receiver` cases used by this analysis.
+/// Receiver forms supported by `derive_more`'s `IntoIterator` derive.
 enum Receiver {
-    /// Represents the `Owned` case.
+    /// Consumes the wrapper and yields owned items.
     Owned,
-    /// Represents the `Ref` case.
+    /// Iterates through a shared reference to the wrapper.
     Ref,
-    /// Represents the `RefMut` case.
+    /// Iterates through a mutable reference to the wrapper.
     RefMut,
 }
 
 impl Receiver {
-    /// Performs the `attribute` operation for this value.
+    /// Returns `derive_more`'s attribute spelling for this receiver form.
     const fn attribute(self) -> &'static str {
         match self {
             Self::Owned => "owned",
@@ -38,17 +38,21 @@ impl Receiver {
     }
 }
 
-/// Carries the `Family` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derivable iterator implementation family
+// -----------------------------------------------------------------------------
+
+/// Owned and borrowed iteration implementations for one transparent wrapper.
 struct Family {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: String,
-    /// Stores the `receivers` value used by this analysis.
+    /// Owned and borrowed receiver forms implemented by the wrapper.
     receivers: Vec<Receiver>,
 }
 
-/// Stores the `item` value used by this analysis.
+/// Complete iterator family proven replaceable by `derive_more`.
 struct Violation(
     /// Iterator family that triggered the violation.
     Family,
@@ -67,7 +71,6 @@ impl LateViolation for Violation {
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
-        // Prepare the values used by this stage.
         let receivers = self
             .0
             .receivers
@@ -76,7 +79,6 @@ impl LateViolation for Violation {
             .collect::<Vec<_>>()
             .join(", ");
 
-        // Perform the next step of the analysis.
         Cow::Owned(format!(
             "replace this family with `#[derive(derive_more::IntoIterator)]` and `#[into_iterator({receivers})]`"
         ))
@@ -107,7 +109,6 @@ struct ExactDelegation {
 impl ExactDelegation {
     /// Recognizes one transparent iteration implementation.
     fn analyze(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
-        // Prepare the values used by this stage.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
@@ -116,7 +117,6 @@ impl ExactDelegation {
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
 
-        // Prepare the values used by this stage.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return None;
         };
@@ -125,7 +125,6 @@ impl ExactDelegation {
         };
         let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
 
-        // Reject inputs that do not satisfy this stage.
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core"
             || cx.tcx.item_name(trait_id).as_str() != "IntoIterator"
         {
@@ -133,7 +132,6 @@ impl ExactDelegation {
         }
         let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
 
-        // Prepare the values used by this stage.
         let (wrapper, receiver) = match trait_ref.self_ty().kind() {
             ty::Adt(definition, _) => (*definition, Receiver::Owned),
             ty::Ref(_, inner, Mutability::Not) => (inner.ty_adt_def()?, Receiver::Ref),
@@ -142,7 +140,6 @@ impl ExactDelegation {
         };
         let definition = wrapper.did().as_local()?;
 
-        // Reject inputs that do not satisfy this stage.
         if !wrapper.is_struct() || wrapper.non_enum_variant().fields.len() != 1 {
             return None;
         }
@@ -150,14 +147,12 @@ impl ExactDelegation {
         let forwarding =
             DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
 
-        // Prepare the values used by this stage.
         let [binding] = forwarding.bindings.as_slice() else {
             return None;
         };
         let call = DirectForwarding::call(cx, forwarding.typeck_owner, forwarding.forwarded)?;
         let called_trait = cx.tcx.trait_of_assoc(call.target)?;
 
-        // Reject inputs that do not satisfy this stage.
         if called_trait != trait_id || cx.tcx.item_name(call.target).as_str() != "into_iter" {
             return None;
         }
@@ -165,7 +160,6 @@ impl ExactDelegation {
             return None;
         };
 
-        // Classify the current analyze_candidate.
         match (receiver, argument.kind) {
             (Receiver::Owned, ExprKind::Field(base, _))
                 if DirectForwarding::is_binding(cx, base, *binding) => {}
@@ -181,7 +175,6 @@ impl ExactDelegation {
             _ => return None,
         }
 
-        // Return the completed analysis result.
         Some(Self {
             definition,
             receiver,
@@ -189,10 +182,14 @@ impl ExactDelegation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// DeriveMoreManualIntoIteratorImpls: Declarative iteration policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `DeriveMoreManualIntoIteratorImpls` state used by this analysis.
+/// Groups transparent `IntoIterator` implementations by their wrapper type.
 struct DeriveMoreManualIntoIteratorImpls {
-    /// Stores the `families` value used by this analysis.
+    /// Iterator families accumulated until every receiver form is known.
     families: HashMap<LocalDefId, Family>,
 }
 

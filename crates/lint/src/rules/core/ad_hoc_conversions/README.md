@@ -31,7 +31,6 @@ fn account_from_record(record: Record) -> Account {
 
 ## Use instead
 
-
 Prefer declaring conversion ownership on the target:
 
 ```rust

@@ -27,7 +27,6 @@ fn parse() {}
 
 ## Use instead
 
-
 Move the behavior into a named child file and leave the barrel as a map of the module:
 
 ```rust,ignore

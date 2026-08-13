@@ -14,6 +14,10 @@ use super::contracts::{
 };
 use crate::utils::diagnostic::LateViolation;
 
+// -----------------------------------------------------------------------------
+// Transparency: Diagnostic source ownership
+// -----------------------------------------------------------------------------
+
 /// Whether a diagnostic delegates presentation to another diagnostic.
 #[derive(Clone, Copy)]
 enum Transparency {
@@ -48,11 +52,15 @@ impl Transparency {
     }
 }
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Labels without available source code
+// -----------------------------------------------------------------------------
+
+/// Label fields that cannot resolve against source text.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Diagnostic declaration containing the labels.
     span: Span,
-    /// Stores the `labels` value used by this analysis.
+    /// Label field names shown to the author.
     labels: Vec<String>,
 }
 
@@ -88,20 +96,19 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `check_fields` step of the lint analysis.
+/// Reports label sets with neither local nor forwarded source code.
 fn check_fields(
     cx: &LateContext<'_>,
     span: Span,
     fields: &[DiagnosticField],
     transparency: Transparency,
 ) {
-    // Prepare the values used by this stage.
     let labels = fields
         .iter()
         .filter(|field| field.roles.contains(DiagnosticFieldRole::Label))
         .collect::<Vec<_>>();
 
-    // Reject inputs that do not satisfy this stage.
+    // Delegated diagnostics and locally sourced labels already have renderable text.
     if labels.is_empty()
         || transparency.is_transparent()
         || fields.iter().any(|field| {
@@ -112,7 +119,6 @@ fn check_fields(
         return;
     }
 
-    // Perform the next step of the analysis.
     Violation {
         span,
         labels: labels
@@ -123,10 +129,14 @@ fn check_fields(
     .emit(cx);
 }
 
+// -----------------------------------------------------------------------------
+// MietteLabelsWithoutSourceCode: Renderable label policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `MietteLabelsWithoutSourceCode` state used by this analysis.
+/// Collects diagnostic field roles before checking label-source pairing.
 struct MietteLabelsWithoutSourceCode {
-    /// Stores the `catalog` value used by this analysis.
+    /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
 

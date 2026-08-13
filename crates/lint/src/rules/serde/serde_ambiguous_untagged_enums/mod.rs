@@ -15,29 +15,33 @@ use super::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Ambiguous untagged enum representation
+// -----------------------------------------------------------------------------
+
+/// Untagged enum awaiting complete variant-shape comparison.
 struct Candidate {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `first` value used by this analysis.
+    /// First conflicting contract member.
     first: String,
-    /// Stores the `second` value used by this analysis.
+    /// Second conflicting contract member.
     second: String,
-    /// Stores the `witness` value used by this analysis.
+    /// Concrete input shape proving the overlap.
     witness: Vec<String>,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Pair of untagged variants with a concrete overlapping input shape.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `first` value used by this analysis.
+    /// First conflicting contract member.
     first: String,
-    /// Stores the `second` value used by this analysis.
+    /// Second conflicting contract member.
     second: String,
-    /// Stores the `witness` value used by this analysis.
+    /// Concrete input shape proving the overlap.
     witness: Vec<String>,
 }
 
@@ -81,27 +85,25 @@ impl LateViolation for Violation {
     }
 }
 
-/// Carries the `VariantShape` state used by this analysis.
+/// Required input fields and openness of one untagged struct variant.
 struct VariantShape {
-    /// Stores the `name` value used by this analysis.
+    /// Authored type or member name involved in the wire contract.
     name: String,
-    /// Stores the `fields` value used by this analysis.
+    /// Authored fields relevant to the contract.
     fields: BTreeMap<String, &'static str>,
-    /// Stores the `required` value used by this analysis.
+    /// Wire fields that must be present for this variant to deserialize.
     required: BTreeSet<String>,
-    /// Stores the `is_closed` value used by this analysis.
+    /// Whether unknown fields are rejected instead of ignored.
     is_closed: bool,
 }
 
 impl VariantShape {
-    /// Performs the `analyze_variant_shape` step of the lint analysis.
-    fn analyze_variant_shape(variant: &syn::Variant) -> Option<Self> {
-        // Prepare the values used by this stage.
+    /// Builds the accepted object shape for one named-field variant.
+    fn from_variant(variant: &syn::Variant) -> Option<Self> {
         let syn::Fields::Named(fields) = &variant.fields else {
             return None;
         };
 
-        // Prepare the values used by this stage.
         let mut shape = Self {
             name: variant.ident.to_string(),
             fields: BTreeMap::new(),
@@ -109,10 +111,8 @@ impl VariantShape {
             is_closed: false,
         };
 
-        // Process the candidates handled by this stage.
         for field in &fields.named {
-            // Prepare the values used by this stage.
-            let attributes = SerdeAttributes::analyze_serde_attributes(&field.attrs);
+            let attributes = SerdeAttributes::from_attributes(&field.attrs);
             if attributes.has(SerdeFlag::SkipDeserialize) {
                 continue;
             }
@@ -120,21 +120,18 @@ impl VariantShape {
             let has_default = attributes.has(SerdeFlag::HasDefault);
             let name = attributes.rename_deserialize.unwrap_or(rust_name);
 
-            // Perform the next step of the analysis.
             shape.fields.insert(name.clone(), scalar_domain(&field.ty)?);
-            if !(!has_default && !is_option(&field.ty)) {
+            if !(!has_default && !scalar_domain_is_option(&field.ty)) {
                 continue;
             }
             shape.required.insert(name);
         }
 
-        // Return the completed analysis result.
         Some(shape)
     }
 
     /// Returns a concrete field set accepted by both variant shapes.
     fn overlap_witness(&self, second: &Self) -> Option<Vec<String>> {
-        // Prepare the values used by this stage.
         let required = self
             .required
             .union(&second.required)
@@ -146,7 +143,6 @@ impl VariantShape {
             return None;
         }
 
-        // Process the candidates handled by this stage.
         for key in &required {
             if let (Some(first_domain), Some(second_domain)) =
                 (self.fields.get(key), second.fields.get(key))
@@ -156,13 +152,16 @@ impl VariantShape {
             }
         }
 
-        // Return the completed analysis result.
         Some(required.into_iter().collect())
     }
 }
 
+// -----------------------------------------------------------------------------
+// ScalarDomain: Primitive overlap classification
+// -----------------------------------------------------------------------------
+
 /// Recognizes signed integer scalar domains.
-fn signed_scalar_domain(name: &str) -> Option<&'static str> {
+fn scalar_domain_signed(name: &str) -> Option<&'static str> {
     match name {
         "i8" => Some("i8"),
         "i16" => Some("i16"),
@@ -175,7 +174,7 @@ fn signed_scalar_domain(name: &str) -> Option<&'static str> {
 }
 
 /// Recognizes unsigned integer scalar domains.
-fn unsigned_scalar_domain(name: &str) -> Option<&'static str> {
+fn scalar_domain_unsigned(name: &str) -> Option<&'static str> {
     match name {
         "u8" => Some("u8"),
         "u16" => Some("u16"),
@@ -188,7 +187,7 @@ fn unsigned_scalar_domain(name: &str) -> Option<&'static str> {
 }
 
 /// Recognizes floating-point scalar domains.
-fn float_scalar_domain(name: &str) -> Option<&'static str> {
+fn scalar_domain_float(name: &str) -> Option<&'static str> {
     match name {
         "f32" => Some("f32"),
         "f64" => Some("f64"),
@@ -197,20 +196,19 @@ fn float_scalar_domain(name: &str) -> Option<&'static str> {
 }
 
 /// Classifies primitive scalar names into their overlap domains.
-fn primitive_scalar_domain(name: &str) -> Option<&'static str> {
+fn scalar_domain_primitive(name: &str) -> Option<&'static str> {
     match name {
         "bool" => Some("bool"),
         "char" => Some("char"),
         "String" | "str" => Some("string"),
-        _ => signed_scalar_domain(name)
-            .or_else(|| unsigned_scalar_domain(name))
-            .or_else(|| float_scalar_domain(name)),
+        _ => scalar_domain_signed(name)
+            .or_else(|| scalar_domain_unsigned(name))
+            .or_else(|| scalar_domain_float(name)),
     }
 }
 
-/// Performs the `scalar_domain` step of the lint analysis.
+/// Classifies scalar syntax types that can overlap during untagged deserialization.
 fn scalar_domain(ty: &syn::Type) -> Option<&'static str> {
-    // Prepare the values used by this stage.
     let syn::Type::Path(path) = ty else {
         return None;
     };
@@ -218,7 +216,7 @@ fn scalar_domain(ty: &syn::Type) -> Option<&'static str> {
 
     let name = segment.ident.to_string();
     if name != "Option" {
-        return primitive_scalar_domain(&name);
+        return scalar_domain_primitive(&name);
     }
 
     // Unwrap an optional scalar while preserving its overlap domain.
@@ -234,18 +232,22 @@ fn scalar_domain(ty: &syn::Type) -> Option<&'static str> {
     })
 }
 
-/// Performs the `is_option` step of the lint analysis.
-fn is_option(ty: &syn::Type) -> bool {
+/// Returns whether the type is the standard optional container.
+fn scalar_domain_is_option(ty: &syn::Type) -> bool {
     matches!(ty, syn::Type::Path(path)
         if path.path.segments.last().is_some_and(|segment| segment.ident == "Option"))
 }
 
 #[derive(Default)]
-/// Carries the `SerdeAmbiguousUntaggedEnums` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeAmbiguousUntaggedEnums: Unambiguous wire-shape policy
+// -----------------------------------------------------------------------------
+
+/// Finds concrete input shapes accepted by more than one untagged variant.
 struct SerdeAmbiguousUntaggedEnums {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored Serde declarations awaiting crate-wide contract comparison.
     candidates: Vec<Candidate>,
 }
 
@@ -259,7 +261,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for SerdeAmbiguousUntaggedEnums {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Enum(..)) {
             return;
@@ -268,36 +269,31 @@ impl LateLintPass<'_> for SerdeAmbiguousUntaggedEnums {
             return;
         };
 
-        // Prepare the values used by this stage.
         let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
             return;
         };
-        let container = SerdeAttributes::analyze_serde_attributes(&enumeration.attrs);
+        let container = SerdeAttributes::from_attributes(&enumeration.attrs);
         if !container.has(SerdeFlag::Untagged) {
             return;
         }
 
-        // Prepare the values used by this stage.
         let variants = enumeration
             .variants
             .iter()
             .filter_map(|variant| {
-                VariantShape::analyze_variant_shape(variant).map(|mut shape| {
+                VariantShape::from_variant(variant).map(|mut shape| {
                     shape.is_closed = container.has(SerdeFlag::DenyUnknownFields);
                     shape
                 })
             })
             .collect::<Vec<_>>();
 
-        // Process the candidates handled by this stage.
         for (index, first) in variants.iter().enumerate() {
             for second in &variants[index + 1..] {
-                // Prepare the values used by this stage.
                 let Some(witness) = first.overlap_witness(second) else {
                     continue;
                 };
 
-                // Update the accumulated analysis state.
                 self.candidates.push(Candidate {
                     definition: item.owner_id.def_id,
                     span: item.span,
@@ -310,22 +306,20 @@ impl LateLintPass<'_> for SerdeAmbiguousUntaggedEnums {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
+        for candidate in self.candidates.drain(..) {
             if self
                 .catalog
-                .derived_type(analyze_candidate.definition, "Deserialize")
+                .derived_type(candidate.definition, "Deserialize")
                 .is_none()
             {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                first: analyze_candidate.first,
-                second: analyze_candidate.second,
-                witness: analyze_candidate
+                span: candidate.span,
+                first: candidate.first,
+                second: candidate.second,
+                witness: candidate
                     .witness
                     .into_iter()
                     .map(|key| format!("`{key}`"))

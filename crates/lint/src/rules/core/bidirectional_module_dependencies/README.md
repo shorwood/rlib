@@ -30,7 +30,6 @@ mod syntax {
 
 ## Use instead
 
-
 Extract shared concepts or move the coordinating behavior so imports flow one way:
 
 ```rust

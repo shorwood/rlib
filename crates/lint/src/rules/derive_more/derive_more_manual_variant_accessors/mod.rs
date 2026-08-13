@@ -13,15 +13,19 @@ use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer, PredicateProvider};
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derivable variant accessor family
+// -----------------------------------------------------------------------------
+
+/// Complete manual variant-accessor family reproducible by `derive_more`.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `enum_name` value used by this analysis.
+    /// Enum name quoted in the diagnostic.
     enum_name: Symbol,
-    /// Stores the `is_public_api` value used by this analysis.
+    /// Whether replacement would change a public API.
     is_public_api: bool,
 }
 
@@ -60,16 +64,20 @@ impl LateViolation for Violation {
     }
 }
 
-/// Carries the `DeriveMoreManualVariantAccessors` state used by this analysis.
+// -----------------------------------------------------------------------------
+// DeriveMoreManualVariantAccessors: Declarative accessor policy
+// -----------------------------------------------------------------------------
+
+/// Finds complete manual variant accessor families reproducible by `TryUnwrap`.
 struct DeriveMoreManualVariantAccessors {
-    /// Stores the `analyzer` value used by this analysis.
+    /// Shared collector that proves an accessor exists for every eligible variant.
     analyzer: PredicateFamilyAnalyzer,
-    /// Stores the `provider` value used by this analysis.
+    /// Explicitly resolved framework provider, when one is available.
     provider: Option<PredicateProvider>,
 }
 
 impl DeriveMoreManualVariantAccessors {
-    /// Performs the `new` operation for this value.
+    /// Starts accessor-family analysis with the configured derive provider.
     fn new() -> Self {
         Self {
             analyzer: PredicateFamilyAnalyzer::default(),
@@ -95,14 +103,12 @@ impl LateLintPass<'_> for DeriveMoreManualVariantAccessors {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for family in self.analyzer.complete_families(cx) {
-            // Reject inputs that do not satisfy this stage.
             if !(PredicateFamily::selected(cx, self.provider)
                 == Some(PredicateProvider::DeriveMoreIsVariant))
             {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 span: family.span,
                 owner: family.owner,

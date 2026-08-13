@@ -4,7 +4,7 @@ warning: module declarations are not covered by a section divider
 LL | struct Missing;
    | ^^^^^^^^^^^^^^^
    |
-   = note: without an explicit boundary, neighboring declarations do not reveal whether they intentionally form one naming family
+   = note: without explicit boundaries, readers must infer whether neighboring declarations form one responsibility or several
    = help: add a divider for `Missing`, after first checking whether any outlier should be renamed into that family
 note: the lint level is defined here
   --> $DIR/semantic.rs:8:9
@@ -12,5 +12,23 @@ note: the lint level is defined here
 LL | #![warn(missing_section_dividers)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^
 
-warning: 1 warning emitted
+warning: independently named module concepts are not separated by section dividers
+  --> $DIR/semantic.rs:30:5
+   |
+LL |     struct Reader;
+   |     ^^^^^^^^^^^^^^
+   |
+   = note: without explicit boundaries, readers must infer whether neighboring declarations form one responsibility or several
+   = help: add responsibility-based sections for the independently named concepts `Reader`, `Writer`
+
+warning: independently named module concepts are not separated by section dividers
+  --> $DIR/semantic.rs:41:9
+   |
+LL |         struct SerdeAttributes;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: without explicit boundaries, readers must infer whether neighboring declarations form one responsibility or several
+   = help: add responsibility-based sections for the independently named concepts `SerdeAttributes`, `SerdeCase`, `SerdeContractCatalog`
+
+warning: 3 warnings emitted
 

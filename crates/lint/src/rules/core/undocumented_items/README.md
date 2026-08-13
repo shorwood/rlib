@@ -31,7 +31,6 @@ fn retry(policy: &RetryPolicy) {}
 
 ## Use instead
 
-
 Document each behavioral declaration where its contract is defined:
 
 ```rust

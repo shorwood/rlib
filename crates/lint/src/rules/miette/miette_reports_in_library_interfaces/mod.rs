@@ -13,13 +13,17 @@ use rustc_span::{Span, sym};
 
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Application report exposed by a library API
+// -----------------------------------------------------------------------------
+
+/// Public library function returning an erased Miette report.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Public declaration whose lint level governs the report-boundary finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Public function declaration.
     span: Span,
-    /// Stores the `function` value used by this analysis.
+    /// Function name shown to the author.
     function: String,
 }
 impl LateViolation for Violation {
@@ -59,7 +63,7 @@ impl LateViolation for Violation {
         );
     }
 }
-/// Performs the `library_crate` step of the lint analysis.
+/// Returns whether the current crate produces any library artifact.
 fn library_crate(cx: &LateContext<'_>) -> bool {
     cx.sess()
         .opts
@@ -67,7 +71,7 @@ fn library_crate(cx: &LateContext<'_>) -> bool {
         .iter()
         .any(|kind| !matches!(kind, CrateType::Executable))
 }
-/// Performs the `contains_report` step of the lint analysis.
+/// Finds `miette::Report` directly or in a result error position.
 fn contains_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
     let ty::Adt(definition, arguments) = ty.kind() else {
         return false;
@@ -82,7 +86,11 @@ fn contains_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
         && contains_report(cx, arguments.type_at(1))
 }
 
-/// Carries the `MietteReportsInLibraryInterfaces` state used by this analysis.
+// -----------------------------------------------------------------------------
+// MietteReportsInLibraryInterfaces: Concrete library error vocabulary
+// -----------------------------------------------------------------------------
+
+/// Rejects application-oriented reports at public library boundaries.
 struct MietteReportsInLibraryInterfaces;
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
@@ -93,7 +101,7 @@ dylint_linting::impl_late_lint! {
 }
 impl LateLintPass<'_> for MietteReportsInLibraryInterfaces {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Reject inputs that do not satisfy this stage.
+        // Executables may choose their final rendering boundary freely.
         if item.span.from_expansion()
             || !library_crate(cx)
             || !matches!(item.kind, ItemKind::Fn { .. })
@@ -102,7 +110,6 @@ impl LateLintPass<'_> for MietteReportsInLibraryInterfaces {
             return;
         }
 
-        // Prepare the values used by this stage.
         let output = cx
             .tcx
             .fn_sig(item.owner_id.def_id)
@@ -110,12 +117,10 @@ impl LateLintPass<'_> for MietteReportsInLibraryInterfaces {
             .skip_binder()
             .output();
 
-        // Reject inputs that do not satisfy this stage.
         if !contains_report(cx, output) {
             return;
         }
 
-        // Perform the next step of the analysis.
         Violation {
             owner: item.hir_id(),
             span: item.span,

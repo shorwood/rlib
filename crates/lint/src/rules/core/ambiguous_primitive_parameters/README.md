@@ -24,7 +24,6 @@ fn schedule(user: u64, project: u64, delay: u64) {}
 
 ## Use instead
 
-
 Give reusable identities their own types and group operation-specific values in a named
 request:
 

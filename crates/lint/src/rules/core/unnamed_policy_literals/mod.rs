@@ -94,7 +94,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// UnnamedPolicyLiterals: Lint pass
+// UnnamedPolicyLiterals: Named behavioral threshold policy
 // -----------------------------------------------------------------------------
 
 /// Analyzes each executable body for literals with proven operational meaning.

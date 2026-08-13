@@ -31,7 +31,6 @@ struct MethodLikeFreeFunctionsMigrationBuilder {
 
 ## Use instead
 
-
 Naming the smaller concept first produces a followable family:
 
 ```rust

@@ -94,7 +94,6 @@ impl<'tcx> Visitor<'tcx> for CurrentValueRead<'_, 'tcx> {
     fn visit_nested_body(&mut self, _: BodyId) {}
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        // Reject inputs that do not satisfy this stage.
         if self.span.is_some() {
             return;
         }
@@ -103,7 +102,6 @@ impl<'tcx> Visitor<'tcx> for CurrentValueRead<'_, 'tcx> {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if arguments.is_empty()
             && LeptosReadThenReplaceSignals::local_binding(self.cx, receiver) == Some(self.signal)
             && LeptosReadThenReplaceSignals::is_reactive_method(
@@ -157,7 +155,6 @@ impl LeptosReadThenReplaceSignals {
         expression: &Expr<'_>,
         identity: ReactiveMethodIdentity,
     ) -> bool {
-        // Prepare the values used by this stage.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -166,7 +163,6 @@ impl LeptosReadThenReplaceSignals {
             return false;
         };
 
-        // Perform the next step of the analysis.
         cx.tcx.crate_name(method.krate).as_str() == "reactive_graph"
             && cx.tcx.item_name(method).as_str() == identity.method_name
             && cx
@@ -178,7 +174,6 @@ impl LeptosReadThenReplaceSignals {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosReadThenReplaceSignals {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
-        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, receiver, [replacement], _) = expression.kind else {
             return;
         };
@@ -187,7 +182,6 @@ impl<'tcx> LateLintPass<'tcx> for LeptosReadThenReplaceSignals {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if !Self::is_reactive_method(
             cx,
             owner,
@@ -200,7 +194,6 @@ impl<'tcx> LateLintPass<'tcx> for LeptosReadThenReplaceSignals {
             return;
         }
 
-        // Prepare the values used by this stage.
         let mut read = CurrentValueRead {
             cx,
             owner,
@@ -209,12 +202,10 @@ impl<'tcx> LateLintPass<'tcx> for LeptosReadThenReplaceSignals {
         };
         read.visit_expr(replacement);
 
-        // Prepare the values used by this stage.
         let Some(read_span) = read.span else {
             return;
         };
 
-        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
             span: expression.span,

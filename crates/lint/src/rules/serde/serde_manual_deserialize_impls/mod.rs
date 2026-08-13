@@ -14,13 +14,17 @@ use rustc_span::Span;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derivable manual Deserialize implementation
+// -----------------------------------------------------------------------------
+
+/// Transparent manual deserializer reproducible by a Serde derive.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Authored type or member name involved in the wire contract.
     name: String,
 }
 
@@ -62,9 +66,8 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `exact_transparent_deserializer` step of the lint analysis.
+/// Proves that deserialization delegates to one field and wraps the result unchanged.
 fn exact_transparent_deserializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
-    // Prepare the values used by this stage.
     let Some(source) = AuthoredItemSource::for_item(cx, item) else {
         return false;
     };
@@ -72,7 +75,6 @@ fn exact_transparent_deserializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool
         return false;
     };
 
-    // Prepare the values used by this stage.
     let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
         return false;
     };
@@ -80,7 +82,6 @@ fn exact_transparent_deserializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool
         return false;
     }
     let [syn::FnArg::Typed(deserializer)] = method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
-    // Perform the next step of the analysis.
     else {
         return false;
     };
@@ -88,7 +89,6 @@ fn exact_transparent_deserializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool
         return false;
     };
 
-    // Prepare the values used by this stage.
     let [syn::Stmt::Expr(syn::Expr::Call(ok), _)] = method.block.stmts.as_slice() else {
         return false;
     };
@@ -101,14 +101,12 @@ fn exact_transparent_deserializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool
         return false;
     };
 
-    // Reject inputs that do not satisfy this stage.
     if !matches!(construction.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Self"))
         || construction.args.len() != 1
     {
         return false;
     }
 
-    // Prepare the values used by this stage.
     let Some(syn::Expr::Try(decoded)) = construction.args.first() else {
         return false;
     };
@@ -116,7 +114,6 @@ fn exact_transparent_deserializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool
         return false;
     };
 
-    // Perform the next step of the analysis.
     decode.args.len() == 1
         && matches!(decode.func.as_ref(), syn::Expr::Path(path)
             if path.path.segments.last().is_some_and(|segment| segment.ident == "deserialize"))
@@ -124,7 +121,11 @@ fn exact_transparent_deserializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool
             if path.path.is_ident(&deserializer.ident))
 }
 
-/// Carries the `SerdeManualDeserializeImpls` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeManualDeserializeImpls: Declarative deserialization policy
+// -----------------------------------------------------------------------------
+
+/// Finds transparent manual deserializers reproducible by Serde derives.
 struct SerdeManualDeserializeImpls;
 
 dylint_linting::impl_late_lint! {
@@ -137,7 +138,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for SerdeManualDeserializeImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Prepare the values used by this stage.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
@@ -145,7 +145,6 @@ impl LateLintPass<'_> for SerdeManualDeserializeImpls {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(trait_id) = implementation
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
@@ -153,13 +152,11 @@ impl LateLintPass<'_> for SerdeManualDeserializeImpls {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if cx.tcx.item_name(trait_id).as_str() != "Deserialize"
             || !matches!(
                 cx.tcx.crate_name(trait_id.krate).as_str(),
                 "serde" | "serde_core"
             )
-        // Perform the next step of the analysis.
         {
             return;
         }
@@ -168,7 +165,6 @@ impl LateLintPass<'_> for SerdeManualDeserializeImpls {
             .impl_trait_ref(item.owner_id.def_id)
             .instantiate_identity();
 
-        // Prepare the values used by this stage.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return;
         };
@@ -180,7 +176,6 @@ impl LateLintPass<'_> for SerdeManualDeserializeImpls {
             return;
         }
 
-        // Perform the next step of the analysis.
         Violation {
             owner: item.hir_id(),
             span: item.span,

@@ -62,7 +62,7 @@ pub struct ConstructionMigrationFacts {
 // ConstructionCandidate: Function and target identity
 // -----------------------------------------------------------------------------
 #[derive(Clone)]
-/// Authored function identity retained by one construction `analyze_candidate`.
+/// Authored function identity retained by one construction `candidate`.
 pub struct ConstructionCandidateFunction {
     /// Function definition used to index resolved references.
     pub(crate) def_id: LocalDefId,
@@ -112,11 +112,12 @@ pub struct ConstructionCandidate {
 
 impl ConstructionCandidate {
     /// Returns whether this constructor exposes an exact `Result<T, E>` contract.
+    #[cfg(any(feature = "bon", feature = "derive_more", feature = "serde"))]
     pub(crate) fn is_fallible_direct(&self) -> bool {
         self.target.return_shape == ConstructionReturn::FallibleDirect
     }
 
-    /// Returns whether this `analyze_candidate` is a structurally canonical textual parser.
+    /// Returns whether this `candidate` is a structurally canonical textual parser.
     pub(super) fn is_text_parser(&self) -> bool {
         self.ownership.is_target_same_module
             && self.target.return_shape == ConstructionReturn::FallibleDirect
@@ -451,7 +452,7 @@ impl ConstructionAnalysis {
             .iter()
             .any(|parameter| matches!(parameter.kind, ty::GenericParamDefKind::Lifetime));
 
-        // Preserve the complete semantic analyze_candidate for crate-wide policy selection.
+        // Preserve the complete semantic candidate for crate-wide policy selection.
         let function_facts = ConstructionCandidateFunction {
             def_id,
             name: ident.name,
@@ -497,12 +498,12 @@ impl ConstructionAnalysis {
         });
     }
 
-    /// Returns the construction `analyze_candidate` most recently recorded for one function.
-    pub(crate) fn analyze_candidate(&self, def_id: LocalDefId) -> Option<&ConstructionCandidate> {
+    /// Returns the construction `candidate` most recently recorded for one function.
+    pub(crate) fn candidate(&self, def_id: LocalDefId) -> Option<&ConstructionCandidate> {
         self.candidates
             .iter()
             .rev()
-            .find(|analyze_candidate| analyze_candidate.function.def_id == def_id)
+            .find(|candidate| candidate.function.def_id == def_id)
     }
 
     /// Groups every structurally valid textual parser by its constructed target.
@@ -511,12 +512,12 @@ impl ConstructionAnalysis {
         let parsers = self
             .candidates
             .iter()
-            .filter(|analyze_candidate| analyze_candidate.is_text_parser());
-        for analyze_candidate in parsers {
+            .filter(|candidate| candidate.is_text_parser());
+        for candidate in parsers {
             families
-                .entry(analyze_candidate.target.def_id)
+                .entry(candidate.target.def_id)
                 .or_default()
-                .push(analyze_candidate);
+                .push(candidate);
         }
         families
     }

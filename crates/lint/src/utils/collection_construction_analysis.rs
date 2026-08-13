@@ -124,9 +124,9 @@ pub struct CollectionFamilyCandidate {
 }
 
 /// Reportable collection protocol with family classification.
-pub struct CollectionFamilyFinding<'analyze_candidate> {
+pub struct CollectionFamilyFinding<'candidate> {
     /// Candidate carrying precise source and remediation context.
-    pub analyze_candidate: &'analyze_candidate CollectionFamilyCandidate,
+    pub candidate: &'candidate CollectionFamilyCandidate,
     /// Missing, ambiguous, or competing protocol ownership.
     pub problem: CollectionProblem,
 }
@@ -163,9 +163,9 @@ impl CollectionFamilyOccupancy {
         entry.map_or(Self::Available, |_| Self::Occupied)
     }
 
-    /// Returns whether one `analyze_candidate` still deserves a diagnostic.
-    const fn is_reportable(self, analyze_candidate: &CollectionFamilyCandidate) -> bool {
-        matches!(self, Self::Available) || !analyze_candidate.has_standard_trait_delegation
+    /// Returns whether one `candidate` still deserves a diagnostic.
+    const fn is_reportable(self, candidate: &CollectionFamilyCandidate) -> bool {
+        matches!(self, Self::Available) || !candidate.has_standard_trait_delegation
     }
 }
 
@@ -302,17 +302,17 @@ impl CollectionConstructionAnalysis {
     /// Returns stable findings for every proven target/item family.
     pub fn findings(&self) -> Vec<CollectionFamilyFinding<'_>> {
         let mut families = HashMap::<CollectionFamilyKey, Vec<&CollectionFamilyCandidate>>::new();
-        for analyze_candidate in &self.candidates {
+        for candidate in &self.candidates {
             let key = CollectionFamilyKey {
-                target_def_id: analyze_candidate.target_def_id,
-                contract: analyze_candidate.protocol.contract,
-                item_name: analyze_candidate.protocol.item_name.clone(),
+                target_def_id: candidate.target_def_id,
+                contract: candidate.protocol.contract,
+                item_name: candidate.protocol.item_name.clone(),
             };
-            families.entry(key).or_default().push(analyze_candidate);
+            families.entry(key).or_default().push(candidate);
         }
         let mut findings = Vec::new();
 
-        // Classify each exact item family before creating analyze_candidate diagnostics.
+        // Classify each exact item family before creating candidate diagnostics.
         for (key, family) in families {
             // Resolve standard trait occupancy for this target and contract.
             let occupancy_key = CollectionFamilyOccupancyKey {
@@ -329,15 +329,12 @@ impl CollectionConstructionAnalysis {
             // Suppress only direct delegation into an already occupied standard trait.
             let reportable = family
                 .into_iter()
-                .filter(|analyze_candidate| occupancy.is_reportable(analyze_candidate));
-            for analyze_candidate in reportable {
-                findings.push(CollectionFamilyFinding {
-                    analyze_candidate,
-                    problem,
-                });
+                .filter(|candidate| occupancy.is_reportable(candidate));
+            for candidate in reportable {
+                findings.push(CollectionFamilyFinding { candidate, problem });
             }
         }
-        findings.sort_unstable_by_key(|finding| finding.analyze_candidate.source.name_span.lo());
+        findings.sort_unstable_by_key(|finding| finding.candidate.source.name_span.lo());
         findings
     }
 
@@ -346,7 +343,7 @@ impl CollectionConstructionAnalysis {
         let findings = self.findings();
         let mut definitions = HashSet::new();
         for finding in findings {
-            definitions.insert(finding.analyze_candidate.def_id);
+            definitions.insert(finding.candidate.def_id);
         }
         definitions
     }
@@ -562,7 +559,7 @@ struct CollectionEvidence<'analysis, 'tcx, 'storage> {
 }
 
 impl CollectionEvidence<'_, '_, '_> {
-    /// Analyzes one `analyze_candidate` body for complete source-to-storage flow.
+    /// Analyzes one `candidate` body for complete source-to-storage flow.
     fn analyze<'tcx>(
         cx: &LateContext<'tcx>,
         body: &'tcx Body<'tcx>,

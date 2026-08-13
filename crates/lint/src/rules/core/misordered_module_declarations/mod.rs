@@ -57,11 +57,8 @@ impl LateViolation for Violation {
     }
 
     fn emit(self, cx: &LateContext<'_>) {
-        // Render the stable explanation before moving optional source edits.
         let rationale = self.rationale_message().into_owned();
         let remediation = self.remediation_message().into_owned();
-
-        // Emit after resolving whether the exact order can be applied atomically.
         cx.tcx.emit_node_span_lint(
             MISORDERED_MODULE_DECLARATIONS,
             self.hir_id,
@@ -88,7 +85,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// MisorderedModule
+// MisorderedModuleDeclarations: Dependency-first module layout policy
 // -----------------------------------------------------------------------------
 
 /// Mutable declaration-group state extended through adjacent direct implementations.

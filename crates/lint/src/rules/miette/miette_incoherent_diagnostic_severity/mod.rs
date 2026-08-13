@@ -16,24 +16,28 @@ use rustc_span::{Span, sym};
 use super::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Use` state used by this analysis.
-struct Use {
-    /// Stores the `span` value used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Advisory diagnostic propagated as an error
+// -----------------------------------------------------------------------------
+
+/// Public result boundary that returns a diagnostic through its error channel.
+struct ViolationUse {
+    /// Function declaration exposing the result.
     span: Span,
-    /// Stores the `function` value used by this analysis.
+    /// Function name shown to the author.
     function: String,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Advisory diagnostic whose declared severity contradicts its propagation.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Diagnostic type declaration.
     span: Span,
-    /// Stores the `diagnostic` value used by this analysis.
+    /// Diagnostic type name.
     diagnostic: String,
-    /// Stores the `severity` value used by this analysis.
+    /// Authored advisory severity.
     severity: String,
-    /// Stores the `uses` value used by this analysis.
-    uses: Vec<Use>,
+    /// Functions returning the type as an error.
+    uses: Vec<ViolationUse>,
 }
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
@@ -80,13 +84,17 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// MietteIncoherentDiagnosticSeverity: Propagation and severity agreement
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `MietteIncoherentDiagnosticSeverity` state used by this analysis.
+/// Correlates derived severity metadata with function result types.
 struct MietteIncoherentDiagnosticSeverity {
-    /// Stores the `catalog` value used by this analysis.
+    /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
-    /// Stores the `uses` value used by this analysis.
-    uses: HashMap<LocalDefId, Vec<Use>>,
+    /// Error-channel uses grouped by returned local type.
+    uses: HashMap<LocalDefId, Vec<ViolationUse>>,
 }
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
@@ -101,13 +109,12 @@ impl LateLintPass<'_> for MietteIncoherentDiagnosticSeverity {
         // Fix the expected shape before inspecting a function's result type.
         const RESULT_TYPE_ARGUMENT_COUNT: usize = 2;
 
-        // Update the accumulated analysis state.
+        // Record the diagnostic declaration before inspecting function signatures.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Fn { .. }) {
             return;
         }
 
-        // Prepare the values used by this stage.
         let output = cx
             .tcx
             .fn_sig(item.owner_id.def_id)
@@ -115,7 +122,6 @@ impl LateLintPass<'_> for MietteIncoherentDiagnosticSeverity {
             .skip_binder()
             .output();
 
-        // Prepare the values used by this stage.
         let ty::Adt(result, arguments) = output.kind() else {
             return;
         };
@@ -125,7 +131,6 @@ impl LateLintPass<'_> for MietteIncoherentDiagnosticSeverity {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(error) = arguments
             .type_at(1)
             .ty_adt_def()
@@ -134,8 +139,7 @@ impl LateLintPass<'_> for MietteIncoherentDiagnosticSeverity {
             return;
         };
 
-        // Update the accumulated analysis state.
-        self.uses.entry(error).or_default().push(Use {
+        self.uses.entry(error).or_default().push(ViolationUse {
             span: item.span,
             function: cx.tcx.item_name(item.owner_id.def_id).to_string(),
         });
@@ -143,7 +147,6 @@ impl LateLintPass<'_> for MietteIncoherentDiagnosticSeverity {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for (definition, uses) in mem::take(&mut self.uses) {
-            // Prepare the values used by this stage.
             let Some(contract) = self.catalog.derived_type(definition) else {
                 continue;
             };
@@ -151,7 +154,6 @@ impl LateLintPass<'_> for MietteIncoherentDiagnosticSeverity {
                 continue;
             }
 
-            // Prepare the values used by this stage.
             let Some(severity) = contract.metadata.severity.as_deref() else {
                 continue;
             };
@@ -159,7 +161,6 @@ impl LateLintPass<'_> for MietteIncoherentDiagnosticSeverity {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 span: contract.span,
                 diagnostic: contract.name.clone(),

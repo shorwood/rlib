@@ -12,15 +12,19 @@ use rustc_span::{Span, Symbol};
 use super::utils::authored_contracts::DiscriminantMirrorCandidate;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Hand-maintained discriminant mirror
+// -----------------------------------------------------------------------------
+
+/// Secondary enum that manually mirrors a source enum's variants.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `source` value used by this analysis.
+    /// Authored source used to recover framework metadata.
     source: Symbol,
-    /// Stores the `mirror` value used by this analysis.
+    /// Name of the companion enum duplicating the source enum's discriminants.
     mirror: Symbol,
 }
 
@@ -59,7 +63,11 @@ impl LateViolation for Violation {
     }
 }
 
-/// Carries the `StrumManualDiscriminantEnums` state used by this analysis.
+// -----------------------------------------------------------------------------
+// StrumManualDiscriminantEnums: Generated discriminant mirror policy
+// -----------------------------------------------------------------------------
+
+/// Detects discriminant mirrors reproducible by Strum.
 struct StrumManualDiscriminantEnums;
 
 dylint_linting::impl_late_lint! {
@@ -72,17 +80,15 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for StrumManualDiscriminantEnums {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        // Prepare the values used by this stage.
-        let Some(analyze_candidate) = DiscriminantMirrorCandidate::from_impl_item(cx, item) else {
+        let Some(candidate) = DiscriminantMirrorCandidate::from_impl_item(cx, item) else {
             return;
         };
 
-        // Perform the next step of the analysis.
         Violation {
-            owner: analyze_candidate.owner,
-            span: analyze_candidate.span,
-            source: cx.tcx.item_name(analyze_candidate.source_enum.to_def_id()),
-            mirror: cx.tcx.item_name(analyze_candidate.mirror_enum.to_def_id()),
+            owner: candidate.owner,
+            span: candidate.span,
+            source: cx.tcx.item_name(candidate.source_enum.to_def_id()),
+            mirror: cx.tcx.item_name(candidate.mirror_enum.to_def_id()),
         }
         .emit(cx);
     }

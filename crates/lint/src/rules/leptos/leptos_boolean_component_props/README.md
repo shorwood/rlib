@@ -30,7 +30,6 @@ fn Badge(compact: bool, featured: bool) -> impl IntoView {
 
 ## Use instead
 
-
 Prefer a domain type that names every supported presentation:
 
 ```rust,ignore

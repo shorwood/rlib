@@ -18,13 +18,17 @@ use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
 #[derive(Clone)]
-/// Carries the `FieldContract` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Flattened fields with colliding names
+// -----------------------------------------------------------------------------
+
+/// Effective wire names and flattening target for one struct field.
 struct FieldContract {
-    /// Stores the `serialize_name` value used by this analysis.
+    /// Wire name emitted while serializing this field.
     serialize_name: Option<String>,
-    /// Stores the `deserialize_name` value used by this analysis.
+    /// Wire name accepted while deserializing this field.
     deserialize_name: Option<String>,
-    /// Stores the `flatten_target` value used by this analysis.
+    /// Nested struct whose fields are merged into this struct's wire object.
     flatten_target: Option<LocalDefId>,
 }
 
@@ -39,13 +43,13 @@ impl FieldContract {
 }
 
 #[derive(Clone)]
-/// Carries the `StructContract` state used by this analysis.
+/// Direct and flattened wire fields contributed by one struct.
 struct StructContract {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `fields` value used by this analysis.
+    /// Authored fields relevant to the contract.
     fields: Vec<FieldContract>,
 }
 
@@ -93,13 +97,13 @@ impl StructContract {
     }
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Two direct or flattened fields that occupy the same wire name.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `direction` value used by this analysis.
+    /// Serialization direction in which the behavior applies.
     direction: &'static str,
-    /// Stores the `names` value used by this analysis.
+    /// Effective external names keyed by their declarations.
     names: Vec<String>,
 }
 
@@ -137,11 +141,15 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
-/// Carries the `SerdeFlattenedFieldCollisions` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeFlattenedFieldCollisions: Collision-free flattening policy
+// -----------------------------------------------------------------------------
+
+/// Resolves flattened struct graphs and reports duplicate wire fields.
 struct SerdeFlattenedFieldCollisions {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
-    /// Stores the `structs` value used by this analysis.
+    /// Struct wire contracts keyed by their compiler identity.
     structs: HashMap<LocalDefId, StructContract>,
 }
 
@@ -155,7 +163,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         let ItemKind::Struct(_, _, data) = item.kind else {
             return;
@@ -164,23 +171,21 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
-        let container = SerdeAttributes::analyze_serde_attributes(&structure.attrs);
+        let container = SerdeAttributes::from_attributes(&structure.attrs);
 
-        // Prepare the values used by this stage.
         let fields = structure
             .fields
             .iter()
             .zip(data.fields())
             .filter_map(|(field, hir_field)| {
                 let rust_name = field.ident.as_ref()?.to_string();
-                let attributes = SerdeAttributes::analyze_serde_attributes(&field.attrs);
+                let attributes = SerdeAttributes::from_attributes(&field.attrs);
                 let flattened = attributes.has(SerdeFlag::Flatten);
                 let serialize = !attributes.has(SerdeFlag::SkipSerialize) && !flattened;
                 let deserialize = !attributes.has(SerdeFlag::SkipDeserialize) && !flattened;
@@ -212,7 +217,6 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
             })
             .collect();
 
-        // Update the accumulated analysis state.
         self.structs.insert(
             item.owner_id.def_id,
             StructContract {
@@ -226,7 +230,6 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for structure in self.structs.values() {
             for direction in [SerdeDirection::Serialize, SerdeDirection::Deserialize] {
-                // Reject inputs that do not satisfy this stage.
                 if self
                     .catalog
                     .derived_type(
@@ -237,7 +240,6 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
                         },
                     )
                     .is_none()
-                // Perform the next step of the analysis.
                 {
                     continue;
                 }
@@ -246,7 +248,6 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
                     continue;
                 }
 
-                // Perform the next step of the analysis.
                 Violation {
                     span: structure.span,
                     direction: direction.label(),

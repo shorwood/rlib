@@ -7,7 +7,9 @@ use rustc_lint::{LateContext, LintContext};
 use rustc_span::Span;
 
 use super::function_layout_prose::FunctionLayoutProse;
-use super::function_layout_source::{Comment, SourcePositionExt, SourceSpanExt};
+use super::function_layout_source::{
+    FunctionLayoutComment, FunctionLayoutPositionExt, FunctionLayoutSpanExt,
+};
 use super::function_structure_config::FunctionStructureConfig;
 
 // -----------------------------------------------------------------------------
@@ -46,7 +48,7 @@ struct Block {
 
 impl Block {
     /// Parses a consecutive comment group when its first line uses `prefix`.
-    fn parse(comments: &[Comment], prefix: &str) -> Option<Self> {
+    fn parse(comments: &[FunctionLayoutComment], prefix: &str) -> Option<Self> {
         // Locate the configured prefix at the start of the comment block.
         let first = comments.first()?;
         let remainder = first.text.strip_prefix(prefix)?;
@@ -91,7 +93,7 @@ impl Block {
     }
 
     /// Validates nonempty natural continuation lines after a phase header.
-    fn continuations_are_canonical(comments: &[Comment]) -> bool {
+    fn continuations_are_canonical(comments: &[FunctionLayoutComment]) -> bool {
         comments.iter().all(|comment| {
             comment
                 .text
@@ -124,6 +126,8 @@ impl Block {
 pub(super) struct FunctionLayoutEntryGap {
     /// Whether the gap contains a canonical header attached to the next entry.
     pub(super) has_valid_header: bool,
+    /// Whether a blank authored line marks an otherwise unnamed boundary.
+    pub(super) has_visual_boundary: bool,
     /// Malformed phase-comment findings discovered in the gap.
     pub(super) findings: Vec<FunctionLayoutFinding>,
 }
@@ -137,12 +141,13 @@ impl FunctionLayoutEntryGap {
         previous: Option<Span>,
         next: Option<Span>,
     ) -> Self {
-        // Resolve source positions needed to validate every analyze_candidate header.
+        // Resolve source positions needed to validate every candidate header.
         let blocks = Block::collect(cx, span, &config.phase_comment_prefix);
         let next_line = next.map(|span| span.lo().source_line(cx));
         let previous_line = previous.map(|span| span.hi().source_line(cx));
         let mut has_valid_header = false;
         let mut findings = Vec::new();
+        let has_visual_boundary = previous.is_some() && Self::contains_blank_line(cx, span);
 
         // A canonical block must attach to the next phase and separate it from earlier code.
         for block in blocks {
@@ -197,7 +202,20 @@ impl FunctionLayoutEntryGap {
         }
         Self {
             has_valid_header,
+            has_visual_boundary,
             findings,
         }
+    }
+
+    /// Returns whether the gap contains a complete blank physical line.
+    fn contains_blank_line(cx: &LateContext<'_>, span: Span) -> bool {
+        let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
+            return false;
+        };
+        let lines = source.split('\n').collect::<Vec<_>>();
+        lines.len() > 2
+            && lines[1..lines.len() - 1]
+                .iter()
+                .any(|line| line.trim().is_empty())
     }
 }

@@ -1,23 +1,24 @@
 use serde::Deserialize;
 
+/// Framework selected to derive source-bearing error-variant conversions.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 #[cfg(feature = "thiserror")]
 #[serde(rename_all = "snake_case")]
-/// Classifies `ErrorVariantConversionProvider` cases used by this analysis.
 pub enum ErrorVariantConversionProvider {
-    /// Represents the `DeriveMoreFrom` case.
+    /// Generate the conversion with `derive_more`'s `From` derive.
     DeriveMoreFrom,
-    /// Represents the `ThiserrorFrom` case.
+    /// Generate the conversion with thiserror's `#[from]` field attribute.
     ThiserrorFrom,
 }
+
+/// Framework selected to derive complete error implementations.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 #[cfg(feature = "thiserror")]
 #[serde(rename_all = "snake_case")]
-/// Classifies `ErrorImplementationProvider` cases used by this analysis.
 pub enum ErrorImplementationProvider {
-    /// Represents the `DeriveMoreError` case.
+    /// Generate `Display` and `Error` with `derive_more`.
     DeriveMoreError,
-    /// Represents the `ThiserrorError` case.
+    /// Generate the complete error contract with thiserror.
     ThiserrorError,
 }
 
@@ -57,13 +58,13 @@ pub struct DeriveResolutionConfig {
 
 impl DeriveResolutionConfig {
     #[cfg(feature = "thiserror")]
-    /// Performs the `error_implementation` operation for this value.
+    /// Returns the configured provider for complete error implementations.
     pub(crate) const fn error_implementation(&self) -> Option<ErrorImplementationProvider> {
         self.error_implementation
     }
 
     #[cfg(feature = "thiserror")]
-    /// Performs the `error_variant_conversion` operation for this value.
+    /// Returns the configured provider for source-bearing variant conversions.
     pub(crate) const fn error_variant_conversion(&self) -> Option<ErrorVariantConversionProvider> {
         self.error_variant_conversion
     }

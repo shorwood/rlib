@@ -14,15 +14,19 @@ use super::utils::contracts::ContractCatalog;
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Hand-maintained enum string parser
+// -----------------------------------------------------------------------------
+
+/// Complete string-to-variant mapping reproducible by the configured provider.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `enum_name` value used by this analysis.
+    /// Enum name quoted in the diagnostic.
     enum_name: Symbol,
-    /// Stores the `is_public` value used by this analysis.
+    /// Whether the declaration is visible outside its defining module.
     is_public: bool,
 }
 
@@ -63,18 +67,22 @@ impl LateViolation for Violation {
     }
 }
 
-/// Carries the `StrumManualEnumStringParsers` state used by this analysis.
+// -----------------------------------------------------------------------------
+// StrumManualEnumStringParsers: Declarative parser policy
+// -----------------------------------------------------------------------------
+
+/// Finds complete manual parsers after provider resolution.
 struct StrumManualEnumStringParsers {
-    /// Stores the `provider` value used by this analysis.
+    /// Explicitly resolved framework provider, when one is available.
     provider: Option<StringParserProvider>,
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored enum uses awaiting association with completed Strum contracts.
     candidates: Vec<StringParserCandidate>,
 }
 
 impl StrumManualEnumStringParsers {
-    /// Performs the `new` operation for this value.
+    /// Starts parser analysis with no authored parser candidates.
     fn new() -> Self {
         Self {
             provider: LibraryConfig::load()
@@ -100,10 +108,10 @@ impl LateLintPass<'_> for StrumManualEnumStringParsers {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        let Some(analyze_candidate) = StringParserCandidate::from_impl_item(cx, item) else {
+        let Some(candidate) = StringParserCandidate::from_impl_item(cx, item) else {
             return;
         };
-        self.candidates.push(analyze_candidate);
+        self.candidates.push(candidate);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
@@ -113,23 +121,21 @@ impl LateLintPass<'_> for StrumManualEnumStringParsers {
             return;
         }
         let contracts = self.catalog.contracts();
-        for analyze_candidate in self.candidates.drain(..) {
-            // Prepare the values used by this stage.
+        for candidate in self.candidates.drain(..) {
             let Some(contract) = contracts.iter().find(|contract| {
-                contract.def_id == analyze_candidate.enum_def
+                contract.def_id == candidate.enum_def
                     && contract.variants.iter().all(|variant| {
-                        analyze_candidate.names.get(&variant.def_id) == Some(&variant.parser_names)
+                        candidate.names.get(&variant.def_id) == Some(&variant.parser_names)
                     })
             }) else {
                 continue;
             };
 
-            // Perform the next step of the analysis.
             Violation {
-                owner: analyze_candidate.owner,
-                span: analyze_candidate.span,
+                owner: candidate.owner,
+                span: candidate.span,
                 enum_name: contract.name,
-                is_public: analyze_candidate.is_public,
+                is_public: candidate.is_public,
             }
             .emit(cx);
         }

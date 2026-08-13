@@ -31,7 +31,6 @@ impl UserId {
 
 ## Use instead
 
-
 Prefer one standard presentation contract:
 
 ```rust

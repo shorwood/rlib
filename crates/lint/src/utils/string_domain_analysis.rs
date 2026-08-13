@@ -91,7 +91,7 @@ struct DomainEvidenceField {
     domain: String,
 }
 
-/// Existing type whose name already expresses a `analyze_candidate` domain concept.
+/// Existing type whose name already expresses a `candidate` domain concept.
 struct DomainEvidenceType {
     /// Containing source module.
     module: LocalDefId,

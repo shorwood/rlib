@@ -12,13 +12,17 @@ use rustc_span::{Span, Symbol};
 use super::utils::contracts::{ContractCatalog, StrumDerive};
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Divergent discriminant representations
+// -----------------------------------------------------------------------------
+
+/// Enum whose generated discriminant contracts disagree.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `enum_name` value used by this analysis.
+    /// Enum name quoted in the diagnostic.
     enum_name: Symbol,
 }
 
@@ -56,10 +60,14 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// StrumDivergentDiscriminantContracts: Single discriminant policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `StrumDivergentDiscriminantContracts` state used by this analysis.
+/// Compares authored discriminants with the values exposed by Strum conversions.
 struct StrumDivergentDiscriminantContracts {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,
 }
 
@@ -78,14 +86,12 @@ impl LateLintPass<'_> for StrumDivergentDiscriminantContracts {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.contracts() {
-            // Reject inputs that do not satisfy this stage.
             if !(contract.derives(StrumDerive::EnumDiscriminants)
                 && contract.is_discriminant_external_schema)
             {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 owner: contract.owner,
                 span: contract.span,

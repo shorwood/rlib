@@ -17,29 +17,33 @@ use super::contracts::{
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Duplicate serialized member names
+// -----------------------------------------------------------------------------
+
+/// Serde container awaiting effective member-name comparison.
 struct Candidate {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `direction` value used by this analysis.
+    /// Serialization direction in which the behavior applies.
     direction: SerdeDirection,
-    /// Stores the `name` value used by this analysis.
+    /// Authored type or member name involved in the wire contract.
     name: String,
-    /// Stores the `members` value used by this analysis.
+    /// Member declarations participating in the contract.
     members: Vec<String>,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Two members that resolve to the same serialized wire name.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `direction` value used by this analysis.
+    /// Serialization direction in which the behavior applies.
     direction: SerdeDirection,
-    /// Stores the `name` value used by this analysis.
+    /// Authored type or member name involved in the wire contract.
     name: String,
-    /// Stores the `members` value used by this analysis.
+    /// Member declarations participating in the contract.
     members: Vec<String>,
 }
 
@@ -78,11 +82,15 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
-/// Carries the `SerdeDuplicateSerializedNames` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeDuplicateSerializedNames: Unique wire-name policy
+// -----------------------------------------------------------------------------
+
+/// Finds fields or variants that resolve to the same serialized wire name.
 struct SerdeDuplicateSerializedNames {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored Serde declarations awaiting crate-wide contract comparison.
     candidates: Vec<Candidate>,
 }
 
@@ -96,7 +104,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() {
             return;
@@ -105,15 +112,12 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
             return;
         };
 
-        // Prepare the values used by this stage.
         let (attributes, members) = match item.kind {
             ItemKind::Struct(..) => {
-                // Prepare the values used by this stage.
                 let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
                     return;
                 };
 
-                // Perform the next step of the analysis.
                 (
                     structure.attrs,
                     structure
@@ -126,12 +130,10 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
                 )
             }
             ItemKind::Enum(..) => {
-                // Prepare the values used by this stage.
                 let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
                     return;
                 };
 
-                // Perform the next step of the analysis.
                 (
                     enumeration.attrs,
                     enumeration
@@ -144,10 +146,8 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
             _ => return,
         };
 
-        // Prepare the values used by this stage.
-        let container = SerdeAttributes::analyze_serde_attributes(&attributes);
+        let container = SerdeAttributes::from_attributes(&attributes);
 
-        // Process the candidates handled by this stage.
         for direction in [SerdeDirection::Serialize, SerdeDirection::Deserialize] {
             let case = match direction {
                 SerdeDirection::Serialize => container.rename_all_serialize.as_deref(),
@@ -155,8 +155,7 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
             };
             let mut names: HashMap<String, Vec<String>> = HashMap::new();
             for (rust_name, attributes) in &members {
-                // Prepare the values used by this stage.
-                let attributes = SerdeAttributes::analyze_serde_attributes(attributes);
+                let attributes = SerdeAttributes::from_attributes(attributes);
                 if match direction {
                     SerdeDirection::Serialize => attributes.has(SerdeFlag::SkipSerialize),
                     SerdeDirection::Deserialize => attributes.has(SerdeFlag::SkipDeserialize),
@@ -164,7 +163,6 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
                     continue;
                 }
 
-                // Prepare the values used by this stage.
                 let explicit = match direction {
                     SerdeDirection::Serialize => attributes.rename_serialize.as_deref(),
                     SerdeDirection::Deserialize => attributes.rename_deserialize.as_deref(),
@@ -173,7 +171,6 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
                     explicit.map_or_else(|| SerdeCase::apply(rust_name, case), ToOwned::to_owned);
                 names.entry(effective).or_default().push(rust_name.clone());
 
-                // Reject inputs that do not satisfy this stage.
                 if !(matches!(direction, SerdeDirection::Deserialize)) {
                     continue;
                 }
@@ -182,13 +179,11 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
                 }
             }
             for (name, members) in names {
-                // Prepare the values used by this stage.
                 let distinct = members.iter().collect::<HashSet<_>>();
                 if distinct.len() <= 1 {
                     continue;
                 }
 
-                // Update the accumulated analysis state.
                 self.candidates.push(Candidate {
                     definition: item.owner_id.def_id,
                     span: item.span,
@@ -201,28 +196,25 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Prepare the values used by this stage.
-            let required = match analyze_candidate.direction {
+        for candidate in self.candidates.drain(..) {
+            let required = match candidate.direction {
                 SerdeDirection::Serialize => "Serialize",
                 SerdeDirection::Deserialize => "Deserialize",
             };
 
-            // Reject inputs that do not satisfy this stage.
             if self
                 .catalog
-                .derived_type(analyze_candidate.definition, required)
+                .derived_type(candidate.definition, required)
                 .is_none()
             {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                direction: analyze_candidate.direction,
-                name: analyze_candidate.name,
-                members: analyze_candidate.members,
+                span: candidate.span,
+                direction: candidate.direction,
+                name: candidate.name,
+                members: candidate.members,
             }
             .emit(cx);
         }

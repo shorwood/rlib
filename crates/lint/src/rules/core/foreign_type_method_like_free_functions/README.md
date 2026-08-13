@@ -18,24 +18,27 @@ behavior colocated without pretending the foreign type itself can gain inherent 
 ## Example
 
 ```rust
-pub fn direct_struct(cx: &LateContext<'_>, item: &Item<'_>) -> Option<LocalDefId> {
-    // ...
+use std::path::Path;
+
+pub fn is_project_manifest(path: &Path) -> bool {
+    path.file_name().is_some_and(|name| name == "Cargo.toml")
 }
 ```
 
 ## Use instead
 
-
 Put the operation behind the behavioral subject instead:
 
 ```rust
-trait ItemExt {
-    fn direct_struct(&self, cx: &LateContext<'_>) -> Option<LocalDefId>;
+use std::path::Path;
+
+trait ProjectPathExt {
+    fn is_project_manifest(&self) -> bool;
 }
 
-impl ItemExt for Item<'_> {
-    fn direct_struct(&self, cx: &LateContext<'_>) -> Option<LocalDefId> {
-        // ...
+impl ProjectPathExt for Path {
+    fn is_project_manifest(&self) -> bool {
+        self.file_name().is_some_and(|name| name == "Cargo.toml")
     }
 }
 ```

@@ -4,8 +4,8 @@ warning: enum variant collection has multiple eligible framework resolutions
 LL |     const ALL: [Self; 3] = [Self::Planned, Self::Running, Self::Complete];
    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = note: `EnumIter` exposes an iterator protocol while `VariantArray` exposes a shared static slice; dependency presence cannot choose that API policy
-   = help: set `derive_resolution.enum_variant_collection` to `strum_enum_iter` or `strum_variant_array` in the `rlib-lint` Dylint table
+   = note: `EnumIter` exposes an iterator while `VariantArray` exposes a shared slice; dependency presence cannot choose that API contract
+   = help: set `derive_resolution.enum_variant_collection` to `strum_enum_iter` or `strum_variant_array`
    = note: `#[warn(framework_resolution_required)]` on by default
 
 warning: enum variant predicates have multiple eligible framework resolutions
@@ -14,8 +14,8 @@ warning: enum variant predicates have multiple eligible framework resolutions
 LL |         matches!(self, Self::Write(_))
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = note: Strum `EnumIs` and derive_more `IsVariant` generate the same predicate family; dependency presence cannot choose that provider policy
-   = help: set `derive_resolution.enum_variant_predicates` to `strum_enum_is` or `derive_more_is_variant` in the `rlib-lint` Dylint table
+   = note: Strum `EnumIs` and derive_more `IsVariant` generate the same predicates; dependency presence cannot choose their owner
+   = help: set `derive_resolution.enum_variant_predicates` to `strum_enum_is` or `derive_more_is_variant`
 
 warning: enum display has multiple eligible framework resolutions
   --> $DIR/semantic.rs:21:9
@@ -41,7 +41,7 @@ LL | |             _ => Err(()),
 LL | |         }
    | |_________^
    |
-   = note: Strum `EnumString` and derive_more `FromStr` can both generate this flat unit-enum parser
+   = note: Strum `EnumString` and derive_more `FromStr` can both generate this unit-enum parser
    = help: set `derive_resolution.enum_string_parsing` to `strum_enum_string` or `derive_more_from_str`
 
 warning: 4 warnings emitted

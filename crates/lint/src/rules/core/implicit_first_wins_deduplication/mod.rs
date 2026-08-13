@@ -52,7 +52,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// ImplicitFirstWinsDeduplication: Lint pass
+// ImplicitFirstWinsDeduplication: Explicit representative selection policy
 // -----------------------------------------------------------------------------
 
 /// Recognizes set insertion used directly as an iterator predicate.

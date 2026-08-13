@@ -18,17 +18,21 @@ use syn::punctuated::Punctuated;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
 
-/// Carries the `Family` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Derivable formatting implementation family
+// -----------------------------------------------------------------------------
+
+/// Formatting implementations for one wrapper that share a transparent field policy.
 struct Family {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `name` value used by this analysis.
+    /// Local type name used to identify the affected derive contract.
     name: String,
-    /// Stores the `traits` value used by this analysis.
+    /// Formatting traits whose implementations share the same transparent field policy.
     traits: Vec<&'static str>,
 }
 
-/// Stores the `item` value used by this analysis.
+/// Complete formatting family proven replaceable by `derive_more`.
 struct Violation(
     /// Formatting family that triggered the violation.
     Family,
@@ -49,7 +53,6 @@ impl LateViolation for Violation {
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
-        // Prepare the values used by this stage.
         let derives = self
             .0
             .traits
@@ -58,7 +61,6 @@ impl LateViolation for Violation {
             .collect::<Vec<_>>()
             .join(", ");
 
-        // Perform the next step of the analysis.
         Cow::Owned(format!(
             "replace this family with `#[derive({derives})]`, preserving exact format strings in derive_more attributes"
         ))
@@ -78,9 +80,8 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `formatting_trait` step of the lint analysis.
+/// Maps a standard formatting trait to its `derive_more` macro name.
 fn formatting_trait(name: &str) -> Option<&'static str> {
-    // Classify the current analyze_candidate.
     match name {
         "Debug" => Some("Debug"),
         "Display" => Some("Display"),
@@ -95,7 +96,7 @@ fn formatting_trait(name: &str) -> Option<&'static str> {
     }
 }
 
-/// Performs the `field_reference` step of the lint analysis.
+/// Returns whether an expression borrows a field of the receiver binding.
 fn field_reference(cx: &LateContext<'_>, expression: &Expr<'_>, binding: rustc_hir::HirId) -> bool {
     let expression = match expression.kind {
         ExprKind::AddrOf(_, Mutability::Not, inner) => inner,
@@ -107,7 +108,7 @@ fn field_reference(cx: &LateContext<'_>, expression: &Expr<'_>, binding: rustc_h
     DirectForwarding::is_binding(cx, base, binding)
 }
 
-/// Performs the `direct_trait_delegation` step of the lint analysis.
+/// Recognizes formatting that delegates the same trait directly to one field.
 fn direct_trait_delegation(
     cx: &LateContext<'_>,
     owner: LocalDefId,
@@ -127,7 +128,7 @@ fn direct_trait_delegation(
         && DirectForwarding::is_binding(cx, formatter, formatter_binding)
 }
 
-/// Performs the `has_one_placeholder` step of the lint analysis.
+/// Returns whether a format string contains exactly one unescaped placeholder.
 fn has_one_placeholder(format: &str) -> bool {
     let mut placeholders = 0;
     let mut characters = format.chars().peekable();
@@ -144,9 +145,8 @@ fn has_one_placeholder(format: &str) -> bool {
     placeholders == 1
 }
 
-/// Performs the `single_field_write` step of the lint analysis.
+/// Recognizes one `write!` invocation that formats only a receiver field.
 fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
-    // Prepare the values used by this stage.
     let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
         return false;
     };
@@ -154,7 +154,6 @@ fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
         return false;
     };
 
-    // Prepare the values used by this stage.
     let [syn::Stmt::Expr(syn::Expr::Macro(invocation), _)] = method.block.stmts.as_slice() else {
         return false;
     };
@@ -163,7 +162,6 @@ fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
     }
     let inputs = method.sig.inputs.iter().collect::<Vec<_>>();
 
-    // Prepare the values used by this stage.
     let [
         syn::FnArg::Receiver(_),
         syn::FnArg::Typed(formatter_parameter),
@@ -172,7 +170,6 @@ fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
         return false;
     };
 
-    // Prepare the values used by this stage.
     let syn::Pat::Ident(formatter_parameter) = formatter_parameter.pat.as_ref() else {
         return false;
     };
@@ -181,7 +178,6 @@ fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
         return false;
     };
 
-    // Prepare the values used by this stage.
     let arguments = arguments.iter().collect::<Vec<_>>();
     let [formatter, syn::Expr::Lit(format), field] = arguments.as_slice() else {
         return false;
@@ -190,7 +186,6 @@ fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
         return false;
     };
 
-    // Prepare the values used by this stage.
     let syn::Lit::Str(format) = &format.lit else {
         return false;
     };
@@ -198,7 +193,6 @@ fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
         return false;
     };
 
-    // Perform the next step of the analysis.
     formatter.path.is_ident(&formatter_parameter.ident)
         && matches!(field.base.as_ref(), syn::Expr::Path(base) if base.path.is_ident("self"))
         && has_one_placeholder(&format.value())
@@ -215,7 +209,6 @@ struct ExactFormatting {
 impl ExactFormatting {
     /// Recognizes one exact formatting implementation.
     fn analyze(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
-        // Prepare the values used by this stage.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
@@ -224,7 +217,6 @@ impl ExactFormatting {
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
 
-        // Prepare the values used by this stage.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return None;
         };
@@ -233,14 +225,12 @@ impl ExactFormatting {
         };
         let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
 
-        // Reject inputs that do not satisfy this stage.
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core" {
             return None;
         }
         let trait_name = formatting_trait(cx.tcx.item_name(trait_id).as_str())?;
         let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
 
-        // Prepare the values used by this stage.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return None;
         };
@@ -249,7 +239,6 @@ impl ExactFormatting {
         }
         let definition = definition.did().as_local()?;
 
-        // Prepare the values used by this stage.
         let body = cx.tcx.hir_body(body_id);
         let forwarding =
             DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
@@ -257,7 +246,6 @@ impl ExactFormatting {
             return None;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if direct_trait_delegation(
             cx,
             forwarding.typeck_owner,
@@ -266,7 +254,6 @@ impl ExactFormatting {
             *formatter_binding,
             trait_id,
         ) || single_field_write(cx, item)
-        // Perform the next step of the analysis.
         {
             Some(Self {
                 definition,
@@ -278,10 +265,14 @@ impl ExactFormatting {
     }
 }
 
+// -----------------------------------------------------------------------------
+// DeriveMoreManualFormattingImpls: Declarative formatting policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `DeriveMoreManualFormattingImpls` state used by this analysis.
+/// Groups transparent formatting implementations by their wrapper type.
 struct DeriveMoreManualFormattingImpls {
-    /// Stores the `families` value used by this analysis.
+    /// Formatting families accumulated until all implementations have been visited.
     families: HashMap<LocalDefId, Family>,
 }
 

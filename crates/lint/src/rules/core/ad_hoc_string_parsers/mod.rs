@@ -32,14 +32,12 @@ struct Violation {
 
 impl Violation {
     /// Retains the precise parser and target context needed for remediation.
-    fn from_candidate(cx: &LateContext<'_>, analyze_candidate: &ConstructionCandidate) -> Self {
+    fn from_candidate(cx: &LateContext<'_>, candidate: &ConstructionCandidate) -> Self {
         Self {
-            hir_id: cx
-                .tcx
-                .local_def_id_to_hir_id(analyze_candidate.function.def_id),
-            span: analyze_candidate.function.name_span,
-            function_name: analyze_candidate.function.name.to_string(),
-            target_name: analyze_candidate.target.name.to_string(),
+            hir_id: cx.tcx.local_def_id_to_hir_id(candidate.function.def_id),
+            span: candidate.function.name_span,
+            function_name: candidate.function.name.to_string(),
+            target_name: candidate.target.name.to_string(),
         }
     }
 }
@@ -125,25 +123,24 @@ impl<'tcx> LateLintPass<'tcx> for AdHocStringParsers {
         let mut candidates = Vec::new();
         for family in parser_families.values() {
             // Retain only one unqualified parser for a target without the standard contract.
-            let [analyze_candidate] = family.as_slice() else {
+            let [candidate] = family.as_slice() else {
                 continue;
             };
-            if !analyze_candidate.has_unqualified_parser_name()
+            if !candidate.has_unqualified_parser_name()
                 || self
                     .constructions
                     .from_str_targets
-                    .contains(&analyze_candidate.target.def_id)
+                    .contains(&candidate.target.def_id)
             {
                 continue;
             }
 
             // Defer emission until source order can be restored across hash-map families.
-            candidates.push(*analyze_candidate);
+            candidates.push(*candidate);
         }
-        candidates
-            .sort_unstable_by_key(|analyze_candidate| analyze_candidate.function.name_span.lo());
-        for analyze_candidate in candidates {
-            Violation::from_candidate(cx, analyze_candidate).emit(cx);
+        candidates.sort_unstable_by_key(|candidate| candidate.function.name_span.lo());
+        for candidate in candidates {
+            Violation::from_candidate(cx, candidate).emit(cx);
         }
     }
 }

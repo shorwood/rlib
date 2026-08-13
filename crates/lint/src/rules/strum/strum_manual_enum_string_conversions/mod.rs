@@ -16,15 +16,19 @@ use super::utils::contracts::ContractCatalog;
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Hand-maintained enum string conversion
+// -----------------------------------------------------------------------------
+
+/// Complete enum-to-string mapping reproducible by the configured provider.
 struct Violation {
-    /// Stores the `owner` value used by this analysis.
+    /// Declaration whose lint level governs this finding.
     owner: rustc_hir::HirId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `enum_name` value used by this analysis.
+    /// Enum name quoted in the diagnostic.
     enum_name: Symbol,
-    /// Stores the `is_public` value used by this analysis.
+    /// Whether the declaration is visible outside its defining module.
     is_public: bool,
 }
 
@@ -61,21 +65,25 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// StrumManualEnumStringConversions: Declarative display policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `StrumManualEnumStringConversions` state used by this analysis.
+/// Correlates manual string conversions with complete enum value families.
 struct StrumManualEnumStringConversions {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,
-    /// Stores the `families` value used by this analysis.
+    /// Complete manual variant-to-value method families awaiting contract analysis.
     families: Vec<VariantValueFamily>,
-    /// Stores the `displays` value used by this analysis.
+    /// Manual `Display` implementations that may duplicate generated output.
     displays: Vec<DisplayCandidate>,
-    /// Stores the `display_provider` value used by this analysis.
+    /// Framework selected to replace an exact manual `Display` implementation.
     display_provider: Option<DisplayProvider>,
 }
 
 impl StrumManualEnumStringConversions {
-    /// Performs the `new` operation for this value.
+    /// Starts string-conversion analysis with no collected method families.
     fn new() -> Self {
         Self {
             catalog: ContractCatalog::default(),
@@ -100,7 +108,6 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        // Reject inputs that do not satisfy this stage.
         if let Some(display) = DisplayCandidate::from_impl_item(cx, item) {
             self.displays.push(display);
             return;
@@ -109,7 +116,6 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if !family.returns_static_str(cx)
             || !matches!(
                 family.method_name.as_str(),
@@ -119,7 +125,6 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
                 .values
                 .values()
                 .any(|value| !matches!(value, StaticValue::String(_)))
-        // Perform the next step of the analysis.
         {
             return;
         }
@@ -129,7 +134,6 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         let contracts = self.catalog.contracts();
         for family in self.families.drain(..) {
-            // Prepare the values used by this stage.
             let Some(contract) = contracts.iter().find(|contract| {
                 contract.def_id == family.enum_def
                     && contract.variants.iter().all(|variant| {
@@ -140,7 +144,6 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
                 continue;
             };
 
-            // Perform the next step of the analysis.
             Violation {
                 owner: family.owner,
                 span: family.span,
@@ -155,7 +158,6 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
             return;
         }
         for display in self.displays.drain(..) {
-            // Prepare the values used by this stage.
             let Some(contract) = contracts.iter().find(|contract| {
                 contract.def_id == display.enum_def
                     && contract.variants.iter().all(|variant| {
@@ -165,7 +167,6 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
                 continue;
             };
 
-            // Perform the next step of the analysis.
             Violation {
                 owner: display.owner,
                 span: display.span,

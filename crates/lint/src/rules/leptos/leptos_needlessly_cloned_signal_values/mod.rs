@@ -78,7 +78,6 @@ dylint_linting::impl_late_lint! {
 impl LeptosNeedlesslyClonedSignalValues {
     /// Returns whether the receiver resolves to tracked reactive `get()`.
     fn is_reactive_get(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
-        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return false;
         };
@@ -87,7 +86,6 @@ impl LeptosNeedlesslyClonedSignalValues {
         }
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
 
-        // Prepare the values used by this stage.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -96,7 +94,6 @@ impl LeptosNeedlesslyClonedSignalValues {
             return false;
         };
 
-        // Perform the next step of the analysis.
         cx.tcx.crate_name(method.krate).as_str() == "reactive_graph"
             && cx.tcx.item_name(method).as_str() == "get"
             && cx
@@ -121,7 +118,6 @@ impl LeptosNeedlesslyClonedSignalValues {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosNeedlesslyClonedSignalValues {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
-        // Prepare the values used by this stage.
         let ExprKind::MethodCall(segment, receiver, arguments, _) = expression.kind else {
             return;
         };
@@ -132,7 +128,6 @@ impl<'tcx> LateLintPass<'tcx> for LeptosNeedlesslyClonedSignalValues {
             return;
         }
 
-        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
             span: receiver.span,

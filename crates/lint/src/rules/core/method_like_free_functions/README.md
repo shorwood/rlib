@@ -22,7 +22,6 @@ fn render(document: &Document) {}
 
 ## Use instead
 
-
 Making the first parameter the receiver puts the operation where callers expect it:
 
 ```rust

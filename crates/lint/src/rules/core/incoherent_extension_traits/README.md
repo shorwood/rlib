@@ -26,7 +26,6 @@ trait ContextExt {
 
 ## Use instead
 
-
 Prefer traits named and scoped around one subject:
 
 ```rust

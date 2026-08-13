@@ -14,21 +14,15 @@ use rustc_span::def_id::LocalDefId;
 use super::contracts::ThiserrorContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Candidate` state used by this analysis.
-struct Candidate {
-    /// Stores the `definition` value used by this analysis.
-    definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
-    span: Span,
-    /// Stores the `operation` value used by this analysis.
-    operation: &'static str,
-}
+// -----------------------------------------------------------------------------
+// Violation: Display text used as machine identity
+// -----------------------------------------------------------------------------
 
-/// Carries the `Violation` state used by this analysis.
+/// Typed error decision made by parsing its presentation string.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Comparison or string-pattern expression receiving the diagnostic.
     span: Span,
-    /// Stores the `operation` value used by this analysis.
+    /// Kind of text-dependent decision explained in the rationale.
     operation: &'static str,
 }
 
@@ -64,9 +58,22 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `displayed_error` step of the lint analysis.
-fn displayed_error(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
-    // Prepare the values used by this stage.
+// -----------------------------------------------------------------------------
+// Candidate: Text-dependent error decision evidence
+// -----------------------------------------------------------------------------
+
+/// Potential text-based decision retained until its error type is confirmed.
+struct Candidate {
+    /// Displayed local error type.
+    definition: LocalDefId,
+    /// Decision expression receiving a later diagnostic.
+    span: Span,
+    /// Kind of string operation performed.
+    operation: &'static str,
+}
+
+/// Resolves the local error type formatted by a `to_string` call.
+fn candidate_displayed_error(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
     let ExprKind::MethodCall(segment, receiver, _, _) = expression.kind else {
         return None;
     };
@@ -74,7 +81,6 @@ fn displayed_error(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalD
         return None;
     }
 
-    // Prepare the values used by this stage.
     let method = cx
         .typeck_results()
         .type_dependent_def_id(expression.hir_id)?;
@@ -83,7 +89,6 @@ fn displayed_error(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalD
         return None;
     }
 
-    // Perform the next step of the analysis.
     cx.typeck_results()
         .expr_ty(receiver)
         .peel_refs()
@@ -92,18 +97,22 @@ fn displayed_error(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalD
         .as_local()
 }
 
-/// Performs the `is_string_literal` step of the lint analysis.
-const fn is_string_literal(expression: &Expr<'_>) -> bool {
+/// Returns whether an operand is a literal string rather than domain data.
+const fn candidate_is_string_literal(expression: &Expr<'_>) -> bool {
     matches!(expression.kind, ExprKind::Lit(literal)
         if matches!(literal.node, rustc_ast::LitKind::Str(..)))
 }
 
+// -----------------------------------------------------------------------------
+// ThiserrorErrorMessagesUsedAsIdentifiers: Typed identity policy
+// -----------------------------------------------------------------------------
+
+/// Correlates string decisions with local thiserror contracts.
 #[derive(Default)]
-/// Carries the `ThiserrorErrorMessagesUsedAsIdentifiers` state used by this analysis.
 struct ThiserrorErrorMessagesUsedAsIdentifiers {
-    /// Stores the `catalog` value used by this analysis.
+    /// Local derived error contracts.
     catalog: ThiserrorContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// String decisions awaiting derive confirmation.
     candidates: Vec<Candidate>,
 }
 
@@ -121,20 +130,20 @@ impl LateLintPass<'_> for ThiserrorErrorMessagesUsedAsIdentifiers {
     }
 
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
-        // Reject inputs that do not satisfy this stage.
         if expression.span.from_expansion() {
             return;
         }
 
-        // Prepare the values used by this stage.
-        let analyze_candidate = match expression.kind {
-            ExprKind::Binary(analyze_operator, left, right)
-                if matches!(analyze_operator.node, BinOpKind::Eq | BinOpKind::Ne) =>
+        let candidate = match expression.kind {
+            ExprKind::Binary(operator, left, right)
+                if matches!(operator.node, BinOpKind::Eq | BinOpKind::Ne) =>
             {
-                if is_string_literal(right) {
-                    displayed_error(cx, left).map(|definition| (definition, "string comparison"))
-                } else if is_string_literal(left) {
-                    displayed_error(cx, right).map(|definition| (definition, "string comparison"))
+                if candidate_is_string_literal(right) {
+                    candidate_displayed_error(cx, left)
+                        .map(|definition| (definition, "string comparison"))
+                } else if candidate_is_string_literal(left) {
+                    candidate_displayed_error(cx, right)
+                        .map(|definition| (definition, "string comparison"))
                 } else {
                     None
                 }
@@ -145,19 +154,18 @@ impl LateLintPass<'_> for ThiserrorErrorMessagesUsedAsIdentifiers {
                     "starts_with" | "ends_with" | "contains"
                 ) && arguments
                     .first()
-                    .is_some_and(|argument| is_string_literal(argument)) =>
+                    .is_some_and(|argument| candidate_is_string_literal(argument)) =>
             {
-                displayed_error(cx, receiver).map(|definition| (definition, "string-pattern check"))
+                candidate_displayed_error(cx, receiver)
+                    .map(|definition| (definition, "string-pattern check"))
             }
             _ => None,
         };
 
-        // Prepare the values used by this stage.
-        let Some((definition, operation)) = analyze_candidate else {
+        let Some((definition, operation)) = candidate else {
             return;
         };
 
-        // Update the accumulated analysis state.
         self.candidates.push(Candidate {
             definition,
             span: expression.span,
@@ -166,20 +174,14 @@ impl LateLintPass<'_> for ThiserrorErrorMessagesUsedAsIdentifiers {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
-            if self
-                .catalog
-                .derived_type(analyze_candidate.definition)
-                .is_none()
-            {
+        for candidate in self.candidates.drain(..) {
+            if self.catalog.derived_type(candidate.definition).is_none() {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
-                operation: analyze_candidate.operation,
+                span: candidate.span,
+                operation: candidate.operation,
             }
             .emit(cx);
         }

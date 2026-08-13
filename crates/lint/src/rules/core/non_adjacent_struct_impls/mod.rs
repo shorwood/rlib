@@ -418,7 +418,7 @@ impl LateViolation for Violation<'_> {
 }
 
 // -----------------------------------------------------------------------------
-// NonAdjacentStructImpls: Lint pass
+// NonAdjacentStructImpls: Type implementation adjacency policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that keeps direct inherent impl groups beside their struct.

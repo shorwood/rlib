@@ -14,25 +14,29 @@ use super::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `Candidate` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Public wire names inferred from Rust identifiers
+// -----------------------------------------------------------------------------
+
+/// Public Serde declaration awaiting effective wire-name calculation.
 struct Candidate {
-    /// Stores the `definition` value used by this analysis.
+    /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `serialize_names` value used by this analysis.
+    /// Effective serialized names whose spelling depends on Rust identifiers.
     serialize_names: Vec<String>,
-    /// Stores the `deserialize_names` value used by this analysis.
+    /// Effective accepted names whose spelling depends on Rust identifiers.
     deserialize_names: Vec<String>,
 }
 
-/// Carries the `Violation` state used by this analysis.
+/// Public wire contract whose spelling still depends on a Rust identifier.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
-    /// Stores the `directions` value used by this analysis.
+    /// Serialization directions whose wire names remain implicit.
     directions: String,
-    /// Stores the `names` value used by this analysis.
+    /// Effective external names keyed by their declarations.
     names: Vec<String>,
 }
 
@@ -131,18 +135,15 @@ struct ContractNames {
 impl ContractNames {
     /// Recovers visibility and implicit names from a Serde struct or enum.
     fn analyze(source: &str) -> Option<Self> {
-        // Reject inputs that do not satisfy this stage.
         if let Ok(structure) = syn::parse_str::<syn::ItemStruct>(source) {
-            // Prepare the values used by this stage.
-            let container = SerdeAttributes::analyze_serde_attributes(&structure.attrs);
+            let container = SerdeAttributes::from_attributes(&structure.attrs);
             let fields = structure.fields.iter().filter_map(|field| {
                 field.ident.as_ref().map(|name| ImplicitMember {
                     name: name.to_string(),
-                    attributes: SerdeAttributes::analyze_serde_attributes(&field.attrs),
+                    attributes: SerdeAttributes::from_attributes(&field.attrs),
                 })
             });
 
-            // Prepare the values used by this stage.
             let ImplicitNames {
                 serialize,
                 deserialize,
@@ -152,7 +153,6 @@ impl ContractNames {
                 container.rename_all_deserialize.as_deref(),
             );
 
-            // Return the completed analysis result.
             return Some(Self {
                 is_public: matches!(structure.vis, syn::Visibility::Public(_)),
                 serialize,
@@ -160,23 +160,20 @@ impl ContractNames {
             });
         }
 
-        // Prepare the values used by this stage.
         let enumeration = match syn::parse_str::<syn::ItemEnum>(source) {
             Ok(enumeration) => enumeration,
             Err(_error) => return None,
         };
-        let container = SerdeAttributes::analyze_serde_attributes(&enumeration.attrs);
+        let container = SerdeAttributes::from_attributes(&enumeration.attrs);
 
-        // Reject inputs that do not satisfy this stage.
         if container.has(SerdeFlag::Untagged) {
             return None;
         }
         let variants = enumeration.variants.iter().map(|variant| ImplicitMember {
             name: variant.ident.to_string(),
-            attributes: SerdeAttributes::analyze_serde_attributes(&variant.attrs),
+            attributes: SerdeAttributes::from_attributes(&variant.attrs),
         });
 
-        // Prepare the values used by this stage.
         let ImplicitNames {
             serialize,
             deserialize,
@@ -186,7 +183,6 @@ impl ContractNames {
             container.rename_all_deserialize.as_deref(),
         );
 
-        // Return the completed analysis result.
         Some(Self {
             is_public: matches!(enumeration.vis, syn::Visibility::Public(_)),
             serialize,
@@ -196,11 +192,15 @@ impl ContractNames {
 }
 
 #[derive(Default)]
-/// Carries the `SerdeUnstableImplicitWireNames` state used by this analysis.
+// -----------------------------------------------------------------------------
+// SerdeUnstableImplicitWireNames: Stable explicit wire-name policy
+// -----------------------------------------------------------------------------
+
+/// Rejects externally visible wire names that change when Rust identifiers are renamed.
 struct SerdeUnstableImplicitWireNames {
-    /// Stores the `catalog` value used by this analysis.
+    /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Authored Serde declarations awaiting crate-wide contract comparison.
     candidates: Vec<Candidate>,
 }
 
@@ -214,7 +214,6 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for SerdeUnstableImplicitWireNames {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion()
             || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
@@ -222,7 +221,6 @@ impl LateLintPass<'_> for SerdeUnstableImplicitWireNames {
             return;
         }
 
-        // Prepare the values used by this stage.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
@@ -235,12 +233,10 @@ impl LateLintPass<'_> for SerdeUnstableImplicitWireNames {
             return;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if !is_public || (serialize_names.is_empty() && deserialize_names.is_empty()) {
             return;
         }
 
-        // Update the accumulated analysis state.
         self.candidates.push(Candidate {
             definition: item.owner_id.def_id,
             span: item.span,
@@ -250,43 +246,37 @@ impl LateLintPass<'_> for SerdeUnstableImplicitWireNames {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Prepare the values used by this stage.
+        for candidate in self.candidates.drain(..) {
             let serializes = self
                 .catalog
-                .derived_type(analyze_candidate.definition, "Serialize")
+                .derived_type(candidate.definition, "Serialize")
                 .is_some();
 
-            // Prepare the values used by this stage.
             let deserializes = self
                 .catalog
-                .derived_type(analyze_candidate.definition, "Deserialize")
+                .derived_type(candidate.definition, "Deserialize")
                 .is_some();
             let mut names = Vec::new();
             let mut directions = Vec::new();
 
-            // Reject inputs that do not satisfy this stage.
-            if serializes && !analyze_candidate.serialize_names.is_empty() {
+            if serializes && !candidate.serialize_names.is_empty() {
                 directions.push("serialization");
-                names.extend(analyze_candidate.serialize_names);
+                names.extend(candidate.serialize_names);
             }
 
-            // Reject inputs that do not satisfy this stage.
-            if deserializes && !analyze_candidate.deserialize_names.is_empty() {
+            if deserializes && !candidate.deserialize_names.is_empty() {
                 directions.push("deserialization");
-                names.extend(analyze_candidate.deserialize_names);
+                names.extend(candidate.deserialize_names);
             }
             names.sort();
             names.dedup();
 
-            // Reject inputs that do not satisfy this stage.
             if directions.is_empty() {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
+                span: candidate.span,
                 directions: directions.join(" and "),
                 names: names.into_iter().map(|name| format!("`{name}`")).collect(),
             }

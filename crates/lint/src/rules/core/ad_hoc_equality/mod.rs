@@ -24,7 +24,7 @@ use crate::utils::diagnostic::LateViolation;
 /// Canonical-looking equality with complete relation and family context.
 struct Violation {
     /// Complete relation and remediation context discovered by the analyzer.
-    analyze_candidate: ComparisonFamilyCandidate,
+    candidate: ComparisonFamilyCandidate,
     /// Missing, ambiguous, or competing trait ownership.
     problem: ComparisonProblem,
 }
@@ -32,7 +32,7 @@ struct Violation {
 impl From<ComparisonFamilyFinding<'_>> for Violation {
     fn from(finding: ComparisonFamilyFinding<'_>) -> Self {
         Self {
-            analyze_candidate: finding.analyze_candidate.clone(),
+            candidate: finding.candidate.clone(),
             problem: finding.problem,
         }
     }
@@ -43,7 +43,7 @@ impl Violation {
     fn missing_primary(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "`{}` defines canonical-looking equality for `{}` outside `PartialEq`",
-            self.analyze_candidate.source.name, self.analyze_candidate.protocol.type_name
+            self.candidate.source.name, self.candidate.protocol.type_name
         ))
     }
 
@@ -51,7 +51,7 @@ impl Violation {
     fn ambiguous_primary(&self, count: usize) -> Cow<'_, str> {
         Cow::Owned(format!(
             "`{}` is one of {count} APIs competing to define equality for `{}`",
-            self.analyze_candidate.source.name, self.analyze_candidate.protocol.type_name
+            self.candidate.source.name, self.candidate.protocol.type_name
         ))
     }
 
@@ -59,7 +59,7 @@ impl Violation {
     fn competing_primary(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "`{}` implements equality for `{}` separately from its `PartialEq` contract",
-            self.analyze_candidate.source.name, self.analyze_candidate.protocol.type_name
+            self.candidate.source.name, self.candidate.protocol.type_name
         ))
     }
 
@@ -67,7 +67,7 @@ impl Violation {
     fn missing_remediation(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "if this is `{}`'s canonical equivalence relation, implement `PartialEq` there and add `Eq` only after confirming reflexivity; otherwise give the operation a contextual name or introduce a comparison wrapper",
-            self.analyze_candidate.protocol.type_name
+            self.candidate.protocol.type_name
         ))
     }
 
@@ -75,7 +75,7 @@ impl Violation {
     fn ambiguous_remediation(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "choose one lawful `PartialEq` relation for `{}`; name every contextual relation by its key or policy, or encode it in a wrapper type",
-            self.analyze_candidate.protocol.type_name
+            self.candidate.protocol.type_name
         ))
     }
 
@@ -83,7 +83,7 @@ impl Violation {
     fn competing_remediation(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "delegate to `{}`'s `PartialEq` implementation or make the different relation explicit in the API or a wrapper; ensure every existing `Hash` implementation follows the canonical equality fields",
-            self.analyze_candidate.protocol.type_name
+            self.candidate.protocol.type_name
         ))
     }
 }
@@ -100,7 +100,7 @@ impl LateViolation for Violation {
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "canonical equality determines generic comparisons, deduplication, sets, and map keys for `{}`; detached implementations can disagree with `Hash` or with each other",
-            self.analyze_candidate.protocol.type_name
+            self.candidate.protocol.type_name
         ))
     }
 
@@ -115,20 +115,20 @@ impl LateViolation for Violation {
     fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
             AD_HOC_EQUALITY,
-            self.analyze_candidate.source.hir_id,
-            self.analyze_candidate.source.name_span,
+            self.candidate.source.hir_id,
+            self.candidate.source.name_span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
                 diag.span_label(
-                    self.analyze_candidate.evidence.left,
+                    self.candidate.evidence.left,
                     "first value in the inferred equality relation",
                 );
                 diag.span_label(
-                    self.analyze_candidate.evidence.right,
+                    self.candidate.evidence.right,
                     "second value in the same relation",
                 );
                 diag.span_label(
-                    self.analyze_candidate.evidence.relation,
+                    self.candidate.evidence.relation,
                     "both values determine this boolean result",
                 );
                 diag.note(self.rationale_message().into_owned());

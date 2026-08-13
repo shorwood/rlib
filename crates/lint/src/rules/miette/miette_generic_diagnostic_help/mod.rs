@@ -13,11 +13,15 @@ use super::contracts::DiagnosticCatalog;
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Generic diagnostic help
+// -----------------------------------------------------------------------------
+
+/// Static help text that names no concrete recovery action.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Diagnostic declaration carrying the help text.
     span: Span,
-    /// Stores the `help` value used by this analysis.
+    /// Authored help text quoted in the diagnostic.
     help: String,
 }
 
@@ -52,16 +56,20 @@ impl LateViolation for Violation {
     }
 }
 
-/// Carries the `MietteGenericDiagnosticHelp` state used by this analysis.
+// -----------------------------------------------------------------------------
+// MietteGenericDiagnosticHelp: Actionable recovery guidance
+// -----------------------------------------------------------------------------
+
+/// Compares derived help text with the configured generic phrases.
 struct MietteGenericDiagnosticHelp {
-    /// Stores the `catalog` value used by this analysis.
+    /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
-    /// Stores the `generic_phrases` value used by this analysis.
+    /// Normalized phrases considered too vague to guide recovery.
     generic_phrases: Vec<String>,
 }
 
 impl MietteGenericDiagnosticHelp {
-    /// Performs the `new` operation for this value.
+    /// Loads the project policy and creates an empty diagnostic catalog.
     fn new() -> Self {
         Self {
             catalog: DiagnosticCatalog::default(),
@@ -94,9 +102,8 @@ impl LateLintPass<'_> for MietteGenericDiagnosticHelp {
 }
 
 impl MietteGenericDiagnosticHelp {
-    /// Performs the `check_help` operation for this value.
+    /// Reports one configured generic phrase used as static help text.
     fn check_help(&self, cx: &LateContext<'_>, span: Span, help: Option<&str>) {
-        // Prepare the values used by this stage.
         let Some(help) = help else {
             return;
         };
@@ -105,7 +112,7 @@ impl MietteGenericDiagnosticHelp {
             .trim_end_matches(['.', '!'])
             .to_ascii_lowercase();
 
-        // Reject inputs that do not satisfy this stage.
+        // Specific guidance is outside this lint's policy boundary.
         if !(self
             .generic_phrases
             .iter()
@@ -114,7 +121,6 @@ impl MietteGenericDiagnosticHelp {
             return;
         }
 
-        // Perform the next step of the analysis.
         Violation {
             span,
             help: help.to_owned(),

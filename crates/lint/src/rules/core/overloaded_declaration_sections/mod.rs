@@ -55,7 +55,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// OverloadedDeclarationSections
+// OverloadedDeclarationSections: Conceptual section capacity policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that rejects declaration sections broad enough to obscure their concepts.

@@ -23,7 +23,6 @@ fn inspect(items: &[Item]) {}
 
 ## Use instead
 
-
 A small wrapper makes the intended interface explicit:
 
 ```rust

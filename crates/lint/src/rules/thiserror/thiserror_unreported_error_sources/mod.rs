@@ -14,31 +14,15 @@ use super::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-/// Carries the `FieldCandidate` state used by this analysis.
-struct FieldCandidate {
-    /// Stores the `name` value used by this analysis.
-    name: String,
-    /// Stores the `target` value used by this analysis.
-    target: LocalDefId,
-    /// Stores the `is_marked_source` value used by this analysis.
-    is_marked_source: bool,
-}
+// -----------------------------------------------------------------------------
+// Violation: Sole nested cause omitted from the source chain
+// -----------------------------------------------------------------------------
 
-/// Carries the `Candidate` state used by this analysis.
-struct Candidate {
-    /// Stores the `definition` value used by this analysis.
-    definition: LocalDefId,
-    /// Stores the `span` value used by this analysis.
-    span: Span,
-    /// Stores the `fields` value used by this analysis.
-    fields: Vec<FieldCandidate>,
-}
-
-/// Carries the `Violation` state used by this analysis.
+/// Derived error with one provable local cause that `Error::source` omits.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Error declaration receiving the diagnostic.
     span: Span,
-    /// Stores the `field` value used by this analysis.
+    /// Sole causal field named in the diagnostic.
     field: String,
 }
 
@@ -79,17 +63,45 @@ impl LateViolation for Violation {
     }
 }
 
-/// Performs the `causal_name` step of the lint analysis.
-fn causal_name(name: &str) -> bool {
+// -----------------------------------------------------------------------------
+// Candidate: Causal field evidence
+// -----------------------------------------------------------------------------
+
+/// Causal-looking field and the local type it stores.
+struct CandidateField {
+    /// Authored field name.
+    name: String,
+    /// Local error type stored by the field.
+    target: LocalDefId,
+    /// Whether thiserror places the field in the source chain.
+    is_marked_source: bool,
+}
+
+/// Error declaration retained until all local thiserror contracts are known.
+struct Candidate {
+    /// Candidate error definition.
+    definition: LocalDefId,
+    /// Error declaration receiving a later diagnostic.
+    span: Span,
+    /// Fields whose names suggest a causal role.
+    fields: Vec<CandidateField>,
+}
+
+/// Returns whether a field name conventionally denotes a cause.
+fn candidate_has_causal_name(name: &str) -> bool {
     matches!(name, "cause" | "error" | "source") || name.ends_with("_error")
 }
 
+// -----------------------------------------------------------------------------
+// ThiserrorUnreportedErrorSources: Complete source-chain policy
+// -----------------------------------------------------------------------------
+
+/// Correlates causal-looking fields with local derived error contracts.
 #[derive(Default)]
-/// Carries the `ThiserrorUnreportedErrorSources` state used by this analysis.
 struct ThiserrorUnreportedErrorSources {
-    /// Stores the `catalog` value used by this analysis.
+    /// Local derived error contracts used to validate nested field types.
     catalog: ThiserrorContractCatalog,
-    /// Stores the `candidates` value used by this analysis.
+    /// Error declarations awaiting complete type information.
     candidates: Vec<Candidate>,
 }
 
@@ -103,13 +115,11 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for ThiserrorUnreportedErrorSources {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() {
             return;
         }
 
-        // Prepare the values used by this stage.
         let hir_fields = match item.kind {
             ItemKind::Struct(_, _, data) => data.fields().iter().collect::<Vec<_>>(),
             ItemKind::Enum(_, _, definition) => definition
@@ -120,12 +130,10 @@ impl LateLintPass<'_> for ThiserrorUnreportedErrorSources {
             _ => return,
         };
 
-        // Prepare the values used by this stage.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
-        // Prepare the values used by this stage.
         let syn_fields = match syn::parse_str::<syn::ItemStruct>(&source) {
             Ok(structure) => structure.fields.into_iter().collect::<Vec<_>>(),
             Err(_error) => {
@@ -140,13 +148,12 @@ impl LateLintPass<'_> for ThiserrorUnreportedErrorSources {
             }
         };
 
-        // Prepare the values used by this stage.
         let fields = syn_fields
             .iter()
             .zip(hir_fields)
             .filter_map(|(field, hir_field)| {
                 let name = field.ident.as_ref()?.to_string();
-                if !causal_name(&name) {
+                if !candidate_has_causal_name(&name) {
                     return None;
                 }
                 let target = cx
@@ -157,7 +164,7 @@ impl LateLintPass<'_> for ThiserrorUnreportedErrorSources {
                     .did()
                     .as_local()?;
                 let attributes = ThiserrorAttributes::from_attributes(&field.attrs);
-                Some(FieldCandidate {
+                Some(CandidateField {
                     is_marked_source: attributes.is_source || name == "source",
                     name,
                     target,
@@ -165,7 +172,6 @@ impl LateLintPass<'_> for ThiserrorUnreportedErrorSources {
             })
             .collect();
 
-        // Update the accumulated analysis state.
         self.candidates.push(Candidate {
             definition: item.owner_id.def_id,
             span: item.span,
@@ -174,31 +180,23 @@ impl LateLintPass<'_> for ThiserrorUnreportedErrorSources {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for analyze_candidate in self.candidates.drain(..) {
-            // Reject inputs that do not satisfy this stage.
-            if self
-                .catalog
-                .derived_type(analyze_candidate.definition)
-                .is_none()
-            {
+        for candidate in self.candidates.drain(..) {
+            if self.catalog.derived_type(candidate.definition).is_none() {
                 continue;
             }
 
-            // Prepare the values used by this stage.
-            let nested = analyze_candidate
+            let nested = candidate
                 .fields
                 .into_iter()
                 .filter(|field| self.catalog.derived_type(field.target).is_some())
                 .collect::<Vec<_>>();
 
-            // Reject inputs that do not satisfy this stage.
             if nested.iter().any(|field| field.is_marked_source) || nested.len() != 1 {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
-                span: analyze_candidate.span,
+                span: candidate.span,
                 field: nested[0].name.clone(),
             }
             .emit(cx);

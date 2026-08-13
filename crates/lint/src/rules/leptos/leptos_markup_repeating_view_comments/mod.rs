@@ -70,19 +70,16 @@ fn heading_normalize(value: &str) -> String {
 
 /// Returns whether one heading exactly translates its only structural node.
 fn heading_repeats_node(content: &str, node: &ViewNode) -> bool {
-    // Prepare the values used by this stage.
     let heading = heading_normalize(content);
     let Some(name) = node.name.as_deref() else {
         return false;
     };
     let node_name = heading_normalize(name);
 
-    // Reject inputs that do not satisfy this stage.
     if heading == node_name {
         return true;
     }
 
-    // Reject inputs that do not satisfy this stage.
     if matches!(
         (heading.as_str(), node_name.as_str()),
         ("navigation", "nav")
@@ -90,7 +87,6 @@ fn heading_repeats_node(content: &str, node: &ViewNode) -> bool {
         return true;
     }
 
-    // Perform the next step of the analysis.
     node_name == "button"
         && node.literal.as_deref().is_some_and(|literal| {
             let literal = heading_normalize(literal);
@@ -130,7 +126,6 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMarkupRepeatingViewComments {
             .iter()
             .flat_map(|scope| scope.sections(&self.config))
         {
-            // Prepare the values used by this stage.
             let [node] = section.nodes else {
                 continue;
             };
@@ -139,12 +134,10 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMarkupRepeatingViewComments {
                 .canonical_content(&self.config)
                 .expect("sections have canonical headings");
 
-            // Reject inputs that do not satisfy this stage.
             if !heading_repeats_node(content, node) {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 owner: view.owner,
                 heading: section.heading.span,

@@ -72,13 +72,11 @@ dylint_linting::impl_late_lint! {
 impl LeptosUnreactiveSignalReadsInViews {
     /// Returns whether the expression resolves to a tracked reactive read.
     fn is_tracked_read(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
-        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, _, _, _) = expression.kind else {
             return false;
         };
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
 
-        // Prepare the values used by this stage.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -87,7 +85,6 @@ impl LeptosUnreactiveSignalReadsInViews {
             return false;
         };
 
-        // Reject inputs that do not satisfy this stage.
         if cx.tcx.crate_name(method.krate).as_str() != "reactive_graph" {
             return false;
         }
@@ -95,7 +92,6 @@ impl LeptosUnreactiveSignalReadsInViews {
             return false;
         };
 
-        // Perform the next step of the analysis.
         matches!(
             (
                 cx.tcx.item_name(trait_id).as_str(),
@@ -116,13 +112,11 @@ impl LeptosUnreactiveSignalReadsInViews {
     fn is_eager_view_read(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
         let mut is_inside_view = Self::is_view_expansion(expression.span);
         for (_, node) in cx.tcx.hir_parent_iter(expression.hir_id) {
-            // Prepare the values used by this stage.
             let Node::Expr(parent) = node else {
                 continue;
             };
             is_inside_view |= Self::is_view_expansion(parent.span);
 
-            // Reject inputs that do not satisfy this stage.
             if matches!(parent.kind, ExprKind::Closure(_))
                 && cx
                     .sess()

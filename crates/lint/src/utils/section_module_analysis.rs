@@ -20,7 +20,7 @@ use crate::utils::identifier_case;
 use crate::utils::source_provenance::ItemProvenanceExt;
 
 // -----------------------------------------------------------------------------
-// Module: Complete module analysis
+// ModuleAnalysis: Complete section analysis
 // -----------------------------------------------------------------------------
 #[derive(Clone, Copy)]
 /// Authored and inferred names involved in one section-prefix mismatch.
@@ -41,6 +41,15 @@ struct ModuleSectionPrefix<'name> {
 struct ModuleNamespace {
     /// Canonical `PascalCase` form of the module name.
     prefix: String,
+    /// Current and parent module names that serve only as namespace qualifiers.
+    prefixes: Vec<String>,
+}
+
+impl ModuleNamespace {
+    /// Returns whether a shared type prefix merely repeats its module namespace.
+    fn contains(&self, prefix: &str) -> bool {
+        self.prefixes.iter().any(|namespace| namespace == prefix)
+    }
 }
 
 #[path = "section_event_stream.rs"]
@@ -139,9 +148,14 @@ impl ModuleAnalysis {
             _ => None,
         })?;
         let ident = item.kind.ident()?;
-        Some(ModuleNamespace {
-            prefix: identifier_case::to_pascal(ident.name.as_str()),
-        })
+        let prefix = identifier_case::to_pascal(ident.name.as_str());
+        let mut prefixes = vec![prefix.clone()];
+        if let Some(parent) = cx.tcx.opt_parent(item.owner_id.to_def_id()) {
+            prefixes.push(identifier_case::to_pascal(
+                cx.tcx.item_name(parent).as_str(),
+            ));
+        }
+        Some(ModuleNamespace { prefix, prefixes })
     }
 
     /// Locates the authored byte immediately after an inline module's opening brace.
@@ -265,6 +279,7 @@ impl ModuleAnalysis {
         section: &SectionEventStreamGroup,
         parsed: &ParsedContent,
         prefix: ModuleSectionPrefix<'_>,
+        namespace: Option<&ModuleNamespace>,
         analysis: &mut SectionAnalysis,
     ) {
         // Require canonical syntax, width, and at least one declaration participant.
@@ -277,10 +292,14 @@ impl ModuleAnalysis {
 
         // Collapse a nominal declaration and all of its implementation blocks into one concept.
         let participants = section.participants.distinct_declarations();
-        if participants.len() > analyzer.max_declarations_per_section {
-            // Explain the measurable excess at the divider that owns the broad family.
+        if participants.len() > analyzer.max_declarations_per_section
+            && section
+                .participants
+                .has_multiple_conceptual_families(namespace)
+        {
+            // Use configured scale as corroborating evidence, not a reason to split one family.
             let message = format!(
-                "section `{}` contains {} distinct declarations, exceeding the configured maximum of {}",
+                "section `{}` mixes {} declarations from several naming families, exceeding the configured maximum of {}",
                 prefix.text,
                 participants.len(),
                 analyzer.max_declarations_per_section
@@ -375,7 +394,7 @@ impl ModuleAnalysis {
         );
         let help = format!(
             "reconsider the names {} so closely related declarations share a visible prefix; split the section only when they represent independent concepts",
-            section.participants.formatted_names()
+            section.participants.formatted_family_names()
         );
 
         // Attach naming-first guidance to the authored divider.
@@ -402,11 +421,21 @@ impl ModuleAnalysis {
         }
         let names = section.participants.family_names();
 
+        // `Violation` is a diagnostic role whose supporting evidence keeps domain-specific names.
+        if prefix.text == "Violation" && names.contains(&"Violation") {
+            return None;
+        }
+
         // Report declarations with no shared naming root directly.
         let Some(expected) = identifier_case::longest_common_pascal_prefix(&names) else {
             return Some(Self::unrelated_names_finding(section, prefix));
         };
         if expected == prefix.text {
+            return None;
+        }
+        if names.contains(&prefix.text)
+            && namespace.is_some_and(|namespace| namespace.contains(&expected))
+        {
             return None;
         }
 
@@ -437,7 +466,7 @@ impl ModuleAnalysis {
         let prefix = ModuleSectionPrefix { text: prefix };
 
         // Record the section independently for each semantic companion lint.
-        Self::record_valid_section(analyzer, section, &parsed, prefix, analysis);
+        Self::record_valid_section(analyzer, section, &parsed, prefix, namespace, analysis);
         Self::record_duplicate_section(section, prefix, seen_prefixes, analysis);
         let Some(finding) = Self::mismatch_finding(section, prefix, namespace) else {
             return;

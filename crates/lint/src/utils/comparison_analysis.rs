@@ -25,7 +25,7 @@ const COMPARISON_PARAMETER_COUNT: usize = 2;
 // Comparison: Standard relation model
 // -----------------------------------------------------------------------------
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-/// Standard comparison contract structurally represented by a `analyze_candidate`.
+/// Standard comparison contract structurally represented by a `candidate`.
 pub enum ComparisonContract {
     /// Boolean equality suitable for `PartialEq`.
     Equality,
@@ -141,7 +141,7 @@ pub struct ComparisonFamilyCandidateProtocol {
     pub contract: ComparisonContract,
 }
 #[derive(Clone, Copy)]
-/// Private family-selection context for one comparison `analyze_candidate`.
+/// Private family-selection context for one comparison `candidate`.
 struct ComparisonFamilyCandidateSelection {
     /// Local nominal type being compared.
     type_def_id: LocalDefId,
@@ -168,9 +168,9 @@ pub struct ComparisonFamilyCandidate {
 }
 
 /// Reportable comparison plus family and trait-occupancy classification.
-pub struct ComparisonFamilyFinding<'analyze_candidate> {
+pub struct ComparisonFamilyFinding<'candidate> {
     /// Candidate carrying exact source and remediation context.
-    pub analyze_candidate: &'analyze_candidate ComparisonFamilyCandidate,
+    pub candidate: &'candidate ComparisonFamilyCandidate,
     /// Missing, ambiguous, or competing canonical ownership.
     pub problem: ComparisonProblem,
 }
@@ -205,10 +205,9 @@ impl ComparisonFamilyOccupancy {
         entry.map_or(Self::Available, |_| Self::Occupied)
     }
 
-    /// Returns whether one `analyze_candidate` still deserves a diagnostic.
-    const fn is_reportable(self, analyze_candidate: &ComparisonFamilyCandidate) -> bool {
-        matches!(self, Self::Available)
-            || !analyze_candidate.selection.has_standard_trait_delegation
+    /// Returns whether one `candidate` still deserves a diagnostic.
+    const fn is_reportable(self, candidate: &ComparisonFamilyCandidate) -> bool {
+        matches!(self, Self::Available) || !candidate.selection.has_standard_trait_delegation
     }
 }
 
@@ -347,7 +346,7 @@ impl ComparisonAnalysis {
             has_standard_trait_delegation: evidence.has_standard_trait_delegation,
         };
 
-        // Store the compact contexts as one crate-wide comparison analyze_candidate.
+        // Store the compact contexts as one crate-wide comparison candidate.
         self.candidates.push(ComparisonFamilyCandidate {
             def_id,
             source,
@@ -364,19 +363,21 @@ impl ComparisonAnalysis {
     ) -> Vec<ComparisonFamilyFinding<'_>> {
         let wants_equality = matches!(selection, ComparisonFamilySelection::Equality);
         let mut families = HashMap::<ComparisonFamilyKey, Vec<&ComparisonFamilyCandidate>>::new();
-        for analyze_candidate in self.candidates.iter().filter(|analyze_candidate| {
-            analyze_candidate.protocol.contract.is_equality() == wants_equality
-        }) {
+        for candidate in self
+            .candidates
+            .iter()
+            .filter(|candidate| candidate.protocol.contract.is_equality() == wants_equality)
+        {
             families
                 .entry(ComparisonFamilyKey {
-                    type_def_id: analyze_candidate.selection.type_def_id,
-                    contract: analyze_candidate.protocol.contract,
+                    type_def_id: candidate.selection.type_def_id,
+                    contract: candidate.protocol.contract,
                 })
                 .or_default()
-                .push(analyze_candidate);
+                .push(candidate);
         }
 
-        // Classify each family once before emitting its individual analyze_candidate findings.
+        // Classify each family once before emitting its individual candidate findings.
         let mut findings = Vec::new();
         for (key, family) in families {
             let occupancy =
@@ -386,15 +387,12 @@ impl ComparisonAnalysis {
             // Suppress only direct delegation into an already occupied standard trait.
             let reportable = family
                 .into_iter()
-                .filter(|analyze_candidate| occupancy.is_reportable(analyze_candidate));
-            for analyze_candidate in reportable {
-                findings.push(ComparisonFamilyFinding {
-                    analyze_candidate,
-                    problem,
-                });
+                .filter(|candidate| occupancy.is_reportable(candidate));
+            for candidate in reportable {
+                findings.push(ComparisonFamilyFinding { candidate, problem });
             }
         }
-        findings.sort_unstable_by_key(|finding| finding.analyze_candidate.source.name_span.lo());
+        findings.sort_unstable_by_key(|finding| finding.candidate.source.name_span.lo());
         findings
     }
 
@@ -404,7 +402,7 @@ impl ComparisonAnalysis {
         let ordering = self.findings(ComparisonFamilySelection::Ordering);
         let mut definitions = HashSet::new();
         for finding in equality.into_iter().chain(ordering) {
-            definitions.insert(finding.analyze_candidate.def_id);
+            definitions.insert(finding.candidate.def_id);
         }
         definitions
     }
@@ -733,8 +731,8 @@ impl<'tcx> Visitor<'tcx> for RelationEvidenceAnalyzer<'_, 'tcx> {
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         // Record built-in binary relations combining both operand families.
-        if let ExprKind::Binary(analyze_operator, left, right) = expression.kind
-            && COMPARISON_VOCABULARY_BINARY_OPERATORS.contains(&analyze_operator.node)
+        if let ExprKind::Binary(operator, left, right) = expression.kind
+            && COMPARISON_VOCABULARY_BINARY_OPERATORS.contains(&operator.node)
         {
             self.record_relation(expression, left, right);
         }

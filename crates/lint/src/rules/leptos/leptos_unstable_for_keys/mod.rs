@@ -13,9 +13,13 @@ use rustc_span::{BytePos, Span};
 
 use crate::utils::diagnostic::LateViolation;
 
+// -----------------------------------------------------------------------------
+// Key: Authored unstable-key evidence
+// -----------------------------------------------------------------------------
+
 /// Absolute source coordinates for one reported key expression.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct SourceRange {
+struct KeySourceRange {
     /// Inclusive low byte position.
     lo: u32,
     /// Exclusive high byte position.
@@ -23,7 +27,7 @@ struct SourceRange {
 }
 
 /// Explains an unstable key prefix and how much source it occupies.
-struct UnstableKey {
+struct KeyInstability {
     /// Byte length of the unstable expression prefix.
     length: usize,
     /// Reason the expression cannot preserve item identity.
@@ -93,7 +97,7 @@ impl LateViolation for Violation {
 /// Late lint pass that rejects constant and position-based keyed iteration.
 struct LeptosUnstableForKeys {
     /// Absolute source ranges already diagnosed while visiting one expanded view.
-    reported: HashSet<SourceRange>,
+    reported: HashSet<KeySourceRange>,
 }
 
 dylint_linting::impl_late_lint! {
@@ -106,10 +110,10 @@ dylint_linting::impl_late_lint! {
 
 impl LeptosUnstableForKeys {
     /// Classifies one authored key closure prefix and returns its diagnostic width.
-    fn unstable_key(source: &str) -> Option<UnstableKey> {
+    fn unstable_key(source: &str) -> Option<KeyInstability> {
         for constant in ["|_| ()", "|_| true", "|_| false"] {
             if source.starts_with(constant) {
-                return Some(UnstableKey {
+                return Some(KeyInstability {
                     length: constant.len(),
                     reason: "every row receives the same key",
                 });
@@ -118,7 +122,7 @@ impl LeptosUnstableForKeys {
         if let Some(rest) = source.strip_prefix("|_| ") {
             let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
             if digits > 0 {
-                return Some(UnstableKey {
+                return Some(KeyInstability {
                     length: 4 + digits,
                     reason: "every row receives the same key",
                 });
@@ -131,7 +135,7 @@ impl LeptosUnstableForKeys {
                 format!("|({name}, _)| {name}"),
             ] {
                 if source.starts_with(&key) {
-                    return Some(UnstableKey {
+                    return Some(KeyInstability {
                         length: key.len(),
                         reason: "the row position changes when the collection is reordered",
                     });
@@ -146,11 +150,9 @@ impl LeptosUnstableForKeys {
         let mut findings = Vec::new();
         let mut cursor = 0;
         while let Some(relative) = source[cursor..].find("key=") {
-            // Prepare the values used by this stage.
             let attribute = cursor + relative;
             let before = &source[..attribute];
 
-            // Prepare the values used by this stage.
             let is_for = before.rsplit_once('<').is_some_and(|(_, tag)| {
                 matches!(
                     tag.split_ascii_whitespace().next(),
@@ -159,14 +161,12 @@ impl LeptosUnstableForKeys {
             });
             let value = attribute + "key=".len();
 
-            // Prepare the values used by this stage.
             let whitespace = source[value..]
                 .bytes()
                 .take_while(u8::is_ascii_whitespace)
                 .count();
             let start = value + whitespace;
 
-            // Reject inputs that do not satisfy this stage.
             if is_for && let Some(key) = Self::unstable_key(&source[start..]) {
                 findings.push(KeyFinding {
                     start,
@@ -197,19 +197,16 @@ impl<'tcx> LateLintPass<'tcx> for LeptosUnstableForKeys {
             reason,
         } in Self::findings(&source)
         {
-            // Prepare the values used by this stage.
             let (Ok(offset), Ok(length)) = (u32::try_from(offset), u32::try_from(length)) else {
                 continue;
             };
             let lo = view_span.lo() + BytePos(offset);
             let hi = lo + BytePos(length);
 
-            // Reject inputs that do not satisfy this stage.
-            if !self.reported.insert(SourceRange { lo: lo.0, hi: hi.0 }) {
+            if !self.reported.insert(KeySourceRange { lo: lo.0, hi: hi.0 }) {
                 continue;
             }
 
-            // Perform the next step of the analysis.
             Violation {
                 owner: expression.hir_id,
                 span: Span::with_root_ctxt(lo, hi),

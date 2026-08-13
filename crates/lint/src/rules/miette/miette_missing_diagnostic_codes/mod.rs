@@ -12,11 +12,15 @@ use rustc_span::Span;
 use super::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Diagnostic variant without a stable code
+// -----------------------------------------------------------------------------
+
+/// A diagnostic variant that breaks its family's stable-code convention.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Declaration to identify in the diagnostic.
     span: Span,
-    /// Stores the `diagnostic` value used by this analysis.
+    /// Qualified diagnostic variant name shown to the author.
     diagnostic: String,
 }
 
@@ -52,10 +56,14 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// MietteMissingDiagnosticCodes: Complete diagnostic-family code policy
+// -----------------------------------------------------------------------------
+
 #[derive(Default)]
-/// Carries the `MietteMissingDiagnosticCodes` state used by this analysis.
+/// Collects Miette contracts before comparing codes across each family.
 struct MietteMissingDiagnosticCodes {
-    /// Stores the `catalog` value used by this analysis.
+    /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,
 }
 
@@ -83,7 +91,7 @@ impl LateLintPass<'_> for MietteMissingDiagnosticCodes {
                 continue;
             }
             for member in &contract.members {
-                // Reject inputs that do not satisfy this stage.
+                // Transparent or family-coded variants inherit an established identity.
                 if !(!member.metadata.is_transparent
                     && member.metadata.code.is_none()
                     && contract.metadata.code.is_none())
@@ -91,7 +99,6 @@ impl LateLintPass<'_> for MietteMissingDiagnosticCodes {
                     continue;
                 }
 
-                // Perform the next step of the analysis.
                 Violation {
                     span: member.span,
                     diagnostic: format!("{}::{}", contract.name, member.name),

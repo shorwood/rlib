@@ -15,11 +15,15 @@ use rustc_span::def_id::LocalDefId;
 use super::contracts::BonContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
-/// Carries the `Violation` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Violation: Generated Bon type in a public signature
+// -----------------------------------------------------------------------------
+
+/// Public boundary coupled to Bon's generated typestate representation.
 struct Violation {
-    /// Stores the `span` value used by this analysis.
+    /// Public type occurrence receiving the diagnostic.
     span: Span,
-    /// Stores the `ty` value used by this analysis.
+    /// Authored spelling of the generated type.
     ty: String,
 }
 
@@ -57,18 +61,22 @@ impl LateViolation for Violation {
     }
 }
 
-/// Carries the `Exposure` state used by this analysis.
+// -----------------------------------------------------------------------------
+// Exposure: Resolved public type evidence
+// -----------------------------------------------------------------------------
+
+/// Named type found within a public input, output, or field.
 struct Exposure {
-    /// Stores the `span` value used by this analysis.
+    /// Public type syntax containing the named definition.
     span: Span,
-    /// Stores the `definition` value used by this analysis.
+    /// Resolved local type definition.
     definition: LocalDefId,
-    /// Stores the `ty` value used by this analysis.
+    /// Source spelling used in the diagnostic.
     ty: String,
 }
 
-/// Performs the `collect_definitions` step of the lint analysis.
-fn collect_definitions(
+/// Recursively records named definitions nested in one public type.
+fn exposure_collect_definitions(
     cx: &LateContext<'_>,
     ty: Ty<'_>,
     span: Span,
@@ -77,14 +85,12 @@ fn collect_definitions(
     match ty.kind() {
         ty::Adt(definition, arguments) => {
             if let Some(definition) = definition.did().as_local() {
-                // Prepare the values used by this stage.
                 let spelling = cx
                     .sess()
                     .source_map()
                     .span_to_snippet(span)
                     .unwrap_or_else(|_| cx.tcx.item_name(definition.to_def_id()).to_string());
 
-                // Perform the next step of the analysis.
                 exposures.push(Exposure {
                     span,
                     definition,
@@ -92,28 +98,32 @@ fn collect_definitions(
                 });
             }
             for nested in arguments.types() {
-                collect_definitions(cx, nested, span, exposures);
+                exposure_collect_definitions(cx, nested, span, exposures);
             }
         }
         ty::Ref(_, nested, _) | ty::Slice(nested) => {
-            collect_definitions(cx, *nested, span, exposures);
+            exposure_collect_definitions(cx, *nested, span, exposures);
         }
-        ty::Array(nested, _) => collect_definitions(cx, *nested, span, exposures),
+        ty::Array(nested, _) => exposure_collect_definitions(cx, *nested, span, exposures),
         ty::Tuple(elements) => {
             for nested in *elements {
-                collect_definitions(cx, nested, span, exposures);
+                exposure_collect_definitions(cx, nested, span, exposures);
             }
         }
         _ => {}
     }
 }
 
+// -----------------------------------------------------------------------------
+// BonPublicBuilderImplementationTypes: Public representation policy
+// -----------------------------------------------------------------------------
+
+/// Correlates public signature types with Bon-generated definitions.
 #[derive(Default)]
-/// Carries the `BonPublicBuilderImplementationTypes` state used by this analysis.
 struct BonPublicBuilderImplementationTypes {
-    /// Stores the `catalog` value used by this analysis.
+    /// Generated Bon definitions recognized in the crate.
     catalog: BonContractCatalog,
-    /// Stores the `exposures` value used by this analysis.
+    /// Named types collected from public boundaries.
     exposures: Vec<Exposure>,
 }
 
@@ -170,12 +180,12 @@ impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
 }
 
 impl BonPublicBuilderImplementationTypes {
-    /// Performs the `collect_ty` operation for this value.
+    /// Adds every named definition nested in one public type.
     fn collect_ty(&mut self, cx: &LateContext<'_>, ty: Ty<'_>, span: Span) {
-        collect_definitions(cx, ty, span, &mut self.exposures);
+        exposure_collect_definitions(cx, ty, span, &mut self.exposures);
     }
 
-    /// Performs the `collect_decl` operation for this value.
+    /// Collects named types from every input and the explicit return type.
     fn collect_decl<'tcx>(
         &mut self,
         cx: &LateContext<'tcx>,
