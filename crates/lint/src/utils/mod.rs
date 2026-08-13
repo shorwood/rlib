@@ -41,6 +41,7 @@ mod string_domain_vocabulary;
 mod string_domain_revalidation;
 pub mod string_domain_analysis;
 pub mod tuple_types;
+pub mod variant_methods;
 pub mod visibility_boundary;
 mod visibility_package_policy;
 pub mod delegating_type_analysis;

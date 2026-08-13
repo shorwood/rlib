@@ -13,11 +13,6 @@ use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer, PredicateProvider};
 
-// -----------------------------------------------------------------------------
-// Violation: Complete authored predicate family
-// -----------------------------------------------------------------------------
-
-/// Complete enum predicate family reproducible by `EnumIs`.
 struct Violation {
     span: Span,
     owner: rustc_hir::HirId,
@@ -34,45 +29,40 @@ impl LateViolation for Violation {
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
-        Cow::Borrowed("the complete one-variant predicate family duplicates enum variant identity")
+        Cow::Borrowed(
+            "the complete one-variant predicate family duplicates enum variant identity",
+        )
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
-        Cow::Borrowed("derive `strum::EnumIs` and remove the equivalent inherent predicate family")
+        Cow::Borrowed(
+            "derive `derive_more::IsVariant` and remove the equivalent inherent predicate family",
+        )
     }
 
     fn emit(self, cx: &LateContext<'_>) {
-        let primary = self.primary_message().into_owned();
-        let rationale = self.rationale_message().into_owned();
-        let remediation = self.remediation_message().into_owned();
         cx.tcx.emit_node_span_lint(
-            STRUM_MANUAL_ENUM_PREDICATES,
+            DERIVE_MORE_MANUAL_VARIANT_ACCESSORS,
             self.owner,
             self.span,
             DiagDecorator(|diag| {
-                diag.primary_message(primary);
-                diag.note(rationale);
+                diag.primary_message(self.primary_message().into_owned());
+                diag.note(self.rationale_message().into_owned());
                 if self.is_public_api {
                     diag.note("these predicates are public; generated visibility and method names require a compatibility review");
                 }
-                diag.help(remediation);
+                diag.help(self.remediation_message().into_owned());
             }),
         );
     }
 }
 
-// -----------------------------------------------------------------------------
-// StrumManualEnumPredicates: Predicate family analysis
-// -----------------------------------------------------------------------------
-
-/// Finds complete manual variant-predicate families reproducible by `EnumIs`.
-struct StrumManualEnumPredicates {
+struct DeriveMoreManualVariantAccessors {
     analyzer: PredicateFamilyAnalyzer,
     provider: Option<PredicateProvider>,
 }
 
-impl StrumManualEnumPredicates {
-    /// Loads the explicit provider policy and starts an empty family analysis.
+impl DeriveMoreManualVariantAccessors {
     fn new() -> Self {
         Self {
             analyzer: PredicateFamilyAnalyzer::default(),
@@ -85,20 +75,21 @@ impl StrumManualEnumPredicates {
 
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
-    pub STRUM_MANUAL_ENUM_PREDICATES,
+    pub DERIVE_MORE_MANUAL_VARIANT_ACCESSORS,
     Warn,
-    "finds complete manual enum predicates reproducible by Strum",
-    StrumManualEnumPredicates::new()
+    "finds manual enum predicate families reproducible by derive_more",
+    DeriveMoreManualVariantAccessors::new()
 }
 
-impl LateLintPass<'_> for StrumManualEnumPredicates {
+impl LateLintPass<'_> for DeriveMoreManualVariantAccessors {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         self.analyzer.check_impl_item(cx, item);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for family in self.analyzer.complete_families(cx) {
-            if PredicateFamily::selected(cx, self.provider) == Some(PredicateProvider::StrumEnumIs)
+            if PredicateFamily::selected(cx, self.provider)
+                == Some(PredicateProvider::DeriveMoreIsVariant)
             {
                 Violation {
                     span: family.span,

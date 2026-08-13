@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "strum"), allow(dead_code))]
+
 extern crate rustc_ast;
 extern crate rustc_hir;
 extern crate rustc_lint;
@@ -34,9 +36,12 @@ pub(crate) struct PredicateFamily {
 
 impl PredicateFamily {
     /// Returns every provider directly available to the consumer.
-    pub(crate) fn providers(cx: &LateContext<'_>) -> Vec<PredicateProvider> {
-        let mut providers = vec![PredicateProvider::StrumEnumIs];
-        if cx.tcx.sess.opts.externs.get("derive_more").is_some() {
+    pub(crate) fn providers(_cx: &LateContext<'_>) -> Vec<PredicateProvider> {
+        let mut providers = Vec::new();
+        if cfg!(feature = "strum") {
+            providers.push(PredicateProvider::StrumEnumIs);
+        }
+        if cfg!(feature = "derive_more") {
             providers.push(PredicateProvider::DeriveMoreIsVariant);
         }
         providers

@@ -27,3 +27,13 @@ impl Percentage {
 
 Remove the structural derives and implement only operations that preserve or revalidate the type's
 invariants.
+
+```rust,ignore
+impl std::ops::Add for Percentage {
+    type Output = Result<Self, OutOfRange>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::new(self.0.checked_add(rhs.0).ok_or(OutOfRange)?)
+    }
+}
+```

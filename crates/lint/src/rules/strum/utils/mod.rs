@@ -2,4 +2,3 @@
 pub(crate) mod enumeration;
 pub(crate) mod authored_contracts;
 pub(crate) mod contracts;
-pub(crate) mod variant_methods;

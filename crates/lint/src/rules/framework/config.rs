@@ -4,8 +4,8 @@ use serde::Deserialize;
 use crate::rules::strum::utils::authored_contracts::{DisplayProvider, StringParserProvider};
 #[cfg(feature = "strum")]
 use crate::rules::strum::utils::enumeration::CollectionProvider;
-#[cfg(feature = "strum")]
-use crate::rules::strum::utils::variant_methods::PredicateProvider;
+#[cfg(any(feature = "strum", feature = "derive_more"))]
+use crate::utils::variant_methods::PredicateProvider;
 
 // -----------------------------------------------------------------------------
 // DeriveResolutionConfig: Explicit framework provider policy
@@ -24,7 +24,7 @@ pub(crate) struct DeriveResolutionConfig {
     #[cfg(feature = "strum")]
     enum_variant_collection: Option<CollectionProvider>,
     /// Provider selected for generated enum variant predicates.
-    #[cfg(feature = "strum")]
+    #[cfg(any(feature = "strum", feature = "derive_more"))]
     enum_variant_predicates: Option<PredicateProvider>,
     /// Provider selected for flat unit-enum string parsers.
     #[cfg(feature = "strum")]
@@ -42,7 +42,7 @@ impl DeriveResolutionConfig {
     }
 
     /// Returns the configured provider for enum variant predicates.
-    #[cfg(feature = "strum")]
+    #[cfg(any(feature = "strum", feature = "derive_more"))]
     pub(crate) const fn enum_variant_predicates(&self) -> Option<PredicateProvider> {
         self.enum_variant_predicates
     }
@@ -67,8 +67,8 @@ mod tests {
     use crate::rules::strum::utils::authored_contracts::{DisplayProvider, StringParserProvider};
     #[cfg(feature = "strum")]
     use crate::rules::strum::utils::enumeration::CollectionProvider;
-    #[cfg(feature = "strum")]
-    use crate::rules::strum::utils::variant_methods::PredicateProvider;
+    #[cfg(any(feature = "strum", feature = "derive_more"))]
+    use crate::utils::variant_methods::PredicateProvider;
 
     #[cfg(feature = "strum")]
     #[test]

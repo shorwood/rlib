@@ -24,3 +24,10 @@ fn render(response: Response) {
 ## Use instead
 
 Use pattern matching or derive `TryUnwrap` when the active variant is not established by construction.
+
+```rust,ignore
+match response {
+    Response::Ok(value) => render_value(value),
+    Response::Error(problem) => render_problem(problem),
+}
+```

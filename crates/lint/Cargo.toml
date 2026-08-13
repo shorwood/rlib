@@ -175,6 +175,11 @@ path = "ui/derive_more/derive_more_manual_operator_impls/semantic.rs"
 required-features = ["derive_more"]
 
 [[example]]
+name = "derive_more_manual_variant_accessors"
+path = "ui/derive_more/derive_more_manual_variant_accessors/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
 name = "derive_more_mutable_forwarding_bypassing_invariants"
 path = "ui/derive_more/derive_more_mutable_forwarding_bypassing_invariants/semantic.rs"
 required-features = ["derive_more"]
