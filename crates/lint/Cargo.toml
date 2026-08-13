@@ -145,6 +145,11 @@ path = "ui/derive_more/derive_more_manual_formatting_impls/semantic.rs"
 required-features = ["derive_more"]
 
 [[example]]
+name = "derive_more_manual_from_str_impls"
+path = "ui/derive_more/derive_more_manual_from_str_impls/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
 name = "derive_more_manual_into_iterator_impls"
 path = "ui/derive_more/derive_more_manual_into_iterator_impls/semantic.rs"
 required-features = ["derive_more"]

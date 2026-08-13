@@ -1,0 +1,17 @@
+warning: manual transparent parser for `Port` is derivable
+  --> $DIR/semantic.rs:8:1
+   |
+LL | / impl FromStr for Port {
+LL | |     type Err = ParseIntError;
+LL | |
+LL | |     fn from_str(value: &str) -> Result<Self, Self::Err> {
+...  |
+LL | | }
+   | |_^ this parser is exact newtype forwarding
+   |
+   = note: the implementation forwards the complete input to the sole field's parser and maps its unchanged error directly into the wrapper
+   = help: replace this implementation with `#[derive(derive_more::FromStr)]` on the newtype
+   = note: `#[warn(derive_more_manual_from_str_impls)]` on by default
+
+warning: 1 warning emitted
+
