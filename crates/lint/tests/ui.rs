@@ -349,6 +349,7 @@ fn run_derive_more_fixtures() {
 fn run_serde_fixtures() {
     let selected = selected_framework_fixture();
     for example in [
+        "serde_ambiguous_untagged_enums",
         "serde_asymmetric_serde_contracts",
         "serde_deserialization_bypassing_invariants",
         "serde_defaults_hiding_missing_data",

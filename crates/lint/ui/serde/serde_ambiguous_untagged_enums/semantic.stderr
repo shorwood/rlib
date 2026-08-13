@@ -1,0 +1,18 @@
+warning: Serde untagged variants `Detailed` and `Minimal` accept the same input shape
+  --> $DIR/semantic.rs:5:1
+   |
+LL | / enum Value {
+LL | |     Detailed {
+LL | |         id: u64,
+LL | |         #[serde(default)]
+...  |
+LL | |     },
+LL | | }
+   | |_^ `Detailed` shadows `Minimal` for this shape
+   |
+   = note: an object containing `id` is a concrete witness accepted by both variants, so the first declaration wins
+   = help: add an explicit Serde tag or make the variants' required shapes disjoint
+   = note: `#[warn(serde_ambiguous_untagged_enums)]` on by default
+
+warning: 1 warning emitted
+

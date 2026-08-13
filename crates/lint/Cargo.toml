@@ -231,6 +231,11 @@ path = "ui/serde/serde_flattened_unknown_field_policies/semantic.rs"
 required-features = ["serde"]
 
 [[example]]
+name = "serde_ambiguous_untagged_enums"
+path = "ui/serde/serde_ambiguous_untagged_enums/semantic.rs"
+required-features = ["serde"]
+
+[[example]]
 name = "serde_lossy_conditional_serialization"
 path = "ui/serde/serde_lossy_conditional_serialization/semantic.rs"
 required-features = ["serde"]

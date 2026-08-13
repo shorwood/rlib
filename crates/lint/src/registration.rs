@@ -110,6 +110,8 @@ pub extern "Rust" fn register_lints(
     rules::framework::framework_resolution_required::register_lints(sess, lint_store);
 
     #[cfg(feature = "serde")]
+    rules::serde::serde_ambiguous_untagged_enums::register_lints(sess, lint_store);
+    #[cfg(feature = "serde")]
     rules::serde::serde_asymmetric_serde_contracts::register_lints(sess, lint_store);
     #[cfg(feature = "serde")]
     rules::serde::serde_deserialization_bypassing_invariants::register_lints(sess, lint_store);

@@ -1,5 +1,6 @@
 mod contracts;
 
+pub mod serde_ambiguous_untagged_enums;
 pub mod serde_asymmetric_serde_contracts;
 pub mod serde_deserialization_bypassing_invariants;
 pub mod serde_defaults_hiding_missing_data;
