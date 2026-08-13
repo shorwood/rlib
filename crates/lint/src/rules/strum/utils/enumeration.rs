@@ -38,77 +38,84 @@ pub enum CollectionSurface {
     Iterator,
 }
 
-/// Returns whether the crate can use Strum derives as a remediation.
-fn strum_derives_available(cx: &LateContext<'_>) -> bool {
-    cx.tcx.sess.opts.externs.get("strum").is_some()
-}
+/// Resolves authored enum sequences and their surrounding API contracts.
+struct CollectionExpressionAnalysis;
 
-/// Removes expression wrappers that do not change value semantics.
-const fn peel_transparent<'hir>(mut expression: &'hir Expr<'hir>) -> &'hir Expr<'hir> {
-    loop {
-        expression = match expression.kind {
-            ExprKind::Block(block, None) if block.stmts.is_empty() => {
-                let Some(inner) = block.expr else {
-                    return expression;
-                };
-                inner
-            }
-            ExprKind::AddrOf(_, _, inner) | ExprKind::DropTemps(inner) => inner,
-            _ => return expression,
-        };
+impl CollectionExpressionAnalysis {
+    /// Returns whether the crate can use Strum derives as a remediation.
+    fn strum_derives_available(cx: &LateContext<'_>) -> bool {
+        cx.tcx.sess.opts.externs.get("strum").is_some()
     }
-}
 
-/// Resolves a directly referenced constant, static, or zero-argument function body.
-fn forwarded_body(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<BodyId> {
-    let definition = match expression.kind {
-        ExprKind::Path(path) => match cx.qpath_res(&path, expression.hir_id) {
-            Res::Def(
-                DefKind::Const { .. } | DefKind::AssocConst { .. } | DefKind::Static { .. },
-                definition,
-            ) => definition.as_local()?,
-            _ => return None,
-        },
-        ExprKind::Call(callee, []) => {
-            let ExprKind::Path(path) = peel_transparent(callee).kind else {
-                return None;
+    /// Removes expression wrappers that do not change value semantics.
+    const fn peel_transparent<'hir>(mut expression: &'hir Expr<'hir>) -> &'hir Expr<'hir> {
+        loop {
+            expression = match expression.kind {
+                ExprKind::Block(block, None) if block.stmts.is_empty() => {
+                    let Some(inner) = block.expr else {
+                        return expression;
+                    };
+                    inner
+                }
+                ExprKind::AddrOf(_, _, inner) | ExprKind::DropTemps(inner) => inner,
+                _ => return expression,
             };
-            match cx.qpath_res(&path, callee.hir_id) {
-                Res::Def(DefKind::Fn | DefKind::AssocFn, definition) => definition.as_local()?,
-                _ => return None,
-            }
         }
-        _ => return None,
-    };
-
-    match cx.tcx.hir_node_by_def_id(definition) {
-        Node::Item(item) => match item.kind {
-            ItemKind::Const(_, _, _, ConstItemRhs::Body(body))
-            | ItemKind::Static(_, _, _, body)
-            | ItemKind::Fn { body, .. } => Some(body),
-            _ => None,
-        },
-        Node::ImplItem(item) => match item.kind {
-            ImplItemKind::Const(_, ConstItemRhs::Body(body)) | ImplItemKind::Fn(_, body) => {
-                Some(body)
-            }
-            _ => None,
-        },
-        _ => None,
     }
-}
 
-/// Resolves an expression that names one local unit variant.
-fn unit_variant(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
-    let ExprKind::Path(path) = peel_transparent(expression).kind else {
-        return None;
-    };
-    let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
-        cx.qpath_res(&path, expression.hir_id)
-    else {
-        return None;
-    };
-    cx.tcx.opt_local_parent(constructor.as_local()?)
+    /// Resolves a directly referenced constant, static, or zero-argument function body.
+    fn forwarded_body(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<BodyId> {
+        let definition = match expression.kind {
+            ExprKind::Path(path) => match cx.qpath_res(&path, expression.hir_id) {
+                Res::Def(
+                    DefKind::Const { .. } | DefKind::AssocConst { .. } | DefKind::Static { .. },
+                    definition,
+                ) => definition.as_local()?,
+                _ => return None,
+            },
+            ExprKind::Call(callee, []) => {
+                let ExprKind::Path(path) = Self::peel_transparent(callee).kind else {
+                    return None;
+                };
+                match cx.qpath_res(&path, callee.hir_id) {
+                    Res::Def(DefKind::Fn | DefKind::AssocFn, definition) => {
+                        definition.as_local()?
+                    }
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        };
+
+        match cx.tcx.hir_node_by_def_id(definition) {
+            Node::Item(item) => match item.kind {
+                ItemKind::Const(_, _, _, ConstItemRhs::Body(body))
+                | ItemKind::Static(_, _, _, body)
+                | ItemKind::Fn { body, .. } => Some(body),
+                _ => None,
+            },
+            Node::ImplItem(item) => match item.kind {
+                ImplItemKind::Const(_, ConstItemRhs::Body(body)) | ImplItemKind::Fn(_, body) => {
+                    Some(body)
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Resolves an expression that names one local unit variant.
+    fn unit_variant(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
+        let ExprKind::Path(path) = Self::peel_transparent(expression).kind else {
+            return None;
+        };
+        let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
+            cx.qpath_res(&path, expression.hir_id)
+        else {
+            return None;
+        };
+        cx.tcx.opt_local_parent(constructor.as_local()?)
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -138,7 +145,7 @@ impl<'cx, 'tcx> VariantCollector<'cx, 'tcx> {
 
 impl<'tcx> Visitor<'tcx> for VariantCollector<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if let Some(variant) = unit_variant(self.cx, expression) {
+        if let Some(variant) = CollectionExpressionAnalysis::unit_variant(self.cx, expression) {
             self.variants.push(variant);
             return;
         }
@@ -150,110 +157,128 @@ impl<'tcx> Visitor<'tcx> for VariantCollector<'_, 'tcx> {
     }
 }
 
-/// Resolves the local enum that owns a variant.
-fn owning_enum(cx: &LateContext<'_>, variant: DefId) -> Option<LocalDefId> {
-    cx.tcx.opt_local_parent(variant.as_local()?)
-}
+// -----------------------------------------------------------------------------
+// EnumCollectionAnalysis: Enum membership and API ownership
+// -----------------------------------------------------------------------------
 
-/// Returns whether per-variant Strum policy could change generated membership or order.
-fn enum_has_strum_variant_attributes(cx: &LateContext<'_>, enum_def: LocalDefId) -> bool {
-    let Node::Item(item) = cx.tcx.hir_node_by_def_id(enum_def) else {
-        return true;
-    };
-    let ItemKind::Enum(_, _, definition) = item.kind else {
-        return true;
-    };
-    let strum = Symbol::intern("strum");
-    definition.variants.iter().any(|variant| {
-        cx.tcx
-            .hir_attrs(variant.hir_id)
-            .iter()
-            .any(|attribute| attribute.has_name(strum))
-    })
-}
+/// Resolves enum membership and the API surface that owns it.
+struct EnumCollectionAnalysis;
 
-/// Returns every unit variant when Strum can reproduce the enum's complete sequence.
-fn eligible_unit_variants(cx: &LateContext<'_>, enum_def: LocalDefId) -> Option<Vec<LocalDefId>> {
-    let definition = cx.tcx.adt_def(enum_def.to_def_id());
-    if !definition.is_enum()
-        || definition
-            .variants()
-            .iter()
-            .any(|variant| !variant.fields.is_empty())
-        || enum_has_strum_variant_attributes(cx, enum_def)
-    {
-        return None;
+impl EnumCollectionAnalysis {
+    /// Resolves the local enum that owns a variant.
+    fn owning_enum(cx: &LateContext<'_>, variant: DefId) -> Option<LocalDefId> {
+        cx.tcx.opt_local_parent(variant.as_local()?)
     }
 
-    Some(
-        definition
-            .variants()
-            .iter()
-            .filter_map(|variant| variant.def_id.as_local())
-            .collect(),
-    )
-}
+    /// Returns whether per-variant Strum policy could change generated membership or order.
+    fn enum_has_strum_variant_attributes(cx: &LateContext<'_>, enum_def: LocalDefId) -> bool {
+        let Node::Item(item) = cx.tcx.hir_node_by_def_id(enum_def) else {
+            return true;
+        };
+        let ItemKind::Enum(_, _, definition) = item.kind else {
+            return true;
+        };
+        let strum = Symbol::intern("strum");
+        definition.variants.iter().any(|variant| {
+            cx.tcx
+                .hir_attrs(variant.hir_id)
+                .iter()
+                .any(|attribute| attribute.has_name(strum))
+        })
+    }
 
-/// Resolves the local enum targeted by the enclosing inherent implementation.
-fn enclosing_inherent_enum(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> Option<LocalDefId> {
-    cx.tcx.hir_parent_iter(hir_id).find_map(|(_, node)| {
-        let Node::Item(item) = node else { return None };
-        let ItemKind::Impl(implementation) = item.kind else {
-            return None;
-        };
-        if implementation.of_trait.is_some() {
-            return None;
-        }
-        cx.tcx
-            .type_of(item.owner_id)
-            .instantiate_identity()
-            .ty_adt_def()?
-            .did()
-            .as_local()
-    })
-}
-
-/// Resolves the local enum targeted by an enclosing `IntoIterator` implementation.
-fn enclosing_into_iterator_enum(
-    cx: &LateContext<'_>,
-    hir_id: rustc_hir::HirId,
-) -> Option<LocalDefId> {
-    cx.tcx.hir_parent_iter(hir_id).find_map(|(_, node)| {
-        let Node::Item(item) = node else {
-            return None;
-        };
-        let ItemKind::Impl(implementation) = item.kind else {
-            return None;
-        };
-        let implementation_header = implementation.of_trait?;
-        let Res::Def(DefKind::Trait, trait_definition) = implementation_header.trait_ref.path.res
-        else {
-            return None;
-        };
-        if cx.tcx.item_name(trait_definition).as_str() != "IntoIterator"
-            || cx.tcx.crate_name(trait_definition.krate).as_str() != "core"
+    /// Returns every unit variant when Strum can reproduce the enum's complete sequence.
+    fn eligible_unit_variants(
+        cx: &LateContext<'_>,
+        enum_def: LocalDefId,
+    ) -> Option<Vec<LocalDefId>> {
+        let definition = cx.tcx.adt_def(enum_def.to_def_id());
+        if !definition.is_enum()
+            || definition
+                .variants()
+                .iter()
+                .any(|variant| !variant.fields.is_empty())
+            || Self::enum_has_strum_variant_attributes(cx, enum_def)
         {
             return None;
         }
-        cx.tcx
-            .type_of(item.owner_id)
-            .instantiate_identity()
-            .ty_adt_def()?
-            .did()
-            .as_local()
-    })
-}
 
-/// Reads a non-negative integer literal without accepting computed values.
-fn integer_literal(expression: &Expr<'_>) -> Result<Option<usize>, TryFromIntError> {
-    let ExprKind::Lit(literal) = peel_transparent(expression).kind else {
-        return Ok(None);
-    };
-    let rustc_ast::LitKind::Int(value, _) = literal.node else {
-        return Ok(None);
-    };
+        Some(
+            definition
+                .variants()
+                .iter()
+                .filter_map(|variant| variant.def_id.as_local())
+                .collect(),
+        )
+    }
 
-    usize::try_from(value.get()).map(Some)
+    /// Resolves the local enum targeted by the enclosing inherent implementation.
+    fn enclosing_inherent_enum(
+        cx: &LateContext<'_>,
+        hir_id: rustc_hir::HirId,
+    ) -> Option<LocalDefId> {
+        cx.tcx.hir_parent_iter(hir_id).find_map(|(_, node)| {
+            let Node::Item(item) = node else { return None };
+            let ItemKind::Impl(implementation) = item.kind else {
+                return None;
+            };
+            if implementation.of_trait.is_some() {
+                return None;
+            }
+            cx.tcx
+                .type_of(item.owner_id)
+                .instantiate_identity()
+                .ty_adt_def()?
+                .did()
+                .as_local()
+        })
+    }
+
+    /// Resolves the local enum targeted by an enclosing `IntoIterator` implementation.
+    fn enclosing_into_iterator_enum(
+        cx: &LateContext<'_>,
+        hir_id: rustc_hir::HirId,
+    ) -> Option<LocalDefId> {
+        cx.tcx.hir_parent_iter(hir_id).find_map(|(_, node)| {
+            let Node::Item(item) = node else {
+                return None;
+            };
+            let ItemKind::Impl(implementation) = item.kind else {
+                return None;
+            };
+            let implementation_header = implementation.of_trait?;
+            let Res::Def(DefKind::Trait, trait_definition) =
+                implementation_header.trait_ref.path.res
+            else {
+                return None;
+            };
+            if cx.tcx.item_name(trait_definition).as_str() != "IntoIterator"
+                || cx.tcx.crate_name(trait_definition.krate).as_str() != "core"
+            {
+                return None;
+            }
+            cx.tcx
+                .type_of(item.owner_id)
+                .instantiate_identity()
+                .ty_adt_def()?
+                .did()
+                .as_local()
+        })
+    }
+
+    /// Reads a non-negative integer literal without accepting computed values.
+    fn integer_literal(expression: &Expr<'_>) -> Result<Option<usize>, TryFromIntError> {
+        let ExprKind::Lit(literal) =
+            CollectionExpressionAnalysis::peel_transparent(expression).kind
+        else {
+            return Ok(None);
+        };
+        let rustc_ast::LitKind::Int(value, _) = literal.node else {
+            return Ok(None);
+        };
+
+        usize::try_from(value.get()).map(Some)
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -275,7 +300,8 @@ pub struct CountCandidate {
 impl CountCandidate {
     /// Recovers a constant or method that returns the enum's exact cardinality.
     pub(crate) fn from_impl_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
-        if item.span.from_expansion() || !strum_derives_available(cx) {
+        if item.span.from_expansion() || !CollectionExpressionAnalysis::strum_derives_available(cx)
+        {
             return None;
         }
 
@@ -284,14 +310,14 @@ impl CountCandidate {
             ImplItemKind::Fn(signature, body) if signature.decl.inputs.is_empty() => body,
             _ => return None,
         };
-        let enum_def = enclosing_inherent_enum(cx, item.hir_id())?;
-        let count = match integer_literal(cx.tcx.hir_body(body).value) {
+        let enum_def = EnumCollectionAnalysis::enclosing_inherent_enum(cx, item.hir_id())?;
+        let count = match EnumCollectionAnalysis::integer_literal(cx.tcx.hir_body(body).value) {
             Ok(Some(count)) => count,
             Ok(None) => return None,
             Err(_error) => return None,
         };
 
-        if enum_has_strum_variant_attributes(cx, enum_def) {
+        if EnumCollectionAnalysis::enum_has_strum_variant_attributes(cx, enum_def) {
             return None;
         }
         let expected = cx.tcx.adt_def(enum_def.to_def_id()).variants().len();
@@ -313,16 +339,6 @@ impl CountCandidate {
     pub(crate) fn enum_name(&self, cx: &LateContext<'_>) -> Symbol {
         cx.tcx.item_name(self.enum_def.to_def_id())
     }
-}
-
-/// Returns whether a collection expression was emitted by the standard `vec!` macro.
-fn is_vec_expansion(cx: &LateContext<'_>, span: Span) -> bool {
-    span.macro_backtrace().any(|expansion| {
-        expansion.macro_def_id.is_some_and(|definition| {
-            cx.tcx.item_name(definition).as_str() == "vec"
-                && cx.tcx.crate_name(definition.krate).as_str() == "alloc"
-        })
-    })
 }
 
 // -----------------------------------------------------------------------------
@@ -353,12 +369,12 @@ impl VariantSequence {
         if forwarding_depth > MAXIMUM_FORWARDING_DEPTH {
             return None;
         }
-        let expression = peel_transparent(expression);
+        let expression = CollectionExpressionAnalysis::peel_transparent(expression);
 
         if let ExprKind::Array(elements) = expression.kind {
             let variants = elements
                 .iter()
-                .map(|element| unit_variant(cx, element))
+                .map(|element| CollectionExpressionAnalysis::unit_variant(cx, element))
                 .collect::<Option<Vec<_>>>()?;
 
             return Some(Self {
@@ -384,7 +400,7 @@ impl VariantSequence {
             });
         }
 
-        if let Some(body) = forwarded_body(cx, expression) {
+        if let Some(body) = CollectionExpressionAnalysis::forwarded_body(cx, expression) {
             let sequence = Self::resolve(
                 cx,
                 cx.tcx.hir_body(body).value,
@@ -398,7 +414,7 @@ impl VariantSequence {
             });
         }
 
-        if is_vec_expansion(cx, expression.span) {
+        if Self::is_vec_expansion(cx, expression.span) {
             let mut collector = VariantCollector::new(cx);
             collector.visit_expr(expression);
             if !collector.is_invalid && !collector.variants.is_empty() {
@@ -411,6 +427,16 @@ impl VariantSequence {
         }
 
         None
+    }
+
+    /// Returns whether a collection expression was emitted by the standard `vec!` macro.
+    fn is_vec_expansion(cx: &LateContext<'_>, span: Span) -> bool {
+        span.macro_backtrace().any(|expansion| {
+            expansion.macro_def_id.is_some_and(|definition| {
+                cx.tcx.item_name(definition).as_str() == "vec"
+                    && cx.tcx.crate_name(definition.krate).as_str() == "alloc"
+            })
+        })
     }
 }
 
@@ -456,7 +482,8 @@ impl CollectionCandidate {
         if item.span.from_expansion() {
             return None;
         }
-        let into_iterator_enum = enclosing_into_iterator_enum(cx, item.hir_id());
+        let into_iterator_enum =
+            EnumCollectionAnalysis::enclosing_into_iterator_enum(cx, item.hir_id());
 
         let (body, surface) = match item.kind {
             ImplItemKind::Const(_, ConstItemRhs::Body(body)) => (body, CollectionSurface::Static),
@@ -486,7 +513,7 @@ impl CollectionCandidate {
         declared_surface: CollectionSurface,
         definition: LocalDefId,
     ) -> Option<Self> {
-        if !strum_derives_available(cx) {
+        if !CollectionExpressionAnalysis::strum_derives_available(cx) {
             return None;
         }
         let expression = cx.tcx.hir_body(body_id).value;
@@ -495,15 +522,14 @@ impl CollectionCandidate {
             surface,
             span,
         } = VariantSequence::resolve(cx, expression, declared_surface, 0)?;
-        let enum_def = owning_enum(cx, variants.first()?.to_def_id())?;
+        let enum_def = EnumCollectionAnalysis::owning_enum(cx, variants.first()?.to_def_id())?;
 
-        if variants
-            .iter()
-            .any(|variant| owning_enum(cx, variant.to_def_id()) != Some(enum_def))
-        {
+        if variants.iter().any(|variant| {
+            EnumCollectionAnalysis::owning_enum(cx, variant.to_def_id()) != Some(enum_def)
+        }) {
             return None;
         }
-        let expected = eligible_unit_variants(cx, enum_def)?;
+        let expected = EnumCollectionAnalysis::eligible_unit_variants(cx, enum_def)?;
 
         if variants != expected {
             return None;

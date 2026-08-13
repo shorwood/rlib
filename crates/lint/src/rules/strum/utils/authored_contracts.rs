@@ -113,7 +113,8 @@ pub enum StaticValue {
 impl StaticValue {
     /// Recovers a supported metadata literal after removing transparent wrappers.
     fn from_expression(expression: &Expr<'_>) -> Option<Self> {
-        let ExprKind::Lit(literal) = peel_transparent(expression).kind else {
+        let ExprKind::Lit(literal) = AuthoredContractAnalysis::peel_transparent(expression).kind
+        else {
             return None;
         };
 
@@ -161,15 +162,15 @@ impl VariantValueFamily {
         if signature.decl.inputs.len() != 1 {
             return None;
         }
-        let enum_def = enclosing_inherent_enum(cx, item.hir_id())?;
+        let enum_def = AuthoredContractAnalysis::enclosing_inherent_enum(cx, item.hir_id())?;
         let body = cx.tcx.hir_body(body_id);
-        let receiver = binding_id(body.params.first()?.pat)?;
-        let expression = peel_transparent(body.value);
+        let receiver = AuthoredContractAnalysis::binding_id(body.params.first()?.pat)?;
+        let expression = AuthoredContractAnalysis::peel_transparent(body.value);
 
         let ExprKind::Match(scrutinee, arms, _) = expression.kind else {
             return None;
         };
-        if !is_local_path(cx, scrutinee, receiver) {
+        if !AuthoredContractAnalysis::is_local_path(cx, scrutinee, receiver) {
             return None;
         }
         let mut values = HashMap::new();
@@ -178,8 +179,8 @@ impl VariantValueFamily {
             if arm.guard.is_some() {
                 return None;
             }
-            let variant = ignored_variant_pattern(cx, arm.pat)?;
-            if owning_enum(cx, variant) != Some(enum_def)
+            let variant = AuthoredContractAnalysis::ignored_variant_pattern(cx, arm.pat)?;
+            if AuthoredContractAnalysis::owning_enum(cx, variant) != Some(enum_def)
                 || values
                     .insert(variant, StaticValue::from_expression(arm.body)?)
                     .is_some()
@@ -252,7 +253,7 @@ impl DisplayCandidate {
         if signature.decl.inputs.len() != Self::DISPLAY_SIGNATURE_INPUT_COUNT {
             return None;
         }
-        let enum_def = enclosing_trait_enum(
+        let enum_def = AuthoredContractAnalysis::enclosing_trait_enum(
             cx,
             item.hir_id(),
             TraitIdentity {
@@ -261,14 +262,14 @@ impl DisplayCandidate {
             },
         )?;
         let body = cx.tcx.hir_body(body_id);
-        let receiver = binding_id(body.params.first()?.pat)?;
-        let formatter = binding_id(body.params.get(1)?.pat)?;
+        let receiver = AuthoredContractAnalysis::binding_id(body.params.first()?.pat)?;
+        let formatter = AuthoredContractAnalysis::binding_id(body.params.get(1)?.pat)?;
 
-        let expression = peel_transparent(body.value);
+        let expression = AuthoredContractAnalysis::peel_transparent(body.value);
         let ExprKind::Match(scrutinee, arms, _) = expression.kind else {
             return None;
         };
-        if !is_local_path(cx, scrutinee, receiver) {
+        if !AuthoredContractAnalysis::is_local_path(cx, scrutinee, receiver) {
             return None;
         }
 
@@ -278,9 +279,10 @@ impl DisplayCandidate {
             if arm.guard.is_some() {
                 return None;
             }
-            let variant = ignored_variant_pattern(cx, arm.pat)?;
-            let value = formatter_write_str(cx, arm.body, formatter)?;
-            if owning_enum(cx, variant) != Some(enum_def) || values.insert(variant, value).is_some()
+            let variant = AuthoredContractAnalysis::ignored_variant_pattern(cx, arm.pat)?;
+            let value = AuthoredContractAnalysis::formatter_write_str(cx, arm.body, formatter)?;
+            if AuthoredContractAnalysis::owning_enum(cx, variant) != Some(enum_def)
+                || values.insert(variant, value).is_some()
             {
                 return None;
             }
@@ -341,7 +343,7 @@ impl StringTableCandidate {
             owner: item.hir_id(),
             name: item.kind.ident()?.name,
             enum_def: None,
-            values: string_array(value)?,
+            values: AuthoredContractAnalysis::string_array(value)?,
             is_public: cx.tcx.visibility(item.owner_id.def_id).is_public(),
         })
     }
@@ -360,8 +362,8 @@ impl StringTableCandidate {
             span: value.span.source_callsite(),
             owner: item.hir_id(),
             name: item.ident.name,
-            enum_def: enclosing_inherent_enum(cx, item.hir_id()),
-            values: string_array(value)?,
+            enum_def: AuthoredContractAnalysis::enclosing_inherent_enum(cx, item.hir_id()),
+            values: AuthoredContractAnalysis::string_array(value)?,
             is_public: cx.tcx.visibility(item.owner_id.def_id).is_public(),
         })
     }
@@ -398,7 +400,7 @@ impl StringParserCandidate {
         if signature.decl.inputs.len() != 1 {
             return None;
         }
-        let enum_def = enclosing_trait_enum(
+        let enum_def = AuthoredContractAnalysis::enclosing_trait_enum(
             cx,
             item.hir_id(),
             TraitIdentity {
@@ -407,13 +409,13 @@ impl StringParserCandidate {
             },
         )?;
         let body = cx.tcx.hir_body(body_id);
-        let input = binding_id(body.params.first()?.pat)?;
-        let expression = peel_transparent(body.value);
+        let input = AuthoredContractAnalysis::binding_id(body.params.first()?.pat)?;
+        let expression = AuthoredContractAnalysis::peel_transparent(body.value);
 
         let ExprKind::Match(scrutinee, arms, _) = expression.kind else {
             return None;
         };
-        if !is_local_path(cx, scrutinee, input) {
+        if !AuthoredContractAnalysis::is_local_path(cx, scrutinee, input) {
             return None;
         }
         let mut names: HashMap<LocalDefId, Vec<String>> = HashMap::new();
@@ -424,13 +426,15 @@ impl StringParserCandidate {
             if arm.guard.is_some() {
                 return None;
             }
-            if matches!(arm.pat.kind, PatKind::Wild) && result_err(cx, arm.body) {
+            if matches!(arm.pat.kind, PatKind::Wild)
+                && AuthoredContractAnalysis::result_err(cx, arm.body)
+            {
                 fallback = true;
                 continue;
             }
-            let name = string_pattern(arm.pat)?;
-            let variant = result_ok_variant(cx, arm.body)?;
-            if owning_enum(cx, variant) != Some(enum_def) {
+            let name = AuthoredContractAnalysis::string_pattern(arm.pat)?;
+            let variant = AuthoredContractAnalysis::result_ok_variant(cx, arm.body)?;
+            if AuthoredContractAnalysis::owning_enum(cx, variant) != Some(enum_def) {
                 return None;
             }
             names.entry(variant).or_default().push(name);
@@ -486,7 +490,7 @@ impl DiscriminantMirrorCandidate {
         if signature.decl.inputs.len() != 1 {
             return None;
         }
-        let mirror_enum = enclosing_trait_enum(
+        let mirror_enum = AuthoredContractAnalysis::enclosing_trait_enum(
             cx,
             item.hir_id(),
             TraitIdentity {
@@ -499,13 +503,13 @@ impl DiscriminantMirrorCandidate {
         }
 
         let body = cx.tcx.hir_body(body_id);
-        let input = binding_id(body.params.first()?.pat)?;
-        let expression = peel_transparent(body.value);
+        let input = AuthoredContractAnalysis::binding_id(body.params.first()?.pat)?;
+        let expression = AuthoredContractAnalysis::peel_transparent(body.value);
         let ExprKind::Match(scrutinee, arms, _) = expression.kind else {
             return None;
         };
 
-        if !is_local_path(cx, scrutinee, input) {
+        if !AuthoredContractAnalysis::is_local_path(cx, scrutinee, input) {
             return None;
         }
         let mut source_enum = None;
@@ -515,14 +519,14 @@ impl DiscriminantMirrorCandidate {
             if arm.guard.is_some() {
                 return None;
             }
-            let source = ignored_variant_pattern(cx, arm.pat)?;
-            let target = unit_variant_expression(cx, arm.body)?;
-            let found_source_enum = owning_enum(cx, source)?;
+            let source = AuthoredContractAnalysis::ignored_variant_pattern(cx, arm.pat)?;
+            let target = AuthoredContractAnalysis::unit_variant_expression(cx, arm.body)?;
+            let found_source_enum = AuthoredContractAnalysis::owning_enum(cx, source)?;
 
             if source_enum
                 .replace(found_source_enum)
                 .is_some_and(|known| known != found_source_enum)
-                || owning_enum(cx, target) != Some(mirror_enum)
+                || AuthoredContractAnalysis::owning_enum(cx, target) != Some(mirror_enum)
                 || cx.tcx.item_name(source.to_def_id()) != cx.tcx.item_name(target.to_def_id())
                 || !observed.insert(source)
             {
@@ -570,236 +574,250 @@ struct TraitIdentity<'name> {
     crate_name: &'name str,
 }
 
-/// Recovers the string literal matched by a parser arm.
-fn string_pattern(pattern: &Pat<'_>) -> Option<String> {
-    let PatKind::Expr(expression) = pattern.kind else {
-        return None;
-    };
-    let PatExprKind::Lit {
-        lit,
-        negated: false,
-    } = expression.kind
-    else {
-        return None;
-    };
-    let rustc_ast::LitKind::Str(value, _) = lit.node else {
-        return None;
-    };
-    Some(value.as_str().to_owned())
-}
+/// Resolves syntax and trait identities shared by authored text contracts.
+struct AuthoredContractAnalysis;
 
-/// Returns whether a constructor resolves to the named standard `Result` variant.
-fn is_result_variant(cx: &LateContext<'_>, constructor: DefId, name: &str) -> bool {
-    let variant = cx.tcx.parent(constructor);
-    cx.tcx.item_name(variant).as_str() == name
-        && cx
-            .tcx
-            .is_diagnostic_item(sym::Result, cx.tcx.parent(variant))
-}
-
-/// Resolves either a variant or its constructor to the local variant definition.
-fn variant_from_res(cx: &LateContext<'_>, resolution: Res) -> Option<LocalDefId> {
-    match resolution {
-        Res::Def(DefKind::Variant, variant) => variant.as_local(),
-        Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) => {
-            cx.tcx.opt_local_parent(constructor.as_local()?)
-        }
-        _ => None,
+impl AuthoredContractAnalysis {
+    /// Recovers the string literal matched by a parser arm.
+    fn string_pattern(pattern: &Pat<'_>) -> Option<String> {
+        let PatKind::Expr(expression) = pattern.kind else {
+            return None;
+        };
+        let PatExprKind::Lit {
+            lit,
+            negated: false,
+        } = expression.kind
+        else {
+            return None;
+        };
+        let rustc_ast::LitKind::Str(value, _) = lit.node else {
+            return None;
+        };
+        Some(value.as_str().to_owned())
     }
-}
 
-/// Resolves a variant pattern whose payload is entirely ignored.
-fn ignored_variant_pattern(cx: &LateContext<'_>, pattern: &Pat<'_>) -> Option<LocalDefId> {
-    let resolution = match pattern.kind {
-        PatKind::Expr(expression) => {
-            let PatExprKind::Path(path) = expression.kind else {
+    /// Returns whether a constructor resolves to the named standard `Result` variant.
+    fn is_result_variant(cx: &LateContext<'_>, constructor: DefId, name: &str) -> bool {
+        let variant = cx.tcx.parent(constructor);
+        cx.tcx.item_name(variant).as_str() == name
+            && cx
+                .tcx
+                .is_diagnostic_item(sym::Result, cx.tcx.parent(variant))
+    }
+
+    /// Resolves either a variant or its constructor to the local variant definition.
+    fn variant_from_res(cx: &LateContext<'_>, resolution: Res) -> Option<LocalDefId> {
+        match resolution {
+            Res::Def(DefKind::Variant, variant) => variant.as_local(),
+            Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) => {
+                cx.tcx.opt_local_parent(constructor.as_local()?)
+            }
+            _ => None,
+        }
+    }
+
+    /// Resolves a variant pattern whose payload is entirely ignored.
+    fn ignored_variant_pattern(cx: &LateContext<'_>, pattern: &Pat<'_>) -> Option<LocalDefId> {
+        let resolution = match pattern.kind {
+            PatKind::Expr(expression) => {
+                let PatExprKind::Path(path) = expression.kind else {
+                    return None;
+                };
+                cx.qpath_res(&path, expression.hir_id)
+            }
+            PatKind::TupleStruct(path, fields, _)
+                if fields
+                    .iter()
+                    .all(|field| matches!(field.kind, PatKind::Wild)) =>
+            {
+                cx.qpath_res(&path, pattern.hir_id)
+            }
+            PatKind::Struct(path, fields, _)
+                if fields
+                    .iter()
+                    .all(|field| matches!(field.pat.kind, PatKind::Wild)) =>
+            {
+                cx.qpath_res(&path, pattern.hir_id)
+            }
+            _ => return None,
+        };
+        Self::variant_from_res(cx, resolution)
+    }
+
+    /// Returns the binding introduced by a plain, unqualified identifier pattern.
+    const fn binding_id(pattern: &Pat<'_>) -> Option<rustc_hir::HirId> {
+        let PatKind::Binding(_, binding, _, None) = pattern.kind else {
+            return None;
+        };
+        Some(binding)
+    }
+
+    /// Resolves the local enum targeted by the enclosing inherent implementation.
+    fn enclosing_inherent_enum(
+        cx: &LateContext<'_>,
+        hir_id: rustc_hir::HirId,
+    ) -> Option<LocalDefId> {
+        cx.tcx.hir_parent_iter(hir_id).find_map(|(_, node)| {
+            let Node::Item(item) = node else { return None };
+            let ItemKind::Impl(implementation) = item.kind else {
                 return None;
             };
-            cx.qpath_res(&path, expression.hir_id)
-        }
-        PatKind::TupleStruct(path, fields, _)
-            if fields
-                .iter()
-                .all(|field| matches!(field.kind, PatKind::Wild)) =>
-        {
-            cx.qpath_res(&path, pattern.hir_id)
-        }
-        PatKind::Struct(path, fields, _)
-            if fields
-                .iter()
-                .all(|field| matches!(field.pat.kind, PatKind::Wild)) =>
-        {
-            cx.qpath_res(&path, pattern.hir_id)
-        }
-        _ => return None,
-    };
-    variant_from_res(cx, resolution)
-}
-
-/// Returns the binding introduced by a plain, unqualified identifier pattern.
-const fn binding_id(pattern: &Pat<'_>) -> Option<rustc_hir::HirId> {
-    let PatKind::Binding(_, binding, _, None) = pattern.kind else {
-        return None;
-    };
-    Some(binding)
-}
-
-/// Resolves the local enum targeted by the enclosing inherent implementation.
-fn enclosing_inherent_enum(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> Option<LocalDefId> {
-    cx.tcx.hir_parent_iter(hir_id).find_map(|(_, node)| {
-        let Node::Item(item) = node else { return None };
-        let ItemKind::Impl(implementation) = item.kind else {
-            return None;
-        };
-        if implementation.of_trait.is_some() {
-            return None;
-        }
-        cx.tcx
-            .type_of(item.owner_id)
-            .instantiate_identity()
-            .ty_adt_def()?
-            .did()
-            .as_local()
-    })
-}
-
-/// Resolves the local enum targeted by an enclosing implementation of a known trait.
-fn enclosing_trait_enum(
-    cx: &LateContext<'_>,
-    hir_id: rustc_hir::HirId,
-    identity: TraitIdentity<'_>,
-) -> Option<LocalDefId> {
-    cx.tcx.hir_parent_iter(hir_id).find_map(|(_, node)| {
-        let Node::Item(item) = node else { return None };
-        let ItemKind::Impl(implementation) = item.kind else {
-            return None;
-        };
-        let trait_def = implementation.of_trait?.trait_ref.trait_def_id()?;
-        if cx.tcx.item_name(trait_def).as_str() != identity.trait_name
-            || cx.tcx.crate_name(trait_def.krate).as_str() != identity.crate_name
-        {
-            return None;
-        }
-        cx.tcx
-            .type_of(item.owner_id)
-            .instantiate_identity()
-            .ty_adt_def()?
-            .did()
-            .as_local()
-    })
-}
-
-/// Resolves the local enum that owns a variant.
-fn owning_enum(cx: &LateContext<'_>, variant: LocalDefId) -> Option<LocalDefId> {
-    cx.tcx.opt_local_parent(variant)
-}
-
-/// Removes expression wrappers that do not change value semantics.
-const fn peel_transparent<'hir>(mut expression: &'hir Expr<'hir>) -> &'hir Expr<'hir> {
-    loop {
-        expression = match expression.kind {
-            ExprKind::Block(block, None) if block.stmts.is_empty() => {
-                let Some(inner) = block.expr else {
-                    return expression;
-                };
-                inner
+            if implementation.of_trait.is_some() {
+                return None;
             }
-            ExprKind::DropTemps(inner) => inner,
-            _ => return expression,
+            cx.tcx
+                .type_of(item.owner_id)
+                .instantiate_identity()
+                .ty_adt_def()?
+                .did()
+                .as_local()
+        })
+    }
+
+    /// Resolves the local enum targeted by an enclosing implementation of a known trait.
+    fn enclosing_trait_enum(
+        cx: &LateContext<'_>,
+        hir_id: rustc_hir::HirId,
+        identity: TraitIdentity<'_>,
+    ) -> Option<LocalDefId> {
+        cx.tcx.hir_parent_iter(hir_id).find_map(|(_, node)| {
+            let Node::Item(item) = node else { return None };
+            let ItemKind::Impl(implementation) = item.kind else {
+                return None;
+            };
+            let trait_def = implementation.of_trait?.trait_ref.trait_def_id()?;
+            if cx.tcx.item_name(trait_def).as_str() != identity.trait_name
+                || cx.tcx.crate_name(trait_def.krate).as_str() != identity.crate_name
+            {
+                return None;
+            }
+            cx.tcx
+                .type_of(item.owner_id)
+                .instantiate_identity()
+                .ty_adt_def()?
+                .did()
+                .as_local()
+        })
+    }
+
+    /// Resolves the local enum that owns a variant.
+    fn owning_enum(cx: &LateContext<'_>, variant: LocalDefId) -> Option<LocalDefId> {
+        cx.tcx.opt_local_parent(variant)
+    }
+
+    /// Removes expression wrappers that do not change value semantics.
+    const fn peel_transparent<'hir>(mut expression: &'hir Expr<'hir>) -> &'hir Expr<'hir> {
+        loop {
+            expression = match expression.kind {
+                ExprKind::Block(block, None) if block.stmts.is_empty() => {
+                    let Some(inner) = block.expr else {
+                        return expression;
+                    };
+                    inner
+                }
+                ExprKind::DropTemps(inner) => inner,
+                _ => return expression,
+            };
+        }
+    }
+
+    /// Resolves a direct variant constructor path.
+    fn constructor_resolution(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<DefId> {
+        let expression = Self::peel_transparent(expression);
+        let ExprKind::Path(path) = expression.kind else {
+            return None;
         };
+        let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
+            cx.qpath_res(&path, expression.hir_id)
+        else {
+            return None;
+        };
+        Some(constructor)
     }
-}
 
-/// Resolves a direct variant constructor path.
-fn constructor_resolution(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<DefId> {
-    let expression = peel_transparent(expression);
-    let ExprKind::Path(path) = expression.kind else {
-        return None;
-    };
-    let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
-        cx.qpath_res(&path, expression.hir_id)
-    else {
-        return None;
-    };
-    Some(constructor)
-}
-
-/// Returns whether an expression constructs standard `Result::Err`.
-fn result_err(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
-    let ExprKind::Call(callee, [_]) = peel_transparent(expression).kind else {
-        return false;
-    };
-    constructor_resolution(cx, callee)
-        .is_some_and(|constructor| is_result_variant(cx, constructor, "Err"))
-}
-
-/// Returns whether an expression is one direct local binding.
-fn is_local_path(cx: &LateContext<'_>, expression: &Expr<'_>, binding: rustc_hir::HirId) -> bool {
-    let expression = peel_transparent(expression);
-    let ExprKind::Path(path) = expression.kind else {
-        return false;
-    };
-    matches!(cx.qpath_res(&path, expression.hir_id), Res::Local(found) if found == binding)
-}
-
-/// Resolves a direct expression to a local unit variant.
-fn unit_variant_expression(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
-    let expression = peel_transparent(expression);
-    let ExprKind::Path(path) = expression.kind else {
-        return None;
-    };
-    variant_from_res(cx, cx.qpath_res(&path, expression.hir_id))
-}
-
-/// Extracts a unit variant wrapped by standard `Result::Ok`.
-fn result_ok_variant(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
-    let ExprKind::Call(callee, [value]) = peel_transparent(expression).kind else {
-        return None;
-    };
-    let constructor = constructor_resolution(cx, callee)?;
-    if !is_result_variant(cx, constructor, "Ok") {
-        return None;
+    /// Returns whether an expression constructs standard `Result::Err`.
+    fn result_err(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        let ExprKind::Call(callee, [_]) = Self::peel_transparent(expression).kind else {
+            return false;
+        };
+        Self::constructor_resolution(cx, callee)
+            .is_some_and(|constructor| Self::is_result_variant(cx, constructor, "Err"))
     }
-    unit_variant_expression(cx, value)
-}
 
-/// Extracts a direct array of static string literals.
-fn string_array(expression: &Expr<'_>) -> Option<Vec<String>> {
-    let expression = peel_transparent(expression);
-    let expression = if let ExprKind::AddrOf(_, _, inner) = expression.kind {
-        peel_transparent(inner)
-    } else {
-        expression
-    };
-    let ExprKind::Array(elements) = expression.kind else {
-        return None;
-    };
+    /// Returns whether an expression is one direct local binding.
+    fn is_local_path(
+        cx: &LateContext<'_>,
+        expression: &Expr<'_>,
+        binding: rustc_hir::HirId,
+    ) -> bool {
+        let expression = Self::peel_transparent(expression);
+        let ExprKind::Path(path) = expression.kind else {
+            return false;
+        };
+        matches!(cx.qpath_res(&path, expression.hir_id), Res::Local(found) if found == binding)
+    }
 
-    elements
-        .iter()
-        .map(|element| match StaticValue::from_expression(element)? {
+    /// Resolves a direct expression to a local unit variant.
+    fn unit_variant_expression(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
+        let expression = Self::peel_transparent(expression);
+        let ExprKind::Path(path) = expression.kind else {
+            return None;
+        };
+        Self::variant_from_res(cx, cx.qpath_res(&path, expression.hir_id))
+    }
+
+    /// Extracts a unit variant wrapped by standard `Result::Ok`.
+    fn result_ok_variant(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
+        let ExprKind::Call(callee, [value]) = Self::peel_transparent(expression).kind else {
+            return None;
+        };
+        let constructor = Self::constructor_resolution(cx, callee)?;
+        if !Self::is_result_variant(cx, constructor, "Ok") {
+            return None;
+        }
+        Self::unit_variant_expression(cx, value)
+    }
+
+    /// Extracts a direct array of static string literals.
+    fn string_array(expression: &Expr<'_>) -> Option<Vec<String>> {
+        let expression = Self::peel_transparent(expression);
+        let expression = if let ExprKind::AddrOf(_, _, inner) = expression.kind {
+            Self::peel_transparent(inner)
+        } else {
+            expression
+        };
+        let ExprKind::Array(elements) = expression.kind else {
+            return None;
+        };
+
+        elements
+            .iter()
+            .map(|element| match StaticValue::from_expression(element)? {
+                StaticValue::String(value) => Some(value),
+                StaticValue::Bool(_) | StaticValue::Integer(_) => None,
+            })
+            .collect()
+    }
+
+    /// Resolves one direct `Formatter::write_str` call with static text.
+    fn formatter_write_str(
+        cx: &LateContext<'_>,
+        expression: &Expr<'_>,
+        formatter: rustc_hir::HirId,
+    ) -> Option<String> {
+        let expression = Self::peel_transparent(expression);
+        let ExprKind::MethodCall(segment, receiver, [value], _) = expression.kind else {
+            return None;
+        };
+        if segment.ident.name.as_str() != "write_str"
+            || !Self::is_local_path(cx, receiver, formatter)
+        {
+            return None;
+        }
+
+        match StaticValue::from_expression(value)? {
             StaticValue::String(value) => Some(value),
             StaticValue::Bool(_) | StaticValue::Integer(_) => None,
-        })
-        .collect()
-}
-
-/// Resolves one direct `Formatter::write_str` call with static text.
-fn formatter_write_str(
-    cx: &LateContext<'_>,
-    expression: &Expr<'_>,
-    formatter: rustc_hir::HirId,
-) -> Option<String> {
-    let expression = peel_transparent(expression);
-    let ExprKind::MethodCall(segment, receiver, [value], _) = expression.kind else {
-        return None;
-    };
-    if segment.ident.name.as_str() != "write_str" || !is_local_path(cx, receiver, formatter) {
-        return None;
-    }
-
-    match StaticValue::from_expression(value)? {
-        StaticValue::String(value) => Some(value),
-        StaticValue::Bool(_) | StaticValue::Integer(_) => None,
+        }
     }
 }

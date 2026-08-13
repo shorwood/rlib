@@ -67,25 +67,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Recognizes method names conventionally used to expose enum metadata.
-fn is_metadata_name(name: &str) -> bool {
-    [
-        "message",
-        "description",
-        "label",
-        "code",
-        "color",
-        "icon",
-        "category",
-        "level",
-        "severity",
-        "kind",
-        "property",
-    ]
-    .into_iter()
-    .any(|token| name.contains(token))
-}
-
 // -----------------------------------------------------------------------------
 // StrumManualEnumMetadata: Declarative variant metadata policy
 // -----------------------------------------------------------------------------
@@ -105,6 +86,26 @@ dylint_linting::impl_late_lint! {
     StrumManualEnumMetadata::default()
 }
 
+impl StrumManualEnumMetadata {
+    /// Recognizes method names conventionally used to expose enum metadata.
+    fn is_metadata_name(name: &str) -> bool {
+        [
+            "message",
+            "description",
+            "label",
+            "code",
+            "color",
+            "icon",
+            "category",
+            "level",
+            "severity",
+            "kind",
+            "property",
+        ]
+        .into_iter()
+        .any(|token| name.contains(token))
+    }
+}
 impl LateLintPass<'_> for StrumManualEnumMetadata {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -126,7 +127,7 @@ impl LateLintPass<'_> for StrumManualEnumMetadata {
         if matches!(
             family.method_name.as_str(),
             "as_str" | "as_static_str" | "name"
-        ) || !is_metadata_name(family.method_name.as_str())
+        ) || !Self::is_metadata_name(family.method_name.as_str())
         {
             return;
         }

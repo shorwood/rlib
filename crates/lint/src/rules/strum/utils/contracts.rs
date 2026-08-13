@@ -147,7 +147,8 @@ impl EnumContract {
                                 == "core::marker::PhantomData"
                         })
                 });
-                let implicit = apply_case(variant.ident.name.as_str(), type_attributes.from_name);
+                let implicit =
+                    CaseStyle::apply(variant.ident.name.as_str(), type_attributes.from_name);
                 let mut parser_names = attributes.serializations.clone();
                 if let Some(output) = &attributes.to_string {
                     parser_names.push(output.clone());
@@ -310,6 +311,16 @@ pub struct ContractCatalog {
 }
 
 impl ContractCatalog {
+    /// Resolves the known Strum derive responsible for a generated item.
+    fn derive_for(cx: &LateContext<'_>, span: Span) -> Option<StrumDerive> {
+        span.macro_backtrace().find_map(|expansion| {
+            let definition = expansion.macro_def_id?;
+            (cx.tcx.crate_name(definition.krate).as_str() == "strum_macros")
+                .then(|| StrumDerive::from_macro_name(cx.tcx.item_name(definition).as_str()))
+                .flatten()
+        })
+    }
+
     /// Returns the completed authored contracts after associating generated derives.
     pub(crate) fn contracts(&self) -> Vec<EnumContract> {
         self.contracts
@@ -397,7 +408,7 @@ impl ContractCatalog {
     /// Associates macro-generated implementations and discriminants with source enums.
     fn record_generated_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.record_external_schema_impl(cx, item);
-        let Some(derive) = strum_derive(cx, item.span) else {
+        let Some(derive) = Self::derive_for(cx, item.span) else {
             return;
         };
 
@@ -449,16 +460,6 @@ struct GeneratedDiscriminant {
     source_callsite: Span,
 }
 
-/// Returns whether an item span came from one known Strum derive macro.
-fn strum_derive(cx: &LateContext<'_>, span: Span) -> Option<StrumDerive> {
-    span.macro_backtrace().find_map(|expansion| {
-        let definition = expansion.macro_def_id?;
-        (cx.tcx.crate_name(definition.krate).as_str() == "strum_macros")
-            .then(|| StrumDerive::from_macro_name(cx.tcx.item_name(definition).as_str()))
-            .flatten()
-    })
-}
-
 // -----------------------------------------------------------------------------
 // CaseStyle: Strum case-conversion vocabulary
 // -----------------------------------------------------------------------------
@@ -508,6 +509,46 @@ impl CaseStyle {
             _ => None,
         }
     }
+
+    /// Applies the selected conversion to an authored variant name.
+    fn apply(value: &str, style: Option<Self>) -> String {
+        match style {
+            Some(Self::Camel) => value.to_lower_camel_case(),
+            Some(Self::Kebab) => value.to_kebab_case(),
+            Some(Self::Lower) => value.to_lowercase(),
+            Some(Self::Mixed | Self::Snake) => value.to_snake_case(),
+            Some(Self::Pascal) => value.to_upper_camel_case(),
+            Some(Self::ScreamingKebab) => value.to_shouty_kebab_case(),
+            Some(Self::ScreamingSnake) => value.to_shouty_snake_case(),
+            Some(Self::Title) => value.to_title_case(),
+            Some(Self::Train) => value.to_train_case(),
+            Some(Self::Upper) => value.to_uppercase(),
+            None => value.to_owned(),
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// StrumAttributeValue: Nested attribute value parsing
+// -----------------------------------------------------------------------------
+
+/// Reads typed values from nested Strum attributes.
+struct StrumAttributeValue;
+
+impl StrumAttributeValue {
+    /// Reads a required string value.
+    fn string(meta: &ParseNestedMeta<'_>) -> syn::Result<String> {
+        Ok(meta.value()?.parse::<LitStr>()?.value())
+    }
+
+    /// Reads a boolean flag, treating a bare flag as enabled.
+    fn boolean(meta: &ParseNestedMeta<'_>) -> syn::Result<bool> {
+        if meta.input.peek(Token![=]) {
+            Ok(meta.value()?.parse::<LitBool>()?.value)
+        } else {
+            Ok(true)
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -537,13 +578,13 @@ impl TypeAttributes {
             }
             let parsing = attribute.parse_nested_meta(|meta| {
                 if meta.path.is_ident("serialize_all") {
-                    output.from_name = CaseStyle::from_name(&meta_string(&meta)?);
+                    output.from_name = CaseStyle::from_name(&StrumAttributeValue::string(&meta)?);
                 } else if meta.path.is_ident("is_ascii_case_insensitive") {
-                    output.is_ascii_case_insensitive = meta_bool(&meta)?;
+                    output.is_ascii_case_insensitive = StrumAttributeValue::boolean(&meta)?;
                 } else if meta.path.is_ident("prefix") {
-                    output.prefix = Some(meta_string(&meta)?);
+                    output.prefix = Some(StrumAttributeValue::string(&meta)?);
                 } else if meta.path.is_ident("suffix") {
-                    output.suffix = Some(meta_string(&meta)?);
+                    output.suffix = Some(StrumAttributeValue::string(&meta)?);
                 }
                 Ok(())
             });
@@ -590,19 +631,21 @@ impl VariantAttributes {
             }
             let parsing = attribute.parse_nested_meta(|meta| {
                 if meta.path.is_ident("serialize") {
-                    output.serializations.push(meta_string(&meta)?);
+                    output
+                        .serializations
+                        .push(StrumAttributeValue::string(&meta)?);
                 } else if meta.path.is_ident("to_string") {
-                    output.to_string = Some(meta_string(&meta)?);
+                    output.to_string = Some(StrumAttributeValue::string(&meta)?);
                 } else if meta.path.is_ident("is_disabled") {
                     output.is_disabled = true;
                 } else if meta.path.is_ident("default") {
                     output.is_default_capture = true;
                 } else if meta.path.is_ident("is_ascii_case_insensitive") {
-                    output.is_ascii_case_insensitive = Some(meta_bool(&meta)?);
+                    output.is_ascii_case_insensitive = Some(StrumAttributeValue::boolean(&meta)?);
                 } else if meta.path.is_ident("message") {
-                    output.message = Some(meta_string(&meta)?);
+                    output.message = Some(StrumAttributeValue::string(&meta)?);
                 } else if meta.path.is_ident("detailed_message") {
-                    output.detailed_message = Some(meta_string(&meta)?);
+                    output.detailed_message = Some(StrumAttributeValue::string(&meta)?);
                 } else if meta.path.is_ident("props") {
                     meta.parse_nested_meta(|property| {
                         let Some(name) = property.path.get_ident() else {
@@ -610,7 +653,7 @@ impl VariantAttributes {
                         };
                         output.properties.push(StrumProperty {
                             _name: name.to_string(),
-                            _value: meta_string(&property)?,
+                            _value: StrumAttributeValue::string(&property)?,
                         });
                         Ok(())
                     })?;
@@ -729,37 +772,6 @@ impl EnumSource {
             source: format!("{}{}", &file_source[start..offset], item_source),
             span: item.span.with_lo(source_lo),
         })
-    }
-}
-
-/// Reads a required string value from one nested Strum attribute.
-fn meta_string(meta: &ParseNestedMeta<'_>) -> syn::Result<String> {
-    Ok(meta.value()?.parse::<LitStr>()?.value())
-}
-
-/// Reads a Strum boolean flag, treating a bare flag as enabled.
-fn meta_bool(meta: &ParseNestedMeta<'_>) -> syn::Result<bool> {
-    if meta.input.peek(Token![=]) {
-        Ok(meta.value()?.parse::<LitBool>()?.value)
-    } else {
-        Ok(true)
-    }
-}
-
-/// Applies Strum's selected case conversion to an authored variant name.
-fn apply_case(value: &str, style: Option<CaseStyle>) -> String {
-    match style {
-        Some(CaseStyle::Camel) => value.to_lower_camel_case(),
-        Some(CaseStyle::Kebab) => value.to_kebab_case(),
-        Some(CaseStyle::Lower) => value.to_lowercase(),
-        Some(CaseStyle::Mixed | CaseStyle::Snake) => value.to_snake_case(),
-        Some(CaseStyle::Pascal) => value.to_upper_camel_case(),
-        Some(CaseStyle::ScreamingKebab) => value.to_shouty_kebab_case(),
-        Some(CaseStyle::ScreamingSnake) => value.to_shouty_snake_case(),
-        Some(CaseStyle::Title) => value.to_title_case(),
-        Some(CaseStyle::Train) => value.to_train_case(),
-        Some(CaseStyle::Upper) => value.to_uppercase(),
-        None => value.to_owned(),
     }
 }
 

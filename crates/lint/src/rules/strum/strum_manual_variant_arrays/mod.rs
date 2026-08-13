@@ -76,6 +76,14 @@ struct StrumManualVariantArrays {
     provider: Option<CollectionProvider>,
 }
 
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub STRUM_MANUAL_VARIANT_ARRAYS,
+    Warn,
+    "finds manual exhaustive variant arrays reproducible by Strum",
+    StrumManualVariantArrays::new()
+}
+
 impl StrumManualVariantArrays {
     /// Starts variant-array analysis with the configured framework owner.
     fn new() -> Self {
@@ -102,15 +110,6 @@ impl StrumManualVariantArrays {
         .emit(cx);
     }
 }
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub STRUM_MANUAL_VARIANT_ARRAYS,
-    Warn,
-    "finds manual exhaustive variant arrays reproducible by Strum",
-    StrumManualVariantArrays::new()
-}
-
 impl LateLintPass<'_> for StrumManualVariantArrays {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.check(cx, CollectionCandidate::from_item(cx, item));

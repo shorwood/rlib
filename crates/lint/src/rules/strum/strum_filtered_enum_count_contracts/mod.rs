@@ -69,31 +69,6 @@ struct ViolationUse {
     enum_def: LocalDefId,
 }
 
-/// Returns the nearest authored item name surrounding a count expression.
-fn enclosing_name(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> Option<Symbol> {
-    cx.tcx
-        .hir_parent_iter(hir_id)
-        .find_map(|(_, node)| match node {
-            Node::Item(item) => item.kind.ident().map(|ident| ident.name),
-            Node::ImplItem(ImplItem { ident, .. }) => Some(ident.name),
-            _ => None,
-        })
-}
-
-/// Recognizes names that conventionally describe a filtered enum subset.
-fn is_subset_name(name: Symbol) -> bool {
-    [
-        "enabled",
-        "visible",
-        "supported",
-        "actionable",
-        "available",
-        "selectable",
-    ]
-    .into_iter()
-    .any(|token| name.as_str().contains(token))
-}
-
 // -----------------------------------------------------------------------------
 // StrumFilteredEnumCountContracts: Matching count and iteration policy
 // -----------------------------------------------------------------------------
@@ -115,6 +90,32 @@ dylint_linting::impl_late_lint! {
     StrumFilteredEnumCountContracts::default()
 }
 
+impl StrumFilteredEnumCountContracts {
+    /// Returns the nearest authored item name surrounding a count expression.
+    fn enclosing_name(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> Option<Symbol> {
+        cx.tcx
+            .hir_parent_iter(hir_id)
+            .find_map(|(_, node)| match node {
+                Node::Item(item) => item.kind.ident().map(|ident| ident.name),
+                Node::ImplItem(ImplItem { ident, .. }) => Some(ident.name),
+                _ => None,
+            })
+    }
+
+    /// Recognizes names that conventionally describe a filtered enum subset.
+    fn is_subset_name(name: Symbol) -> bool {
+        [
+            "enabled",
+            "visible",
+            "supported",
+            "actionable",
+            "available",
+            "selectable",
+        ]
+        .into_iter()
+        .any(|token| name.as_str().contains(token))
+    }
+}
 impl LateLintPass<'_> for StrumFilteredEnumCountContracts {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -128,7 +129,7 @@ impl LateLintPass<'_> for StrumFilteredEnumCountContracts {
         .enum_definition(cx, expression) else {
             return;
         };
-        if !enclosing_name(cx, expression.hir_id).is_some_and(is_subset_name) {
+        if !Self::enclosing_name(cx, expression.hir_id).is_some_and(Self::is_subset_name) {
             return;
         }
 

@@ -53,33 +53,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Recognizes APIs whose vocabulary makes declaration order part of the domain contract.
-fn order_sensitive_context(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> bool {
-    let name = cx
-        .tcx
-        .hir_parent_iter(hir_id)
-        .find_map(|(_, node)| match node {
-            Node::Item(item) => item.kind.ident().map(|ident| ident.name),
-            Node::ImplItem(ImplItem { ident, .. }) => Some(ident.name),
-            _ => None,
-        });
-    name.is_some_and(|name| {
-        [
-            "workflow",
-            "migration",
-            "phase",
-            "priority",
-            "protocol",
-            "menu",
-            "present",
-            "render",
-            "execute",
-        ]
-        .into_iter()
-        .any(|token| name.as_str().contains(token))
-    })
-}
-
 // -----------------------------------------------------------------------------
 // StrumDeclarationOrderDomainContracts: Explicit ordering policy
 // -----------------------------------------------------------------------------
@@ -95,9 +68,38 @@ dylint_linting::impl_late_lint! {
     StrumDeclarationOrderDomainContracts
 }
 
+impl StrumDeclarationOrderDomainContracts {
+    /// Recognizes APIs whose vocabulary makes declaration order part of the domain contract.
+    fn order_sensitive_context(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> bool {
+        let name = cx
+            .tcx
+            .hir_parent_iter(hir_id)
+            .find_map(|(_, node)| match node {
+                Node::Item(item) => item.kind.ident().map(|ident| ident.name),
+                Node::ImplItem(ImplItem { ident, .. }) => Some(ident.name),
+                _ => None,
+            });
+        name.is_some_and(|name| {
+            [
+                "workflow",
+                "migration",
+                "phase",
+                "priority",
+                "protocol",
+                "menu",
+                "present",
+                "render",
+                "execute",
+            ]
+            .into_iter()
+            .any(|token| name.as_str().contains(token))
+        })
+    }
+}
 impl LateLintPass<'_> for StrumDeclarationOrderDomainContracts {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
-        if expression.span.from_expansion() || !order_sensitive_context(cx, expression.hir_id) {
+        if expression.span.from_expansion() || !Self::order_sensitive_context(cx, expression.hir_id)
+        {
             return;
         }
 

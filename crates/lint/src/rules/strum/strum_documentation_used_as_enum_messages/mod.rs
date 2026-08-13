@@ -57,62 +57,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Resolves the authored name of a directly called function or method.
-fn callable_name(cx: &LateContext<'_>, callee: &Expr<'_>) -> Option<String> {
-    let ExprKind::Path(path) = callee.kind else {
-        return None;
-    };
-    let definition = cx.qpath_res(&path, callee.hir_id).opt_def_id()?;
-    Some(cx.tcx.item_name(definition).as_str().to_owned())
-}
-
-/// Recognizes call names that conventionally expose text to a user.
-fn is_observed_name(name: &str) -> bool {
-    [
-        "show", "display", "render", "response", "error", "message", "notify", "alert",
-    ]
-    .into_iter()
-    .any(|token| name.contains(token))
-}
-
-/// Finds the nearby user-visible call that consumes a generated enum message.
-fn observed_sink(cx: &LateContext<'_>, mut hir_id: rustc_hir::HirId) -> Option<String> {
-    /// Maximum parent expressions inspected for an observed message sink.
-    const MAXIMUM_OBSERVED_SINK_ANCESTORS: usize = 4;
-    for _ in 0..MAXIMUM_OBSERVED_SINK_ANCESTORS {
-        let parent = cx.tcx.parent_hir_node(hir_id);
-        let Node::Expr(expression) = parent else {
-            return None;
-        };
-
-        match expression.kind {
-            ExprKind::MethodCall(segment, ..)
-                if matches!(
-                    segment.ident.name.as_str(),
-                    "unwrap" | "expect" | "to_owned" | "to_string"
-                ) =>
-            {
-                hir_id = expression.hir_id;
-            }
-            ExprKind::Call(callee, arguments)
-                if arguments.iter().any(|argument| argument.hir_id == hir_id) =>
-            {
-                let name = callable_name(cx, callee)?;
-                return is_observed_name(&name).then_some(name);
-            }
-            ExprKind::MethodCall(segment, receiver, arguments, _)
-                if receiver.hir_id != hir_id
-                    && arguments.iter().any(|argument| argument.hir_id == hir_id) =>
-            {
-                let name = segment.ident.name.as_str().to_owned();
-                return is_observed_name(&name).then_some(name);
-            }
-            _ => return None,
-        }
-    }
-    None
-}
-
 // -----------------------------------------------------------------------------
 // StrumDocumentationUsedAsEnumMessages: Separate message policy
 // -----------------------------------------------------------------------------
@@ -128,6 +72,63 @@ dylint_linting::impl_late_lint! {
     StrumDocumentationUsedAsEnumMessages
 }
 
+impl StrumDocumentationUsedAsEnumMessages {
+    /// Resolves the authored name of a directly called function or method.
+    fn callable_name(cx: &LateContext<'_>, callee: &Expr<'_>) -> Option<String> {
+        let ExprKind::Path(path) = callee.kind else {
+            return None;
+        };
+        let definition = cx.qpath_res(&path, callee.hir_id).opt_def_id()?;
+        Some(cx.tcx.item_name(definition).as_str().to_owned())
+    }
+
+    /// Recognizes call names that conventionally expose text to a user.
+    fn is_observed_name(name: &str) -> bool {
+        [
+            "show", "display", "render", "response", "error", "message", "notify", "alert",
+        ]
+        .into_iter()
+        .any(|token| name.contains(token))
+    }
+
+    /// Finds the nearby user-visible call that consumes a generated enum message.
+    fn observed_sink(cx: &LateContext<'_>, mut hir_id: rustc_hir::HirId) -> Option<String> {
+        /// Maximum parent expressions inspected for an observed message sink.
+        const MAXIMUM_OBSERVED_SINK_ANCESTORS: usize = 4;
+        for _ in 0..MAXIMUM_OBSERVED_SINK_ANCESTORS {
+            let parent = cx.tcx.parent_hir_node(hir_id);
+            let Node::Expr(expression) = parent else {
+                return None;
+            };
+
+            match expression.kind {
+                ExprKind::MethodCall(segment, ..)
+                    if matches!(
+                        segment.ident.name.as_str(),
+                        "unwrap" | "expect" | "to_owned" | "to_string"
+                    ) =>
+                {
+                    hir_id = expression.hir_id;
+                }
+                ExprKind::Call(callee, arguments)
+                    if arguments.iter().any(|argument| argument.hir_id == hir_id) =>
+                {
+                    let name = Self::callable_name(cx, callee)?;
+                    return Self::is_observed_name(&name).then_some(name);
+                }
+                ExprKind::MethodCall(segment, receiver, arguments, _)
+                    if receiver.hir_id != hir_id
+                        && arguments.iter().any(|argument| argument.hir_id == hir_id) =>
+                {
+                    let name = segment.ident.name.as_str().to_owned();
+                    return Self::is_observed_name(&name).then_some(name);
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+}
 impl LateLintPass<'_> for StrumDocumentationUsedAsEnumMessages {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
         let ExprKind::MethodCall(segment, ..) = expression.kind else {
@@ -155,7 +156,7 @@ impl LateLintPass<'_> for StrumDocumentationUsedAsEnumMessages {
             return;
         }
 
-        let Some(sink) = observed_sink(cx, expression.hir_id) else {
+        let Some(sink) = Self::observed_sink(cx, expression.hir_id) else {
             return;
         };
 

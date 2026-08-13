@@ -82,6 +82,14 @@ struct StrumManualEnumStringConversions {
     display_provider: Option<DisplayProvider>,
 }
 
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub STRUM_MANUAL_ENUM_STRING_CONVERSIONS,
+    Warn,
+    "finds manual enum-to-static-string conversions reproducible by Strum",
+    StrumManualEnumStringConversions::new()
+}
+
 impl StrumManualEnumStringConversions {
     /// Starts string-conversion analysis with no collected method families.
     fn new() -> Self {
@@ -93,15 +101,6 @@ impl StrumManualEnumStringConversions {
         }
     }
 }
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub STRUM_MANUAL_ENUM_STRING_CONVERSIONS,
-    Warn,
-    "finds manual enum-to-static-string conversions reproducible by Strum",
-    StrumManualEnumStringConversions::new()
-}
-
 impl LateLintPass<'_> for StrumManualEnumStringConversions {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

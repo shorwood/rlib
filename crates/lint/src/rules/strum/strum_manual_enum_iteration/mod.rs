@@ -80,6 +80,14 @@ struct StrumManualEnumIteration {
     provider: Option<CollectionProvider>,
 }
 
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub STRUM_MANUAL_ENUM_ITERATION,
+    Warn,
+    "finds manual exhaustive enum iteration reproducible by Strum",
+    StrumManualEnumIteration::new()
+}
+
 impl StrumManualEnumIteration {
     /// Starts enum-iteration analysis with the configured framework owner.
     fn new() -> Self {
@@ -108,15 +116,6 @@ impl StrumManualEnumIteration {
         .emit(cx);
     }
 }
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub STRUM_MANUAL_ENUM_ITERATION,
-    Warn,
-    "finds manual exhaustive enum iteration reproducible by Strum",
-    StrumManualEnumIteration::new()
-}
-
 impl LateLintPass<'_> for StrumManualEnumIteration {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.check(cx, CollectionCandidate::from_item(cx, item));

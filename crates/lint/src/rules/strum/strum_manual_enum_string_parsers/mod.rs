@@ -81,6 +81,14 @@ struct StrumManualEnumStringParsers {
     candidates: Vec<StringParserCandidate>,
 }
 
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub STRUM_MANUAL_ENUM_STRING_PARSERS,
+    Warn,
+    "finds manual enum string parsers reproducible by Strum",
+    StrumManualEnumStringParsers::new()
+}
+
 impl StrumManualEnumStringParsers {
     /// Starts parser analysis with no authored parser candidates.
     fn new() -> Self {
@@ -93,15 +101,6 @@ impl StrumManualEnumStringParsers {
         }
     }
 }
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub STRUM_MANUAL_ENUM_STRING_PARSERS,
-    Warn,
-    "finds manual enum string parsers reproducible by Strum",
-    StrumManualEnumStringParsers::new()
-}
-
 impl LateLintPass<'_> for StrumManualEnumStringParsers {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

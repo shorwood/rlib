@@ -78,6 +78,14 @@ struct StrumManualEnumPredicates {
     provider: Option<PredicateProvider>,
 }
 
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub STRUM_MANUAL_ENUM_PREDICATES,
+    Warn,
+    "finds complete manual enum predicates reproducible by Strum",
+    StrumManualEnumPredicates::new()
+}
+
 impl StrumManualEnumPredicates {
     /// Loads the explicit provider policy and starts an empty family analysis.
     fn new() -> Self {
@@ -89,15 +97,6 @@ impl StrumManualEnumPredicates {
         }
     }
 }
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub STRUM_MANUAL_ENUM_PREDICATES,
-    Warn,
-    "finds complete manual enum predicates reproducible by Strum",
-    StrumManualEnumPredicates::new()
-}
-
 impl LateLintPass<'_> for StrumManualEnumPredicates {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         self.analyzer.check_impl_item(cx, item);
