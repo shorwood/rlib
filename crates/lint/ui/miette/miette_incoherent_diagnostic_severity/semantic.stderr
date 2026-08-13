@@ -1,0 +1,17 @@
+warning: diagnostic `DeprecatedInput` declares `Warning` severity but is returned as an error
+  --> $DIR/semantic.rs:6:1
+   |
+LL |   struct DeprecatedInput;
+   |   ^^^^^^^^^^^^^^^^^^^^^^^ this severity contradicts propagation
+...
+LL | / fn validate() -> Result<(), DeprecatedInput> {
+LL | |     Err(DeprecatedInput)
+LL | | }
+   | |_- `validate` returns it as an error
+   |
+   = note: the type is the error channel of `validate`
+   = help: use error severity, or return this diagnostic through an advisory collection instead of `Result::Err`
+   = note: `#[warn(miette_incoherent_diagnostic_severity)]` on by default
+
+warning: 1 warning emitted
+

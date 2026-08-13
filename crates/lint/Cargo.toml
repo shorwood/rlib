@@ -330,6 +330,11 @@ path = "ui/miette/miette_misclassified_related_diagnostics/semantic.rs"
 required-features = ["miette"]
 
 [[example]]
+name = "miette_incoherent_diagnostic_severity"
+path = "ui/miette/miette_incoherent_diagnostic_severity/semantic.rs"
+required-features = ["miette"]
+
+[[example]]
 name = "thiserror_dynamic_errors_in_library_interfaces"
 path = "ui/thiserror/thiserror_dynamic_errors_in_library_interfaces/semantic.rs"
 required-features = ["thiserror"]
