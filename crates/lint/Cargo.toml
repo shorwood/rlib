@@ -256,6 +256,11 @@ path = "ui/serde/serde_format_specific_serde_impls/semantic.rs"
 required-features = ["serde"]
 
 [[example]]
+name = "serde_remote_representations_drifting_from_sources"
+path = "ui/serde/serde_remote_representations_drifting_from_sources/semantic.rs"
+required-features = ["serde"]
+
+[[example]]
 name = "serde_lossy_conditional_serialization"
 path = "ui/serde/serde_lossy_conditional_serialization/semantic.rs"
 required-features = ["serde"]

@@ -43,6 +43,7 @@ pub(super) struct SerdeAttributes {
     pub(super) flatten: bool,
     pub(super) deny_unknown_fields: bool,
     pub(super) other: bool,
+    pub(super) remote: Option<String>,
 }
 
 pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes {
@@ -102,6 +103,8 @@ pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes
                 result.deny_unknown_fields = true;
             } else if meta.path.is_ident("other") {
                 result.other = true;
+            } else if meta.path.is_ident("remote") {
+                result.remote = Some(meta.value()?.parse::<syn::LitStr>()?.value());
             }
             Ok(())
         });

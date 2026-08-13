@@ -1,0 +1,14 @@
+warning: Serde remote representation drifts from `Source`
+  --> $DIR/semantic.rs:10:1
+   |
+LL | / struct SourceDef {
+LL | |     id: u64,
+LL | | }
+   | |_^ this remote schema is an implicit subset of its source
+   |
+   = note: the undocumented remote projection omits visible source field `label`
+   = help: mirror the missing fields, or document this as a versioned projection and its reconstruction policy
+   = note: `#[warn(serde_remote_representations_drifting_from_sources)]` on by default
+
+warning: 1 warning emitted
+

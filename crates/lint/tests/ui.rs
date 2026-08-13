@@ -362,6 +362,7 @@ fn run_serde_fixtures() {
         "serde_manual_deserialize_impls",
         "serde_manual_serialize_impls",
         "serde_non_roundtripping_serde_adapters",
+        "serde_remote_representations_drifting_from_sources",
         "serde_sensitive_fields_serialized_by_default",
         "serde_unstable_implicit_wire_names",
     ] {

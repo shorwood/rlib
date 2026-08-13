@@ -132,6 +132,10 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "serde")]
     rules::serde::serde_non_roundtripping_serde_adapters::register_lints(sess, lint_store);
     #[cfg(feature = "serde")]
+    rules::serde::serde_remote_representations_drifting_from_sources::register_lints(
+        sess, lint_store,
+    );
+    #[cfg(feature = "serde")]
     rules::serde::serde_sensitive_fields_serialized_by_default::register_lints(sess, lint_store);
     #[cfg(feature = "serde")]
     rules::serde::serde_unstable_implicit_wire_names::register_lints(sess, lint_store);
