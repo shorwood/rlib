@@ -12,6 +12,23 @@ use rustc_span::def_id::LocalDefId;
 use crate::utils::source_provenance::authored_item_source;
 
 #[derive(Clone, Default)]
+pub(crate) struct DiagnosticFieldRoles {
+    pub(crate) diagnostic_source: bool,
+    pub(crate) label: bool,
+    pub(crate) primary: bool,
+    pub(crate) related: bool,
+    pub(crate) source: bool,
+    pub(crate) source_code: bool,
+}
+
+#[derive(Clone)]
+pub(crate) struct DiagnosticField {
+    pub(crate) span: Span,
+    pub(crate) name: String,
+    pub(crate) roles: DiagnosticFieldRoles,
+}
+
+#[derive(Clone, Default)]
 pub(crate) struct DiagnosticMetadata {
     pub(crate) code: Option<String>,
     pub(crate) help: Option<String>,
@@ -25,6 +42,7 @@ pub(crate) struct DiagnosticMember {
     pub(crate) span: Span,
     pub(crate) name: String,
     pub(crate) metadata: DiagnosticMetadata,
+    pub(crate) fields: Vec<DiagnosticField>,
 }
 
 #[derive(Clone)]
@@ -32,6 +50,7 @@ pub(crate) struct DiagnosticContract {
     pub(crate) span: Span,
     pub(crate) name: String,
     pub(crate) metadata: DiagnosticMetadata,
+    pub(crate) fields: Vec<DiagnosticField>,
     pub(crate) members: Vec<DiagnosticMember>,
 }
 
@@ -51,7 +70,7 @@ impl DiagnosticCatalog {
             return;
         };
         let contract = match item.kind {
-            ItemKind::Struct(identifier, ..) => {
+            ItemKind::Struct(identifier, _, data) => {
                 let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
                     return;
                 };
@@ -59,6 +78,7 @@ impl DiagnosticCatalog {
                     span: item.span,
                     name: identifier.name.to_string(),
                     metadata: diagnostic_metadata(&structure.attrs),
+                    fields: diagnostic_fields(&structure.fields, data.fields()),
                     members: Vec::new(),
                 }
             }
@@ -74,12 +94,14 @@ impl DiagnosticCatalog {
                         span: hir_variant.span,
                         name: variant.ident.to_string(),
                         metadata: diagnostic_metadata(&variant.attrs),
+                        fields: diagnostic_fields(&variant.fields, hir_variant.data.fields()),
                     })
                     .collect();
                 DiagnosticContract {
                     span: item.span,
                     name: identifier.name.to_string(),
                     metadata: diagnostic_metadata(&enumeration.attrs),
+                    fields: Vec::new(),
                     members,
                 }
             }
@@ -123,6 +145,49 @@ impl DiagnosticCatalog {
         };
         self.derives.insert(definition);
     }
+}
+
+fn diagnostic_fields(
+    fields: &syn::Fields,
+    hir_fields: &[rustc_hir::FieldDef<'_>],
+) -> Vec<DiagnosticField> {
+    fields
+        .iter()
+        .zip(hir_fields)
+        .enumerate()
+        .map(|(index, (field, hir_field))| DiagnosticField {
+            span: hir_field.span,
+            name: field
+                .ident
+                .as_ref()
+                .map_or_else(|| index.to_string(), ToString::to_string),
+            roles: diagnostic_field_roles(&field.attrs),
+        })
+        .collect()
+}
+
+fn diagnostic_field_roles(attributes: &[syn::Attribute]) -> DiagnosticFieldRoles {
+    let mut roles = DiagnosticFieldRoles::default();
+    for attribute in attributes {
+        if attribute.path().is_ident("diagnostic_source") {
+            roles.diagnostic_source = true;
+        } else if attribute.path().is_ident("related") {
+            roles.related = true;
+        } else if attribute.path().is_ident("source") {
+            roles.source = true;
+        } else if attribute.path().is_ident("source_code") {
+            roles.source_code = true;
+        } else if attribute.path().is_ident("label") {
+            roles.label = true;
+            let _ = attribute.parse_nested_meta(|nested| {
+                if nested.path.is_ident("primary") {
+                    roles.primary = true;
+                }
+                Ok(())
+            });
+        }
+    }
+    roles
 }
 
 pub(crate) fn diagnostic_metadata(attributes: &[syn::Attribute]) -> DiagnosticMetadata {

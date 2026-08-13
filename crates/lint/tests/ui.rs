@@ -418,6 +418,7 @@ fn run_miette_fixtures() {
     for example in [
         "miette_duplicate_diagnostic_codes",
         "miette_generic_diagnostic_help",
+        "miette_labels_without_source_code",
         "miette_malformed_diagnostic_codes",
         "miette_missing_diagnostic_codes",
         "miette_unstable_diagnostic_urls",
