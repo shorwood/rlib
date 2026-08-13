@@ -1,0 +1,73 @@
+warning: ad-hoc Miette diagnostic `configuration could not be read` is repeated at domain boundaries
+  --> $DIR/semantic.rs:37:1
+   |
+LL | / pub fn read_primary() -> miette::Result<()> {
+LL | |     Err::<(), _>(miette::miette!("primary source is unavailable"))
+LL | |         .wrap_err("configuration could not be read")
+LL | | }
+   | |_^ `read_primary` constructs this anonymous failure
+LL |
+LL | / pub fn read_fallback() -> miette::Result<()> {
+LL | |     Err::<(), _>(miette::miette!("fallback source is unavailable"))
+LL | |         .wrap_err("configuration could not be read")
+LL | | }
+   | |_- `read_fallback` constructs this anonymous failure
+   |
+   = note: the same anonymous failure is propagated by `read_primary`, `read_fallback`
+   = help: introduce one typed error deriving `thiserror::Error` and `miette::Diagnostic`, then reuse it at each boundary
+   = note: `#[warn(miette_ad_hoc_diagnostics_at_domain_boundaries)]` on by default
+
+warning: ad-hoc Miette diagnostic `configuration is missing` is repeated at domain boundaries
+  --> $DIR/semantic.rs:17:1
+   |
+LL | / pub fn load_primary() -> miette::Result<()> {
+LL | |     Err(miette::miette!("configuration is missing"))
+LL | | }
+   | |_^ `load_primary` constructs this anonymous failure
+LL |
+LL | / pub fn load_fallback() -> miette::Result<()> {
+LL | |     Err(miette::miette!("configuration is missing"))
+LL | | }
+   | |_- `load_fallback` constructs this anonymous failure
+   |
+   = note: the same anonymous failure is propagated by `load_primary`, `load_fallback`
+   = help: introduce one typed error deriving `thiserror::Error` and `miette::Diagnostic`, then reuse it at each boundary
+
+warning: ad-hoc Miette diagnostic `input is invalid` is repeated at domain boundaries
+  --> $DIR/semantic.rs:25:1
+   |
+LL | / pub fn validate_primary() -> miette::Result<()> {
+LL | |     Err(miette::Report::from(miette::diagnostic!(
+LL | |         "input is invalid"
+LL | |     )))
+LL | | }
+   | |_^ `validate_primary` constructs this anonymous failure
+LL |
+LL | / pub fn validate_fallback() -> miette::Result<()> {
+LL | |     Err(miette::Report::from(miette::diagnostic!(
+LL | |         "input is invalid"
+LL | |     )))
+LL | | }
+   | |_- `validate_fallback` constructs this anonymous failure
+   |
+   = note: the same anonymous failure is propagated by `validate_primary`, `validate_fallback`
+   = help: introduce one typed error deriving `thiserror::Error` and `miette::Diagnostic`, then reuse it at each boundary
+
+warning: ad-hoc Miette diagnostic `loader is unavailable` is repeated at domain boundaries
+  --> $DIR/semantic.rs:8:5
+   |
+LL | /     pub fn primary(&self) -> miette::Result<()> {
+LL | |         Err(miette::miette!("loader is unavailable"))
+LL | |     }
+   | |_____^ `Loader::primary` constructs this anonymous failure
+LL |
+LL | /     pub fn fallback(&self) -> miette::Result<()> {
+LL | |         Err(miette::miette!("loader is unavailable"))
+LL | |     }
+   | |_____- `Loader::fallback` constructs this anonymous failure
+   |
+   = note: the same anonymous failure is propagated by `Loader::primary`, `Loader::fallback`
+   = help: introduce one typed error deriving `thiserror::Error` and `miette::Diagnostic`, then reuse it at each boundary
+
+warning: 4 warnings emitted
+

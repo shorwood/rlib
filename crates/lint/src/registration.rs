@@ -110,6 +110,8 @@ pub extern "Rust" fn register_lints(
     rules::framework::framework_resolution_required::register_lints(sess, lint_store);
 
     #[cfg(feature = "miette")]
+    rules::miette::miette_ad_hoc_diagnostics_at_domain_boundaries::register_lints(sess, lint_store);
+    #[cfg(feature = "miette")]
     rules::miette::miette_duplicate_diagnostic_codes::register_lints(sess, lint_store);
     #[cfg(feature = "miette")]
     rules::miette::miette_generic_diagnostic_help::register_lints(sess, lint_store);

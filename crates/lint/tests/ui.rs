@@ -416,6 +416,7 @@ fn run_serde_fixtures() {
 fn run_miette_fixtures() {
     let selected = selected_framework_fixture();
     for example in [
+        "miette_ad_hoc_diagnostics_at_domain_boundaries",
         "miette_duplicate_diagnostic_codes",
         "miette_generic_diagnostic_help",
         "miette_incoherent_diagnostic_severity",

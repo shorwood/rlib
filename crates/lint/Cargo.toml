@@ -270,6 +270,11 @@ path = "ui/thiserror/thiserror_duplicate_error_messages/semantic.rs"
 required-features = ["thiserror"]
 
 [[example]]
+name = "miette_ad_hoc_diagnostics_at_domain_boundaries"
+path = "ui/miette/miette_ad_hoc_diagnostics_at_domain_boundaries/semantic.rs"
+required-features = ["miette"]
+
+[[example]]
 name = "miette_duplicate_diagnostic_codes"
 path = "ui/miette/miette_duplicate_diagnostic_codes/semantic.rs"
 required-features = ["miette"]
