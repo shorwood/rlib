@@ -1,0 +1,15 @@
+warning: Serde names for `id` differ by direction
+  --> $DIR/semantic.rs:4:1
+   |
+LL | / struct Account {
+LL | |     #[serde(rename(serialize = "user_id", deserialize = "id"))]
+LL | |     id: u64,
+LL | | }
+   | |_^ this declaration has directional wire names
+   |
+   = note: serialization writes `user_id` while deserialization accepts `id` as the primary name, without an authored compatibility explanation
+   = help: use one stable name or document the intentional one-way schema migration at this declaration
+   = note: `#[warn(serde_asymmetric_serde_contracts)]` on by default
+
+warning: 1 warning emitted
+

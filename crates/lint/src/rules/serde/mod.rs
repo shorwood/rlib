@@ -1,5 +1,6 @@
 mod contracts;
 
+pub mod serde_asymmetric_serde_contracts;
 pub mod serde_deserialization_bypassing_invariants;
 pub mod serde_duplicate_serialized_names;
 pub mod serde_manual_deserialize_impls;

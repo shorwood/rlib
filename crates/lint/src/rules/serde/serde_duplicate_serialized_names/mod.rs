@@ -5,43 +5,27 @@ extern crate rustc_span;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
-use convert_case::{Case, Casing};
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::def_id::LocalDefId;
 use rustc_span::Span;
 
-use super::contracts::SerdeContractCatalog;
+use super::contracts::{SerdeContractCatalog, SerdeDirection, apply_case, serde_attributes};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::authored_item_source;
-
-#[derive(Clone, Copy)]
-enum Direction {
-    Serialize,
-    Deserialize,
-}
-
-impl Direction {
-    const fn label(self) -> &'static str {
-        match self {
-            Self::Serialize => "serialization",
-            Self::Deserialize => "deserialization",
-        }
-    }
-}
 
 struct Candidate {
     definition: LocalDefId,
     span: Span,
-    direction: Direction,
+    direction: SerdeDirection,
     name: String,
     members: Vec<String>,
 }
 
 struct Violation {
     span: Span,
-    direction: Direction,
+    direction: SerdeDirection,
     name: String,
     members: Vec<String>,
 }
@@ -135,29 +119,29 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
             _ => return,
         };
         let container = serde_attributes(&attributes);
-        for direction in [Direction::Serialize, Direction::Deserialize] {
+        for direction in [SerdeDirection::Serialize, SerdeDirection::Deserialize] {
             let case = match direction {
-                Direction::Serialize => container.rename_all_serialize.as_deref(),
-                Direction::Deserialize => container.rename_all_deserialize.as_deref(),
+                SerdeDirection::Serialize => container.rename_all_serialize.as_deref(),
+                SerdeDirection::Deserialize => container.rename_all_deserialize.as_deref(),
             };
             let mut names: HashMap<String, Vec<String>> = HashMap::new();
             for (rust_name, attributes) in &members {
                 let attributes = serde_attributes(attributes);
                 if match direction {
-                    Direction::Serialize => attributes.skip_serialize,
-                    Direction::Deserialize => attributes.skip_deserialize,
+                    SerdeDirection::Serialize => attributes.skip_serialize,
+                    SerdeDirection::Deserialize => attributes.skip_deserialize,
                 } {
                     continue;
                 }
                 let explicit = match direction {
-                    Direction::Serialize => attributes.rename_serialize.as_deref(),
-                    Direction::Deserialize => attributes.rename_deserialize.as_deref(),
+                    SerdeDirection::Serialize => attributes.rename_serialize.as_deref(),
+                    SerdeDirection::Deserialize => attributes.rename_deserialize.as_deref(),
                 };
                 let effective = explicit
                     .map(ToOwned::to_owned)
                     .unwrap_or_else(|| apply_case(rust_name, case));
                 names.entry(effective).or_default().push(rust_name.clone());
-                if matches!(direction, Direction::Deserialize) {
+                if matches!(direction, SerdeDirection::Deserialize) {
                     for alias in attributes.aliases {
                         names.entry(alias).or_default().push(rust_name.clone());
                     }
@@ -181,8 +165,8 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for candidate in self.candidates.drain(..) {
             let required = match candidate.direction {
-                Direction::Serialize => "Serialize",
-                Direction::Deserialize => "Deserialize",
+                SerdeDirection::Serialize => "Serialize",
+                SerdeDirection::Deserialize => "Deserialize",
             };
             if self
                 .catalog
@@ -199,99 +183,5 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
             }
             .emit(cx);
         }
-    }
-}
-
-#[derive(Default)]
-struct SerdeAttributes {
-    rename_serialize: Option<String>,
-    rename_deserialize: Option<String>,
-    rename_all_serialize: Option<String>,
-    rename_all_deserialize: Option<String>,
-    aliases: Vec<String>,
-    skip_serialize: bool,
-    skip_deserialize: bool,
-}
-
-fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes {
-    let mut result = SerdeAttributes::default();
-    for attribute in attributes
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("serde"))
-    {
-        let _ = attribute.parse_nested_meta(|meta| {
-            if meta.path.is_ident("rename") || meta.path.is_ident("rename_all") {
-                let rename_all = meta.path.is_ident("rename_all");
-                if meta.input.peek(syn::Token![=]) {
-                    let value = meta.value()?.parse::<syn::LitStr>()?.value();
-                    set_directional_name(&mut result, rename_all, None, value);
-                } else {
-                    meta.parse_nested_meta(|direction| {
-                        let value = direction.value()?.parse::<syn::LitStr>()?.value();
-                        let direction = if direction.path.is_ident("serialize") {
-                            Some(Direction::Serialize)
-                        } else if direction.path.is_ident("deserialize") {
-                            Some(Direction::Deserialize)
-                        } else {
-                            None
-                        };
-                        set_directional_name(&mut result, rename_all, direction, value);
-                        Ok(())
-                    })?;
-                }
-            } else if meta.path.is_ident("alias") {
-                result.aliases.push(meta.value()?.parse::<syn::LitStr>()?.value());
-            } else if meta.path.is_ident("skip") {
-                result.skip_serialize = true;
-                result.skip_deserialize = true;
-            } else if meta.path.is_ident("skip_serializing") {
-                result.skip_serialize = true;
-            } else if meta.path.is_ident("skip_deserializing") {
-                result.skip_deserialize = true;
-            }
-            Ok(())
-        });
-    }
-    result
-}
-
-fn set_directional_name(
-    attributes: &mut SerdeAttributes,
-    rename_all: bool,
-    direction: Option<Direction>,
-    value: String,
-) {
-    let (serialize, deserialize) = if rename_all {
-        (
-            &mut attributes.rename_all_serialize,
-            &mut attributes.rename_all_deserialize,
-        )
-    } else {
-        (
-            &mut attributes.rename_serialize,
-            &mut attributes.rename_deserialize,
-        )
-    };
-    match direction {
-        Some(Direction::Serialize) => *serialize = Some(value),
-        Some(Direction::Deserialize) => *deserialize = Some(value),
-        None => {
-            *serialize = Some(value.clone());
-            *deserialize = Some(value);
-        }
-    }
-}
-
-fn apply_case(name: &str, rule: Option<&str>) -> String {
-    match rule {
-        Some("lowercase") => name.to_ascii_lowercase(),
-        Some("UPPERCASE") => name.to_ascii_uppercase(),
-        Some("PascalCase") => name.to_case(Case::Pascal),
-        Some("camelCase") => name.to_case(Case::Camel),
-        Some("snake_case") => name.to_case(Case::Snake),
-        Some("SCREAMING_SNAKE_CASE") => name.to_case(Case::Constant),
-        Some("kebab-case") => name.to_case(Case::Kebab),
-        Some("SCREAMING-KEBAB-CASE") => name.to_case(Case::Cobol),
-        _ => name.to_owned(),
     }
 }

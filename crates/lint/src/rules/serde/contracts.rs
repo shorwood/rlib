@@ -4,10 +4,120 @@ extern crate rustc_span;
 
 use std::collections::{HashMap, HashSet};
 
+use convert_case::{Case, Casing};
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::LateContext;
 use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
+
+#[derive(Clone, Copy)]
+pub(super) enum SerdeDirection {
+    Serialize,
+    Deserialize,
+}
+
+impl SerdeDirection {
+    pub(super) const fn label(self) -> &'static str {
+        match self {
+            Self::Serialize => "serialization",
+            Self::Deserialize => "deserialization",
+        }
+    }
+}
+
+#[derive(Default)]
+pub(super) struct SerdeAttributes {
+    pub(super) rename_serialize: Option<String>,
+    pub(super) rename_deserialize: Option<String>,
+    pub(super) rename_all_serialize: Option<String>,
+    pub(super) rename_all_deserialize: Option<String>,
+    pub(super) aliases: Vec<String>,
+    pub(super) skip_serialize: bool,
+    pub(super) skip_deserialize: bool,
+}
+
+pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes {
+    let mut result = SerdeAttributes::default();
+    for attribute in attributes
+        .iter()
+        .filter(|attribute| attribute.path().is_ident("serde"))
+    {
+        let _ = attribute.parse_nested_meta(|meta| {
+            if meta.path.is_ident("rename") || meta.path.is_ident("rename_all") {
+                let rename_all = meta.path.is_ident("rename_all");
+                if meta.input.peek(syn::Token![=]) {
+                    let value = meta.value()?.parse::<syn::LitStr>()?.value();
+                    set_directional_name(&mut result, rename_all, None, value);
+                } else {
+                    meta.parse_nested_meta(|direction| {
+                        let value = direction.value()?.parse::<syn::LitStr>()?.value();
+                        let direction = if direction.path.is_ident("serialize") {
+                            Some(SerdeDirection::Serialize)
+                        } else if direction.path.is_ident("deserialize") {
+                            Some(SerdeDirection::Deserialize)
+                        } else {
+                            None
+                        };
+                        set_directional_name(&mut result, rename_all, direction, value);
+                        Ok(())
+                    })?;
+                }
+            } else if meta.path.is_ident("alias") {
+                result.aliases.push(meta.value()?.parse::<syn::LitStr>()?.value());
+            } else if meta.path.is_ident("skip") {
+                result.skip_serialize = true;
+                result.skip_deserialize = true;
+            } else if meta.path.is_ident("skip_serializing") {
+                result.skip_serialize = true;
+            } else if meta.path.is_ident("skip_deserializing") {
+                result.skip_deserialize = true;
+            }
+            Ok(())
+        });
+    }
+    result
+}
+
+fn set_directional_name(
+    attributes: &mut SerdeAttributes,
+    rename_all: bool,
+    direction: Option<SerdeDirection>,
+    value: String,
+) {
+    let (serialize, deserialize) = if rename_all {
+        (
+            &mut attributes.rename_all_serialize,
+            &mut attributes.rename_all_deserialize,
+        )
+    } else {
+        (
+            &mut attributes.rename_serialize,
+            &mut attributes.rename_deserialize,
+        )
+    };
+    match direction {
+        Some(SerdeDirection::Serialize) => *serialize = Some(value),
+        Some(SerdeDirection::Deserialize) => *deserialize = Some(value),
+        None => {
+            *serialize = Some(value.clone());
+            *deserialize = Some(value);
+        }
+    }
+}
+
+pub(super) fn apply_case(name: &str, rule: Option<&str>) -> String {
+    match rule {
+        Some("lowercase") => name.to_ascii_lowercase(),
+        Some("UPPERCASE") => name.to_ascii_uppercase(),
+        Some("PascalCase") => name.to_case(Case::Pascal),
+        Some("camelCase") => name.to_case(Case::Camel),
+        Some("snake_case") => name.to_case(Case::Snake),
+        Some("SCREAMING_SNAKE_CASE") => name.to_case(Case::Constant),
+        Some("kebab-case") => name.to_case(Case::Kebab),
+        Some("SCREAMING-KEBAB-CASE") => name.to_case(Case::Cobol),
+        _ => name.to_owned(),
+    }
+}
 
 #[derive(Clone)]
 pub(super) struct SerdeTypeContract {
