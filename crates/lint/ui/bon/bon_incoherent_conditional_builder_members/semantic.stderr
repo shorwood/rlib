@@ -1,0 +1,12 @@
+warning: Bon member `timeout` changes construction policy conditionally
+  --> $DIR/semantic.rs:9:12
+   |
+LL | fn connect(#[cfg_attr(feature = "lenient", builder(default))] timeout: u64) {
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this `cfg_attr` changes the builder contract
+   |
+   = note: changing requiredness, defaults, or positional placement across configurations gives one domain member incompatible call contracts
+   = help: keep the member's Bon policy stable, gate the whole capability explicitly, or expose distinct configuration-specific APIs
+   = note: `#[warn(bon_incoherent_conditional_builder_members)]` on by default
+
+warning: 1 warning emitted
+

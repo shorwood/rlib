@@ -26,7 +26,7 @@ fn active_lints_have_canonical_public_documentation() {
     collect_lint_directories(&rules.join("leptos"), &mut lint_directories);
 
     let expected = 60
-        + 7 * usize::from(cfg!(feature = "bon"))
+        + 8 * usize::from(cfg!(feature = "bon"))
         + 26 * usize::from(cfg!(feature = "leptos"))
         + usize::from(cfg!(feature = "framework"))
         + 19 * usize::from(cfg!(feature = "strum"));
