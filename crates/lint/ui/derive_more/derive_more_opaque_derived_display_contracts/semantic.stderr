@@ -1,0 +1,12 @@
+warning: derived `Display` for `CacheKey` is used as machine identity
+  --> $DIR/semantic.rs:13:18
+   |
+LL |     cache.insert(key.to_string(), 1);
+   |                  ^^^^^^^^^^^^^^^ presentation output becomes a map key here
+   |
+   = note: using presentation output as a standard map key makes formatting changes alter lookup, cache, or persistence identity
+   = help: replace `to_string()` here with a named encoding method or a dedicated serializable key type whose compatibility contract is explicit
+   = note: `#[warn(derive_more_opaque_derived_display_contracts)]` on by default
+
+warning: 1 warning emitted
+

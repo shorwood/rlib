@@ -165,6 +165,11 @@ path = "ui/derive_more/derive_more_non_roundtripping_derived_text_contracts/sema
 required-features = ["derive_more"]
 
 [[example]]
+name = "derive_more_opaque_derived_display_contracts"
+path = "ui/derive_more/derive_more_opaque_derived_display_contracts/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
 name = "leptos_attribute_bound_controlled_inputs"
 path = "ui/leptos/leptos_attribute_bound_controlled_inputs/semantic.rs"
 required-features = ["leptos"]

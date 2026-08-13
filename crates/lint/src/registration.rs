@@ -79,6 +79,10 @@ pub extern "Rust" fn register_lints(
     rules::derive_more::derive_more_non_roundtripping_derived_text_contracts::register_lints(
         sess, lint_store,
     );
+    #[cfg(feature = "derive_more")]
+    rules::derive_more::derive_more_opaque_derived_display_contracts::register_lints(
+        sess, lint_store,
+    );
 
     #[cfg(feature = "framework")]
     rules::framework::framework_resolution_required::register_lints(sess, lint_store);
