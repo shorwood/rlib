@@ -1,4 +1,6 @@
 pub(super) mod utils;
+pub(super) mod contracts;
+pub mod bon_builders_bypassing_construction_invariants;
 pub mod bon_implicit_optional_builder_members;
 pub mod bon_incoherent_conditional_builder_members;
 pub mod bon_incoherent_builder_vocabulary;

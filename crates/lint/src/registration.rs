@@ -19,6 +19,8 @@ pub extern "Rust" fn register_lints(
     lint_store: &mut rustc_lint::LintStore,
 ) {
     #[cfg(feature = "bon")]
+    rules::bon::bon_builders_bypassing_construction_invariants::register_lints(sess, lint_store);
+    #[cfg(feature = "bon")]
     rules::bon::bon_implicit_optional_builder_members::register_lints(sess, lint_store);
     #[cfg(feature = "bon")]
     rules::bon::bon_incoherent_conditional_builder_members::register_lints(sess, lint_store);

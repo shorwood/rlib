@@ -119,6 +119,11 @@ pub struct ConstructionCandidate {
 }
 
 impl ConstructionCandidate {
+    /// Returns whether this constructor exposes an exact `Result<T, E>` contract.
+    pub(crate) fn is_fallible_direct(&self) -> bool {
+        self.target.return_shape == ConstructionReturn::FallibleDirect
+    }
+
     /// Returns whether this candidate is a structurally canonical textual parser.
     pub(super) fn is_text_parser(&self) -> bool {
         self.ownership.is_target_same_module

@@ -222,6 +222,7 @@ fn run_standalone_fixtures() {
 fn run_bon_fixtures() {
     let selected = selected_framework_fixture();
     for example in [
+        "bon_builders_bypassing_construction_invariants",
         "bon_implicit_optional_builder_members",
         "bon_incoherent_builder_vocabulary",
         "bon_incoherent_conditional_builder_members",
