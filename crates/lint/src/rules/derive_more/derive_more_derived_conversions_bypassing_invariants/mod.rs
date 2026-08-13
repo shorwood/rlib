@@ -12,7 +12,7 @@ use rustc_hir::{Body, Expr, FnDecl, Item};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::DeriveMoreContractCatalog;
+use super::utils::contracts::DeriveMoreContractCatalog;
 use crate::utils::construction_analysis::{ConstructionAnalysis, ConstructionOrigin};
 use crate::utils::diagnostic::LateViolation;
 

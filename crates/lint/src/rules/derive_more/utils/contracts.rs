@@ -10,75 +10,23 @@ use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 
 // -----------------------------------------------------------------------------
-// DeriveMoreTypeContract: Authored invariants and generated derive identity
+// DeriveMore: Authored invariants and generated derive identity
 // -----------------------------------------------------------------------------
 
 /// Authored type shape and `derive_more` macros that govern one local declaration.
 #[derive(Clone)]
-pub(super) struct DeriveMoreTypeContract {
+pub struct DeriveMoreTypeContract {
     /// Authored declaration or expression range used as the diagnostic anchor.
-    pub(super) span: Span,
+    pub span: Span,
     /// Local type name used to identify the affected derive contract.
-    pub(super) name: Symbol,
+    pub name: Symbol,
     /// Whether field visibility prevents generated construction from widening access.
-    pub(super) has_restricted_fields: bool,
+    pub has_restricted_fields: bool,
 }
-
-/// Resolves the `derive_more` macro responsible for one generated item.
-fn derive_more_expansion(cx: &LateContext<'_>, span: Span) -> Option<&'static str> {
-    span.macro_backtrace().find_map(|expansion| {
-        let definition = expansion.macro_def_id?;
-        if cx.tcx.crate_name(definition.krate).as_str() != "derive_more_impl" {
-            return None;
-        }
-        match cx.tcx.item_name(definition).as_str() {
-            "Add" => Some("Add"),
-            "AddAssign" => Some("AddAssign"),
-            "BitAnd" => Some("BitAnd"),
-            "BitAndAssign" => Some("BitAndAssign"),
-            "BitOr" => Some("BitOr"),
-            "BitOrAssign" => Some("BitOrAssign"),
-            "BitXor" => Some("BitXor"),
-            "BitXorAssign" => Some("BitXorAssign"),
-            "Constructor" => Some("Constructor"),
-            "AsMut" => Some("AsMut"),
-            "DerefMut" => Some("DerefMut"),
-            "Display" => Some("Display"),
-            "Error" => Some("Error"),
-            "Div" => Some("Div"),
-            "DivAssign" => Some("DivAssign"),
-            "From" => Some("From"),
-            "FromStr" => Some("FromStr"),
-            "IndexMut" => Some("IndexMut"),
-            "Mul" => Some("Mul"),
-            "MulAssign" => Some("MulAssign"),
-            "Neg" => Some("Neg"),
-            "Not" => Some("Not"),
-            "PartialEq" => Some("PartialEq"),
-            "Product" => Some("Product"),
-            "Rem" => Some("Rem"),
-            "RemAssign" => Some("RemAssign"),
-            "Shl" => Some("Shl"),
-            "ShlAssign" => Some("ShlAssign"),
-            "Shr" => Some("Shr"),
-            "ShrAssign" => Some("ShrAssign"),
-            "Sub" => Some("Sub"),
-            "SubAssign" => Some("SubAssign"),
-            "Sum" => Some("Sum"),
-            "TryFrom" => Some("TryFrom"),
-            "Unwrap" => Some("Unwrap"),
-            _ => None,
-        }
-    })
-}
-
-// -----------------------------------------------------------------------------
-// DeriveMoreContractCatalog: Authored and generated contract correlation
-// -----------------------------------------------------------------------------
 
 /// Correlates authored type declarations with their `derive_more` expansions.
 #[derive(Default)]
-pub(super) struct DeriveMoreContractCatalog {
+pub struct DeriveMoreContractCatalog {
     /// Authored type contracts keyed by their compiler identity.
     types: HashMap<LocalDefId, DeriveMoreTypeContract>,
     /// Derive macros that establish the generated behavior.
@@ -86,8 +34,56 @@ pub(super) struct DeriveMoreContractCatalog {
 }
 
 impl DeriveMoreContractCatalog {
+    /// Resolves the `derive_more` macro responsible for one generated item.
+    fn expansion(cx: &LateContext<'_>, span: Span) -> Option<&'static str> {
+        span.macro_backtrace().find_map(|expansion| {
+            let definition = expansion.macro_def_id?;
+            if cx.tcx.crate_name(definition.krate).as_str() != "derive_more_impl" {
+                return None;
+            }
+            match cx.tcx.item_name(definition).as_str() {
+                "Add" => Some("Add"),
+                "AddAssign" => Some("AddAssign"),
+                "BitAnd" => Some("BitAnd"),
+                "BitAndAssign" => Some("BitAndAssign"),
+                "BitOr" => Some("BitOr"),
+                "BitOrAssign" => Some("BitOrAssign"),
+                "BitXor" => Some("BitXor"),
+                "BitXorAssign" => Some("BitXorAssign"),
+                "Constructor" => Some("Constructor"),
+                "AsMut" => Some("AsMut"),
+                "DerefMut" => Some("DerefMut"),
+                "Display" => Some("Display"),
+                "Error" => Some("Error"),
+                "Div" => Some("Div"),
+                "DivAssign" => Some("DivAssign"),
+                "From" => Some("From"),
+                "FromStr" => Some("FromStr"),
+                "IndexMut" => Some("IndexMut"),
+                "Mul" => Some("Mul"),
+                "MulAssign" => Some("MulAssign"),
+                "Neg" => Some("Neg"),
+                "Not" => Some("Not"),
+                "PartialEq" => Some("PartialEq"),
+                "Product" => Some("Product"),
+                "Rem" => Some("Rem"),
+                "RemAssign" => Some("RemAssign"),
+                "Shl" => Some("Shl"),
+                "ShlAssign" => Some("ShlAssign"),
+                "Shr" => Some("Shr"),
+                "ShrAssign" => Some("ShrAssign"),
+                "Sub" => Some("Sub"),
+                "SubAssign" => Some("SubAssign"),
+                "Sum" => Some("Sum"),
+                "TryFrom" => Some("TryFrom"),
+                "Unwrap" => Some("Unwrap"),
+                _ => None,
+            }
+        })
+    }
+
     /// Resolves a local type confirmed to use the framework derive.
-    pub(super) fn derived_type(
+    pub fn derived_type(
         &self,
         def_id: LocalDefId,
         derive: &'static str,
@@ -100,11 +96,7 @@ impl DeriveMoreContractCatalog {
     }
 
     /// Returns the `derive_more` macros associated with one local type.
-    pub(super) fn derives_for(
-        &self,
-        def_id: LocalDefId,
-        derives: &[&'static str],
-    ) -> Vec<&'static str> {
+    pub fn derives_for(&self, def_id: LocalDefId, derives: &[&'static str]) -> Vec<&'static str> {
         derives
             .iter()
             .copied()
@@ -117,7 +109,7 @@ impl DeriveMoreContractCatalog {
     }
 
     /// Returns the completed authored and generated contract for one local type.
-    pub(super) fn type_contract(&self, def_id: LocalDefId) -> Option<&DeriveMoreTypeContract> {
+    pub fn type_contract(&self, def_id: LocalDefId) -> Option<&DeriveMoreTypeContract> {
         self.types.get(&def_id)
     }
 
@@ -126,7 +118,7 @@ impl DeriveMoreContractCatalog {
         if !matches!(item.kind, ItemKind::Impl(_)) {
             return;
         }
-        let Some(derive) = derive_more_expansion(cx, item.span) else {
+        let Some(derive) = Self::expansion(cx, item.span) else {
             return;
         };
 
@@ -143,7 +135,7 @@ impl DeriveMoreContractCatalog {
     }
 
     /// Records authored contracts and generated implementation evidence.
-    pub(super) fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+    pub fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         if item.span.from_expansion() {
             self.record_generated_impl(cx, item);
             return;

@@ -66,73 +66,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Proves that aggregation maps inputs to the sole field and wraps the result unchanged.
-fn exact_aggregation_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) -> bool {
-    let Some(source) = AuthoredItemSource::for_item(cx, item) else {
-        return false;
-    };
-    let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
-        return false;
-    };
-
-    let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
-        return false;
-    };
-    let expected_method = derive.to_ascii_lowercase();
-    if method.sig.ident != expected_method {
-        return false;
-    }
-
-    let [syn::FnArg::Typed(parameter)] = method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
-    else {
-        return false;
-    };
-    let syn::Pat::Ident(parameter) = parameter.pat.as_ref() else {
-        return false;
-    };
-
-    let [syn::Stmt::Expr(syn::Expr::Call(construction), _)] = method.block.stmts.as_slice() else {
-        return false;
-    };
-    if !matches!(construction.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Self"))
-        || construction.args.len() != 1
-    {
-        return false;
-    }
-    let Some(syn::Expr::MethodCall(aggregation)) = construction.args.first() else {
-        return false;
-    };
-
-    if aggregation.method != expected_method || !aggregation.args.is_empty() {
-        return false;
-    }
-    let syn::Expr::MethodCall(map) = aggregation.receiver.as_ref() else {
-        return false;
-    };
-
-    if map.method != "map"
-        || !matches!(map.receiver.as_ref(), syn::Expr::Path(path) if path.path.is_ident(&parameter.ident))
-        || map.args.len() != 1
-    {
-        return false;
-    }
-
-    let Some(syn::Expr::Closure(projection)) = map.args.first() else {
-        return false;
-    };
-
-    let [syn::Pat::Ident(value)] = projection.inputs.iter().collect::<Vec<_>>().as_slice() else {
-        return false;
-    };
-
-    matches!(
-        projection.body.as_ref(),
-        syn::Expr::Field(field)
-            if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident(&value.ident))
-                && matches!(&field.member, syn::Member::Unnamed(index) if index.index == 0)
-    )
-}
-
 // -----------------------------------------------------------------------------
 // DeriveMoreManualAggregationImpls: Declarative aggregation policy
 // -----------------------------------------------------------------------------
@@ -148,6 +81,77 @@ dylint_linting::impl_late_lint! {
     DeriveMoreManualAggregationImpls
 }
 
+impl DeriveMoreManualAggregationImpls {
+    /// Proves that aggregation maps inputs to the sole field and wraps the result unchanged.
+    fn exact_aggregation_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) -> bool {
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
+            return false;
+        };
+        let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
+            return false;
+        };
+
+        let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
+            return false;
+        };
+        let expected_method = derive.to_ascii_lowercase();
+        if method.sig.ident != expected_method {
+            return false;
+        }
+
+        let [syn::FnArg::Typed(parameter)] =
+            method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
+        else {
+            return false;
+        };
+        let syn::Pat::Ident(parameter) = parameter.pat.as_ref() else {
+            return false;
+        };
+
+        let [syn::Stmt::Expr(syn::Expr::Call(construction), _)] = method.block.stmts.as_slice()
+        else {
+            return false;
+        };
+        if !matches!(construction.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Self"))
+            || construction.args.len() != 1
+        {
+            return false;
+        }
+        let Some(syn::Expr::MethodCall(aggregation)) = construction.args.first() else {
+            return false;
+        };
+
+        if aggregation.method != expected_method || !aggregation.args.is_empty() {
+            return false;
+        }
+        let syn::Expr::MethodCall(map) = aggregation.receiver.as_ref() else {
+            return false;
+        };
+
+        if map.method != "map"
+            || !matches!(map.receiver.as_ref(), syn::Expr::Path(path) if path.path.is_ident(&parameter.ident))
+            || map.args.len() != 1
+        {
+            return false;
+        }
+
+        let Some(syn::Expr::Closure(projection)) = map.args.first() else {
+            return false;
+        };
+
+        let [syn::Pat::Ident(value)] = projection.inputs.iter().collect::<Vec<_>>().as_slice()
+        else {
+            return false;
+        };
+
+        matches!(
+            projection.body.as_ref(),
+            syn::Expr::Field(field)
+                if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident(&value.ident))
+                    && matches!(&field.member, syn::Member::Unnamed(index) if index.index == 0)
+        )
+    }
+}
 impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         let ItemKind::Impl(implementation) = item.kind else {
@@ -183,7 +187,7 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
             || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
-            || !exact_aggregation_source(cx, item, derive)
+            || !Self::exact_aggregation_source(cx, item, derive)
         {
             return;
         }

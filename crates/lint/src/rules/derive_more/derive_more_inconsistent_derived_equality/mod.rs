@@ -13,7 +13,7 @@ use rustc_middle::ty;
 use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 
-use super::contracts::DeriveMoreContractCatalog;
+use super::utils::contracts::DeriveMoreContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -133,38 +133,6 @@ impl GeneratedLawTrait {
     }
 }
 
-/// Counts fields omitted from `derive_more` equality.
-fn equality_skip_count(cx: &LateContext<'_>, item: &Item<'_>) -> usize {
-    let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
-        return 0;
-    };
-    let Ok(item) = syn::parse_str::<syn::ItemStruct>(&source) else {
-        return 0;
-    };
-
-    item.fields
-        .iter()
-        .filter(|field| {
-            field.attrs.iter().any(|attribute| {
-                if !matches!(
-                    attribute
-                        .path()
-                        .get_ident()
-                        .map(ToString::to_string)
-                        .as_deref(),
-                    Some("partial_eq" | "eq")
-                ) {
-                    return false;
-                }
-                attribute.meta.require_list().is_ok_and(|list| {
-                    let arguments = list.tokens.to_string();
-                    arguments.contains("skip") || arguments.contains("ignore")
-                })
-            })
-        })
-        .count()
-}
-
 // -----------------------------------------------------------------------------
 // DeriveMoreInconsistentDerivedEquality: Coherent equality policy
 // -----------------------------------------------------------------------------
@@ -188,6 +156,39 @@ dylint_linting::impl_late_lint! {
     DeriveMoreInconsistentDerivedEquality::default()
 }
 
+impl DeriveMoreInconsistentDerivedEquality {
+    /// Counts fields omitted from `derive_more` equality.
+    fn skipped_field_count(cx: &LateContext<'_>, item: &Item<'_>) -> usize {
+        let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
+            return 0;
+        };
+        let Ok(item) = syn::parse_str::<syn::ItemStruct>(&source) else {
+            return 0;
+        };
+
+        item.fields
+            .iter()
+            .filter(|field| {
+                field.attrs.iter().any(|attribute| {
+                    if !matches!(
+                        attribute
+                            .path()
+                            .get_ident()
+                            .map(ToString::to_string)
+                            .as_deref(),
+                        Some("partial_eq" | "eq")
+                    ) {
+                        return false;
+                    }
+                    attribute.meta.require_list().is_ok_and(|list| {
+                        let arguments = list.tokens.to_string();
+                        arguments.contains("skip") || arguments.contains("ignore")
+                    })
+                })
+            })
+            .count()
+    }
+}
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreInconsistentDerivedEquality {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.catalog.check_item(cx, item);
@@ -204,7 +205,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreInconsistentDerivedEquality {
         let ItemKind::Struct(identifier, _, _) = item.kind else {
             return;
         };
-        let skipped = equality_skip_count(cx, item);
+        let skipped = Self::skipped_field_count(cx, item);
 
         if skipped == 0 {
             return;

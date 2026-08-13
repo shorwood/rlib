@@ -14,9 +14,9 @@ use rustc_middle::ty;
 use rustc_span::Span;
 
 #[cfg(feature = "thiserror")]
-use crate::rules::framework::config::{DeriveResolutionConfig, ErrorImplementationProvider};
+use crate::rules::framework::utils::config::{DeriveResolutionConfig, ErrorImplementationProvider};
 #[cfg(feature = "thiserror")]
-use crate::rules::thiserror::manual_error::ManualErrorCatalog;
+use crate::rules::thiserror::utils::error_implementations::ManualErrorCatalog;
 #[cfg(feature = "thiserror")]
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
@@ -67,7 +67,7 @@ impl Candidate {
         if !definition.is_struct()
             || definition.did().as_local().is_none()
             || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
-            || !is_derivable_error_impl(cx, item)
+            || !DeriveMoreManualErrorImpls::is_derivable_error_impl(cx, item)
         {
             return None;
         }
@@ -130,54 +130,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Finds the unique field conventionally acting as an error source.
-fn conventional_source(method: &syn::ImplItemFn) -> bool {
-    if method.sig.ident != "source" {
-        return false;
-    }
-    let [syn::Stmt::Expr(syn::Expr::Call(call), _)] = method.block.stmts.as_slice() else {
-        return false;
-    };
-
-    if !matches!(call.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Some")) {
-        return false;
-    }
-    if call.args.len() != 1 {
-        return false;
-    }
-
-    let Some(argument) = call.args.first() else {
-        return false;
-    };
-
-    let syn::Expr::Reference(reference) = argument else {
-        return false;
-    };
-
-    matches!(
-        reference.expr.as_ref(),
-        syn::Expr::Field(field)
-            if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self"))
-                && matches!(&field.member, syn::Member::Named(name) if name == "source")
-    )
-}
-
-/// Proves that `source` only returns the conventional field as a trait object.
-fn is_derivable_error_impl(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
-    let Some(source) = AuthoredItemSource::for_item(cx, item) else {
-        return false;
-    };
-    let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
-        return false;
-    };
-
-    match implementation.items.as_slice() {
-        [] => true,
-        [syn::ImplItem::Fn(method)] => conventional_source(method),
-        _ => false,
-    }
-}
-
 // -----------------------------------------------------------------------------
 // DeriveMoreManualErrorImpls: Declarative error policy
 // -----------------------------------------------------------------------------
@@ -194,6 +146,14 @@ struct DeriveMoreManualErrorImpls {
     overlaps: ManualErrorCatalog,
 }
 
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub DERIVE_MORE_MANUAL_ERROR_IMPLS,
+    Warn,
+    "finds Error implementations reproducible by derive_more",
+    DeriveMoreManualErrorImpls::new()
+}
+
 impl DeriveMoreManualErrorImpls {
     /// Starts error analysis with no manual implementations or framework overlaps.
     fn new() -> Self {
@@ -203,6 +163,54 @@ impl DeriveMoreManualErrorImpls {
             config: LibraryConfig::load().derive_resolution,
             #[cfg(feature = "thiserror")]
             overlaps: ManualErrorCatalog::default(),
+        }
+    }
+
+    /// Finds the unique field conventionally acting as an error source.
+    fn conventional_source(method: &syn::ImplItemFn) -> bool {
+        if method.sig.ident != "source" {
+            return false;
+        }
+        let [syn::Stmt::Expr(syn::Expr::Call(call), _)] = method.block.stmts.as_slice() else {
+            return false;
+        };
+
+        if !matches!(call.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Some")) {
+            return false;
+        }
+        if call.args.len() != 1 {
+            return false;
+        }
+
+        let Some(argument) = call.args.first() else {
+            return false;
+        };
+
+        let syn::Expr::Reference(reference) = argument else {
+            return false;
+        };
+
+        matches!(
+            reference.expr.as_ref(),
+            syn::Expr::Field(field)
+                if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self"))
+                    && matches!(&field.member, syn::Member::Named(name) if name == "source")
+        )
+    }
+
+    /// Proves that `source` only returns the conventional field as a trait object.
+    fn is_derivable_error_impl(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
+            return false;
+        };
+        let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
+            return false;
+        };
+
+        match implementation.items.as_slice() {
+            [] => true,
+            [syn::ImplItem::Fn(method)] => Self::conventional_source(method),
+            _ => false,
         }
     }
 
@@ -217,15 +225,6 @@ impl DeriveMoreManualErrorImpls {
         true
     }
 }
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub DERIVE_MORE_MANUAL_ERROR_IMPLS,
-    Warn,
-    "finds Error implementations reproducible by derive_more",
-    DeriveMoreManualErrorImpls::new()
-}
-
 impl LateLintPass<'_> for DeriveMoreManualErrorImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         #[cfg(feature = "thiserror")]

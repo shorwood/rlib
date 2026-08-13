@@ -132,49 +132,100 @@ const INDEX_ARGUMENT_COUNT: usize = 2;
 /// Receiver and index bindings required by an indexing implementation.
 const INDEX_BINDING_COUNT: usize = 2;
 
-/// Resolves a supported standard forwarding trait to its derive name.
-fn supported_trait(cx: &LateContext<'_>, trait_id: DefId, method: &str) -> Option<&'static str> {
-    if cx.tcx.crate_name(trait_id.krate).as_str() != "core" {
-        return None;
-    }
+// -----------------------------------------------------------------------------
+// DeriveMoreManualForwardingInterfaces: Declarative forwarding policy
+// -----------------------------------------------------------------------------
 
-    match (cx.tcx.item_name(trait_id).as_str(), method) {
-        ("AsRef", "as_ref") => Some("AsRef"),
-        ("AsMut", "as_mut") => Some("AsMut"),
-        ("Deref", "deref") => Some("Deref"),
-        ("DerefMut", "deref_mut") => Some("DerefMut"),
-        ("Index", "index") => Some("Index"),
-        ("IndexMut", "index_mut") => Some("IndexMut"),
-        _ => None,
-    }
+/// Groups transparent forwarding implementations by their wrapper type.
+#[derive(Default)]
+struct DeriveMoreManualForwardingInterfaces {
+    /// Forwarding families accumulated until every implementation is known.
+    families: HashMap<LocalDefId, Family>,
 }
 
-/// Returns the borrow mutability required by a forwarding derive.
-fn expected_mutability(derive: &str) -> Mutability {
-    if matches!(derive, "AsMut" | "DerefMut" | "IndexMut") {
-        Mutability::Mut
-    } else {
-        Mutability::Not
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub DERIVE_MORE_MANUAL_FORWARDING_INTERFACES,
+    Warn,
+    "finds forwarding interfaces reproducible by derive_more",
+    DeriveMoreManualForwardingInterfaces::default()
+}
+
+impl DeriveMoreManualForwardingInterfaces {
+    /// Resolves a supported standard forwarding trait to its derive name.
+    fn supported_trait(
+        cx: &LateContext<'_>,
+        trait_id: DefId,
+        method: &str,
+    ) -> Option<&'static str> {
+        if cx.tcx.crate_name(trait_id.krate).as_str() != "core" {
+            return None;
+        }
+
+        match (cx.tcx.item_name(trait_id).as_str(), method) {
+            ("AsRef", "as_ref") => Some("AsRef"),
+            ("AsMut", "as_mut") => Some("AsMut"),
+            ("Deref", "deref") => Some("Deref"),
+            ("DerefMut", "deref_mut") => Some("DerefMut"),
+            ("Index", "index") => Some("Index"),
+            ("IndexMut", "index_mut") => Some("IndexMut"),
+            _ => None,
+        }
+    }
+
+    /// Returns the borrow mutability required by a forwarding derive.
+    fn expected_mutability(derive: &str) -> Mutability {
+        if matches!(derive, "AsMut" | "DerefMut" | "IndexMut") {
+            Mutability::Mut
+        } else {
+            Mutability::Not
+        }
+    }
+
+    /// Returns whether an argument is the expected receiver field with matching mutability.
+    fn field_argument(
+        cx: &LateContext<'_>,
+        expression: &Expr<'_>,
+        binding: rustc_hir::HirId,
+        mutability: Mutability,
+    ) -> bool {
+        let expression = match expression.kind {
+            ExprKind::AddrOf(_, actual, inner) if actual == mutability => inner,
+            _ => expression,
+        };
+        let ExprKind::Field(base, _) = expression.kind else {
+            return false;
+        };
+        DirectForwarding::is_binding(cx, base, binding)
     }
 }
+impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualForwardingInterfaces {
+    fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
+        let Some(ContractTarget {
+            definition,
+            contract,
+        }) = ContractTarget::for_item(cx, item)
+        else {
+            return;
+        };
+        let family = self.families.entry(definition).or_insert_with(|| Family {
+            span: cx.tcx.def_span(definition),
+            name: cx.tcx.item_name(definition).to_string(),
+            contracts: Vec::new(),
+        });
+        if family.contracts.contains(&contract) {
+            return;
+        }
+        family.contracts.push(contract);
+    }
 
-/// Returns whether an argument is the expected receiver field with matching mutability.
-fn field_argument(
-    cx: &LateContext<'_>,
-    expression: &Expr<'_>,
-    binding: rustc_hir::HirId,
-    mutability: Mutability,
-) -> bool {
-    let expression = match expression.kind {
-        ExprKind::AddrOf(_, actual, inner) if actual == mutability => inner,
-        _ => expression,
-    };
-    let ExprKind::Field(base, _) = expression.kind else {
-        return false;
-    };
-    DirectForwarding::is_binding(cx, base, binding)
+    fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
+        for (_, mut family) in self.families.drain() {
+            family.contracts.sort();
+            Violation(family).emit(cx);
+        }
+    }
 }
-
 /// Connects a forwarding contract to the local wrapper that implements it.
 struct ContractTarget {
     /// Local wrapper type receiving the implementation.
@@ -200,7 +251,12 @@ impl ContractTarget {
         }
         let first = call.arguments.first()?;
 
-        if !field_argument(cx, first, bindings[0], expected_mutability(derive)) {
+        if !DeriveMoreManualForwardingInterfaces::field_argument(
+            cx,
+            first,
+            bindings[0],
+            DeriveMoreManualForwardingInterfaces::expected_mutability(derive),
+        ) {
             return None;
         }
         if matches!(derive, "Index" | "IndexMut")
@@ -237,7 +293,11 @@ impl ContractTarget {
         };
         let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
 
-        let derive = supported_trait(cx, trait_id, item.ident.name.as_str())?;
+        let derive = DeriveMoreManualForwardingInterfaces::supported_trait(
+            cx,
+            trait_id,
+            item.ident.name.as_str(),
+        )?;
         let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
         let ty::Adt(wrapper, _) = trait_ref.self_ty().kind() else {
             return None;
@@ -264,7 +324,7 @@ impl ContractTarget {
 
         if !matches!(derive, "Index" | "IndexMut")
             && let Some(field) = DirectFieldReference::from_expr(forwarding.forwarded)
-            && field.mutability == expected_mutability(derive)
+            && field.mutability == DeriveMoreManualForwardingInterfaces::expected_mutability(derive)
             && DirectForwarding::is_binding(cx, field.base, self_binding)
         {
             let field_type = cx.tcx.typeck(forwarding.typeck_owner).expr_ty(field.field);
@@ -297,52 +357,5 @@ impl ContractTarget {
             derive,
             definition,
         )
-    }
-}
-
-// -----------------------------------------------------------------------------
-// DeriveMoreManualForwardingInterfaces: Declarative forwarding policy
-// -----------------------------------------------------------------------------
-
-/// Groups transparent forwarding implementations by their wrapper type.
-#[derive(Default)]
-struct DeriveMoreManualForwardingInterfaces {
-    /// Forwarding families accumulated until every implementation is known.
-    families: HashMap<LocalDefId, Family>,
-}
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub DERIVE_MORE_MANUAL_FORWARDING_INTERFACES,
-    Warn,
-    "finds forwarding interfaces reproducible by derive_more",
-    DeriveMoreManualForwardingInterfaces::default()
-}
-
-impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualForwardingInterfaces {
-    fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
-        let Some(ContractTarget {
-            definition,
-            contract,
-        }) = ContractTarget::for_item(cx, item)
-        else {
-            return;
-        };
-        let family = self.families.entry(definition).or_insert_with(|| Family {
-            span: cx.tcx.def_span(definition),
-            name: cx.tcx.item_name(definition).to_string(),
-            contracts: Vec::new(),
-        });
-        if family.contracts.contains(&contract) {
-            return;
-        }
-        family.contracts.push(contract);
-    }
-
-    fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (_, mut family) in self.families.drain() {
-            family.contracts.sort();
-            Violation(family).emit(cx);
-        }
     }
 }

@@ -75,68 +75,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Collects plain constructor parameter names in declaration order.
-fn parameter_bindings(body: &rustc_hir::Body<'_>) -> Option<Vec<ParameterBinding>> {
-    body.params
-        .iter()
-        .map(|parameter| {
-            let PatKind::Binding(_, binding, ident, None) = parameter.pat.kind else {
-                return None;
-            };
-            Some(ParameterBinding {
-                binding,
-                name: ident.name,
-            })
-        })
-        .collect()
-}
-
-/// Returns whether a construction path names the enclosing type.
-fn path_targets(cx: &LateContext<'_>, resolution: Res, definition: DefId) -> bool {
-    match resolution {
-        Res::Def(_, target) => target == definition,
-        Res::SelfTyAlias { alias_to, .. } => cx
-            .tcx
-            .type_of(alias_to)
-            .instantiate_identity()
-            .ty_adt_def()
-            .is_some_and(|target| target.did() == definition),
-        _ => false,
-    }
-}
-
-/// Proves that a constructor assigns every parameter directly to its matching field.
-fn exact_field_assembly(
-    cx: &LateContext<'_>,
-    definition: DefId,
-    owner: LocalDefId,
-    bindings: &[ParameterBinding],
-    expression: &rustc_hir::Expr<'_>,
-) -> bool {
-    match expression.kind {
-        ExprKind::Struct(path, fields, StructTailExpr::None) => {
-            path_targets(cx, cx.qpath_res(path, expression.hir_id), definition)
-                && fields.len() == bindings.len()
-                && fields.iter().all(|field| {
-                    bindings.iter().any(|parameter| {
-                        field.ident.name == parameter.name
-                            && DirectForwarding::is_binding(cx, field.expr, parameter.binding)
-                    })
-                })
-        }
-        ExprKind::Call(_, arguments) => {
-            DirectForwarding::call(cx, owner, expression).is_some_and(|call| {
-                call.target == definition
-                    && arguments.len() == bindings.len()
-                    && arguments.iter().zip(bindings).all(|(argument, parameter)| {
-                        DirectForwarding::is_binding(cx, argument, parameter.binding)
-                    })
-            })
-        }
-        _ => false,
-    }
-}
-
 // -----------------------------------------------------------------------------
 // DeriveMoreManualConstructors: Declarative construction policy
 // -----------------------------------------------------------------------------
@@ -152,6 +90,68 @@ dylint_linting::impl_late_lint! {
     DeriveMoreManualConstructors
 }
 
+impl DeriveMoreManualConstructors {
+    /// Collects plain constructor parameter names in declaration order.
+    fn parameter_bindings(body: &rustc_hir::Body<'_>) -> Option<Vec<ParameterBinding>> {
+        body.params
+            .iter()
+            .map(|parameter| {
+                let PatKind::Binding(_, binding, ident, None) = parameter.pat.kind else {
+                    return None;
+                };
+                Some(ParameterBinding {
+                    binding,
+                    name: ident.name,
+                })
+            })
+            .collect()
+    }
+
+    /// Returns whether a construction path names the enclosing type.
+    fn path_targets(cx: &LateContext<'_>, resolution: Res, definition: DefId) -> bool {
+        match resolution {
+            Res::Def(_, target) => target == definition,
+            Res::SelfTyAlias { alias_to, .. } => cx
+                .tcx
+                .type_of(alias_to)
+                .instantiate_identity()
+                .ty_adt_def()
+                .is_some_and(|target| target.did() == definition),
+            _ => false,
+        }
+    }
+
+    /// Proves that a constructor assigns every parameter directly to its matching field.
+    fn exact_field_assembly(
+        cx: &LateContext<'_>,
+        definition: DefId,
+        owner: LocalDefId,
+        bindings: &[ParameterBinding],
+        expression: &rustc_hir::Expr<'_>,
+    ) -> bool {
+        match expression.kind {
+            ExprKind::Struct(path, fields, StructTailExpr::None) => {
+                Self::path_targets(cx, cx.qpath_res(path, expression.hir_id), definition)
+                    && fields.len() == bindings.len()
+                    && fields.iter().all(|field| {
+                        bindings.iter().any(|parameter| {
+                            field.ident.name == parameter.name
+                                && DirectForwarding::is_binding(cx, field.expr, parameter.binding)
+                        })
+                    })
+            }
+            ExprKind::Call(_, arguments) => DirectForwarding::call(cx, owner, expression)
+                .is_some_and(|call| {
+                    call.target == definition
+                        && arguments.len() == bindings.len()
+                        && arguments.iter().zip(bindings).all(|(argument, parameter)| {
+                            DirectForwarding::is_binding(cx, argument, parameter.binding)
+                        })
+                }),
+            _ => false,
+        }
+    }
+}
 impl LateLintPass<'_> for DeriveMoreManualConstructors {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
@@ -195,14 +195,14 @@ impl LateLintPass<'_> for DeriveMoreManualConstructors {
         }
         let body = cx.tcx.hir_body(body_id);
 
-        let Some(bindings) = parameter_bindings(body) else {
+        let Some(bindings) = Self::parameter_bindings(body) else {
             return;
         };
         let Some(expression) = DirectForwarding::single_body_expression(body.value) else {
             return;
         };
 
-        if !exact_field_assembly(
+        if !Self::exact_field_assembly(
             cx,
             definition.did(),
             item.owner_id.def_id,

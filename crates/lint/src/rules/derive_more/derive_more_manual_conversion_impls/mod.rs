@@ -87,56 +87,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Recognizes `From` implementations that only place an input in a newtype.
-fn exact_wrapping<'tcx>(
-    cx: &LateContext<'tcx>,
-    wrapper: ty::Ty<'tcx>,
-    inner: ty::Ty<'tcx>,
-    owner: LocalDefId,
-    expression: &rustc_hir::Expr<'_>,
-    binding: rustc_hir::HirId,
-) -> Option<String> {
-    let OneFieldStruct {
-        definition,
-        arguments,
-    } = OneFieldStruct::from_ty(wrapper)?;
-    let call = DirectForwarding::call(cx, owner, expression)?;
-    let [argument] = call.arguments.as_slice() else {
-        return None;
-    };
-    let field = definition.non_enum_variant().fields.iter().next()?;
-
-    let is_wrapper_constructor =
-        call.target == definition.did() || cx.tcx.opt_parent(call.target) == Some(definition.did());
-    (is_wrapper_constructor
-        && DirectForwarding::is_binding(cx, argument, binding)
-        && field.ty(cx.tcx, arguments) == inner)
-        .then(|| cx.tcx.item_name(definition.did()).to_string())
-}
-
-/// Recognizes `Into` implementations that only return a newtype's field.
-fn exact_extraction<'tcx>(
-    cx: &LateContext<'tcx>,
-    wrapper: ty::Ty<'tcx>,
-    inner: ty::Ty<'tcx>,
-    expression: &rustc_hir::Expr<'_>,
-    binding: rustc_hir::HirId,
-) -> Option<String> {
-    let OneFieldStruct {
-        definition,
-        arguments,
-    } = OneFieldStruct::from_ty(wrapper)?;
-    let ExprKind::Field(base, field) = expression.kind else {
-        return None;
-    };
-    let sole_field = definition.non_enum_variant().fields.iter().next()?;
-
-    (field.name.as_str() == "0"
-        && DirectForwarding::is_binding(cx, base, binding)
-        && sole_field.ty(cx.tcx, arguments) == inner)
-        .then(|| cx.tcx.item_name(definition.did()).to_string())
-}
-
 // -----------------------------------------------------------------------------
 // DeriveMoreManualConversionImpls: Declarative conversion policy
 // -----------------------------------------------------------------------------
@@ -152,6 +102,57 @@ dylint_linting::impl_late_lint! {
     DeriveMoreManualConversionImpls
 }
 
+impl DeriveMoreManualConversionImpls {
+    /// Recognizes `From` implementations that only place an input in a newtype.
+    fn exact_wrapping<'tcx>(
+        cx: &LateContext<'tcx>,
+        wrapper: ty::Ty<'tcx>,
+        inner: ty::Ty<'tcx>,
+        owner: LocalDefId,
+        expression: &rustc_hir::Expr<'_>,
+        binding: rustc_hir::HirId,
+    ) -> Option<String> {
+        let OneFieldStruct {
+            definition,
+            arguments,
+        } = OneFieldStruct::from_ty(wrapper)?;
+        let call = DirectForwarding::call(cx, owner, expression)?;
+        let [argument] = call.arguments.as_slice() else {
+            return None;
+        };
+        let field = definition.non_enum_variant().fields.iter().next()?;
+
+        let is_wrapper_constructor = call.target == definition.did()
+            || cx.tcx.opt_parent(call.target) == Some(definition.did());
+        (is_wrapper_constructor
+            && DirectForwarding::is_binding(cx, argument, binding)
+            && field.ty(cx.tcx, arguments) == inner)
+            .then(|| cx.tcx.item_name(definition.did()).to_string())
+    }
+
+    /// Recognizes `Into` implementations that only return a newtype's field.
+    fn exact_extraction<'tcx>(
+        cx: &LateContext<'tcx>,
+        wrapper: ty::Ty<'tcx>,
+        inner: ty::Ty<'tcx>,
+        expression: &rustc_hir::Expr<'_>,
+        binding: rustc_hir::HirId,
+    ) -> Option<String> {
+        let OneFieldStruct {
+            definition,
+            arguments,
+        } = OneFieldStruct::from_ty(wrapper)?;
+        let ExprKind::Field(base, field) = expression.kind else {
+            return None;
+        };
+        let sole_field = definition.non_enum_variant().fields.iter().next()?;
+
+        (field.name.as_str() == "0"
+            && DirectForwarding::is_binding(cx, base, binding)
+            && sole_field.ty(cx.tcx, arguments) == inner)
+            .then(|| cx.tcx.item_name(definition.did()).to_string())
+    }
+}
 impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
@@ -196,7 +197,7 @@ impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
             return;
         };
 
-        if let Some(wrapper) = exact_wrapping(
+        if let Some(wrapper) = Self::exact_wrapping(
             cx,
             target,
             source,
@@ -211,7 +212,7 @@ impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
             }
             .emit(cx);
         } else if let Some(wrapper) =
-            exact_extraction(cx, source, target, forwarding.forwarded, *binding)
+            Self::exact_extraction(cx, source, target, forwarding.forwarded, *binding)
         {
             Violation {
                 span: parent.span,

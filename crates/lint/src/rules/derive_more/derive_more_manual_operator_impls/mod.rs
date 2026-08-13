@@ -141,125 +141,6 @@ impl Operator {
     }
 }
 
-/// Extracts the sole expression used to reconstruct a newtype result.
-fn constructed_argument(method: &syn::ImplItemFn) -> Option<&syn::Expr> {
-    let [syn::Stmt::Expr(syn::Expr::Call(construction), _)] = method.block.stmts.as_slice() else {
-        return None;
-    };
-    if !matches!(construction.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Self"))
-        || construction.args.len() != 1
-    {
-        return None;
-    }
-    construction.args.first()
-}
-
-/// Returns the standard method name implemented by an operator derive.
-fn operator_method(derive: &str) -> &str {
-    match derive {
-        "Add" => "add",
-        "Sub" => "sub",
-        "Mul" => "mul",
-        "Div" => "div",
-        "Rem" => "rem",
-        "BitAnd" => "bitand",
-        "BitOr" => "bitor",
-        "BitXor" => "bitxor",
-        "Shl" => "shl",
-        "Shr" => "shr",
-        "Neg" => "neg",
-        "Not" => "not",
-        "AddAssign" => "add_assign",
-        "SubAssign" => "sub_assign",
-        "MulAssign" => "mul_assign",
-        "DivAssign" => "div_assign",
-        "RemAssign" => "rem_assign",
-        "BitAndAssign" => "bitand_assign",
-        "BitOrAssign" => "bitor_assign",
-        "BitXorAssign" => "bitxor_assign",
-        "ShlAssign" => "shl_assign",
-        "ShrAssign" => "shr_assign",
-        _ => "",
-    }
-}
-
-/// Returns the associated output declaration required by non-assignment operators.
-fn output_method<'a>(items: &'a [syn::ImplItem], derive: &str) -> Option<&'a syn::ImplItemFn> {
-    let [syn::ImplItem::Type(output), syn::ImplItem::Fn(method)] = items else {
-        return None;
-    };
-    (output.ident == "Output"
-        && matches!(&output.ty, syn::Type::Path(path) if path.path.is_ident("Self"))
-        && method.sig.ident == operator_method(derive))
-    .then_some(method)
-}
-
-/// Returns whether an expression selects a field from the named binding.
-fn field_of(expression: &syn::Expr, receiver: &str) -> bool {
-    matches!(
-        expression,
-        syn::Expr::Field(field)
-            if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident(receiver))
-                && matches!(&field.member, syn::Member::Unnamed(index) if index.index == 0)
-    )
-}
-
-/// Proves that an authored operator applies directly to corresponding newtype fields.
-fn exact_operator_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) -> bool {
-    let Some(source) = AuthoredItemSource::for_item(cx, item) else {
-        return false;
-    };
-    let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
-        return false;
-    };
-
-    let Some(operator) = Operator::from_derive(derive) else {
-        return false;
-    };
-
-    match operator {
-        Operator::Binary(expected) => {
-            let Some(method) = output_method(&implementation.items, derive) else {
-                return false;
-            };
-
-            let Some(argument) = constructed_argument(method) else {
-                return false;
-            };
-
-            matches!(argument, syn::Expr::Binary(operation)
-                if expected(&operation.op)
-                    && field_of(&operation.left, "self")
-                    && field_of(&operation.right, "rhs"))
-        }
-        Operator::Unary(expected) => {
-            let Some(method) = output_method(&implementation.items, derive) else {
-                return false;
-            };
-            let Some(argument) = constructed_argument(method) else {
-                return false;
-            };
-            matches!(argument, syn::Expr::Unary(operation)
-                if expected(&operation.op) && field_of(&operation.expr, "self"))
-        }
-        Operator::Assignment(expected) => {
-            let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
-                return false;
-            };
-            if method.sig.ident != operator_method(derive) {
-                return false;
-            }
-            let [syn::Stmt::Expr(syn::Expr::Binary(operation), _)] = method.block.stmts.as_slice()
-            else {
-                return false;
-            };
-            expected(&operation.op)
-                && field_of(&operation.left, "self")
-                && field_of(&operation.right, "rhs")
-        }
-    }
-}
-
 // -----------------------------------------------------------------------------
 // DeriveMoreManualOperatorImpls: Declarative operator policy
 // -----------------------------------------------------------------------------
@@ -275,6 +156,128 @@ dylint_linting::impl_late_lint! {
     DeriveMoreManualOperatorImpls
 }
 
+impl DeriveMoreManualOperatorImpls {
+    /// Extracts the sole expression used to reconstruct a newtype result.
+    fn constructed_argument(method: &syn::ImplItemFn) -> Option<&syn::Expr> {
+        let [syn::Stmt::Expr(syn::Expr::Call(construction), _)] = method.block.stmts.as_slice()
+        else {
+            return None;
+        };
+        if !matches!(construction.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Self"))
+            || construction.args.len() != 1
+        {
+            return None;
+        }
+        construction.args.first()
+    }
+
+    /// Returns the standard method name implemented by an operator derive.
+    fn operator_method(derive: &str) -> &str {
+        match derive {
+            "Add" => "add",
+            "Sub" => "sub",
+            "Mul" => "mul",
+            "Div" => "div",
+            "Rem" => "rem",
+            "BitAnd" => "bitand",
+            "BitOr" => "bitor",
+            "BitXor" => "bitxor",
+            "Shl" => "shl",
+            "Shr" => "shr",
+            "Neg" => "neg",
+            "Not" => "not",
+            "AddAssign" => "add_assign",
+            "SubAssign" => "sub_assign",
+            "MulAssign" => "mul_assign",
+            "DivAssign" => "div_assign",
+            "RemAssign" => "rem_assign",
+            "BitAndAssign" => "bitand_assign",
+            "BitOrAssign" => "bitor_assign",
+            "BitXorAssign" => "bitxor_assign",
+            "ShlAssign" => "shl_assign",
+            "ShrAssign" => "shr_assign",
+            _ => "",
+        }
+    }
+
+    /// Returns the associated output declaration required by non-assignment operators.
+    fn output_method<'a>(items: &'a [syn::ImplItem], derive: &str) -> Option<&'a syn::ImplItemFn> {
+        let [syn::ImplItem::Type(output), syn::ImplItem::Fn(method)] = items else {
+            return None;
+        };
+        (output.ident == "Output"
+            && matches!(&output.ty, syn::Type::Path(path) if path.path.is_ident("Self"))
+            && method.sig.ident == Self::operator_method(derive))
+        .then_some(method)
+    }
+
+    /// Returns whether an expression selects a field from the named binding.
+    fn field_of(expression: &syn::Expr, receiver: &str) -> bool {
+        matches!(
+            expression,
+            syn::Expr::Field(field)
+                if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident(receiver))
+                    && matches!(&field.member, syn::Member::Unnamed(index) if index.index == 0)
+        )
+    }
+
+    /// Proves that an authored operator applies directly to corresponding newtype fields.
+    fn exact_operator_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) -> bool {
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
+            return false;
+        };
+        let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
+            return false;
+        };
+
+        let Some(operator) = Operator::from_derive(derive) else {
+            return false;
+        };
+
+        match operator {
+            Operator::Binary(expected) => {
+                let Some(method) = Self::output_method(&implementation.items, derive) else {
+                    return false;
+                };
+
+                let Some(argument) = Self::constructed_argument(method) else {
+                    return false;
+                };
+
+                matches!(argument, syn::Expr::Binary(operation)
+                if expected(&operation.op)
+                    && Self::field_of(&operation.left, "self")
+                    && Self::field_of(&operation.right, "rhs"))
+            }
+            Operator::Unary(expected) => {
+                let Some(method) = Self::output_method(&implementation.items, derive) else {
+                    return false;
+                };
+                let Some(argument) = Self::constructed_argument(method) else {
+                    return false;
+                };
+                matches!(argument, syn::Expr::Unary(operation)
+                if expected(&operation.op) && Self::field_of(&operation.expr, "self"))
+            }
+            Operator::Assignment(expected) => {
+                let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
+                    return false;
+                };
+                if method.sig.ident != Self::operator_method(derive) {
+                    return false;
+                }
+                let [syn::Stmt::Expr(syn::Expr::Binary(operation), _)] =
+                    method.block.stmts.as_slice()
+                else {
+                    return false;
+                };
+                expected(&operation.op)
+                    && Self::field_of(&operation.left, "self")
+                    && Self::field_of(&operation.right, "rhs")
+            }
+        }
+    }
+}
 impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         let ItemKind::Impl(implementation) = item.kind else {
@@ -310,7 +313,7 @@ impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
             || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
-            || !exact_operator_source(cx, item, derive)
+            || !Self::exact_operator_source(cx, item, derive)
         {
             return;
         }

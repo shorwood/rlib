@@ -76,6 +76,14 @@ struct DeriveMoreManualVariantAccessors {
     provider: Option<PredicateProvider>,
 }
 
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub DERIVE_MORE_MANUAL_VARIANT_ACCESSORS,
+    Warn,
+    "finds manual enum predicate families reproducible by derive_more",
+    DeriveMoreManualVariantAccessors::new()
+}
+
 impl DeriveMoreManualVariantAccessors {
     /// Starts accessor-family analysis with the configured derive provider.
     fn new() -> Self {
@@ -87,15 +95,6 @@ impl DeriveMoreManualVariantAccessors {
         }
     }
 }
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub DERIVE_MORE_MANUAL_VARIANT_ACCESSORS,
-    Warn,
-    "finds manual enum predicate families reproducible by derive_more",
-    DeriveMoreManualVariantAccessors::new()
-}
-
 impl LateLintPass<'_> for DeriveMoreManualVariantAccessors {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         self.analyzer.check_impl_item(cx, item);

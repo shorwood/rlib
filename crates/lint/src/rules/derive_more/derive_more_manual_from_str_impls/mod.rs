@@ -62,59 +62,6 @@ impl LateViolation for Violation {
     }
 }
 
-/// Recognizes parsing that forwards the complete input to a newtype field parser.
-fn exact_parse_receiver(expression: &syn::Expr, parameter: &syn::Ident) -> bool {
-    match expression {
-        syn::Expr::MethodCall(parse) => {
-            parse.method == "parse"
-                && parse.args.is_empty()
-                && matches!(parse.receiver.as_ref(), syn::Expr::Path(value) if value.path.is_ident(parameter))
-        }
-        syn::Expr::Call(parse) => {
-            parse.args.len() == 1
-                && matches!(parse.func.as_ref(), syn::Expr::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "from_str"))
-                && matches!(parse.args.first(), Some(syn::Expr::Path(value)) if value.path.is_ident(parameter))
-        }
-        _ => false,
-    }
-}
-
-/// Proves that `FromStr` only parses and wraps a single field.
-fn exact_forwarding_source(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
-    let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
-        return false;
-    };
-    let Ok(method) = syn::parse_str::<syn::ImplItemFn>(&source) else {
-        return false;
-    };
-    let [syn::FnArg::Typed(parameter)] = method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
-    else {
-        return false;
-    };
-    let syn::Pat::Ident(parameter) = parameter.pat.as_ref() else {
-        return false;
-    };
-
-    let [syn::Stmt::Expr(expression, _)] = method.block.stmts.as_slice() else {
-        return false;
-    };
-    let syn::Expr::MethodCall(map) = expression else {
-        return false;
-    };
-
-    if map.method != "map" || map.args.len() != 1 {
-        return false;
-    }
-    let Some(syn::Expr::Path(constructor)) = map.args.first() else {
-        return false;
-    };
-
-    if !constructor.path.is_ident("Self") {
-        return false;
-    }
-    exact_parse_receiver(map.receiver.as_ref(), &parameter.ident)
-}
-
 // -----------------------------------------------------------------------------
 // DeriveMoreManualFromStrImpls: Declarative parsing policy
 // -----------------------------------------------------------------------------
@@ -130,6 +77,61 @@ dylint_linting::impl_late_lint! {
     DeriveMoreManualFromStrImpls
 }
 
+impl DeriveMoreManualFromStrImpls {
+    /// Recognizes parsing that forwards the complete input to a newtype field parser.
+    fn exact_parse_receiver(expression: &syn::Expr, parameter: &syn::Ident) -> bool {
+        match expression {
+            syn::Expr::MethodCall(parse) => {
+                parse.method == "parse"
+                    && parse.args.is_empty()
+                    && matches!(parse.receiver.as_ref(), syn::Expr::Path(value) if value.path.is_ident(parameter))
+            }
+            syn::Expr::Call(parse) => {
+                parse.args.len() == 1
+                    && matches!(parse.func.as_ref(), syn::Expr::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "from_str"))
+                    && matches!(parse.args.first(), Some(syn::Expr::Path(value)) if value.path.is_ident(parameter))
+            }
+            _ => false,
+        }
+    }
+
+    /// Proves that `FromStr` only parses and wraps a single field.
+    fn exact_forwarding_source(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
+        let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
+            return false;
+        };
+        let Ok(method) = syn::parse_str::<syn::ImplItemFn>(&source) else {
+            return false;
+        };
+        let [syn::FnArg::Typed(parameter)] =
+            method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
+        else {
+            return false;
+        };
+        let syn::Pat::Ident(parameter) = parameter.pat.as_ref() else {
+            return false;
+        };
+
+        let [syn::Stmt::Expr(expression, _)] = method.block.stmts.as_slice() else {
+            return false;
+        };
+        let syn::Expr::MethodCall(map) = expression else {
+            return false;
+        };
+
+        if map.method != "map" || map.args.len() != 1 {
+            return false;
+        }
+        let Some(syn::Expr::Path(constructor)) = map.args.first() else {
+            return false;
+        };
+
+        if !constructor.path.is_ident("Self") {
+            return false;
+        }
+        Self::exact_parse_receiver(map.receiver.as_ref(), &parameter.ident)
+    }
+}
 impl LateLintPass<'_> for DeriveMoreManualFromStrImpls {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         let ImplItemKind::Fn(_, _) = item.kind else {
@@ -168,7 +170,7 @@ impl LateLintPass<'_> for DeriveMoreManualFromStrImpls {
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
             || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
-            || !exact_forwarding_source(cx, item)
+            || !Self::exact_forwarding_source(cx, item)
         {
             return;
         }

@@ -80,124 +80,176 @@ impl LateViolation for Violation {
     }
 }
 
-/// Maps a standard formatting trait to its `derive_more` macro name.
-fn formatting_trait(name: &str) -> Option<&'static str> {
-    match name {
-        "Debug" => Some("Debug"),
-        "Display" => Some("Display"),
-        "Binary" => Some("Binary"),
-        "Octal" => Some("Octal"),
-        "LowerHex" => Some("LowerHex"),
-        "UpperHex" => Some("UpperHex"),
-        "LowerExp" => Some("LowerExp"),
-        "UpperExp" => Some("UpperExp"),
-        "Pointer" => Some("Pointer"),
-        _ => None,
-    }
+// -----------------------------------------------------------------------------
+// DeriveMoreManualFormattingImpls: Declarative formatting policy
+// -----------------------------------------------------------------------------
+
+/// Groups transparent formatting implementations by their wrapper type.
+#[derive(Default)]
+struct DeriveMoreManualFormattingImpls {
+    /// Formatting families accumulated until all implementations have been visited.
+    families: HashMap<LocalDefId, Family>,
 }
 
-/// Returns whether an expression borrows a field of the receiver binding.
-fn field_reference(cx: &LateContext<'_>, expression: &Expr<'_>, binding: rustc_hir::HirId) -> bool {
-    let expression = match expression.kind {
-        ExprKind::AddrOf(_, Mutability::Not, inner) => inner,
-        _ => expression,
-    };
-    let ExprKind::Field(base, _) = expression.kind else {
-        return false;
-    };
-    DirectForwarding::is_binding(cx, base, binding)
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub DERIVE_MORE_MANUAL_FORMATTING_IMPLS,
+    Warn,
+    "finds formatting implementations reproducible by derive_more",
+    DeriveMoreManualFormattingImpls::default()
 }
 
-/// Recognizes formatting that delegates the same trait directly to one field.
-fn direct_trait_delegation(
-    cx: &LateContext<'_>,
-    owner: LocalDefId,
-    expression: &Expr<'_>,
-    self_binding: rustc_hir::HirId,
-    formatter_binding: rustc_hir::HirId,
-    trait_id: DefId,
-) -> bool {
-    let Some(call) = DirectForwarding::call(cx, owner, expression) else {
-        return false;
-    };
-    let [value, formatter] = call.arguments.as_slice() else {
-        return false;
-    };
-    cx.tcx.trait_of_assoc(call.target) == Some(trait_id)
-        && field_reference(cx, value, self_binding)
-        && DirectForwarding::is_binding(cx, formatter, formatter_binding)
-}
-
-/// Returns whether a format string contains exactly one unescaped placeholder.
-fn has_one_placeholder(format: &str) -> bool {
-    let mut placeholders = 0;
-    let mut characters = format.chars().peekable();
-    while let Some(character) = characters.next() {
-        if character != '{' {
-            continue;
+impl DeriveMoreManualFormattingImpls {
+    /// Maps a standard formatting trait to its `derive_more` macro name.
+    fn formatting_trait(name: &str) -> Option<&'static str> {
+        match name {
+            "Debug" => Some("Debug"),
+            "Display" => Some("Display"),
+            "Binary" => Some("Binary"),
+            "Octal" => Some("Octal"),
+            "LowerHex" => Some("LowerHex"),
+            "UpperHex" => Some("UpperHex"),
+            "LowerExp" => Some("LowerExp"),
+            "UpperExp" => Some("UpperExp"),
+            "Pointer" => Some("Pointer"),
+            _ => None,
         }
-        if characters.peek() == Some(&'{') {
-            characters.next();
-            continue;
+    }
+
+    /// Returns whether an expression borrows a field of the receiver binding.
+    fn field_reference(
+        cx: &LateContext<'_>,
+        expression: &Expr<'_>,
+        binding: rustc_hir::HirId,
+    ) -> bool {
+        let expression = match expression.kind {
+            ExprKind::AddrOf(_, Mutability::Not, inner) => inner,
+            _ => expression,
+        };
+        let ExprKind::Field(base, _) = expression.kind else {
+            return false;
+        };
+        DirectForwarding::is_binding(cx, base, binding)
+    }
+
+    /// Recognizes formatting that delegates the same trait directly to one field.
+    fn direct_trait_delegation(
+        cx: &LateContext<'_>,
+        owner: LocalDefId,
+        expression: &Expr<'_>,
+        self_binding: rustc_hir::HirId,
+        formatter_binding: rustc_hir::HirId,
+        trait_id: DefId,
+    ) -> bool {
+        let Some(call) = DirectForwarding::call(cx, owner, expression) else {
+            return false;
+        };
+        let [value, formatter] = call.arguments.as_slice() else {
+            return false;
+        };
+        cx.tcx.trait_of_assoc(call.target) == Some(trait_id)
+            && Self::field_reference(cx, value, self_binding)
+            && DirectForwarding::is_binding(cx, formatter, formatter_binding)
+    }
+
+    /// Returns whether a format string contains exactly one unescaped placeholder.
+    fn has_one_placeholder(format: &str) -> bool {
+        let mut placeholders = 0;
+        let mut characters = format.chars().peekable();
+        while let Some(character) = characters.next() {
+            if character != '{' {
+                continue;
+            }
+            if characters.peek() == Some(&'{') {
+                characters.next();
+                continue;
+            }
+            placeholders += 1;
         }
-        placeholders += 1;
+        placeholders == 1
     }
-    placeholders == 1
-}
 
-/// Recognizes one `write!` invocation that formats only a receiver field.
-fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
-    let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
-        return false;
-    };
-    let Ok(method) = syn::parse_str::<syn::ImplItemFn>(&source) else {
-        return false;
-    };
+    /// Recognizes one `write!` invocation that formats only a receiver field.
+    fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
+        let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
+            return false;
+        };
+        let Ok(method) = syn::parse_str::<syn::ImplItemFn>(&source) else {
+            return false;
+        };
 
-    let [syn::Stmt::Expr(syn::Expr::Macro(invocation), _)] = method.block.stmts.as_slice() else {
-        return false;
-    };
-    if !invocation.mac.path.is_ident("write") {
-        return false;
+        let [syn::Stmt::Expr(syn::Expr::Macro(invocation), _)] = method.block.stmts.as_slice()
+        else {
+            return false;
+        };
+        if !invocation.mac.path.is_ident("write") {
+            return false;
+        }
+        let inputs = method.sig.inputs.iter().collect::<Vec<_>>();
+
+        let [
+            syn::FnArg::Receiver(_),
+            syn::FnArg::Typed(formatter_parameter),
+        ] = inputs.as_slice()
+        else {
+            return false;
+        };
+
+        let syn::Pat::Ident(formatter_parameter) = formatter_parameter.pat.as_ref() else {
+            return false;
+        };
+        let parser = Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
+        let Ok(arguments) = parser.parse2(invocation.mac.tokens.clone()) else {
+            return false;
+        };
+
+        let arguments = arguments.iter().collect::<Vec<_>>();
+        let [formatter, syn::Expr::Lit(format), field] = arguments.as_slice() else {
+            return false;
+        };
+        let syn::Expr::Path(formatter) = formatter else {
+            return false;
+        };
+
+        let syn::Lit::Str(format) = &format.lit else {
+            return false;
+        };
+        let syn::Expr::Field(field) = field else {
+            return false;
+        };
+
+        formatter.path.is_ident(&formatter_parameter.ident)
+            && matches!(field.base.as_ref(), syn::Expr::Path(base) if base.path.is_ident("self"))
+            && Self::has_one_placeholder(&format.value())
     }
-    let inputs = method.sig.inputs.iter().collect::<Vec<_>>();
-
-    let [
-        syn::FnArg::Receiver(_),
-        syn::FnArg::Typed(formatter_parameter),
-    ] = inputs.as_slice()
-    else {
-        return false;
-    };
-
-    let syn::Pat::Ident(formatter_parameter) = formatter_parameter.pat.as_ref() else {
-        return false;
-    };
-    let parser = Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
-    let Ok(arguments) = parser.parse2(invocation.mac.tokens.clone()) else {
-        return false;
-    };
-
-    let arguments = arguments.iter().collect::<Vec<_>>();
-    let [formatter, syn::Expr::Lit(format), field] = arguments.as_slice() else {
-        return false;
-    };
-    let syn::Expr::Path(formatter) = formatter else {
-        return false;
-    };
-
-    let syn::Lit::Str(format) = &format.lit else {
-        return false;
-    };
-    let syn::Expr::Field(field) = field else {
-        return false;
-    };
-
-    formatter.path.is_ident(&formatter_parameter.ident)
-        && matches!(field.base.as_ref(), syn::Expr::Path(base) if base.path.is_ident("self"))
-        && has_one_placeholder(&format.value())
 }
+impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualFormattingImpls {
+    fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
+        let Some(ExactFormatting {
+            definition,
+            trait_name,
+        }) = ExactFormatting::analyze(cx, item)
+        else {
+            return;
+        };
+        let family = self.families.entry(definition).or_insert_with(|| Family {
+            span: cx.tcx.def_span(definition),
+            name: cx.tcx.item_name(definition).to_string(),
+            traits: Vec::new(),
+        });
+        if family.traits.contains(&trait_name) {
+            return;
+        }
+        family.traits.push(trait_name);
+    }
 
+    fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
+        for (_, mut family) in self.families.drain() {
+            family.traits.sort_unstable();
+            Violation(family).emit(cx);
+        }
+    }
+}
 /// Identifies one exact formatting implementation.
 struct ExactFormatting {
     /// Local type receiving the formatting implementation.
@@ -228,7 +280,8 @@ impl ExactFormatting {
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core" {
             return None;
         }
-        let trait_name = formatting_trait(cx.tcx.item_name(trait_id).as_str())?;
+        let trait_name =
+            DeriveMoreManualFormattingImpls::formatting_trait(cx.tcx.item_name(trait_id).as_str())?;
         let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
 
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
@@ -246,14 +299,14 @@ impl ExactFormatting {
             return None;
         };
 
-        if direct_trait_delegation(
+        if DeriveMoreManualFormattingImpls::direct_trait_delegation(
             cx,
             forwarding.typeck_owner,
             forwarding.forwarded,
             *self_binding,
             *formatter_binding,
             trait_id,
-        ) || single_field_write(cx, item)
+        ) || DeriveMoreManualFormattingImpls::single_field_write(cx, item)
         {
             Some(Self {
                 definition,
@@ -261,53 +314,6 @@ impl ExactFormatting {
             })
         } else {
             None
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------
-// DeriveMoreManualFormattingImpls: Declarative formatting policy
-// -----------------------------------------------------------------------------
-
-/// Groups transparent formatting implementations by their wrapper type.
-#[derive(Default)]
-struct DeriveMoreManualFormattingImpls {
-    /// Formatting families accumulated until all implementations have been visited.
-    families: HashMap<LocalDefId, Family>,
-}
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub DERIVE_MORE_MANUAL_FORMATTING_IMPLS,
-    Warn,
-    "finds formatting implementations reproducible by derive_more",
-    DeriveMoreManualFormattingImpls::default()
-}
-
-impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualFormattingImpls {
-    fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
-        let Some(ExactFormatting {
-            definition,
-            trait_name,
-        }) = ExactFormatting::analyze(cx, item)
-        else {
-            return;
-        };
-        let family = self.families.entry(definition).or_insert_with(|| Family {
-            span: cx.tcx.def_span(definition),
-            name: cx.tcx.item_name(definition).to_string(),
-            traits: Vec::new(),
-        });
-        if family.traits.contains(&trait_name) {
-            return;
-        }
-        family.traits.push(trait_name);
-    }
-
-    fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (_, mut family) in self.families.drain() {
-            family.traits.sort_unstable();
-            Violation(family).emit(cx);
         }
     }
 }

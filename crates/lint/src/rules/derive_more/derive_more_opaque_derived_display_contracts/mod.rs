@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::DeriveMoreContractCatalog;
+use super::utils::contracts::DeriveMoreContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------

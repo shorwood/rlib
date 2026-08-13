@@ -147,40 +147,102 @@ impl<'hir> FieldAccess<'hir> {
     }
 }
 
-/// Collects corresponding field pairs joined exclusively by boolean conjunction.
-fn collect_equal_fields(
-    cx: &LateContext<'_>,
-    expression: &Expr<'_>,
-    left: rustc_hir::HirId,
-    right: rustc_hir::HirId,
-    fields: &mut HashSet<String>,
-) -> Option<()> {
-    let ExprKind::Binary(operator, lhs, rhs) = expression.kind else {
-        return None;
-    };
-    if operator.node == BinOpKind::And {
-        collect_equal_fields(cx, lhs, left, right, fields)?;
-        return collect_equal_fields(cx, rhs, left, right, fields);
-    }
+// -----------------------------------------------------------------------------
+// DeriveMoreManualEqualityImpls: Declarative equality policy
+// -----------------------------------------------------------------------------
 
-    if operator.node != BinOpKind::Eq {
-        return None;
-    }
-    let lhs = FieldAccess::from_expr(lhs)?;
-    let rhs = FieldAccess::from_expr(rhs)?;
-
-    if lhs.field != rhs.field
-        || !((DirectForwarding::is_binding(cx, lhs.base, left)
-            && DirectForwarding::is_binding(cx, rhs.base, right))
-            || (DirectForwarding::is_binding(cx, lhs.base, right)
-                && DirectForwarding::is_binding(cx, rhs.base, left)))
-        || !fields.insert(lhs.field)
-    {
-        return None;
-    }
-    Some(())
+/// Groups structural `PartialEq` and `Eq` implementations by their wrapper type.
+#[derive(Default)]
+struct DeriveMoreManualEqualityImpls {
+    /// Authored declarations awaiting association with `derive_more` expansions.
+    candidates: HashMap<LocalDefId, Candidate>,
+    /// Types with an authored `Eq` marker implementation.
+    eq_targets: HashSet<LocalDefId>,
 }
 
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub DERIVE_MORE_MANUAL_EQUALITY_IMPLS,
+    Warn,
+    "finds structural equality implementations reproducible by derive_more",
+    DeriveMoreManualEqualityImpls::default()
+}
+
+impl DeriveMoreManualEqualityImpls {
+    /// Collects corresponding field pairs joined exclusively by boolean conjunction.
+    fn collect_equal_fields(
+        cx: &LateContext<'_>,
+        expression: &Expr<'_>,
+        left: rustc_hir::HirId,
+        right: rustc_hir::HirId,
+        fields: &mut HashSet<String>,
+    ) -> Option<()> {
+        let ExprKind::Binary(operator, lhs, rhs) = expression.kind else {
+            return None;
+        };
+        if operator.node == BinOpKind::And {
+            Self::collect_equal_fields(cx, lhs, left, right, fields)?;
+            return Self::collect_equal_fields(cx, rhs, left, right, fields);
+        }
+
+        if operator.node != BinOpKind::Eq {
+            return None;
+        }
+        let lhs = FieldAccess::from_expr(lhs)?;
+        let rhs = FieldAccess::from_expr(rhs)?;
+
+        if lhs.field != rhs.field
+            || !((DirectForwarding::is_binding(cx, lhs.base, left)
+                && DirectForwarding::is_binding(cx, rhs.base, right))
+                || (DirectForwarding::is_binding(cx, lhs.base, right)
+                    && DirectForwarding::is_binding(cx, rhs.base, left)))
+            || !fields.insert(lhs.field)
+        {
+            return None;
+        }
+        Some(())
+    }
+}
+impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualEqualityImpls {
+    fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        let Some(TraitTarget { trait_name, target }) = TraitTarget::for_item(cx, item) else {
+            return;
+        };
+        if trait_name != "Eq" {
+            return;
+        }
+        self.eq_targets.insert(target);
+    }
+
+    fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
+        let Some(StructuralEquality {
+            target,
+            field_count,
+        }) = StructuralEquality::for_item(cx, item)
+        else {
+            return;
+        };
+
+        self.candidates.insert(
+            target,
+            Candidate {
+                span: cx.tcx.def_span(target),
+                name: cx.tcx.item_name(target).to_string(),
+                field_count,
+            },
+        );
+    }
+
+    fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
+        for (target, candidate) in self.candidates.drain() {
+            Violation {
+                candidate,
+                has_eq: self.eq_targets.contains(&target),
+            }
+            .emit(cx);
+        }
+    }
+}
 /// Summarizes a structural equality implementation.
 struct StructuralEquality {
     /// Local type compared by the implementation.
@@ -242,72 +304,16 @@ impl StructuralEquality {
         };
         let expression = DirectForwarding::single_body_expression(body.value)?;
         let mut fields = HashSet::new();
-        collect_equal_fields(cx, expression, left, right, &mut fields)?;
+        DeriveMoreManualEqualityImpls::collect_equal_fields(
+            cx,
+            expression,
+            left,
+            right,
+            &mut fields,
+        )?;
         (!fields.is_empty()).then_some(Self {
             target: definition.did().as_local()?,
             field_count: fields.len(),
         })
-    }
-}
-
-// -----------------------------------------------------------------------------
-// DeriveMoreManualEqualityImpls: Declarative equality policy
-// -----------------------------------------------------------------------------
-
-/// Groups structural `PartialEq` and `Eq` implementations by their wrapper type.
-#[derive(Default)]
-struct DeriveMoreManualEqualityImpls {
-    /// Authored declarations awaiting association with `derive_more` expansions.
-    candidates: HashMap<LocalDefId, Candidate>,
-    /// Types with an authored `Eq` marker implementation.
-    eq_targets: HashSet<LocalDefId>,
-}
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub DERIVE_MORE_MANUAL_EQUALITY_IMPLS,
-    Warn,
-    "finds structural equality implementations reproducible by derive_more",
-    DeriveMoreManualEqualityImpls::default()
-}
-
-impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualEqualityImpls {
-    fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
-        let Some(TraitTarget { trait_name, target }) = TraitTarget::for_item(cx, item) else {
-            return;
-        };
-        if trait_name != "Eq" {
-            return;
-        }
-        self.eq_targets.insert(target);
-    }
-
-    fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
-        let Some(StructuralEquality {
-            target,
-            field_count,
-        }) = StructuralEquality::for_item(cx, item)
-        else {
-            return;
-        };
-
-        self.candidates.insert(
-            target,
-            Candidate {
-                span: cx.tcx.def_span(target),
-                name: cx.tcx.item_name(target).to_string(),
-                field_count,
-            },
-        );
-    }
-
-    fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (target, candidate) in self.candidates.drain() {
-            Violation {
-                candidate,
-                has_eq: self.eq_targets.contains(&target),
-            }
-            .emit(cx);
-        }
     }
 }
