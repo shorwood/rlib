@@ -393,6 +393,7 @@ fn run_thiserror_fixtures() {
         "thiserror_ambiguous_error_sources",
         "thiserror_duplicate_error_messages",
         "thiserror_dynamic_errors_in_library_interfaces",
+        "thiserror_non_send_sync_public_errors",
         "thiserror_opaque_errors_exposing_representations",
         "thiserror_unreported_error_sources",
     ] {

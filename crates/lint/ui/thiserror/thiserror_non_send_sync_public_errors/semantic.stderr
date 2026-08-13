@@ -1,0 +1,14 @@
+warning: public thiserror type is not thread-safe at a channel boundary
+  --> $DIR/semantic.rs:9:1
+   |
+LL | / pub struct LocalError {
+LL | |     context: Rc<String>,
+LL | | }
+   | |_^ these fields make the transported error local-only
+   |
+   = note: public API `error_sender` transports this error through a channel, but `std::rc::Rc` prevents the required auto traits
+   = help: use thread-safe field representations such as `Arc`, or make the transport boundary explicitly local
+   = note: `#[warn(thiserror_non_send_sync_public_errors)]` on by default
+
+warning: 1 warning emitted
+
