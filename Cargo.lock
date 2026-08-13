@@ -1810,6 +1810,7 @@ dependencies = [
  "serde",
  "strum",
  "syn 2.0.119",
+ "thiserror 2.0.19",
  "toml 0.9.12+spec-1.1.0",
 ]
 

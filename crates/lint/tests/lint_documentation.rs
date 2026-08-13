@@ -26,6 +26,8 @@ fn active_lints_have_canonical_public_documentation() {
     collect_lint_directories(&rules.join("serde"), &mut lint_directories);
     #[cfg(feature = "strum")]
     collect_lint_directories(&rules.join("strum"), &mut lint_directories);
+    #[cfg(feature = "thiserror")]
+    collect_lint_directories(&rules.join("thiserror"), &mut lint_directories);
     #[cfg(feature = "leptos")]
     collect_lint_directories(&rules.join("leptos"), &mut lint_directories);
 
@@ -35,7 +37,8 @@ fn active_lints_have_canonical_public_documentation() {
         + 20 * usize::from(cfg!(feature = "derive_more"))
         + usize::from(cfg!(feature = "framework"))
         + 16 * usize::from(cfg!(feature = "serde"))
-        + 19 * usize::from(cfg!(feature = "strum"));
+        + 19 * usize::from(cfg!(feature = "strum"))
+        + usize::from(cfg!(feature = "thiserror"));
     assert_eq!(
         lint_directories.len(),
         expected,

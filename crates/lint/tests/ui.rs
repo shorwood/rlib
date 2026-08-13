@@ -136,7 +136,8 @@ fn ui() {
         feature = "strum",
         feature = "bon",
         feature = "derive_more",
-        feature = "serde"
+        feature = "serde",
+        feature = "thiserror"
     ))]
     if rerun_with_feature_aware_cargo_wrapper() {
         return;
@@ -146,7 +147,8 @@ fn ui() {
         feature = "leptos",
         feature = "bon",
         feature = "derive_more",
-        feature = "serde"
+        feature = "serde",
+        feature = "thiserror"
     ))]
     if selected_framework_fixture().is_none() {
         run_standalone_fixtures();
@@ -156,7 +158,8 @@ fn ui() {
         feature = "leptos",
         feature = "bon",
         feature = "derive_more",
-        feature = "serde"
+        feature = "serde",
+        feature = "thiserror"
     )))]
     run_standalone_fixtures();
     #[cfg(feature = "strum")]
@@ -169,6 +172,8 @@ fn ui() {
     run_derive_more_fixtures();
     #[cfg(feature = "serde")]
     run_serde_fixtures();
+    #[cfg(feature = "thiserror")]
+    run_thiserror_fixtures();
 }
 
 /// Makes Dylint's internal `cargo build` preserve the test process's feature set.
@@ -177,7 +182,8 @@ fn ui() {
         feature = "strum",
         feature = "bon",
         feature = "derive_more",
-        feature = "serde"
+        feature = "serde",
+        feature = "thiserror"
     ),
     unix
 ))]
@@ -200,6 +206,7 @@ fn rerun_with_feature_aware_cargo_wrapper() -> bool {
         cfg!(feature = "bon").then_some("bon"),
         cfg!(feature = "derive_more").then_some("derive_more"),
         cfg!(feature = "serde").then_some("serde"),
+        cfg!(feature = "thiserror").then_some("thiserror"),
     ]
     .into_iter()
     .flatten()
@@ -246,7 +253,8 @@ fn rerun_with_feature_aware_cargo_wrapper() -> bool {
         feature = "strum",
         feature = "bon",
         feature = "derive_more",
-        feature = "serde"
+        feature = "serde",
+        feature = "thiserror"
     ),
     not(unix)
 ))]
@@ -366,6 +374,22 @@ fn run_serde_fixtures() {
         "serde_sensitive_fields_serialized_by_default",
         "serde_unstable_implicit_wire_names",
     ] {
+        if selected
+            .as_deref()
+            .is_some_and(|selected| selected != example)
+        {
+            continue;
+        }
+        Test::example(env!("CARGO_PKG_NAME"), example)
+            .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+            .run();
+    }
+}
+
+#[cfg(feature = "thiserror")]
+fn run_thiserror_fixtures() {
+    let selected = selected_framework_fixture();
+    for example in ["thiserror_duplicate_error_messages"] {
         if selected
             .as_deref()
             .is_some_and(|selected| selected != example)
@@ -539,7 +563,8 @@ fn run_strum_fixtures() {
     feature = "leptos",
     feature = "bon",
     feature = "derive_more",
-    feature = "serde"
+    feature = "serde",
+    feature = "thiserror"
 ))]
 fn selected_framework_fixture() -> Option<String> {
     use std::env::var;

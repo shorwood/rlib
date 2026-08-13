@@ -15,6 +15,7 @@ derive_more = ["framework", "dep:syn"]
 leptos = ["dep:proc-macro2", "dep:quote", "dep:rstml", "dep:syn"]
 serde = ["dep:syn"]
 strum = ["framework", "dep:syn"]
+thiserror = ["framework", "dep:syn"]
 
 [dependencies]
 convert_case = "0.11"
@@ -34,6 +35,7 @@ dylint_testing = "=6.0.1"
 leptos = { version = "=0.8.20", features = ["ssr"] }
 reactive_stores = "=0.4.3"
 strum = { version = "=0.28.0", features = ["derive"] }
+thiserror = "=2.0.19"
 
 [[example]]
 name = "bon_builders_bypassing_construction_invariants"
@@ -259,6 +261,11 @@ required-features = ["serde"]
 name = "serde_remote_representations_drifting_from_sources"
 path = "ui/serde/serde_remote_representations_drifting_from_sources/semantic.rs"
 required-features = ["serde"]
+
+[[example]]
+name = "thiserror_duplicate_error_messages"
+path = "ui/thiserror/thiserror_duplicate_error_messages/semantic.rs"
+required-features = ["thiserror"]
 
 [[example]]
 name = "serde_lossy_conditional_serialization"

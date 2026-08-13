@@ -147,6 +147,9 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "strum")]
     register_strum_lints(sess, lint_store);
 
+    #[cfg(feature = "thiserror")]
+    rules::thiserror::thiserror_duplicate_error_messages::register_lints(sess, lint_store);
+
     // Register standard trait protocol policies.
     rules::core::ad_hoc_collection_construction::register_lints(sess, lint_store);
     rules::core::ad_hoc_conversions::register_lints(sess, lint_store);

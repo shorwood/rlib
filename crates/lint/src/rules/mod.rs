@@ -9,4 +9,6 @@ pub mod leptos;
 pub mod serde;
 #[cfg(feature = "strum")]
 pub mod strum;
+#[cfg(feature = "thiserror")]
+pub mod thiserror;
 pub mod framework;
