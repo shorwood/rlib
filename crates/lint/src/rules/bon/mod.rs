@@ -1,5 +1,6 @@
 pub(super) mod utils;
 pub(super) mod contracts;
+pub(crate) mod config;
 pub mod bon_builders_bypassing_construction_invariants;
 pub mod bon_escaping_incomplete_builders;
 pub mod bon_implicit_optional_builder_members;
@@ -11,5 +12,6 @@ pub mod bon_needless_builders_for_small_apis;
 pub mod bon_parameter_heavy_apis_without_builders;
 pub mod bon_public_builder_implementation_types;
 pub mod bon_redundant_positional_and_builder_apis;
+pub mod bon_required_builder_members_breaking_compatibility;
 pub mod bon_skipped_builder_members_without_policy;
 pub mod bon_undocumented_builder_members;

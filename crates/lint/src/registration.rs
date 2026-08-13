@@ -41,6 +41,8 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "bon")]
     rules::bon::bon_redundant_positional_and_builder_apis::register_lints(sess, lint_store);
     #[cfg(feature = "bon")]
+    rules::bon::bon_required_builder_members_breaking_compatibility::register_lints(sess, lint_store);
+    #[cfg(feature = "bon")]
     rules::bon::bon_skipped_builder_members_without_policy::register_lints(sess, lint_store);
     #[cfg(feature = "bon")]
     rules::bon::bon_undocumented_builder_members::register_lints(sess, lint_store);

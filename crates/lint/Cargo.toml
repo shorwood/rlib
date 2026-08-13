@@ -89,6 +89,11 @@ path = "ui/bon/bon_redundant_positional_and_builder_apis/semantic.rs"
 required-features = ["bon"]
 
 [[example]]
+name = "bon_required_builder_members_breaking_compatibility"
+path = "ui/bon/bon_required_builder_members_breaking_compatibility/semantic.rs"
+required-features = ["bon"]
+
+[[example]]
 name = "bon_skipped_builder_members_without_policy"
 path = "ui/bon/bon_skipped_builder_members_without_policy/semantic.rs"
 required-features = ["bon"]

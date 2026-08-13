@@ -2,6 +2,8 @@ use serde::Deserialize;
 
 use super::function_structure::FunctionStructureConfig;
 use super::section_analysis::SectionDividerConfig;
+#[cfg(feature = "bon")]
+use crate::rules::bon::config::BonApiBaselineConfig;
 use crate::rules::core::incoherent_extension_traits::ExtensionTraitConfig;
 use crate::rules::framework::config::DeriveResolutionConfig;
 #[cfg(feature = "leptos")]
@@ -17,6 +19,9 @@ use crate::rules::leptos::utils::view_structure::LeptosViewStructureConfig;
 #[derive(Clone, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct LibraryConfig {
+    /// Historical public Bon member snapshot used for compatibility checks.
+    #[cfg(feature = "bon")]
+    pub(crate) bon_api_baseline: BonApiBaselineConfig,
     /// Explicit provider choices for overlapping framework remediations.
     pub(crate) derive_resolution: DeriveResolutionConfig,
     /// Size policy used by focused extension-trait lints.

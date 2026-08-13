@@ -246,6 +246,22 @@ fn run_bon_fixtures() {
             .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
             .run();
     }
+    if selected.as_deref().is_none_or(|selected| {
+        selected == "bon_required_builder_members_breaking_compatibility"
+    }) {
+        Test::example(
+            env!("CARGO_PKG_NAME"),
+            "bon_required_builder_members_breaking_compatibility",
+        )
+        .rustc_flags(CROSS_CUTTING_LINT_ALLOWS)
+        .dylint_toml(
+            r#"
+                [rlib-lint.bon_api_baseline.builders.Request]
+                members = ["host"]
+            "#,
+        )
+        .run();
+    }
 }
 
 /// Runs all Cargo examples that need dependency linking or macro expansion.
