@@ -1,0 +1,12 @@
+warning: manual structural equality for `Record` is derivable
+  --> $DIR/semantic.rs:3:1
+   |
+LL | struct Record {
+   | ^^^^^^^^^^^^^ this equality is pure component comparison
+   |
+   = note: the implementation compares 2 corresponding fields without normalization, adaptation, or external state
+   = help: replace the authored implementations with `#[derive(derive_more::PartialEq, derive_more::Eq)]` and explicit field skips when required
+   = note: `#[warn(derive_more_manual_equality_impls)]` on by default
+
+warning: 1 warning emitted
+
