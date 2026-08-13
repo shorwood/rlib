@@ -1,0 +1,14 @@
+warning: public library API `erased_load` returns dynamic error `Box<dyn Error>`
+  --> $DIR/semantic.rs:9:1
+   |
+LL | / pub fn erased_load() -> Result<(), Box<dyn Error>> {
+LL | |     Ok(())
+LL | | }
+   | |_^ this public boundary erases its error vocabulary
+   |
+   = note: callers cannot exhaustively classify or recover from failures through a stable concrete contract
+   = help: return a public thiserror domain type and keep dynamic errors behind explicit source variants
+   = note: `#[warn(thiserror_dynamic_errors_in_library_interfaces)]` on by default
+
+warning: 1 warning emitted
+

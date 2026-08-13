@@ -149,6 +149,10 @@ pub extern "Rust" fn register_lints(
 
     #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_duplicate_error_messages::register_lints(sess, lint_store);
+    #[cfg(feature = "thiserror")]
+    rules::thiserror::thiserror_dynamic_errors_in_library_interfaces::register_lints(
+        sess, lint_store,
+    );
 
     // Register standard trait protocol policies.
     rules::core::ad_hoc_collection_construction::register_lints(sess, lint_store);

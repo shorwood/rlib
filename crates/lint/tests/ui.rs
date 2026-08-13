@@ -389,7 +389,10 @@ fn run_serde_fixtures() {
 #[cfg(feature = "thiserror")]
 fn run_thiserror_fixtures() {
     let selected = selected_framework_fixture();
-    for example in ["thiserror_duplicate_error_messages"] {
+    for example in [
+        "thiserror_duplicate_error_messages",
+        "thiserror_dynamic_errors_in_library_interfaces",
+    ] {
         if selected
             .as_deref()
             .is_some_and(|selected| selected != example)
