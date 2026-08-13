@@ -22,18 +22,16 @@ use crate::utils::source_provenance::ItemProvenanceExt;
 // -----------------------------------------------------------------------------
 // Module: Complete module analysis
 // -----------------------------------------------------------------------------
-
-/// Authored and inferred names involved in one section-prefix mismatch.
 #[derive(Clone, Copy)]
+/// Authored and inferred names involved in one section-prefix mismatch.
 struct ModulePrefixMismatch<'name> {
     /// Prefix written in the divider.
     authored: &'name str,
     /// Shared prefix inferred from the declarations.
     expected: &'name str,
 }
-
-/// Validated section prefix passed through module-level checks.
 #[derive(Clone, Copy)]
+/// Validated section prefix passed through module-level checks.
 struct ModuleSectionPrefix<'name> {
     /// Authored `PascalCase` prefix.
     text: &'name str,
@@ -402,7 +400,7 @@ impl ModuleAnalysis {
         if namespace.is_some_and(|namespace| namespace.prefix == prefix.text) {
             return None;
         }
-        let names = section.participants.names();
+        let names = section.participants.family_names();
 
         // Report declarations with no shared naming root directly.
         let Some(expected) = identifier_case::longest_common_pascal_prefix(&names) else {

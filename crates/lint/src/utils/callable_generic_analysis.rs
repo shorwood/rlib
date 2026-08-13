@@ -53,18 +53,16 @@ struct CallableGenericDeclaration {
     /// Own authored type parameters evaluated independently.
     parameters: Vec<CallableGenericParameter>,
 }
-
-/// Stable evidence key for one callable parameter.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
+/// Stable evidence key for one callable parameter.
 struct CallableGenericParameterId {
     /// Owning callable.
     declaration: LocalDefId,
     /// Absolute compiler generic-argument index.
     argument_index: usize,
 }
-
-/// Complete resolved call evidence for one callable parameter.
 #[derive(Default)]
+/// Complete resolved call evidence for one callable parameter.
 struct CallableGenericEvidence {
     /// Concrete substitutions and representative call spans.
     concrete: HashMap<String, Vec<Span>>,
@@ -83,11 +81,10 @@ struct CallableGenericFreeFunction<'hir> {
 }
 
 // -----------------------------------------------------------------------------
-// ResolvedCall: Conservative call evidence
+// ResolvedCallBoundary: Conservative call evidence
 // -----------------------------------------------------------------------------
-
-/// Whether authored call syntax preserves a conservative open boundary.
 #[derive(Clone, Copy)]
+/// Whether authored call syntax preserves a conservative open boundary.
 enum ResolvedCallBoundary {
     /// Compiler-resolved arguments may supply concrete evidence.
     Concrete,
@@ -121,11 +118,10 @@ impl ResolvedCallBoundary {
 const RESOLVED_CALL_MAX_REPRESENTATIVE_SPANS: usize = 4;
 
 // -----------------------------------------------------------------------------
-// CallableVisibility: Publication context
+// CallableVisibilityContext: Publication context
 // -----------------------------------------------------------------------------
-
-/// Publication context retained for callable diagnostics.
 #[derive(Clone, Copy)]
+/// Publication context retained for callable diagnostics.
 enum CallableVisibilityContext {
     /// Private callable or callable in an executable target.
     Ordinary,
@@ -161,7 +157,7 @@ fn callable_visibility_is_binary_crate(cx: &LateContext<'_>) -> bool {
 }
 
 // -----------------------------------------------------------------------------
-// ExplicitOpenType: Authored abstract syntax
+// ExplicitOpenTypeVisitor: Authored abstract syntax
 // -----------------------------------------------------------------------------
 
 /// Returns whether explicit type syntax is inherently abstract.
@@ -230,9 +226,8 @@ impl<'tcx> Visitor<'tcx> for ExplicitOpenTypeVisitor<'_, 'tcx> {
 // -----------------------------------------------------------------------------
 // CallableGenericAnalyzer: Crate wide resolved calls
 // -----------------------------------------------------------------------------
-
-/// Collects eligible callables, direct resolved calls, and callable escapes.
 #[derive(Default)]
+/// Collects eligible callables, direct resolved calls, and callable escapes.
 pub struct CallableGenericAnalyzer {
     /// Eligible declarations indexed independently from traversal order.
     declarations: HashMap<LocalDefId, CallableGenericDeclaration>,

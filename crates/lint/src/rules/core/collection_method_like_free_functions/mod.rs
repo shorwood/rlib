@@ -18,9 +18,8 @@ use crate::utils::free_function_analysis::FreeFunctionExt;
 // -----------------------------------------------------------------------------
 // Collection: Collection receiver forms
 // -----------------------------------------------------------------------------
-
-/// The method receiver that preserves how the original collection was passed.
 #[derive(Clone, Copy)]
+/// The method receiver that preserves how the original collection was passed.
 enum CollectionReceiver {
     /// Collection is passed by value through an immutable binding.
     Owned,
@@ -31,9 +30,8 @@ enum CollectionReceiver {
     /// Collection is borrowed through a mutable reference.
     Mutable,
 }
-
-/// Mutability of an owned collection's parameter binding.
 #[derive(Clone, Copy)]
+/// Mutability of an owned collection's parameter binding.
 enum CollectionBindingMutability {
     /// The binding is immutable.
     Immutable,
@@ -515,7 +513,7 @@ impl<'tcx> LateLintPass<'tcx> for CollectionMethodLikeFreeFunctions {
         // Resolve the source map used to exclude externally generated declarations.
         let source_map = cx.sess().source_map();
 
-        // Resolve authored items once so every candidate sees the same namespace.
+        // Resolve authored items once so every analyze_candidate sees the same namespace.
         let resolved = module
             .item_ids
             .iter()
@@ -525,10 +523,10 @@ impl<'tcx> LateLintPass<'tcx> for CollectionMethodLikeFreeFunctions {
             .collect::<Vec<_>>();
 
         for item in &items {
-            let Some(candidate) = Candidate::discover(cx, item) else {
+            let Some(analyze_candidate) = Candidate::discover(cx, item) else {
                 continue;
             };
-            candidate.violation(cx).emit(cx);
+            analyze_candidate.violation(cx).emit(cx);
         }
     }
 }

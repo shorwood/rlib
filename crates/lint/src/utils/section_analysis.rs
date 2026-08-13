@@ -6,7 +6,6 @@ use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{HirId, Mod};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::{BytePos, Span};
-use serde::Deserialize;
 
 use super::config::LibraryConfig;
 
@@ -17,47 +16,6 @@ mod module_analysis;
 
 use module_analysis::ModuleAnalysis;
 use template::{Template, TemplateMatch};
-
-// -----------------------------------------------------------------------------
-// SectionDividerConfig: Module section divider rendering
-// -----------------------------------------------------------------------------
-
-/// Shared configuration for the section-divider lint family.
-#[derive(Clone, Deserialize)]
-#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
-pub struct SectionDividerConfig {
-    /// Multiline divider template containing the required `{content}` placeholder.
-    pub(super) template: String,
-    /// Maximum rendered divider line width.
-    pub(super) max_line_length: usize,
-    /// Maximum declarations governed by one section divider.
-    pub(super) max_declarations_per_section: usize,
-}
-
-impl Default for SectionDividerConfig {
-    fn default() -> Self {
-        Self {
-            template: "// -----------------------------------------------------------------------------\n\
-                       // {content}\n\
-                       // -----------------------------------------------------------------------------"
-                .to_owned(),
-            max_line_length: 80,
-            max_declarations_per_section: 5,
-        }
-    }
-}
-
-impl SectionDividerConfig {
-    fn validate(&self) -> Result<(), String> {
-        if self.max_declarations_per_section == 0 {
-            return Err(
-                "section_dividers.max_declarations_per_section must be greater than zero"
-                    .to_owned(),
-            );
-        }
-        Ok(())
-    }
-}
 
 // -----------------------------------------------------------------------------
 // Section: Shared organization analysis data
@@ -108,9 +66,8 @@ pub struct SectionGroup {
     /// Distinct declarations governed by the divider.
     pub(super) participants: Vec<SectionParticipant>,
 }
-
-/// Findings split by lint identity so each rule remains independently configurable.
 #[derive(Default)]
+/// Findings split by lint identity so each rule remains independently configurable.
 pub struct SectionAnalysis {
     /// Declaration groups that have no preceding divider.
     pub(crate) missing: Vec<SectionFinding>,
@@ -141,9 +98,8 @@ impl SectionAnalysis {
 // -----------------------------------------------------------------------------
 // SectionAnalyzer: Source analysis
 // -----------------------------------------------------------------------------
-
-/// Authored content and indentation used to render one divider replacement.
 #[derive(Clone, Copy)]
+/// Authored content and indentation used to render one divider replacement.
 struct SectionAnalyzerRenderRequest<'source> {
     /// Canonical placeholder content.
     content: &'source str,
@@ -249,8 +205,8 @@ impl SectionAnalyzer {
 
 #[cfg(test)]
 mod config_tests {
-    use super::SectionDividerConfig;
     use crate::utils::config::LibraryConfig;
+    use crate::utils::section_divider_config::SectionDividerConfig;
 
     #[test]
     fn parses_custom_section_declaration_limit() {

@@ -7,11 +7,10 @@ use rustc_middle::ty::{self, Ty};
 use rustc_span::def_id::DefId;
 
 // -----------------------------------------------------------------------------
-// ParameterKind: Interchangeable primitive representations
+// Parameter: Interchangeable primitive representations
 // -----------------------------------------------------------------------------
-
-/// Primitive families whose values remain interchangeable at a call site.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+/// Primitive families whose values remain interchangeable at a call site.
 pub enum ParameterKind {
     /// One signed integer representation.
     SignedInteger {

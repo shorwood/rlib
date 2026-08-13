@@ -9,12 +9,63 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{attribute_name, attribute_source, builder_attribute, derives_bon_builder};
+use super::utils::{BonAttributeAnalysis, builder_attribute};
 use crate::utils::diagnostic::EarlyViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `member` value used by this analysis.
     member: String,
+}
+
+impl Violation {
+    /// Performs the `field_violation` step of the lint analysis.
+    fn field_violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Self> {
+        Self::conditional_policy(cx, &field.attrs).map(|span| Self {
+            span,
+            member: field
+                .ident
+                .map_or_else(|| "field".to_owned(), |ident| ident.to_string()),
+        })
+    }
+
+    /// Finds a conditional attribute that changes a member's builder policy.
+    fn conditional_policy(
+        cx: &EarlyContext<'_>,
+        attributes: &[rustc_ast::Attribute],
+    ) -> Option<Span> {
+        attributes.iter().find_map(|attribute| {
+            if BonAttributeAnalysis::name(attribute).is_none_or(|name| name.as_str() != "cfg_attr")
+            {
+                return None;
+            }
+            let source = match BonAttributeAnalysis::source(cx, attribute) {
+                Ok(source) => source,
+                Err(_error) => return None,
+            };
+            (source.contains("builder(")
+                && ["default", "required", "skip", "start_fn", "finish_fn"]
+                    .iter()
+                    .any(|policy| source.contains(policy)))
+            .then_some(attribute.span)
+        })
+    }
+}
+
+impl Violation {
+    /// Performs the `parameter_violation` step of the lint analysis.
+    fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Self> {
+        let member = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
+            Ok(member) => member,
+            Err(_error) => return None,
+        };
+        Self::conditional_policy(cx, &parameter.attrs).map(|span| Self {
+            span,
+            member: member.trim().to_owned(),
+        })
+    }
 }
 
 impl EarlyViolation for Violation {
@@ -51,6 +102,7 @@ impl EarlyViolation for Violation {
     }
 }
 
+/// Carries the `BonIncoherentConditionalBuilderMembers` state used by this analysis.
 struct BonIncoherentConditionalBuilderMembers;
 
 dylint_linting::impl_pre_expansion_lint! {
@@ -66,54 +118,23 @@ impl EarlyLintPass for BonIncoherentConditionalBuilderMembers {
         match &item.kind {
             ItemKind::Fn(function) if builder_attribute(&item.attrs).is_some() => {
                 for parameter in &function.sig.decl.inputs {
-                    if let Some(violation) = parameter_violation(cx, parameter) {
-                        violation.emit(cx);
-                    }
+                    let Some(violation) = Violation::parameter_violation(cx, parameter) else {
+                        continue;
+                    };
+                    violation.emit(cx);
                 }
             }
-            ItemKind::Struct(_, _, data) if derives_bon_builder(cx, &item.attrs) => {
+            ItemKind::Struct(_, _, data)
+                if BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
+            {
                 for field in data.fields() {
-                    if let Some(violation) = field_violation(cx, field) {
-                        violation.emit(cx);
-                    }
+                    let Some(violation) = Violation::field_violation(cx, field) else {
+                        continue;
+                    };
+                    violation.emit(cx);
                 }
             }
             _ => {}
         }
     }
-}
-
-fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
-    let member = cx
-        .sess()
-        .source_map()
-        .span_to_snippet(parameter.pat.span)
-        .ok()?;
-    conditional_policy(cx, &parameter.attrs).map(|span| Violation {
-        span,
-        member: member.trim().to_owned(),
-    })
-}
-
-fn field_violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Violation> {
-    conditional_policy(cx, &field.attrs).map(|span| Violation {
-        span,
-        member: field
-            .ident
-            .map_or_else(|| "field".to_owned(), |ident| ident.to_string()),
-    })
-}
-
-fn conditional_policy(cx: &EarlyContext<'_>, attributes: &[rustc_ast::Attribute]) -> Option<Span> {
-    attributes.iter().find_map(|attribute| {
-        if attribute_name(attribute).is_none_or(|name| name.as_str() != "cfg_attr") {
-            return None;
-        }
-        let source = attribute_source(cx, attribute)?;
-        (source.contains("builder(")
-            && ["default", "required", "skip", "start_fn", "finish_fn"]
-                .iter()
-                .any(|policy| source.contains(policy)))
-        .then_some(attribute.span)
-    })
 }

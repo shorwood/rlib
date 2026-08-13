@@ -4,25 +4,39 @@ use serde::Deserialize;
 
 #[derive(Clone, Default, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
-pub struct BonApiBaselineConfig {
-    builders: HashMap<String, BonBuilderBaseline>,
-}
-
-#[derive(Clone, Default, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+/// Carries the `BonBuilderBaseline` state used by this analysis.
 struct BonBuilderBaseline {
+    /// Stores the `members` value used by this analysis.
     members: Vec<String>,
 }
 
+/// Builder and member identity used for baseline membership queries.
+#[derive(Clone, Copy)]
+pub(super) struct BonMemberPath<'name> {
+    /// Builder type name.
+    pub(super) builder: &'name str,
+    /// Builder member name.
+    pub(super) member: &'name str,
+}
+#[derive(Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
+/// Carries the `BonApiBaselineConfig` state used by this analysis.
+pub struct BonApiBaselineConfig {
+    /// Stores the `builders` value used by this analysis.
+    builders: HashMap<String, BonBuilderBaseline>,
+}
+
 impl BonApiBaselineConfig {
-    pub(crate) fn contains_builder(&self, builder: &str) -> bool {
+    /// Performs the `contains_builder` operation for this value.
+    pub(super) fn contains_builder(&self, builder: &str) -> bool {
         self.builders.contains_key(builder)
     }
 
-    pub(crate) fn contains_member(&self, builder: &str, member: &str) -> bool {
+    /// Performs the `contains_member` operation for this value.
+    pub(super) fn contains_member(&self, path: BonMemberPath<'_>) -> bool {
         self.builders
-            .get(builder)
-            .is_some_and(|baseline| baseline.members.iter().any(|known| known == member))
+            .get(path.builder)
+            .is_some_and(|baseline| baseline.members.iter().any(|known| known == path.member))
     }
 }
 
@@ -40,7 +54,13 @@ mod tests {
         )
         .expect("Bon API baseline should parse");
         assert!(config.contains_builder("Request"));
-        assert!(config.contains_member("Request", "host"));
-        assert!(!config.contains_member("Request", "port"));
+        assert!(config.contains_member(super::BonMemberPath {
+            builder: "Request",
+            member: "host",
+        }));
+        assert!(!config.contains_member(super::BonMemberPath {
+            builder: "Request",
+            member: "port",
+        }));
     }
 }

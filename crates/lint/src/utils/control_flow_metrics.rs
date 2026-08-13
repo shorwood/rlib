@@ -7,7 +7,7 @@ use rustc_lint::LateContext;
 use super::function_layout_analysis::FunctionLayoutAnalyzerSpanExt;
 
 // -----------------------------------------------------------------------------
-// ControlFlowMetrics: Match arm and method chain measurements
+// ControlFlow: Match arm and method chain measurements
 // -----------------------------------------------------------------------------
 
 /// Match-arm measurements colocated with compiler arms.

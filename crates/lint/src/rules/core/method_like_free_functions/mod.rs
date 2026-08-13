@@ -25,9 +25,8 @@ use crate::utils::standard_interface_analysis::StandardInterfaceAnalysis;
 // -----------------------------------------------------------------------------
 // Violation: Method relocation diagnostic
 // -----------------------------------------------------------------------------
-
-/// Whether a candidate can reuse its authored function name as a method.
 #[derive(Clone, Copy)]
+/// Whether a `analyze_candidate` can reuse its authored function name as a method.
 enum ViolationMigrationAvailability {
     /// The destination method name is free.
     Available,
@@ -36,9 +35,9 @@ enum ViolationMigrationAvailability {
 }
 
 impl ViolationMigrationAvailability {
-    /// Resolves whether a candidate's authored name is available on its destination type.
-    fn for_candidate(cx: &LateContext<'_>, candidate: &MethodCandidate) -> Self {
-        if candidate.has_method_collision(cx) {
+    /// Resolves whether a `analyze_candidate`'s authored name is available on its destination type.
+    fn for_candidate(cx: &LateContext<'_>, analyze_candidate: &MethodCandidate) -> Self {
+        if analyze_candidate.has_method_collision(cx) {
             Self::NameCollision
         } else {
             Self::Available
@@ -145,9 +144,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // MethodLikeFreeFunctions: Lint pass
 // -----------------------------------------------------------------------------
-
-/// Collects the information needed to find misplaced functions and safely move them.
 #[derive(Default)]
+/// Collects the information needed to find misplaced functions and safely move them.
 struct MethodLikeFreeFunctions {
     /// Free functions whose first parameter identifies a same-module struct.
     candidates: Vec<MethodCandidate>,
@@ -197,10 +195,10 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
             return;
         }
 
-        let Some(candidate) = MethodCandidate::discover(cx, item) else {
+        let Some(analyze_candidate) = MethodCandidate::discover(cx, item) else {
             return;
         };
-        self.candidates.push(candidate);
+        self.candidates.push(analyze_candidate);
     }
 
     fn check_fn(
@@ -220,10 +218,11 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
 
         // Retain canonical text helpers for formatting-specific precedence.
         self.interfaces.record_function(cx, kind, body, def_id);
-        let Some(candidate) = self.constructions.candidate(def_id) else {
+        let Some(analyze_candidate) = self.constructions.analyze_candidate(def_id) else {
             return;
         };
-        self.conversions.record_function(cx, kind, body, candidate);
+        self.conversions
+            .record_function(cx, kind, body, analyze_candidate);
     }
 
     /// Remembers uses of local names and free functions that a later fix may need to rewrite.
@@ -250,7 +249,7 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
         }
     }
 
-    /// Reports every candidate after all possible references have been collected.
+    /// Reports every `analyze_candidate` after all possible references have been collected.
     ///
     /// Waiting until the end prevents a fix from overlooking a call that appears later in the
     /// source.
@@ -261,9 +260,9 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
 
         // References are only complete after the entire crate has been visited. Waiting until now
         // lets a migration update every call site or decline the fix as one atomic decision.
-        for candidate in &self.candidates {
+        for analyze_candidate in &self.candidates {
             // Suppress generic relocation whenever a more specific protocol owns the definition.
-            let definition = candidate.definition_id();
+            let definition = analyze_candidate.definition_id();
             let has_conversion = self
                 .conversions
                 .target_owned_definitions()
@@ -278,7 +277,7 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
             }
 
             // Generic method ownership remains the most specific available advice.
-            self.emit_candidate(cx, candidate);
+            self.emit_candidate(cx, analyze_candidate);
         }
     }
 }
@@ -295,7 +294,7 @@ impl MethodLikeFreeFunctions {
             })
     }
 
-    /// Records one source reference to a candidate's first-parameter binding.
+    /// Records one source reference to a `analyze_candidate`'s first-parameter binding.
     fn record_binding_use(&mut self, cx: &LateContext<'_>, expr: &Expr<'_>, binding_id: HirId) {
         // Preserve struct-shorthand context alongside the binding reference span.
         let shorthand_field = Self::shorthand_field(cx, expr);
@@ -333,14 +332,14 @@ impl MethodLikeFreeFunctions {
     fn candidate_migration(
         &self,
         cx: &LateContext<'_>,
-        candidate: &MethodCandidate,
+        analyze_candidate: &MethodCandidate,
         availability: ViolationMigrationAvailability,
     ) -> Option<Vec<MigrationEdit>> {
         matches!(availability, ViolationMigrationAvailability::Available)
             .then(|| {
                 MigrationBuilder::new(
                     cx,
-                    candidate,
+                    analyze_candidate,
                     &self.candidates,
                     &self.binding_uses,
                     &self.function_uses,
@@ -356,10 +355,10 @@ impl MethodLikeFreeFunctions {
     ///
     /// When no automatic migration is available, the help still explains the intended method form
     /// or the naming collision that requires a manual choice.
-    fn emit_candidate(&self, cx: &LateContext<'_>, candidate: &MethodCandidate) {
+    fn emit_candidate(&self, cx: &LateContext<'_>, analyze_candidate: &MethodCandidate) {
         // Resolve name collisions and the complete safe migration before reporting.
-        let availability = ViolationMigrationAvailability::for_candidate(cx, candidate);
-        let migration = self.candidate_migration(cx, candidate, availability);
+        let availability = ViolationMigrationAvailability::for_candidate(cx, analyze_candidate);
+        let migration = self.candidate_migration(cx, analyze_candidate, availability);
 
         // Preserve the exact safe migration or its crate-wide manual barrier.
         let remediation = match migration {
@@ -368,16 +367,16 @@ impl MethodLikeFreeFunctions {
                 ViolationRemediation::NameCollision
             }
             None => ViolationRemediation::Manual {
-                receiver: candidate.receiver_description(),
+                receiver: analyze_candidate.receiver_description(),
             },
         };
 
         // Capture the complete ownership and migration context before emitting.
         let violation = Violation {
-            hir_id: candidate.hir_id(),
-            span: candidate.name_span(),
-            function_name: candidate.function_name(),
-            struct_name: candidate.struct_name(),
+            hir_id: analyze_candidate.hir_id(),
+            span: analyze_candidate.name_span(),
+            function_name: analyze_candidate.function_name(),
+            struct_name: analyze_candidate.struct_name(),
             remediation,
         };
 

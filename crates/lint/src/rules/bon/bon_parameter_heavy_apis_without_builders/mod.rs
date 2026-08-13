@@ -14,11 +14,17 @@ use rustc_span::def_id::LocalDefId;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::parameter_analysis::ParameterSignature;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `owner` value used by this analysis.
     owner: rustc_hir::HirId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `parameter_count` value used by this analysis.
     parameter_count: usize,
+    /// Stores the `boolean_count` value used by this analysis.
     boolean_count: usize,
+    /// Stores the `ambiguous_groups` value used by this analysis.
     ambiguous_groups: usize,
 }
 
@@ -57,7 +63,19 @@ impl LateViolation for Violation {
     }
 }
 
+/// Carries the `BonParameterHeavyApisWithoutBuilders` state used by this analysis.
 struct BonParameterHeavyApisWithoutBuilders;
+
+impl BonParameterHeavyApisWithoutBuilders {
+    /// Parameter count at which ambiguity warrants a builder unconditionally.
+    const UNCONDITIONAL_PARAMETER_THRESHOLD: usize = 7;
+
+    /// Parameter count at which additional ambiguity warrants a builder.
+    const AMBIGUOUS_PARAMETER_THRESHOLD: usize = 5;
+
+    /// Boolean choices sufficient to make a medium-sized signature ambiguous.
+    const BOOLEAN_CHOICE_THRESHOLD: usize = 2;
+}
 
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
@@ -77,6 +95,7 @@ impl LateLintPass<'_> for BonParameterHeavyApisWithoutBuilders {
         _: Span,
         def_id: LocalDefId,
     ) {
+        // Reject inputs that do not satisfy this stage.
         if !cx.tcx.visibility(def_id).is_public() {
             return;
         }
@@ -84,13 +103,19 @@ impl LateLintPass<'_> for BonParameterHeavyApisWithoutBuilders {
             return;
         };
         let parameter_count = signature.parameter_count();
+
+        // Prepare the values used by this stage.
         let boolean_count = signature.boolean_parameters().len();
         let ambiguous_groups = signature.ambiguous_groups().len();
-        if parameter_count < 5
-            || (parameter_count < 7 && boolean_count < 2 && ambiguous_groups == 0)
+        if parameter_count < Self::AMBIGUOUS_PARAMETER_THRESHOLD
+            || (parameter_count < Self::UNCONDITIONAL_PARAMETER_THRESHOLD
+                && boolean_count < Self::BOOLEAN_CHOICE_THRESHOLD
+                && ambiguous_groups == 0)
         {
             return;
         }
+
+        // Perform the next step of the analysis.
         Violation {
             owner: signature.hir_id,
             span: signature.name_span(),

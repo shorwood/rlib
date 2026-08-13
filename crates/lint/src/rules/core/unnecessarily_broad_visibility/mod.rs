@@ -177,9 +177,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // UnnecessarilyBroadVisibility: Observed reach policy
 // -----------------------------------------------------------------------------
-
-/// Crate-wide visibility and use collector.
 #[derive(Default)]
+/// Crate-wide visibility and use collector.
 struct UnnecessarilyBroadVisibility {
     /// Shared analysis used to derive canonical declaration boundaries.
     analyzer: VisibilityUsageAnalyzer,

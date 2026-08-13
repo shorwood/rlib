@@ -15,15 +15,15 @@ use crate::utils::diagnostic::EarlyViolation;
 // Violation: Ambiguous boolean grouping diagnostic
 // -----------------------------------------------------------------------------
 
-/// Authored boolean expression whose direct operand uses the opposite operator.
+/// Authored boolean expression whose direct operand uses the opposite `analyze_operator`.
 struct Violation {
     /// Complete mixed expression span used as the primary diagnostic location.
     span: Span,
     /// Direct mixed operand span shown as the grouping site.
     mixed_operand_span: Span,
-    /// Outer boolean operator.
+    /// Outer boolean `analyze_operator`.
     outer_operator: &'static str,
-    /// Nested opposing boolean operator.
+    /// Nested opposing boolean `analyze_operator`.
     inner_operator: &'static str,
 }
 
@@ -86,17 +86,17 @@ impl EarlyLintPass for UnparenthesizedMixedBooleanOperators {
         }
 
         // Resolve the authored outer boolean expression before locating its mixed operand.
-        let ExprKind::Binary(operator, left, right) = &expression.kind else {
+        let ExprKind::Binary(analyze_operator, left, right) = &expression.kind else {
             return;
         };
-        if !Self::is_boolean(operator.node) {
+        if !Self::is_boolean(analyze_operator.node) {
             return;
         }
 
-        // Identify the direct operand whose opposing operator needs explicit grouping.
+        // Identify the direct operand whose opposing analyze_operator needs explicit grouping.
         let Some(mixed_operand) = [left, right]
             .into_iter()
-            .find(|operand| Self::has_opposite_operator(operand, operator.node))
+            .find(|operand| Self::has_opposite_operator(operand, analyze_operator.node))
         else {
             return;
         };
@@ -105,44 +105,44 @@ impl EarlyLintPass for UnparenthesizedMixedBooleanOperators {
         Violation {
             span: expression.span,
             mixed_operand_span: mixed_operand.span,
-            outer_operator: Self::operator_text(operator.node),
-            inner_operator: Self::operator_text(Self::opposite(operator.node)),
+            outer_operator: Self::operator_text(analyze_operator.node),
+            inner_operator: Self::operator_text(Self::opposite(analyze_operator.node)),
         }
         .emit(cx);
     }
 }
 
 impl UnparenthesizedMixedBooleanOperators {
-    /// Returns whether an operator participates in boolean short-circuiting.
-    const fn is_boolean(operator: BinOpKind) -> bool {
-        matches!(operator, BinOpKind::And | BinOpKind::Or)
+    /// Returns whether an `analyze_operator` participates in boolean short-circuiting.
+    const fn is_boolean(analyze_operator: BinOpKind) -> bool {
+        matches!(analyze_operator, BinOpKind::And | BinOpKind::Or)
     }
 
-    /// Returns the opposing short-circuit operator for a validated boolean operator.
-    const fn opposite(operator: BinOpKind) -> BinOpKind {
-        match operator {
+    /// Returns the opposing short-circuit `analyze_operator` for a validated boolean `analyze_operator`.
+    const fn opposite(analyze_operator: BinOpKind) -> BinOpKind {
+        match analyze_operator {
             BinOpKind::And => BinOpKind::Or,
             BinOpKind::Or => BinOpKind::And,
             _ => unreachable!(),
         }
     }
 
-    /// Renders a validated short-circuit operator in authored Rust syntax.
-    const fn operator_text(operator: BinOpKind) -> &'static str {
-        match operator {
+    /// Renders a validated short-circuit `analyze_operator` in authored Rust syntax.
+    const fn operator_text(analyze_operator: BinOpKind) -> &'static str {
+        match analyze_operator {
             BinOpKind::And => "&&",
             BinOpKind::Or => "||",
             _ => unreachable!(),
         }
     }
 
-    /// Returns whether a direct operand uses the other boolean operator.
+    /// Returns whether a direct operand uses the other boolean `analyze_operator`.
     const fn has_opposite_operator(expression: &Expr, parent: BinOpKind) -> bool {
-        let ExprKind::Binary(operator, ..) = expression.kind else {
+        let ExprKind::Binary(analyze_operator, ..) = expression.kind else {
             return false;
         };
         matches!(
-            (parent, operator.node),
+            (parent, analyze_operator.node),
             (BinOpKind::And, BinOpKind::Or) | (BinOpKind::Or, BinOpKind::And)
         )
     }

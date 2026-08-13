@@ -16,9 +16,13 @@ use rustc_span::def_id::LocalDefId;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::impl_target::ImplTargetExt;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `name` value used by this analysis.
     name: String,
+    /// Stores the `setters` value used by this analysis.
     setters: usize,
 }
 
@@ -61,18 +65,37 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `Candidate` state used by this analysis.
 struct Candidate {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `name` value used by this analysis.
     name: String,
+    /// Stores the `fields` value used by this analysis.
     fields: usize,
+    /// Stores the `has_start` value used by this analysis.
     has_start: bool,
+    /// Stores the `setters` value used by this analysis.
     setters: usize,
+    /// Stores the `has_terminal` value used by this analysis.
     has_terminal: bool,
 }
 
+/// Performs the `is_fallible` step of the lint analysis.
+fn is_fallible(cx: &LateContext<'_>, ty: ty::Ty<'_>) -> bool {
+    matches!(ty.kind(), ty::Adt(definition, _) if matches!(cx.tcx.item_name(definition.did()).as_str(), "Result" | "Option"))
+}
+
 #[derive(Default)]
+/// Carries the `BonManualBuilderImplementations` state used by this analysis.
 struct BonManualBuilderImplementations {
+    /// Stores the `candidates` value used by this analysis.
     candidates: HashMap<LocalDefId, Candidate>,
+}
+
+impl BonManualBuilderImplementations {
+    /// Minimum structural fields and setters that establish a builder protocol.
+    const MINIMUM_STRUCTURAL_MEMBERS: usize = 2;
 }
 
 dylint_linting::impl_late_lint! {
@@ -85,13 +108,19 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for BonManualBuilderImplementations {
     fn check_item(&mut self, _cx: &LateContext<'_>, item: &Item<'_>) {
+        // Prepare the values used by this stage.
         let ItemKind::Struct(identifier, _, data) = item.kind else {
             return;
         };
         let name = identifier.name.as_str();
-        if item.span.from_expansion() || !name.ends_with("Builder") || data.fields().len() < 2 {
+        if item.span.from_expansion()
+            || !name.ends_with("Builder")
+            || data.fields().len() < Self::MINIMUM_STRUCTURAL_MEMBERS
+        {
             return;
         }
+
+        // Update the accumulated analysis state.
         self.candidates.insert(
             item.owner_id.def_id,
             Candidate {
@@ -104,6 +133,7 @@ impl LateLintPass<'_> for BonManualBuilderImplementations {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Prepare the values used by this stage.
         let ImplItemKind::Fn(signature, _) = item.kind else {
             return;
         };
@@ -111,59 +141,69 @@ impl LateLintPass<'_> for BonManualBuilderImplementations {
             return;
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
+
+        // Prepare the values used by this stage.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return;
         };
         let Some(definition) = parent.direct_struct(cx) else {
             return;
         };
-        let Some(candidate) = self.candidates.get_mut(&definition) else {
+
+        // Prepare the values used by this stage.
+        let Some(analyze_candidate) = self.candidates.get_mut(&definition) else {
             return;
         };
+
+        // Prepare the values used by this stage.
         let function = cx
             .tcx
             .fn_sig(item.owner_id.def_id)
             .instantiate_identity()
             .skip_binder();
         let output_is_builder = matches!(function.output().kind(), ty::Adt(adt, _) if adt.did() == definition.to_def_id());
+
+        // Prepare the values used by this stage.
         let receiver_is_builder = function
             .inputs()
             .first()
             .is_some_and(|receiver| matches!(receiver.kind(), ty::Adt(adt, _) if adt.did() == definition.to_def_id()));
         let name = item.ident.name.as_str();
+
+        // Reject inputs that do not satisfy this stage.
         if !signature.decl.implicit_self.has_implicit_self() {
-            candidate.has_start |=
+            analyze_candidate.has_start |=
                 name == "new" && function.inputs().is_empty() && output_is_builder;
         } else if receiver_is_builder && function.inputs().len() == 2 && output_is_builder {
-            candidate.setters += 1;
+            analyze_candidate.setters += 1;
         } else if receiver_is_builder
             && function.inputs().len() == 1
             && matches!(name, "build" | "complete" | "finish")
             && !output_is_builder
             && !is_fallible(cx, function.output())
         {
-            candidate.has_terminal = true;
+            analyze_candidate.has_terminal = true;
         }
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for candidate in self.candidates.values() {
-            if candidate.has_start
-                && candidate.has_terminal
-                && candidate.setters >= 2
-                && candidate.setters >= candidate.fields
+        for analyze_candidate in self.candidates.values() {
+            // Reject inputs that do not satisfy this stage.
+            if !(analyze_candidate.has_start
+                && analyze_candidate.has_terminal
+                && analyze_candidate.setters >= Self::MINIMUM_STRUCTURAL_MEMBERS
+                && analyze_candidate.setters >= analyze_candidate.fields)
             {
-                Violation {
-                    span: candidate.span,
-                    name: candidate.name.clone(),
-                    setters: candidate.setters,
-                }
-                .emit(cx);
+                continue;
             }
+
+            // Perform the next step of the analysis.
+            Violation {
+                span: analyze_candidate.span,
+                name: analyze_candidate.name.clone(),
+                setters: analyze_candidate.setters,
+            }
+            .emit(cx);
         }
     }
-}
-
-fn is_fallible(cx: &LateContext<'_>, ty: ty::Ty<'_>) -> bool {
-    matches!(ty.kind(), ty::Adt(definition, _) if matches!(cx.tcx.item_name(definition.did()).as_str(), "Result" | "Option"))
 }

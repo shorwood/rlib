@@ -13,10 +13,15 @@ use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer, PredicateProvider};
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `owner` value used by this analysis.
     owner: rustc_hir::HirId,
+    /// Stores the `enum_name` value used by this analysis.
     enum_name: Symbol,
+    /// Stores the `is_public_api` value used by this analysis.
     is_public_api: bool,
 }
 
@@ -55,12 +60,16 @@ impl LateViolation for Violation {
     }
 }
 
+/// Carries the `DeriveMoreManualVariantAccessors` state used by this analysis.
 struct DeriveMoreManualVariantAccessors {
+    /// Stores the `analyzer` value used by this analysis.
     analyzer: PredicateFamilyAnalyzer,
+    /// Stores the `provider` value used by this analysis.
     provider: Option<PredicateProvider>,
 }
 
 impl DeriveMoreManualVariantAccessors {
+    /// Performs the `new` operation for this value.
     fn new() -> Self {
         Self {
             analyzer: PredicateFamilyAnalyzer::default(),
@@ -86,17 +95,21 @@ impl LateLintPass<'_> for DeriveMoreManualVariantAccessors {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for family in self.analyzer.complete_families(cx) {
-            if PredicateFamily::selected(cx, self.provider)
-                == Some(PredicateProvider::DeriveMoreIsVariant)
+            // Reject inputs that do not satisfy this stage.
+            if !(PredicateFamily::selected(cx, self.provider)
+                == Some(PredicateProvider::DeriveMoreIsVariant))
             {
-                Violation {
-                    span: family.span,
-                    owner: family.owner,
-                    enum_name: family.enum_name(cx),
-                    is_public_api: family.is_public_api(),
-                }
-                .emit(cx);
+                continue;
             }
+
+            // Perform the next step of the analysis.
+            Violation {
+                span: family.span,
+                owner: family.owner,
+                enum_name: family.enum_name(cx),
+                is_public_api: family.is_public_api(),
+            }
+            .emit(cx);
         }
     }
 }

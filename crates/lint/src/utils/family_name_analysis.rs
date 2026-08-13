@@ -215,7 +215,6 @@ impl FamilyInference<'_> {
 // -----------------------------------------------------------------------------
 // Confidence: Fixed inference evidence weights
 // -----------------------------------------------------------------------------
-
 #[derive(Clone, Copy)]
 /// Fixed evidence categories used by family-name confidence scoring.
 enum ConfidenceSignal {
@@ -238,9 +237,8 @@ enum ConfidenceSignal {
     /// Multiple dependency owners imply incompatible family stems.
     CompetingStem,
 }
-
-/// Namespace availability of an inferred exact replacement.
 #[derive(Clone, Copy)]
+/// Namespace availability of an inferred exact replacement.
 enum ConfidenceNameAvailability {
     /// Every inferred replacement is available.
     Available,
@@ -265,7 +263,6 @@ impl ConfidenceNameAvailability {
         }
     }
 }
-
 #[derive(Default)]
 /// Ordered confidence signals collected while evaluating one family.
 struct ConfidenceEvidence(
@@ -316,12 +313,11 @@ impl ConfidenceEvidence {
 
 /// Nominal declaration whose redundant section prefix can be removed.
 struct FamilyCandidate<'section> {
-    /// Authored declaration represented by this candidate.
+    /// Authored declaration represented by this `analyze_candidate`.
     participant: &'section SectionParticipant,
     /// Role-bearing name tokens left after removing the section prefix.
     name: NameTokens,
 }
-
 #[derive(Clone, Copy)]
 /// Directed dependency relationship between two affected candidates.
 struct FamilyCandidateRelationship {
@@ -640,7 +636,6 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
 // -----------------------------------------------------------------------------
 // NameTokens: Rust identifier word structure
 // -----------------------------------------------------------------------------
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 /// Identifier split into normalized `PascalCase` word tokens.
 struct NameTokens {

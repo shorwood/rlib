@@ -10,23 +10,21 @@ use rustc_lint::{LateContext, LintContext};
 use rustc_span::{BytePos, Span};
 
 use super::function_layout_comments::{FunctionLayoutEntryGap, FunctionLayoutFinding};
-use super::function_structure::FunctionStructureConfig;
+use super::function_structure_config::FunctionStructureConfig;
 
 // -----------------------------------------------------------------------------
 // FunctionLayout: Analyze direct code phases
 // -----------------------------------------------------------------------------
-
-/// Phase-comment findings separated by public lint identity.
 #[derive(Default)]
+/// Phase-comment findings separated by public lint identity.
 pub struct FunctionLayoutAnalysis {
     /// Oversized direct phases lacking sufficient semantic decomposition.
     pub(crate) missing: Vec<FunctionLayoutFinding>,
     /// Authored phase comments that violate syntax or placement rules.
     pub(crate) malformed: Vec<FunctionLayoutFinding>,
 }
-
-/// Whether a measured code phase already has an explanatory header.
 #[derive(Clone, Copy)]
+/// Whether a measured code phase already has an explanatory header.
 enum FunctionLayoutPhaseHeader {
     /// A canonical phase comment precedes the code.
     Present,

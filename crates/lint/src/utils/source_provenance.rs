@@ -9,10 +9,6 @@ use rustc_hir::{FieldDef, Item};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::Span;
 
-// -----------------------------------------------------------------------------
-// SpanProvenanceExt: Build generated span classification
-// -----------------------------------------------------------------------------
-
 /// Build-output provenance available directly on compiler spans.
 pub trait SpanProvenanceExt {
     /// Returns whether this span belongs to build-script output rather than package source.
@@ -31,10 +27,6 @@ impl SpanProvenanceExt for Span {
     }
 }
 
-// -----------------------------------------------------------------------------
-// ItemProvenanceExt: Framework generated item classification
-// -----------------------------------------------------------------------------
-
 /// Framework provenance available directly on HIR items.
 pub trait ItemProvenanceExt {
     /// Returns whether this item is synthetic framework glue at an authored call site.
@@ -49,43 +41,77 @@ impl ItemProvenanceExt for Item<'_> {
     }
 }
 
-/// Returns an authored item together with its immediately preceding outer attributes.
-pub fn authored_item_source(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
-    let source_map = cx.tcx.sess.source_map();
-    let item_source = source_map.span_to_snippet(item.span).ok()?;
-    let location = source_map.lookup_char_pos(item.span.lo());
-    let file_source = location.file.src.as_deref()?;
-    let offset = usize::try_from(item.span.lo().0.checked_sub(location.file.start_pos.0)?).ok()?;
-    let bytes = file_source.as_bytes();
-    let mut start = offset;
-    loop {
-        while start > 0 && bytes[start - 1].is_ascii_whitespace() {
-            start -= 1;
-        }
-        if start == 0 || bytes[start - 1] != b']' {
-            break;
-        }
-        let mut cursor = start - 1;
-        let mut depth = 1_u32;
-        while cursor > 0 && depth > 0 {
-            cursor -= 1;
-            match bytes[cursor] {
-                b']' => depth += 1,
-                b'[' => depth -= 1,
-                _ => {}
-            }
-        }
-        if depth != 0 || cursor == 0 || bytes[cursor - 1] != b'#' {
-            break;
-        }
-        start = cursor - 1;
-    }
-    Some(format!("{}{}", &file_source[start..offset], item_source))
-}
+/// Source text for one item, including every compiler-recorded outer attribute.
+#[derive(derive_more::Deref)]
+pub struct AuthoredItemSource(
+    /// Complete parseable source for the item.
+    String,
+);
 
-// -----------------------------------------------------------------------------
-// FieldProvenanceExt: Framework generated field classification
-// -----------------------------------------------------------------------------
+impl AuthoredItemSource {
+    /// Returns an authored item together with its immediately preceding outer attributes.
+    pub(crate) fn for_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+        // Prepare the values used by this stage.
+        let source_map = cx.tcx.sess.source_map();
+        let item_source = match source_map.span_to_snippet(item.span) {
+            Ok(source) => source,
+            Err(_error) => return None,
+        };
+        let location = source_map.lookup_char_pos(item.span.lo());
+        let file_source = location.file.src.as_deref()?;
+        let offset = match usize::try_from(item.span.lo().0.checked_sub(location.file.start_pos.0)?)
+        {
+            Ok(offset) => offset,
+            Err(_error) => return None,
+        };
+        let bytes = file_source.as_bytes();
+        let mut start = offset;
+
+        // Include adjacent attributes and doc comments without querying spans of parsed attributes.
+        loop {
+            while start > 0 && bytes[start - 1].is_ascii_whitespace() {
+                start -= 1;
+            }
+            if start == 0 {
+                break;
+            }
+
+            if bytes[start - 1] == b']' {
+                let mut cursor = start - 1;
+                let mut depth = 1_u32;
+                while cursor > 0 && depth > 0 {
+                    cursor -= 1;
+                    match bytes[cursor] {
+                        b']' => depth += 1,
+                        b'[' => depth -= 1,
+                        _ => {}
+                    }
+                }
+                if depth == 0 && cursor > 0 && bytes[cursor - 1] == b'#' {
+                    start = cursor - 1;
+                    continue;
+                }
+            }
+
+            let line_start = file_source[..start]
+                .rfind('\n')
+                .map_or(0, |newline| newline + 1);
+            let line = file_source[line_start..start].trim_start();
+            if line.starts_with("///") || line.starts_with("//!") {
+                start = line_start;
+                continue;
+            }
+            break;
+        }
+
+        // Return the completed analysis result.
+        Some(Self(format!(
+            "{}{}",
+            &file_source[start..offset],
+            item_source
+        )))
+    }
+}
 
 /// Framework provenance available directly on apparent HIR fields.
 pub trait FieldProvenanceExt {

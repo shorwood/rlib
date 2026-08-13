@@ -11,6 +11,17 @@ use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 
+/// Identifies a method through its defining crate and trait contract.
+#[derive(Clone, Copy)]
+struct TraitMethodIdentity {
+    /// Crate that defines the trait.
+    defining_crate: &'static str,
+    /// Associated method name.
+    method: &'static str,
+    /// Trait that owns the method.
+    owning_trait: &'static str,
+}
+
 // -----------------------------------------------------------------------------
 // Violation: Unkeyed reactive collection diagnostic
 // -----------------------------------------------------------------------------
@@ -73,10 +84,9 @@ impl LeptosUnkeyedReactiveCollections {
     fn method_belongs_to(
         cx: &LateContext<'_>,
         expression: &Expr<'_>,
-        crate_name: &str,
-        method_name: &str,
-        trait_name: &str,
+        identity: TraitMethodIdentity,
     ) -> bool {
+        // Prepare the values used by this stage.
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
         let Some(method) = cx
             .tcx
@@ -85,12 +95,13 @@ impl LeptosUnkeyedReactiveCollections {
         else {
             return false;
         };
-        cx.tcx.crate_name(method.krate).as_str() == crate_name
-            && cx.tcx.item_name(method).as_str() == method_name
-            && cx
-                .tcx
-                .trait_of_assoc(method)
-                .is_some_and(|trait_id| cx.tcx.item_name(trait_id).as_str() == trait_name)
+
+        // Perform the next step of the analysis.
+        cx.tcx.crate_name(method.krate).as_str() == identity.defining_crate
+            && cx.tcx.item_name(method).as_str() == identity.method
+            && cx.tcx.trait_of_assoc(method).is_some_and(|trait_id| {
+                cx.tcx.item_name(trait_id).as_str() == identity.owning_trait
+            })
     }
 
     /// Returns whether the rendering chain originates in a tracked signal clone.
@@ -99,7 +110,15 @@ impl LeptosUnkeyedReactiveCollections {
             return false;
         };
         if arguments.is_empty()
-            && Self::method_belongs_to(cx, expression, "reactive_graph", "get", "Get")
+            && Self::method_belongs_to(
+                cx,
+                expression,
+                TraitMethodIdentity {
+                    defining_crate: "reactive_graph",
+                    method: "get",
+                    owning_trait: "Get",
+                },
+            )
         {
             return true;
         }
@@ -109,20 +128,33 @@ impl LeptosUnkeyedReactiveCollections {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosUnkeyedReactiveCollections {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, receiver, arguments, _) = expression.kind else {
             return;
         };
         if !arguments.is_empty()
-            || !Self::method_belongs_to(cx, expression, "leptos", "collect_view", "CollectView")
+            || !Self::method_belongs_to(
+                cx,
+                expression,
+                TraitMethodIdentity {
+                    defining_crate: "leptos",
+                    method: "collect_view",
+                    owning_trait: "CollectView",
+                },
+            )
         {
             return;
         }
         let ExprKind::MethodCall(map, collection, [_], _) = receiver.kind else {
             return;
         };
+
+        // Reject inputs that do not satisfy this stage.
         if map.ident.name.as_str() != "map" || !Self::chain_contains_reactive_get(cx, collection) {
             return;
         }
+
+        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
             span: expression.span,

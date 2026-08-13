@@ -21,9 +21,8 @@ use super::identifier_case;
 // -----------------------------------------------------------------------------
 // Construction: Candidate semantic record
 // -----------------------------------------------------------------------------
-
-/// Container path from a function return type to the local value it constructs.
 #[derive(Clone, Copy, PartialEq, Eq)]
+/// Container path from a function return type to the local value it constructs.
 pub enum ConstructionReturn {
     /// The function returns the constructed type directly.
     Direct,
@@ -32,18 +31,16 @@ pub enum ConstructionReturn {
     /// The function returns exactly `Result<T, E>` for the constructed `T`.
     FallibleDirect,
 }
-
-/// Whether a constructor-like function is free or already associated with a type.
 #[derive(Clone, Copy, PartialEq, Eq)]
+/// Whether a constructor-like function is free or already associated with a type.
 pub enum ConstructionOrigin {
     /// A module-level free function.
     Free,
     /// A receiver-free function in an inherent implementation.
     Inherent,
 }
-
-/// Structural facts needed to recognize a canonical owned string parser.
 #[derive(Clone, Copy)]
+/// Structural facts needed to recognize a canonical owned string parser.
 pub struct ConstructionParserFacts {
     /// Whether the function takes exactly one immutable string slice.
     has_single_str_input: bool,
@@ -52,9 +49,8 @@ pub struct ConstructionParserFacts {
     /// Whether the target declares a lifetime that `FromStr` cannot return.
     has_target_lifetime: bool,
 }
-
-/// Authored source properties used by conservative constructor relocation.
 #[derive(Clone, Copy)]
+/// Authored source properties used by conservative constructor relocation.
 pub struct ConstructionMigrationFacts {
     /// Whether source visibility is private.
     pub(crate) is_private: bool,
@@ -65,9 +61,8 @@ pub struct ConstructionMigrationFacts {
 // -----------------------------------------------------------------------------
 // ConstructionCandidate: Function and target identity
 // -----------------------------------------------------------------------------
-
-/// Authored function identity retained by one construction candidate.
 #[derive(Clone)]
+/// Authored function identity retained by one construction `analyze_candidate`.
 pub struct ConstructionCandidateFunction {
     /// Function definition used to index resolved references.
     pub(crate) def_id: LocalDefId,
@@ -80,9 +75,8 @@ pub struct ConstructionCandidateFunction {
     /// Module containing the function and its construction target.
     pub(crate) module: LocalDefId,
 }
-
-/// Constructed local type and the return contract that reaches it.
 #[derive(Clone)]
+/// Constructed local type and the return contract that reaches it.
 pub struct ConstructionCandidateTarget {
     /// Local nominal type constructed by the body.
     pub(crate) def_id: LocalDefId,
@@ -91,9 +85,8 @@ pub struct ConstructionCandidateTarget {
     /// Standard-container shape around the constructed value.
     pub(super) return_shape: ConstructionReturn,
 }
-
-/// Function ownership facts used to select the responsible lint policy.
 #[derive(Clone, Copy)]
+/// Function ownership facts used to select the responsible lint policy.
 pub struct ConstructionCandidateOwnership {
     /// Whether the function is module-level or already associated.
     pub(crate) origin: ConstructionOrigin,
@@ -102,9 +95,8 @@ pub struct ConstructionCandidateOwnership {
     /// Whether the function and constructed type are defined in the same module.
     pub(crate) is_target_same_module: bool,
 }
-
-/// One authored function proven to construct a local nominal type.
 #[derive(Clone)]
+/// One authored function proven to construct a local nominal type.
 pub struct ConstructionCandidate {
     /// Function identity and source ownership.
     pub(crate) function: ConstructionCandidateFunction,
@@ -124,7 +116,7 @@ impl ConstructionCandidate {
         self.target.return_shape == ConstructionReturn::FallibleDirect
     }
 
-    /// Returns whether this candidate is a structurally canonical textual parser.
+    /// Returns whether this `analyze_candidate` is a structurally canonical textual parser.
     pub(super) fn is_text_parser(&self) -> bool {
         self.ownership.is_target_same_module
             && self.target.return_shape == ConstructionReturn::FallibleDirect
@@ -188,9 +180,8 @@ struct ConstructionInputSource {
     /// Whether attributes decorate the declaration.
     has_attributes: bool,
 }
-
-/// Outermost container used to distinguish exact `Result<T, E>` returns.
 #[derive(Clone, Copy)]
+/// Outermost container used to distinguish exact `Result<T, E>` returns.
 enum ConstructionInputContainerRoot {
     /// No standard container has been traversed.
     Direct,
@@ -203,18 +194,16 @@ enum ConstructionInputContainerRoot {
 // -----------------------------------------------------------------------------
 // ConstructionAnalysis: Crate wide discovery
 // -----------------------------------------------------------------------------
-
-/// One direct module item retained for guarded adjacency analysis.
 #[derive(Clone, Copy)]
+/// One direct module item retained for guarded adjacency analysis.
 pub struct ConstructionAnalysisModuleItem {
     /// Definition identity of the item.
     pub(crate) def_id: LocalDefId,
     /// Authored source range of the item.
     pub(crate) span: Span,
 }
-
-/// Crate-wide construction discovery shared by ownership and parser lints.
 #[derive(Default)]
+/// Crate-wide construction discovery shared by ownership and parser lints.
 pub struct ConstructionAnalysis {
     /// Proven constructor-like functions in traversal order.
     pub(crate) candidates: Vec<ConstructionCandidate>,
@@ -462,7 +451,7 @@ impl ConstructionAnalysis {
             .iter()
             .any(|parameter| matches!(parameter.kind, ty::GenericParamDefKind::Lifetime));
 
-        // Preserve the complete semantic candidate for crate-wide policy selection.
+        // Preserve the complete semantic analyze_candidate for crate-wide policy selection.
         let function_facts = ConstructionCandidateFunction {
             def_id,
             name: ident.name,
@@ -508,12 +497,12 @@ impl ConstructionAnalysis {
         });
     }
 
-    /// Returns the construction candidate most recently recorded for one function.
-    pub(crate) fn candidate(&self, def_id: LocalDefId) -> Option<&ConstructionCandidate> {
+    /// Returns the construction `analyze_candidate` most recently recorded for one function.
+    pub(crate) fn analyze_candidate(&self, def_id: LocalDefId) -> Option<&ConstructionCandidate> {
         self.candidates
             .iter()
             .rev()
-            .find(|candidate| candidate.function.def_id == def_id)
+            .find(|analyze_candidate| analyze_candidate.function.def_id == def_id)
     }
 
     /// Groups every structurally valid textual parser by its constructed target.
@@ -522,12 +511,12 @@ impl ConstructionAnalysis {
         let parsers = self
             .candidates
             .iter()
-            .filter(|candidate| candidate.is_text_parser());
-        for candidate in parsers {
+            .filter(|analyze_candidate| analyze_candidate.is_text_parser());
+        for analyze_candidate in parsers {
             families
-                .entry(candidate.target.def_id)
+                .entry(analyze_candidate.target.def_id)
                 .or_default()
-                .push(candidate);
+                .push(analyze_candidate);
         }
         families
     }

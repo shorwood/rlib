@@ -58,9 +58,8 @@ struct GenericAbstractionDeclaration {
     /// Explicit authored type parameters evaluated independently.
     parameters: Vec<GenericAbstractionParameter>,
 }
-
-/// Stable parameter identity used as the evidence-map key.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
+/// Stable parameter identity used as the evidence-map key.
 struct GenericAbstractionParameterId {
     /// Owning generic declaration.
     declaration: LocalDefId,
@@ -81,18 +80,16 @@ struct GenericAbstractionParts<'hir> {
 // -----------------------------------------------------------------------------
 // GenericSubstitution: Evidence classification
 // -----------------------------------------------------------------------------
-
-/// Observed substitutions and open-boundary evidence for one type parameter.
 #[derive(Default)]
+/// Observed substitutions and open-boundary evidence for one type parameter.
 struct GenericSubstitutionEvidence {
     /// Concrete substitution spelling and representative authored spans.
     concrete: HashMap<String, Vec<Span>>,
     /// Whether any active use inferred, projected, aliased, or forwarded this parameter.
     has_open_boundary: bool,
 }
-
-/// Visibility context carried into one diagnostic.
 #[derive(Clone, Copy, Eq, PartialEq)]
+/// Visibility context carried into one diagnostic.
 enum GenericSubstitutionVisibilityContext {
     /// Private declaration or declaration in an executable target.
     Ordinary,
@@ -163,7 +160,7 @@ pub struct GenericAbstractionFinding {
 }
 
 // -----------------------------------------------------------------------------
-// GenericAbstractionOpenType: Conservative type classification
+// GenericAbstractionOpenTypeVisitor: Conservative type classification
 // -----------------------------------------------------------------------------
 
 /// Returns whether one type form is inherently inferred or abstract.
@@ -231,9 +228,8 @@ impl<'tcx> Visitor<'tcx> for GenericAbstractionOpenTypeVisitor<'_, 'tcx> {
 // -----------------------------------------------------------------------------
 // GenericAbstractionAnalyzer: Crate wide substitution model
 // -----------------------------------------------------------------------------
-
-/// Collects eligible nominal declarations and every authored active substitution.
 #[derive(Default)]
+/// Collects eligible nominal declarations and every authored active substitution.
 pub struct GenericAbstractionAnalyzer {
     /// Eligible declarations indexed by local definition identity.
     declarations: HashMap<LocalDefId, GenericAbstractionDeclaration>,
@@ -473,7 +469,7 @@ impl GenericAbstractionAnalyzer {
             parameters,
         };
 
-        // Index the complete candidate after every eligibility decision is complete.
+        // Index the complete analyze_candidate after every eligibility decision is complete.
         self.declarations.insert(declaration.def_id, declaration);
     }
 

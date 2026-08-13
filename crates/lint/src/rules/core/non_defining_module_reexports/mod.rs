@@ -15,9 +15,8 @@ use crate::utils::diagnostic::EarlyViolation;
 // -----------------------------------------------------------------------------
 // ViolationKind: Reexport syntax classification
 // -----------------------------------------------------------------------------
-
-/// Authored syntax that exports an item from somewhere other than its defining module.
 #[derive(Clone, Copy)]
+/// Authored syntax that exports an item from somewhere other than its defining module.
 enum ViolationKind {
     /// Visibility-bearing `use` declaration for a local or external item.
     Use,

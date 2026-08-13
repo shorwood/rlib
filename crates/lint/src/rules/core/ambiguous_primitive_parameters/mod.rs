@@ -127,9 +127,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // AmbiguousPrimitiveParameters
 // -----------------------------------------------------------------------------
-
-/// Collects authored signatures before applying string-domain diagnostic precedence.
 #[derive(Default)]
+/// Collects authored signatures before applying string-domain diagnostic precedence.
 struct AmbiguousPrimitiveParameters {
     /// Function and method signatures awaiting crate-wide evidence.
     signatures: Vec<ParameterSignature>,

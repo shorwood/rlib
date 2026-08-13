@@ -15,9 +15,13 @@ use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::construction_analysis::{ConstructionAnalysis, ConstructionOrigin};
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `struct_span` value used by this analysis.
     struct_span: Span,
+    /// Stores the `constructor_span` value used by this analysis.
     constructor_span: Span,
+    /// Stores the `name` value used by this analysis.
     name: String,
 }
 
@@ -60,8 +64,11 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `DeriveMoreDerivedConstructorsBypassingInvariants` state used by this analysis.
 struct DeriveMoreDerivedConstructorsBypassingInvariants {
+    /// Stores the `catalog` value used by this analysis.
     catalog: DeriveMoreContractCatalog,
+    /// Stores the `constructions` value used by this analysis.
     constructions: ConstructionAnalysis,
 }
 
@@ -98,20 +105,27 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreDerivedConstructorsBypassingInvarian
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         for constructor in &self.constructions.candidates {
+            // Reject inputs that do not satisfy this stage.
             if constructor.ownership.origin != ConstructionOrigin::Inherent
                 || !constructor.is_fallible_direct()
             {
                 continue;
             }
+
+            // Prepare the values used by this stage.
             let Some(contract) = self
                 .catalog
                 .derived_type(constructor.target.def_id, "Constructor")
             else {
                 continue;
             };
+
+            // Reject inputs that do not satisfy this stage.
             if !contract.has_restricted_fields {
                 continue;
             }
+
+            // Perform the next step of the analysis.
             Violation {
                 struct_span: contract.span,
                 constructor_span: constructor.function.name_span,

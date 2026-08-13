@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
-use super::function_structure::FunctionStructureConfig;
-use super::section_analysis::SectionDividerConfig;
+use super::function_structure_config::FunctionStructureConfig;
+use super::section_divider_config::SectionDividerConfig;
 #[cfg(feature = "bon")]
 use crate::rules::bon::config::BonApiBaselineConfig;
 use crate::rules::core::incoherent_extension_traits::ExtensionTraitConfig;
@@ -16,9 +16,8 @@ use crate::rules::miette::config::MietteHelpConfig;
 // -----------------------------------------------------------------------------
 // LibraryConfig: Complete lint library configuration
 // -----------------------------------------------------------------------------
-
-/// Every configurable policy exposed through the `rlib-lint` Dylint table.
 #[derive(Clone, Default, Deserialize)]
+/// Every configurable policy exposed through the `rlib-lint` Dylint table.
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct LibraryConfig {
     /// Historical public Bon member snapshot used for compatibility checks.
@@ -67,6 +66,6 @@ mod tests {
             ",
         )
         .expect("custom extension trait limit should parse");
-        assert_eq!(config.extension_traits.max_methods, 5);
+        assert_eq!(config.extension_traits.max_methods(), 5);
     }
 }

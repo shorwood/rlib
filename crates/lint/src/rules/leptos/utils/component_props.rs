@@ -11,7 +11,7 @@ use rustc_span::def_id::DefId;
 use rustc_span::{Span, Symbol};
 
 // -----------------------------------------------------------------------------
-// ComponentProps: Leptos component property analysis
+// Component: Leptos component property analysis
 // -----------------------------------------------------------------------------
 
 /// One authored component property with its resolved semantic type.

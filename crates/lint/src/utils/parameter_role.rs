@@ -47,18 +47,18 @@ const PARAMETER_VOCABULARY_WEAK_NAMES: &[&str] =
 // -----------------------------------------------------------------------------
 
 /// Returns whether a name is too generic to establish a distinct domain role.
-pub(super) fn is_weak(name: &str) -> bool {
+pub(super) fn parameter_role_is_weak(name: &str) -> bool {
     PARAMETER_VOCABULARY_WEAK_NAMES.contains(&name)
 }
 
 /// Returns whether a role belongs to ordinary text-transformation vocabulary.
-fn is_generic(name: &str) -> bool {
+fn parameter_role_is_generic(name: &str) -> bool {
     PARAMETER_VOCABULARY_GENERIC_TEXT_ROLES.contains(&name)
         || matches!(name, "delimiter" | "separator")
 }
 
 /// Recognizes conventional role sets independently from compiler HIR records.
-pub(super) fn names_are_conventional(
+pub(super) fn parameter_role_names_are_conventional(
     function: &str,
     kind: ParameterKind,
     names: &[String],
@@ -83,7 +83,7 @@ pub(super) fn names_are_conventional(
     let operation_is_generic = PARAMETER_VOCABULARY_GENERIC_TEXT_OPERATIONS
         .iter()
         .any(|operation| function.contains(operation));
-    let operation_roles_are_generic = names.iter().all(|name| is_generic(name));
+    let operation_roles_are_generic = names.iter().all(|name| parameter_role_is_generic(name));
     all_roles_are_generic || (operation_is_generic && operation_roles_are_generic)
 }
 
@@ -96,18 +96,18 @@ mod tests {
     extern crate rustc_middle;
 
     use self::rustc_middle::ty;
-    use super::{ParameterKind, names_are_conventional};
+    use super::{ParameterKind, parameter_role_names_are_conventional};
 
     #[test]
     fn recognizes_same_domain_parameter_roles() {
-        assert!(names_are_conventional(
+        assert!(parameter_role_names_are_conventional(
             "point",
             ParameterKind::Float {
                 representation: ty::FloatTy::F64,
             },
             &["x".to_owned(), "y".to_owned()],
         ));
-        assert!(names_are_conventional(
+        assert!(parameter_role_names_are_conventional(
             "replace",
             ParameterKind::Text,
             &[
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn retains_distinct_domain_roles() {
-        assert!(!names_are_conventional(
+        assert!(!parameter_role_names_are_conventional(
             "authenticate",
             ParameterKind::Text,
             &[

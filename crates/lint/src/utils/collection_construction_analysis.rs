@@ -18,9 +18,8 @@ use super::identifier_case;
 // -----------------------------------------------------------------------------
 // Collection: Standard sequence ingestion model
 // -----------------------------------------------------------------------------
-
-/// Standard collection trait represented by an authored API.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+/// Standard collection trait represented by an authored API.
 pub enum CollectionContract {
     /// Complete construction from an item sequence.
     FromIterator,
@@ -48,9 +47,8 @@ impl CollectionContract {
         }
     }
 }
-
-/// Why an otherwise valid collection protocol remains reportable.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Why an otherwise valid collection protocol remains reportable.
 pub enum CollectionProblem {
     /// One implementation exists without the standard trait.
     MissingTrait,
@@ -82,9 +80,8 @@ impl CollectionProblem {
 // -----------------------------------------------------------------------------
 // CollectionFamilyCandidate: Complete diagnostic context
 // -----------------------------------------------------------------------------
-
-/// One proven sequence-to-storage protocol.
 #[derive(Clone)]
+/// One proven sequence-to-storage protocol.
 pub struct CollectionFamilyCandidateSource {
     /// Function definition used for lint levels and cross-policy precedence.
     pub hir_id: HirId,
@@ -97,9 +94,8 @@ pub struct CollectionFamilyCandidateSource {
     /// Storage operation proving complete item ingestion.
     pub evidence_span: Span,
 }
-
-/// Inferred standard collection contract shown in diagnostics.
 #[derive(Clone)]
+/// Inferred standard collection contract shown in diagnostics.
 pub struct CollectionFamilyCandidateProtocol {
     /// Local collection wrapper.
     pub target_name: String,
@@ -112,9 +108,8 @@ pub struct CollectionFamilyCandidateProtocol {
 // -----------------------------------------------------------------------------
 // CollectionFamily: Crate wide collection family
 // -----------------------------------------------------------------------------
-
-/// One proven sequence-to-storage protocol.
 #[derive(Clone)]
+/// One proven sequence-to-storage protocol.
 pub struct CollectionFamilyCandidate {
     /// Function definition used for cross-policy precedence.
     def_id: LocalDefId,
@@ -129,24 +124,22 @@ pub struct CollectionFamilyCandidate {
 }
 
 /// Reportable collection protocol with family classification.
-pub struct CollectionFamilyFinding<'candidate> {
+pub struct CollectionFamilyFinding<'analyze_candidate> {
     /// Candidate carrying precise source and remediation context.
-    pub candidate: &'candidate CollectionFamilyCandidate,
+    pub analyze_candidate: &'analyze_candidate CollectionFamilyCandidate,
     /// Missing, ambiguous, or competing protocol ownership.
     pub problem: CollectionProblem,
 }
-
-/// Local target and standard trait used for occupancy checks.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
+/// Local target and standard trait used for occupancy checks.
 struct CollectionFamilyOccupancyKey {
     /// Local collection wrapper.
     target_def_id: LocalDefId,
     /// Construction or extension contract.
     contract: CollectionContract,
 }
-
-/// Exact target, trait, and item family used for ambiguity analysis.
 #[derive(Eq, Hash, PartialEq)]
+/// Exact target, trait, and item family used for ambiguity analysis.
 struct CollectionFamilyKey {
     /// Local collection wrapper.
     target_def_id: LocalDefId,
@@ -155,9 +148,8 @@ struct CollectionFamilyKey {
     /// Stored item family.
     item_name: String,
 }
-
-/// Whether a standard trait already owns one collection family.
 #[derive(Clone, Copy)]
+/// Whether a standard trait already owns one collection family.
 enum CollectionFamilyOccupancy {
     /// No standard trait implementation owns this family.
     Available,
@@ -171,18 +163,17 @@ impl CollectionFamilyOccupancy {
         entry.map_or(Self::Available, |_| Self::Occupied)
     }
 
-    /// Returns whether one candidate still deserves a diagnostic.
-    const fn is_reportable(self, candidate: &CollectionFamilyCandidate) -> bool {
-        matches!(self, Self::Available) || !candidate.has_standard_trait_delegation
+    /// Returns whether one `analyze_candidate` still deserves a diagnostic.
+    const fn is_reportable(self, analyze_candidate: &CollectionFamilyCandidate) -> bool {
+        matches!(self, Self::Available) || !analyze_candidate.has_standard_trait_delegation
     }
 }
 
 // -----------------------------------------------------------------------------
 // CollectionConstructionAnalysis: Crate wide family selection
 // -----------------------------------------------------------------------------
-
-/// Finds constructors and mutators that reproduce standard collection traits.
 #[derive(Default)]
+/// Finds constructors and mutators that reproduce standard collection traits.
 pub struct CollectionConstructionAnalysis {
     /// Structurally proven sequence-ingestion APIs.
     candidates: Vec<CollectionFamilyCandidate>,
@@ -311,17 +302,17 @@ impl CollectionConstructionAnalysis {
     /// Returns stable findings for every proven target/item family.
     pub fn findings(&self) -> Vec<CollectionFamilyFinding<'_>> {
         let mut families = HashMap::<CollectionFamilyKey, Vec<&CollectionFamilyCandidate>>::new();
-        for candidate in &self.candidates {
+        for analyze_candidate in &self.candidates {
             let key = CollectionFamilyKey {
-                target_def_id: candidate.target_def_id,
-                contract: candidate.protocol.contract,
-                item_name: candidate.protocol.item_name.clone(),
+                target_def_id: analyze_candidate.target_def_id,
+                contract: analyze_candidate.protocol.contract,
+                item_name: analyze_candidate.protocol.item_name.clone(),
             };
-            families.entry(key).or_default().push(candidate);
+            families.entry(key).or_default().push(analyze_candidate);
         }
         let mut findings = Vec::new();
 
-        // Classify each exact item family before creating candidate diagnostics.
+        // Classify each exact item family before creating analyze_candidate diagnostics.
         for (key, family) in families {
             // Resolve standard trait occupancy for this target and contract.
             let occupancy_key = CollectionFamilyOccupancyKey {
@@ -338,12 +329,15 @@ impl CollectionConstructionAnalysis {
             // Suppress only direct delegation into an already occupied standard trait.
             let reportable = family
                 .into_iter()
-                .filter(|candidate| occupancy.is_reportable(candidate));
-            for candidate in reportable {
-                findings.push(CollectionFamilyFinding { candidate, problem });
+                .filter(|analyze_candidate| occupancy.is_reportable(analyze_candidate));
+            for analyze_candidate in reportable {
+                findings.push(CollectionFamilyFinding {
+                    analyze_candidate,
+                    problem,
+                });
             }
         }
-        findings.sort_unstable_by_key(|finding| finding.candidate.source.name_span.lo());
+        findings.sort_unstable_by_key(|finding| finding.analyze_candidate.source.name_span.lo());
         findings
     }
 
@@ -352,7 +346,7 @@ impl CollectionConstructionAnalysis {
         let findings = self.findings();
         let mut definitions = HashSet::new();
         for finding in findings {
-            definitions.insert(finding.candidate.def_id);
+            definitions.insert(finding.analyze_candidate.def_id);
         }
         definitions
     }
@@ -480,7 +474,7 @@ impl CollectionFunctionShape {
 }
 
 // -----------------------------------------------------------------------------
-// CollectionStorage: Target owned standard storage
+// CollectionStorageField: Target owned standard storage
 // -----------------------------------------------------------------------------
 
 /// One standard collection field and the item family it stores.
@@ -542,9 +536,8 @@ struct CollectionEvidenceResult {
     /// Whether storage delegates through a standard `extend` operation.
     has_standard_trait_delegation: bool,
 }
-
-/// Mutable facts accumulated while traversing one collection-like body.
 #[derive(Default)]
+/// Mutable facts accumulated while traversing one collection-like body.
 struct CollectionEvidenceState {
     /// Whether traversal reached the iterable source.
     has_seen_source: bool,
@@ -569,7 +562,7 @@ struct CollectionEvidence<'analysis, 'tcx, 'storage> {
 }
 
 impl CollectionEvidence<'_, '_, '_> {
-    /// Analyzes one candidate body for complete source-to-storage flow.
+    /// Analyzes one `analyze_candidate` body for complete source-to-storage flow.
     fn analyze<'tcx>(
         cx: &LateContext<'tcx>,
         body: &'tcx Body<'tcx>,

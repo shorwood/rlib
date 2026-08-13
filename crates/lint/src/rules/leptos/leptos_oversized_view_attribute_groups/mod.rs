@@ -12,10 +12,15 @@ use rustc_span::Span;
 use crate::rules::leptos::utils::view_structure::{LeptosViewStructureConfig, ViewCallSites};
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `owner` value used by this analysis.
     owner: HirId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `complexity` value used by this analysis.
     complexity: usize,
+    /// Stores the `maximum` value used by this analysis.
     maximum: usize,
 }
 
@@ -54,12 +59,16 @@ impl LateViolation for Violation {
     }
 }
 
+/// Carries the `LeptosOversizedViewAttributeGroups` state used by this analysis.
 struct LeptosOversizedViewAttributeGroups {
+    /// Stores the `config` value used by this analysis.
     config: LeptosViewStructureConfig,
+    /// Stores the `views` value used by this analysis.
     views: ViewCallSites,
 }
 
 impl LeptosOversizedViewAttributeGroups {
+    /// Performs the `new` operation for this value.
     fn new() -> Self {
         Self {
             config: LeptosViewStructureConfig::from_config(),
@@ -86,6 +95,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosOversizedViewAttributeGroups {
             .iter()
             .flat_map(|element| element.groups(&self.config))
         {
+            // Prepare the values used by this stage.
             let complexity = group.complexity();
             if complexity <= self.config.max_view_attribute_group_complexity {
                 continue;
@@ -93,6 +103,8 @@ impl<'tcx> LateLintPass<'tcx> for LeptosOversizedViewAttributeGroups {
             let Some(last) = group.attributes.last() else {
                 continue;
             };
+
+            // Perform the next step of the analysis.
             Violation {
                 owner: view.owner,
                 span: group.heading.span.with_hi(last.span.hi()),

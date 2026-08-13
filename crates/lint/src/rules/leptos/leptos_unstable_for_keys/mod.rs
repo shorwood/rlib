@@ -13,6 +13,33 @@ use rustc_span::{BytePos, Span};
 
 use crate::utils::diagnostic::LateViolation;
 
+/// Absolute source coordinates for one reported key expression.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct SourceRange {
+    /// Inclusive low byte position.
+    lo: u32,
+    /// Exclusive high byte position.
+    hi: u32,
+}
+
+/// Explains an unstable key prefix and how much source it occupies.
+struct UnstableKey {
+    /// Byte length of the unstable expression prefix.
+    length: usize,
+    /// Reason the expression cannot preserve item identity.
+    reason: &'static str,
+}
+
+/// Locates one unstable key expression in authored view source.
+struct KeyFinding {
+    /// Byte offset of the key expression.
+    start: usize,
+    /// Byte length of the unstable expression prefix.
+    length: usize,
+    /// Reason the expression cannot preserve item identity.
+    reason: &'static str,
+}
+
 // -----------------------------------------------------------------------------
 // Violation: Unstable key diagnostic
 // -----------------------------------------------------------------------------
@@ -62,12 +89,11 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // LeptosUnstableForKeys: Key identity policy
 // -----------------------------------------------------------------------------
-
-/// Late lint pass that rejects constant and position-based keyed iteration.
 #[derive(Default)]
+/// Late lint pass that rejects constant and position-based keyed iteration.
 struct LeptosUnstableForKeys {
     /// Absolute source ranges already diagnosed while visiting one expanded view.
-    reported: HashSet<(u32, u32)>,
+    reported: HashSet<SourceRange>,
 }
 
 dylint_linting::impl_late_lint! {
@@ -80,16 +106,22 @@ dylint_linting::impl_late_lint! {
 
 impl LeptosUnstableForKeys {
     /// Classifies one authored key closure prefix and returns its diagnostic width.
-    fn unstable_key(source: &str) -> Option<(usize, &'static str)> {
+    fn unstable_key(source: &str) -> Option<UnstableKey> {
         for constant in ["|_| ()", "|_| true", "|_| false"] {
             if source.starts_with(constant) {
-                return Some((constant.len(), "every row receives the same key"));
+                return Some(UnstableKey {
+                    length: constant.len(),
+                    reason: "every row receives the same key",
+                });
             }
         }
         if let Some(rest) = source.strip_prefix("|_| ") {
             let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
             if digits > 0 {
-                return Some((4 + digits, "every row receives the same key"));
+                return Some(UnstableKey {
+                    length: 4 + digits,
+                    reason: "every row receives the same key",
+                });
             }
         }
         for name in ["i", "idx", "index", "position"] {
@@ -99,10 +131,10 @@ impl LeptosUnstableForKeys {
                 format!("|({name}, _)| {name}"),
             ] {
                 if source.starts_with(&key) {
-                    return Some((
-                        key.len(),
-                        "the row position changes when the collection is reordered",
-                    ));
+                    return Some(UnstableKey {
+                        length: key.len(),
+                        reason: "the row position changes when the collection is reordered",
+                    });
                 }
             }
         }
@@ -110,12 +142,15 @@ impl LeptosUnstableForKeys {
     }
 
     /// Finds unstable key closures inside authored `<For>` markup.
-    fn findings(source: &str) -> Vec<(usize, usize, &'static str)> {
+    fn findings(source: &str) -> Vec<KeyFinding> {
         let mut findings = Vec::new();
         let mut cursor = 0;
         while let Some(relative) = source[cursor..].find("key=") {
+            // Prepare the values used by this stage.
             let attribute = cursor + relative;
             let before = &source[..attribute];
+
+            // Prepare the values used by this stage.
             let is_for = before.rsplit_once('<').is_some_and(|(_, tag)| {
                 matches!(
                     tag.split_ascii_whitespace().next(),
@@ -123,13 +158,21 @@ impl LeptosUnstableForKeys {
                 )
             });
             let value = attribute + "key=".len();
+
+            // Prepare the values used by this stage.
             let whitespace = source[value..]
                 .bytes()
                 .take_while(u8::is_ascii_whitespace)
                 .count();
             let start = value + whitespace;
-            if is_for && let Some((length, reason)) = Self::unstable_key(&source[start..]) {
-                findings.push((start, length, reason));
+
+            // Reject inputs that do not satisfy this stage.
+            if is_for && let Some(key) = Self::unstable_key(&source[start..]) {
+                findings.push(KeyFinding {
+                    start,
+                    length: key.length,
+                    reason: key.reason,
+                });
             }
             cursor = value;
         }
@@ -148,15 +191,25 @@ impl<'tcx> LateLintPass<'tcx> for LeptosUnstableForKeys {
         let Ok(source) = cx.sess().source_map().span_to_snippet(view_span) else {
             return;
         };
-        for (offset, length, reason) in Self::findings(&source) {
+        for KeyFinding {
+            start: offset,
+            length,
+            reason,
+        } in Self::findings(&source)
+        {
+            // Prepare the values used by this stage.
             let (Ok(offset), Ok(length)) = (u32::try_from(offset), u32::try_from(length)) else {
                 continue;
             };
             let lo = view_span.lo() + BytePos(offset);
             let hi = lo + BytePos(length);
-            if !self.reported.insert((lo.0, hi.0)) {
+
+            // Reject inputs that do not satisfy this stage.
+            if !self.reported.insert(SourceRange { lo: lo.0, hi: hi.0 }) {
                 continue;
             }
+
+            // Perform the next step of the analysis.
             Violation {
                 owner: expression.hir_id,
                 span: Span::with_root_ctxt(lo, hi),

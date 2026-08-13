@@ -75,6 +75,9 @@ struct FetcherWrites<'analysis, 'tcx> {
 }
 
 impl<'analysis, 'tcx> FetcherWrites<'analysis, 'tcx> {
+    /// Deepest closure body that still executes as part of fetching a resource.
+    const MAXIMUM_FETCHER_BODY_DEPTH: u8 = 2;
+
     /// Creates an empty fetcher analysis.
     const fn new(cx: &'analysis LateContext<'tcx>) -> Self {
         Self {
@@ -86,10 +89,13 @@ impl<'analysis, 'tcx> FetcherWrites<'analysis, 'tcx> {
 
     /// Returns whether a method is a mutation from a reactive graph write trait.
     fn is_reactive_write(&self, expression: &Expr<'_>) -> bool {
+        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, _, _, _) = expression.kind else {
             return false;
         };
         let owner = self.cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+
+        // Prepare the values used by this stage.
         let Some(method) = self
             .cx
             .tcx
@@ -98,6 +104,8 @@ impl<'analysis, 'tcx> FetcherWrites<'analysis, 'tcx> {
         else {
             return false;
         };
+
+        // Update the accumulated analysis state.
         self.cx.tcx.crate_name(method.krate).as_str() == "reactive_graph"
             && self.cx.tcx.trait_of_assoc(method).is_some_and(|trait_id| {
                 matches!(
@@ -112,7 +120,7 @@ impl<'tcx> Visitor<'tcx> for FetcherWrites<'_, 'tcx> {
     fn visit_nested_body(&mut self, body_id: BodyId) {
         // Follow the fetcher closure and its returned async body. A deeper closure is a callback
         // merely created by the fetcher and does not execute as part of loading the value.
-        if self.body_depth >= 2 {
+        if self.body_depth >= Self::MAXIMUM_FETCHER_BODY_DEPTH {
             return;
         }
         self.body_depth += 1;
@@ -150,12 +158,15 @@ impl LeptosReactiveWritesInResourceFetchers {
         cx: &LateContext<'tcx>,
         expression: &'tcx Expr<'tcx>,
     ) -> Option<&'tcx Expr<'tcx>> {
+        // Prepare the values used by this stage.
         let ExprKind::Call(callee, arguments) = expression.kind else {
             return None;
         };
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
+
+        // Prepare the values used by this stage.
         let Res::Def(_, method) = cx.qpath_res(&path, callee.hir_id) else {
             return None;
         };
@@ -165,11 +176,15 @@ impl LeptosReactiveWritesInResourceFetchers {
             return None;
         }
         let implementation = cx.tcx.impl_of_assoc(method)?;
+
+        // Prepare the values used by this stage.
         let definition = cx
             .tcx
             .type_of(implementation)
             .instantiate_identity()
             .ty_adt_def()?;
+
+        // Classify the current analyze_candidate.
         match cx.tcx.item_name(definition.did()).as_str() {
             "Resource" | "ArcResource" => arguments.get(1),
             "LocalResource" | "ArcLocalResource" => arguments.first(),
@@ -180,14 +195,19 @@ impl LeptosReactiveWritesInResourceFetchers {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosReactiveWritesInResourceFetchers {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Prepare the values used by this stage.
         let Some(fetcher) = Self::fetcher(cx, expression) else {
             return;
         };
         let mut writes = FetcherWrites::new(cx);
         writes.visit_expr(fetcher);
+
+        // Prepare the values used by this stage.
         let Some(write_span) = writes.write_span else {
             return;
         };
+
+        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
             write_span,

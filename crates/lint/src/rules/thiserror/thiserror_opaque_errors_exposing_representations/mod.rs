@@ -10,18 +10,25 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{ThiserrorContractCatalog, thiserror_attributes};
+use super::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::authored_item_source;
+use crate::utils::source_provenance::AuthoredItemSource;
 
+/// Carries the `Candidate` state used by this analysis.
 struct Candidate {
+    /// Stores the `definition` value used by this analysis.
     definition: LocalDefId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `exposures` value used by this analysis.
     exposures: Vec<String>,
 }
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `exposures` value used by this analysis.
     exposures: Vec<String>,
 }
 
@@ -71,8 +78,11 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `ThiserrorOpaqueErrorsExposingRepresentations` state used by this analysis.
 struct ThiserrorOpaqueErrorsExposingRepresentations {
+    /// Stores the `catalog` value used by this analysis.
     catalog: ThiserrorContractCatalog,
+    /// Stores the `candidates` value used by this analysis.
     candidates: Vec<Candidate>,
 }
 
@@ -86,6 +96,7 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         let ItemKind::Enum(_, _, definition) = item.kind else {
             return;
@@ -93,34 +104,46 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
         if item.span.from_expansion() || !cx.tcx.visibility(item.owner_id.def_id).is_public() {
             return;
         }
-        let Some(source) = authored_item_source(cx, item) else {
+
+        // Prepare the values used by this stage.
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
         let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
             return;
         };
         let mut exposures = Vec::new();
+
+        // Process the candidates handled by this stage.
         for (variant, hir_variant) in enumeration.variants.iter().zip(definition.variants) {
             for (field, hir_field) in variant.fields.iter().zip(hir_variant.data.fields()) {
-                let attributes = thiserror_attributes(&field.attrs);
+                // Prepare the values used by this stage.
+                let attributes = ThiserrorAttributes::from_attributes(&field.attrs);
                 let conventional_source = field
                     .ident
                     .as_ref()
                     .is_some_and(|identifier| identifier == "source");
-                if !attributes.source && !conventional_source {
+
+                // Reject inputs that do not satisfy this stage.
+                if !attributes.is_source && !conventional_source {
                     continue;
                 }
+
+                // Prepare the values used by this stage.
                 let Some(target) = cx
                     .tcx
                     .type_of(hir_field.def_id)
                     .instantiate_identity()
                     .ty_adt_def()
+                // Perform the next step of the analysis.
                 else {
                     continue;
                 };
                 if target.did().is_local() {
                     continue;
                 }
+
+                // Perform the next step of the analysis.
                 exposures.push(format!(
                     "`{}({})`",
                     variant.ident,
@@ -128,9 +151,13 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
                 ));
             }
         }
+
+        // Reject inputs that do not satisfy this stage.
         if exposures.is_empty() {
             return;
         }
+
+        // Update the accumulated analysis state.
         self.candidates.push(Candidate {
             definition: item.owner_id.def_id,
             span: item.span,
@@ -139,13 +166,20 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for candidate in self.candidates.drain(..) {
-            if self.catalog.derived_type(candidate.definition).is_none() {
+        for analyze_candidate in self.candidates.drain(..) {
+            // Reject inputs that do not satisfy this stage.
+            if self
+                .catalog
+                .derived_type(analyze_candidate.definition)
+                .is_none()
+            {
                 continue;
             }
+
+            // Perform the next step of the analysis.
             Violation {
-                span: candidate.span,
-                exposures: candidate.exposures,
+                span: analyze_candidate.span,
+                exposures: analyze_candidate.exposures,
             }
             .emit(cx);
         }

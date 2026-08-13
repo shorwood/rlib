@@ -149,9 +149,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // AdHocErrorInterfaces: Crate wide lint pass
 // -----------------------------------------------------------------------------
-
-/// Collects active `Result`, message, cause, and standard-trait evidence crate-wide.
 #[derive(Default)]
+/// Collects active `Result`, message, cause, and standard-trait evidence crate-wide.
 struct AdHocErrorInterfaces {
     /// Shared crate-wide standard-interface evidence.
     interfaces: StandardInterfaceAnalysis,

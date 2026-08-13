@@ -14,23 +14,33 @@ use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, sym};
 use syn::visit::{Visit, visit_expr_try};
 
-use super::contracts::{ThiserrorContractCatalog, thiserror_attributes};
+use super::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::authored_item_source;
+use crate::utils::source_provenance::AuthoredItemSource;
 
+/// Carries the `ErrorCandidate` state used by this analysis.
 struct ErrorCandidate {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `variant` value used by this analysis.
     variant: String,
 }
 
+/// Carries the `UseCandidate` state used by this analysis.
 struct UseCandidate {
+    /// Stores the `error` value used by this analysis.
     error: LocalDefId,
+    /// Stores the `operations` value used by this analysis.
     operations: BTreeSet<String>,
 }
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `variant` value used by this analysis.
     variant: String,
+    /// Stores the `operations` value used by this analysis.
     operations: Vec<String>,
 }
 
@@ -70,10 +80,43 @@ impl LateViolation for Violation {
     }
 }
 
+/// Performs the `operation_name` step of the lint analysis.
+fn operation_name(expression: &syn::Expr) -> Option<String> {
+    // Classify the current analyze_candidate.
+    match expression {
+        syn::Expr::Call(call) => match call.func.as_ref() {
+            syn::Expr::Path(path) => Some(path.path.segments.last()?.ident.to_string()),
+            _ => None,
+        },
+        syn::Expr::MethodCall(call) => Some(call.method.to_string()),
+        _ => None,
+    }
+}
+
 #[derive(Default)]
+/// Carries the `TryOperationVisitor` state used by this analysis.
+struct TryOperationVisitor {
+    /// Stores the `operations` value used by this analysis.
+    operations: BTreeSet<String>,
+}
+
+impl<'ast> Visit<'ast> for TryOperationVisitor {
+    fn visit_expr_try(&mut self, expression: &'ast syn::ExprTry) {
+        if let Some(operation) = operation_name(&expression.expr) {
+            self.operations.insert(operation);
+        }
+        visit_expr_try(self, expression);
+    }
+}
+
+#[derive(Default)]
+/// Carries the `ThiserrorFromSourcesWithoutContext` state used by this analysis.
 struct ThiserrorFromSourcesWithoutContext {
+    /// Stores the `catalog` value used by this analysis.
     catalog: ThiserrorContractCatalog,
+    /// Stores the `errors` value used by this analysis.
     errors: HashMap<LocalDefId, ErrorCandidate>,
+    /// Stores the `uses` value used by this analysis.
     uses: Vec<UseCandidate>,
 }
 
@@ -99,13 +142,21 @@ impl LateLintPass<'_> for ThiserrorFromSourcesWithoutContext {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
+        /// Smallest propagation chain that demonstrates repeated context loss.
+        const MINIMUM_PROPAGATION_OPERATIONS: usize = 2;
+
         for usage in self.uses.drain(..) {
+            // Prepare the values used by this stage.
             let Some(error) = self.errors.get(&usage.error) else {
                 continue;
             };
-            if self.catalog.derived_type(usage.error).is_none() || usage.operations.len() < 2 {
+            if self.catalog.derived_type(usage.error).is_none()
+                || usage.operations.len() < MINIMUM_PROPAGATION_OPERATIONS
+            {
                 continue;
             }
+
+            // Perform the next step of the analysis.
             Violation {
                 span: error.span,
                 variant: error.variant.clone(),
@@ -121,13 +172,17 @@ impl LateLintPass<'_> for ThiserrorFromSourcesWithoutContext {
 }
 
 impl ThiserrorFromSourcesWithoutContext {
+    /// Performs the `record_error` operation for this value.
     fn record_error(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        let Some(source) = authored_item_source(cx, item) else {
+        // Prepare the values used by this stage.
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
         let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
             return;
         };
+
+        // Prepare the values used by this stage.
         let variants = enumeration
             .variants
             .iter()
@@ -142,13 +197,17 @@ impl ThiserrorFromSourcesWithoutContext {
                 let [field] = fields.as_slice() else {
                     return None;
                 };
-                (transparent && thiserror_attributes(&field.attrs).from)
+                (transparent && ThiserrorAttributes::from_attributes(&field.attrs).is_from)
                     .then(|| variant.ident.to_string())
             })
             .collect::<Vec<_>>();
+
+        // Prepare the values used by this stage.
         let [variant] = variants.as_slice() else {
             return;
         };
+
+        // Update the accumulated analysis state.
         self.errors.insert(
             item.owner_id.def_id,
             ErrorCandidate {
@@ -158,19 +217,25 @@ impl ThiserrorFromSourcesWithoutContext {
         );
     }
 
+    /// Performs the `record_uses` operation for this value.
     fn record_uses(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Prepare the values used by this stage.
         let output = cx
             .tcx
             .fn_sig(item.owner_id.def_id)
             .instantiate_identity()
             .skip_binder()
             .output();
+
+        // Prepare the values used by this stage.
         let ty::Adt(result, arguments) = output.kind() else {
             return;
         };
         if !cx.tcx.is_diagnostic_item(sym::Result, result.did()) {
             return;
         }
+
+        // Prepare the values used by this stage.
         let Some(error) = arguments
             .type_at(1)
             .ty_adt_def()
@@ -178,42 +243,21 @@ impl ThiserrorFromSourcesWithoutContext {
         else {
             return;
         };
-        let Some(source) = authored_item_source(cx, item) else {
+
+        // Prepare the values used by this stage.
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
         let Ok(function) = syn::parse_str::<syn::ItemFn>(&source) else {
             return;
         };
         let mut visitor = TryOperationVisitor::default();
+
+        // Perform the next step of the analysis.
         visitor.visit_block(&function.block);
         self.uses.push(UseCandidate {
             error,
             operations: visitor.operations,
         });
-    }
-}
-
-#[derive(Default)]
-struct TryOperationVisitor {
-    operations: BTreeSet<String>,
-}
-
-impl<'ast> Visit<'ast> for TryOperationVisitor {
-    fn visit_expr_try(&mut self, expression: &'ast syn::ExprTry) {
-        if let Some(operation) = operation_name(&expression.expr) {
-            self.operations.insert(operation);
-        }
-        visit_expr_try(self, expression);
-    }
-}
-
-fn operation_name(expression: &syn::Expr) -> Option<String> {
-    match expression {
-        syn::Expr::Call(call) => match call.func.as_ref() {
-            syn::Expr::Path(path) => Some(path.path.segments.last()?.ident.to_string()),
-            _ => None,
-        },
-        syn::Expr::MethodCall(call) => Some(call.method.to_string()),
-        _ => None,
     }
 }

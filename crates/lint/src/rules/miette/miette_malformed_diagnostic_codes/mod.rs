@@ -12,8 +12,11 @@ use rustc_span::Span;
 use super::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `code` value used by this analysis.
     code: String,
 }
 
@@ -51,8 +54,64 @@ impl LateViolation for Violation {
     }
 }
 
+/// Performs the `valid_code` step of the lint analysis.
+fn valid_code(code: &str) -> bool {
+    /// Namespace and local name required by a qualified diagnostic code.
+    const MINIMUM_QUALIFIED_CODE_SEGMENTS: usize = 2;
+
+    // Prepare the values used by this stage.
+    let segments = code.split("::").collect::<Vec<_>>();
+
+    // Reject inputs that do not satisfy this stage.
+    if segments.len() >= MINIMUM_QUALIFIED_CODE_SEGMENTS {
+        return segments.iter().all(|segment| {
+            !segment.is_empty()
+                && segment
+                    .chars()
+                    .next()
+                    .is_some_and(|character| character.is_ascii_lowercase())
+                && segment.chars().all(|character| {
+                    character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
+                })
+        });
+    }
+
+    // Prepare the values used by this stage.
+    let letters = code.chars().take_while(char::is_ascii_alphabetic).count();
+
+    // Perform the next step of the analysis.
+    letters > 0
+        && letters < code.len()
+        && code[..letters]
+            .chars()
+            .all(|character| character.is_ascii_uppercase())
+        && code[letters..]
+            .chars()
+            .all(|character| character.is_ascii_digit())
+}
+
+/// Performs the `check_code` step of the lint analysis.
+fn check_code(cx: &LateContext<'_>, span: Span, code: Option<&str>) {
+    // Prepare the values used by this stage.
+    let Some(code) = code else {
+        return;
+    };
+    if valid_code(code) {
+        return;
+    }
+
+    // Perform the next step of the analysis.
+    Violation {
+        span,
+        code: code.to_owned(),
+    }
+    .emit(cx);
+}
+
 #[derive(Default)]
+/// Carries the `MietteMalformedDiagnosticCodes` state used by this analysis.
 struct MietteMalformedDiagnosticCodes {
+    /// Stores the `catalog` value used by this analysis.
     catalog: DiagnosticCatalog,
 }
 
@@ -77,42 +136,4 @@ impl LateLintPass<'_> for MietteMalformedDiagnosticCodes {
             }
         }
     }
-}
-
-fn check_code(cx: &LateContext<'_>, span: Span, code: Option<&str>) {
-    let Some(code) = code else {
-        return;
-    };
-    if !valid_code(code) {
-        Violation {
-            span,
-            code: code.to_owned(),
-        }
-        .emit(cx);
-    }
-}
-
-fn valid_code(code: &str) -> bool {
-    let segments = code.split("::").collect::<Vec<_>>();
-    if segments.len() >= 2 {
-        return segments.iter().all(|segment| {
-            !segment.is_empty()
-                && segment
-                    .chars()
-                    .next()
-                    .is_some_and(|character| character.is_ascii_lowercase())
-                && segment.chars().all(|character| {
-                    character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
-                })
-        });
-    }
-    let letters = code.chars().take_while(char::is_ascii_alphabetic).count();
-    letters > 0
-        && letters < code.len()
-        && code[..letters]
-            .chars()
-            .all(|character| character.is_ascii_uppercase())
-        && code[letters..]
-            .chars()
-            .all(|character| character.is_ascii_digit())
 }

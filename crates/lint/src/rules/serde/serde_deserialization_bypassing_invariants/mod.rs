@@ -16,9 +16,13 @@ use super::contracts::SerdeContractCatalog;
 use crate::utils::construction_analysis::{ConstructionAnalysis, ConstructionOrigin};
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `type_span` value used by this analysis.
     type_span: Span,
+    /// Stores the `constructor_span` value used by this analysis.
     constructor_span: Span,
+    /// Stores the `name` value used by this analysis.
     name: String,
 }
 
@@ -64,8 +68,11 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `SerdeDeserializationBypassingInvariants` state used by this analysis.
 struct SerdeDeserializationBypassingInvariants {
+    /// Stores the `catalog` value used by this analysis.
     catalog: SerdeContractCatalog,
+    /// Stores the `constructions` value used by this analysis.
     constructions: ConstructionAnalysis,
 }
 
@@ -103,21 +110,28 @@ impl<'tcx> LateLintPass<'tcx> for SerdeDeserializationBypassingInvariants {
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         let mut reported = HashSet::new();
         for constructor in &self.constructions.candidates {
+            // Reject inputs that do not satisfy this stage.
             if constructor.ownership.origin != ConstructionOrigin::Inherent
                 || !constructor.is_fallible_direct()
                 || !reported.insert(constructor.target.def_id)
             {
                 continue;
             }
+
+            // Prepare the values used by this stage.
             let Some(contract) = self
                 .catalog
                 .derived_type(constructor.target.def_id, "Deserialize")
             else {
                 continue;
             };
+
+            // Reject inputs that do not satisfy this stage.
             if !contract.has_restricted_fields {
                 continue;
             }
+
+            // Perform the next step of the analysis.
             Violation {
                 type_span: contract.span,
                 constructor_span: constructor.function.name_span,

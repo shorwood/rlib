@@ -15,7 +15,20 @@ use rustc_span::def_id::LocalDefId;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
-// Violation: Read-then-replace diagnostic
+// ReactiveMethodIdentity: Type and behavior
+// -----------------------------------------------------------------------------
+
+/// Identifies one method through its reactive trait contract.
+#[derive(Clone, Copy)]
+struct ReactiveMethodIdentity {
+    /// Reactive graph trait that owns the method.
+    trait_name: &'static str,
+    /// Associated method name.
+    method_name: &'static str,
+}
+
+// -----------------------------------------------------------------------------
+// Violation: Read then replace diagnostic
 // -----------------------------------------------------------------------------
 
 /// Replacement whose value depends on the same signal's current value.
@@ -81,6 +94,7 @@ impl<'tcx> Visitor<'tcx> for CurrentValueRead<'_, 'tcx> {
     fn visit_nested_body(&mut self, _: BodyId) {}
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Reject inputs that do not satisfy this stage.
         if self.span.is_some() {
             return;
         }
@@ -88,10 +102,18 @@ impl<'tcx> Visitor<'tcx> for CurrentValueRead<'_, 'tcx> {
             intravisit::walk_expr(self, expression);
             return;
         };
+
+        // Reject inputs that do not satisfy this stage.
         if arguments.is_empty()
             && LeptosReadThenReplaceSignals::local_binding(self.cx, receiver) == Some(self.signal)
             && LeptosReadThenReplaceSignals::is_reactive_method(
-                self.cx, self.owner, expression, "Get", "get",
+                self.cx,
+                self.owner,
+                expression,
+                ReactiveMethodIdentity {
+                    trait_name: "Get",
+                    method_name: "get",
+                },
             )
         {
             self.span = Some(expression.span);
@@ -133,9 +155,9 @@ impl LeptosReadThenReplaceSignals {
         cx: &LateContext<'_>,
         owner: LocalDefId,
         expression: &Expr<'_>,
-        trait_name: &str,
-        method_name: &str,
+        identity: ReactiveMethodIdentity,
     ) -> bool {
+        // Prepare the values used by this stage.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -143,17 +165,20 @@ impl LeptosReadThenReplaceSignals {
         else {
             return false;
         };
+
+        // Perform the next step of the analysis.
         cx.tcx.crate_name(method.krate).as_str() == "reactive_graph"
-            && cx.tcx.item_name(method).as_str() == method_name
+            && cx.tcx.item_name(method).as_str() == identity.method_name
             && cx
                 .tcx
                 .trait_of_assoc(method)
-                .is_some_and(|trait_id| cx.tcx.item_name(trait_id).as_str() == trait_name)
+                .is_some_and(|trait_id| cx.tcx.item_name(trait_id).as_str() == identity.trait_name)
     }
 }
 
 impl<'tcx> LateLintPass<'tcx> for LeptosReadThenReplaceSignals {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, receiver, [replacement], _) = expression.kind else {
             return;
         };
@@ -161,9 +186,21 @@ impl<'tcx> LateLintPass<'tcx> for LeptosReadThenReplaceSignals {
         let Some(signal) = Self::local_binding(cx, receiver) else {
             return;
         };
-        if !Self::is_reactive_method(cx, owner, expression, "Set", "set") {
+
+        // Reject inputs that do not satisfy this stage.
+        if !Self::is_reactive_method(
+            cx,
+            owner,
+            expression,
+            ReactiveMethodIdentity {
+                trait_name: "Set",
+                method_name: "set",
+            },
+        ) {
             return;
         }
+
+        // Prepare the values used by this stage.
         let mut read = CurrentValueRead {
             cx,
             owner,
@@ -171,9 +208,13 @@ impl<'tcx> LateLintPass<'tcx> for LeptosReadThenReplaceSignals {
             span: None,
         };
         read.visit_expr(replacement);
+
+        // Prepare the values used by this stage.
         let Some(read_span) = read.span else {
             return;
         };
+
+        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
             span: expression.span,

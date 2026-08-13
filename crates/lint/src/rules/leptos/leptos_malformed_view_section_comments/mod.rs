@@ -109,23 +109,30 @@ impl LeptosMalformedViewSectionComments {
 
     /// Produces an unambiguous source-only repair when possible.
     fn replacement(&self, heading: &ViewHeading) -> Option<String> {
+        // Reject inputs that do not satisfy this stage.
         if !heading.text.starts_with("//") || heading.text.contains('\n') {
             return None;
         }
+
+        // Prepare the values used by this stage.
         let content = heading
             .text
             .strip_prefix(&self.config.view_section_comment_prefix)
             .unwrap_or_else(|| heading.text.trim_start_matches('/'))
             .trim()
             .trim_start_matches(['-', '*', '#'])
-            .trim_start()
+            .trim_start();
+        let content = content
             .trim_end_matches([':', '.', ';', '!', '?', ',', '-'])
             .trim_end();
+
+        // Perform the next step of the analysis.
         FunctionLayoutProse::replacement(Some(content), &self.config.view_section_comment_prefix)
     }
 
     /// Classifies the first failure for one direct-boundary comment.
     fn violation(&self, heading: &ViewHeading, owner: HirId) -> Option<Violation> {
+        // Prepare the values used by this stage.
         let Some(node) = heading.node else {
             return Some(Violation {
                 owner,
@@ -134,8 +141,12 @@ impl LeptosMalformedViewSectionComments {
                 replacement: None,
             });
         };
+
+        // Prepare the values used by this stage.
         let placement_is_valid =
-            heading.immediately_precedes && (node == 0 || heading.blank_before);
+            heading.is_immediately_preceding && (node == 0 || heading.has_blank_before);
+
+        // Prepare the values used by this stage.
         let (message, replacement) = if !self.is_canonical(heading) {
             (
                 "this view section comment is not canonical",
@@ -143,19 +154,22 @@ impl LeptosMalformedViewSectionComments {
                     .then(|| self.replacement(heading))
                     .flatten(),
             )
-        } else if !heading.immediately_precedes {
+        } else if !heading.is_immediately_preceding {
             (
                 "this view section comment must immediately precede its region",
                 None,
             )
-        } else if node != 0 && !heading.blank_before {
+        } else {
+            if node == 0 || heading.has_blank_before {
+                return None;
+            }
             (
                 "this view section comment must be preceded by a blank line",
                 None,
             )
-        } else {
-            return None;
         };
+
+        // Return the completed analysis result.
         Some(Violation {
             owner,
             span: heading.span,
@@ -179,9 +193,10 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMalformedViewSectionComments {
             return;
         };
         for heading in view.scopes.iter().flat_map(|scope| &scope.headings) {
-            if let Some(violation) = self.violation(heading, view.owner) {
-                violation.emit(cx);
-            }
+            let Some(violation) = self.violation(heading, view.owner) else {
+                continue;
+            };
+            violation.emit(cx);
         }
     }
 }

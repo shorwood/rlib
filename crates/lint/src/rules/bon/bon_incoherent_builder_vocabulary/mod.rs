@@ -4,20 +4,50 @@ extern crate rustc_span;
 
 use std::borrow::Cow;
 
-use rustc_ast::ast::{FieldDef, Item, ItemKind, Param};
+use rustc_ast::ast::{FieldDef, Fn, Item, ItemKind, Param};
 use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{
-    attribute_source, builder_attribute, configured_identifier, derives_bon_builder,
-};
+use super::utils::{BonAttributeAnalysis, ConfiguredIdentifier, builder_attribute};
 use crate::utils::diagnostic::EarlyViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `configured` value used by this analysis.
     configured: String,
+    /// Stores the `established` value used by this analysis.
     established: String,
+}
+
+impl Violation {
+    /// Performs the `member_violation` step of the lint analysis.
+    fn member_violation(
+        cx: &EarlyContext<'_>,
+        attributes: &[rustc_ast::Attribute],
+        established: String,
+    ) -> Option<Self> {
+        // Prepare the values used by this stage.
+        let attribute = builder_attribute(attributes)?;
+        let source = match BonAttributeAnalysis::source(cx, attribute) {
+            Ok(source) => source,
+            Err(_error) => return None,
+        };
+        let configured = ConfiguredIdentifier {
+            source: &source,
+            key: "name",
+        }
+        .parse()?;
+
+        // Perform the next step of the analysis.
+        (generic_member(&configured) && !generic_member(&established)).then_some(Self {
+            span: attribute.span,
+            configured,
+            established,
+        })
+    }
 }
 
 impl EarlyViolation for Violation {
@@ -54,7 +84,76 @@ impl EarlyViolation for Violation {
     }
 }
 
+/// Performs the `generic_operation` step of the lint analysis.
+fn generic_operation(name: &str) -> bool {
+    matches!(name, "done" | "execute" | "finish" | "process" | "run")
+}
+
+/// Performs the `generic_member` step of the lint analysis.
+fn generic_member(name: &str) -> bool {
+    matches!(name, "arg" | "data" | "item" | "param" | "thing" | "value")
+}
+
+/// Performs the `parameter_violation` step of the lint analysis.
+fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
+    let established = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
+        Ok(established) => established,
+        Err(_error) => return None,
+    };
+    Violation::member_violation(cx, &parameter.attrs, established.trim().to_owned())
+}
+
+/// Performs the `field_violation` step of the lint analysis.
+fn field_violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Violation> {
+    Violation::member_violation(cx, &field.attrs, field.ident?.name.to_string())
+}
+
+/// Carries the `BonIncoherentBuilderVocabulary` state used by this analysis.
 struct BonIncoherentBuilderVocabulary;
+
+impl BonIncoherentBuilderVocabulary {
+    /// Checks the configured builder vocabulary and every function parameter.
+    fn check_function(cx: &EarlyContext<'_>, item: &Item, function: &Fn) {
+        let Some(attribute) = builder_attribute(&item.attrs) else {
+            return;
+        };
+        let operation = item
+            .kind
+            .ident()
+            .map(|ident| ident.name.to_string())
+            .unwrap_or_default();
+
+        // Diagnose generic entry and finish names that discard the operation vocabulary.
+        if let Ok(source) = BonAttributeAnalysis::source(cx, attribute) {
+            for key in ["start_fn", "finish_fn"] {
+                if let Some(configured) = (ConfiguredIdentifier {
+                    source: &source,
+                    key,
+                })
+                .parse()
+                    && generic_operation(&configured)
+                    && !operation.split('_').any(|word| word == configured)
+                {
+                    Violation {
+                        span: attribute.span,
+                        configured,
+                        established: operation,
+                    }
+                    .emit(cx);
+                    break;
+                }
+            }
+        }
+
+        // Diagnose parameter-level vocabulary independently.
+        for parameter in &function.sig.decl.inputs {
+            let Some(violation) = parameter_violation(cx, parameter) else {
+                continue;
+            };
+            violation.emit(cx);
+        }
+    }
+}
 
 dylint_linting::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
@@ -68,80 +167,19 @@ impl EarlyLintPass for BonIncoherentBuilderVocabulary {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         match &item.kind {
             ItemKind::Fn(function) => {
-                let Some(attribute) = builder_attribute(&item.attrs) else {
-                    return;
-                };
-                let operation = item
-                    .kind
-                    .ident()
-                    .map(|ident| ident.name.to_string())
-                    .unwrap_or_default();
-                if let Some(source) = attribute_source(cx, attribute) {
-                    for key in ["start_fn", "finish_fn"] {
-                        if let Some(configured) = configured_identifier(&source, key)
-                            && generic_operation(&configured)
-                            && !operation.split('_').any(|word| word == configured)
-                        {
-                            Violation {
-                                span: attribute.span,
-                                configured,
-                                established: operation,
-                            }
-                            .emit(cx);
-                            break;
-                        }
-                    }
-                }
-                for parameter in &function.sig.decl.inputs {
-                    if let Some(violation) = parameter_violation(cx, parameter) {
-                        violation.emit(cx);
-                    }
-                }
+                Self::check_function(cx, item, function);
             }
-            ItemKind::Struct(_, _, data) if derives_bon_builder(cx, &item.attrs) => {
+            ItemKind::Struct(_, _, data)
+                if BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
+            {
                 for field in data.fields() {
-                    if let Some(violation) = field_violation(cx, field) {
-                        violation.emit(cx);
-                    }
+                    let Some(violation) = field_violation(cx, field) else {
+                        continue;
+                    };
+                    violation.emit(cx);
                 }
             }
             _ => {}
         }
     }
-}
-
-fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
-    let established = cx
-        .sess()
-        .source_map()
-        .span_to_snippet(parameter.pat.span)
-        .ok()?;
-    member_violation(cx, &parameter.attrs, established.trim().to_owned())
-}
-
-fn field_violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Violation> {
-    member_violation(cx, &field.attrs, field.ident?.name.to_string())
-}
-
-fn member_violation(
-    cx: &EarlyContext<'_>,
-    attributes: &[rustc_ast::Attribute],
-    established: String,
-) -> Option<Violation> {
-    let attribute = builder_attribute(attributes)?;
-    let source = attribute_source(cx, attribute)?;
-    let configured = configured_identifier(&source, "name")?;
-    (generic_member(&configured) && !generic_member(&established)).then_some(Violation {
-        span: attribute.span,
-        configured,
-        established,
-    })
-}
-
-fn generic_operation(name: &str) -> bool {
-    matches!(name, "done" | "execute" | "finish" | "process" | "run")
-}
-
-fn generic_member(name: &str) -> bool {
-    matches!(name, "arg" | "data" | "item" | "param" | "thing" | "value")
 }

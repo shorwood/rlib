@@ -155,18 +155,16 @@ pub struct DeclarationNode {
     /// Dependency and tie-break constraints.
     pub(crate) constraints: DeclarationConstraints,
 }
-
-/// Directed dependency between two declaration-node indexes.
 #[derive(Clone, Copy)]
+/// Directed dependency between two declaration-node indexes.
 struct DeclarationDependencyEdge {
     /// Index of the declaration that consumes another declaration.
     node: usize,
     /// Index of the declaration that must precede the consumer.
     dependency: usize,
 }
-
-/// A collection of declarations that can compute its stable dependency-first order.
 #[derive(derive_more::Deref)]
+/// A collection of declarations that can compute its stable dependency-first order.
 pub struct DeclarationNodeList {
     /// Declaration units in their original source order.
     items: Vec<DeclarationNode>,

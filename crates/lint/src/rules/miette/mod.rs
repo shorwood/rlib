@@ -1,4 +1,4 @@
-pub mod contracts;
+mod contracts;
 pub mod config;
 
 pub mod miette_ad_hoc_diagnostics_at_domain_boundaries;

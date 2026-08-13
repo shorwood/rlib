@@ -13,10 +13,6 @@ use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 
-// -----------------------------------------------------------------------------
-// Violation: Reactive effect synchronization diagnostic
-// -----------------------------------------------------------------------------
-
 /// One effect that reads and writes within the reactive graph.
 struct Violation {
     /// Effect call used to honor local lint attributes.
@@ -60,9 +56,13 @@ impl LateViolation for Violation {
     }
 }
 
-// -----------------------------------------------------------------------------
-// ReactiveOperations: Direct callback analysis
-// -----------------------------------------------------------------------------
+/// Classifies the graph operations performed by one reactive method.
+struct ReactiveMethod {
+    /// Whether the call establishes a tracked read.
+    is_read: bool,
+    /// Whether the call writes reactive state.
+    is_write: bool,
+}
 
 /// Reactive reads and writes directly owned by one effect callback.
 struct ReactiveOperations<'analysis, 'tcx> {
@@ -85,16 +85,21 @@ impl<'analysis, 'tcx> ReactiveOperations<'analysis, 'tcx> {
     }
 
     /// Classifies a method call by its semantic reactive graph trait.
-    fn reactive_method(&self, expression: &Expr<'_>) -> Option<(bool, bool)> {
+    fn reactive_method(&self, expression: &Expr<'_>) -> Option<ReactiveMethod> {
+        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, _, _, _) = expression.kind else {
             return None;
         };
         let owner = self.cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+
+        // Prepare the values used by this stage.
         let method = self
             .cx
             .tcx
             .typeck(owner)
             .type_dependent_def_id(expression.hir_id)?;
+
+        // Reject inputs that do not satisfy this stage.
         if self.cx.tcx.crate_name(method.krate).as_str() != "reactive_graph" {
             return None;
         }
@@ -102,14 +107,18 @@ impl<'analysis, 'tcx> ReactiveOperations<'analysis, 'tcx> {
         let trait_symbol = self.cx.tcx.item_name(trait_id);
         let method_symbol = self.cx.tcx.item_name(method);
         let trait_name = trait_symbol.as_str();
+
+        // Prepare the values used by this stage.
         let method_name = method_symbol.as_str();
-        Some((
-            matches!(
+
+        // Return the completed analysis result.
+        Some(ReactiveMethod {
+            is_read: matches!(
                 (trait_name, method_name),
                 ("Get", "get") | ("Read", "read") | ("With", "with")
             ),
-            matches!(trait_name, "Set" | "Update" | "UpdateUntracked"),
-        ))
+            is_write: matches!(trait_name, "Set" | "Update" | "UpdateUntracked"),
+        })
     }
 }
 
@@ -117,7 +126,7 @@ impl<'tcx> Visitor<'tcx> for ReactiveOperations<'_, 'tcx> {
     fn visit_nested_body(&mut self, _: BodyId) {}
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if let Some((is_read, is_write)) = self.reactive_method(expression) {
+        if let Some(ReactiveMethod { is_read, is_write }) = self.reactive_method(expression) {
             if self.read_span.is_none() && is_read {
                 self.read_span = Some(expression.span);
             }
@@ -128,10 +137,6 @@ impl<'tcx> Visitor<'tcx> for ReactiveOperations<'_, 'tcx> {
         intravisit::walk_expr(self, expression);
     }
 }
-
-// -----------------------------------------------------------------------------
-// LeptosEffectsSynchronizingSignals: Effect boundary policy
-// -----------------------------------------------------------------------------
 
 /// Late lint pass that keeps reactive-to-reactive synchronization out of effects.
 struct LeptosEffectsSynchronizingSignals;
@@ -147,21 +152,28 @@ dylint_linting::impl_late_lint! {
 impl LeptosEffectsSynchronizingSignals {
     /// Returns the framework effect operation selected by an associated call.
     fn effect_operation(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<String> {
+        // Prepare the values used by this stage.
         let ExprKind::Call(callee, _) = expression.kind else {
             return None;
         };
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
+
+        // Prepare the values used by this stage.
         let Res::Def(_, method) = cx.qpath_res(&path, callee.hir_id) else {
             return None;
         };
         let implementation = cx.tcx.impl_of_assoc(method)?;
+
+        // Prepare the values used by this stage.
         let definition = cx
             .tcx
             .type_of(implementation)
             .instantiate_identity()
             .ty_adt_def()?;
+
+        // Perform the next step of the analysis.
         (cx.tcx.crate_name(method.krate).as_str() == "reactive_graph"
             && cx.tcx.item_name(definition.did()).as_str() == "Effect")
             .then(|| cx.tcx.item_name(method).as_str().to_owned())
@@ -183,6 +195,11 @@ impl LeptosEffectsSynchronizingSignals {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosEffectsSynchronizingSignals {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        /// Dependency and callback closures supplied to `watch`.
+        // Bound the operation-specific closure scan.
+        const WATCH_CLOSURE_COUNT: usize = 2;
+
+        // Prepare the values used by this stage.
         let ExprKind::Call(_, arguments) = expression.kind else {
             return;
         };
@@ -190,13 +207,16 @@ impl<'tcx> LateLintPass<'tcx> for LeptosEffectsSynchronizingSignals {
             return;
         };
 
+        // Prepare the values used by this stage.
         let mut read_span = None;
         let mut write_span = None;
         let closure_count = match operation.as_str() {
             "new" => 1,
-            "watch" => 2,
+            "watch" => WATCH_CLOSURE_COUNT,
             _ => return,
         };
+
+        // Process the candidates handled by this stage.
         for argument in arguments.iter().take(closure_count) {
             let Some(operations) = Self::closure_operations(cx, argument) else {
                 continue;
@@ -204,9 +224,13 @@ impl<'tcx> LateLintPass<'tcx> for LeptosEffectsSynchronizingSignals {
             read_span = read_span.or(operations.read_span);
             write_span = write_span.or(operations.write_span);
         }
+
+        // Prepare the values used by this stage.
         let (Some(read_span), Some(write_span)) = (read_span, write_span) else {
             return;
         };
+
+        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
             read_span,

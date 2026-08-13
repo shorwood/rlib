@@ -2,8 +2,9 @@
 
 ## What it does
 
-Orders declarations in each module before local declarations which use them. Imports and
-macro output are excluded, while types and their immediately adjacent impls move as a unit.
+Orders declarations within each authored section before local declarations which use them.
+Small modules without section dividers keep their authored order. Imports and macro output
+are excluded, while types and their immediately adjacent impls move as a unit.
 
 ## Why is this bad?
 

@@ -10,13 +10,18 @@ use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::{Span, Symbol};
 
 use super::utils::authored_contracts::StringTableCandidate;
-use super::utils::contracts::{ContractCatalog, EnumContract};
+use super::utils::contracts::ContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `owner` value used by this analysis.
     owner: rustc_hir::HirId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `enum_name` value used by this analysis.
     enum_name: Symbol,
+    /// Stores the `is_public` value used by this analysis.
     is_public: bool,
 }
 
@@ -27,12 +32,15 @@ impl LateViolation for Violation {
             self.enum_name
         ))
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("the static table duplicates canonical names and declaration order")
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("derive `strum::VariantNames` and use its `VARIANTS` constant")
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
             STRUM_MANUAL_VARIANT_NAMES,
@@ -51,8 +59,11 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `StrumManualVariantNames` state used by this analysis.
 struct StrumManualVariantNames {
+    /// Stores the `catalog` value used by this analysis.
     catalog: ContractCatalog,
+    /// Stores the `tables` value used by this analysis.
     tables: Vec<StringTableCandidate>,
 }
 
@@ -67,23 +78,27 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for StrumManualVariantNames {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
-        if let Some(table) = StringTableCandidate::from_item(cx, item) {
-            self.tables.push(table);
-        }
+        let Some(table) = StringTableCandidate::from_item(cx, item) else {
+            return;
+        };
+        self.tables.push(table);
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        if let Some(table) = StringTableCandidate::from_impl_item(cx, item) {
-            self.tables.push(table);
-        }
+        let Some(table) = StringTableCandidate::from_impl_item(cx, item) else {
+            return;
+        };
+        self.tables.push(table);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        let contracts = self.catalog.contracts();
         for table in self.tables.drain(..) {
-            let Some(contract) = matching_contract(&contracts, &table) else {
+            // Prepare the values used by this stage.
+            let Some(contract) = self.catalog.matching_string_table(&table) else {
                 continue;
             };
+
+            // Perform the next step of the analysis.
             Violation {
                 owner: table.owner,
                 span: table.span,
@@ -93,29 +108,4 @@ impl LateLintPass<'_> for StrumManualVariantNames {
             .emit(cx);
         }
     }
-}
-
-fn matching_contract<'a>(
-    contracts: &'a [EnumContract],
-    table: &StringTableCandidate,
-) -> Option<&'a EnumContract> {
-    let mut matches = contracts.iter().filter(|contract| {
-        table
-            .enum_def
-            .is_none_or(|enum_def| enum_def == contract.def_id)
-            && table.values
-                == contract
-                    .variants
-                    .iter()
-                    .map(|variant| variant.preferred_name.clone())
-                    .collect::<Vec<_>>()
-            && (table.enum_def.is_some()
-                || table
-                    .name
-                    .as_str()
-                    .to_ascii_lowercase()
-                    .contains(&contract.name.as_str().to_ascii_lowercase()))
-    });
-    let first = matches.next()?;
-    matches.next().is_none().then_some(first)
 }

@@ -5,6 +5,10 @@
 #![allow(misordered_module_declarations)]
 #![warn(misordered_type_declarations)]
 
+// -----------------------------------------------------------------------------
+// Fixture: Type ordering fixture
+// -----------------------------------------------------------------------------
+
 struct UsesAlias {
     value: Alias,
 }

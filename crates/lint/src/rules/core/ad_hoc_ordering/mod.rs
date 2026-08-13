@@ -24,7 +24,7 @@ use crate::utils::diagnostic::LateViolation;
 /// Canonical-looking ordering with exact totality and family context.
 struct Violation {
     /// Complete relation and remediation context discovered by the analyzer.
-    candidate: ComparisonFamilyCandidate,
+    analyze_candidate: ComparisonFamilyCandidate,
     /// Missing, ambiguous, or competing trait ownership.
     problem: ComparisonProblem,
 }
@@ -32,7 +32,7 @@ struct Violation {
 impl From<ComparisonFamilyFinding<'_>> for Violation {
     fn from(finding: ComparisonFamilyFinding<'_>) -> Self {
         Self {
-            candidate: finding.candidate.clone(),
+            analyze_candidate: finding.analyze_candidate.clone(),
             problem: finding.problem,
         }
     }
@@ -43,7 +43,7 @@ impl Violation {
     fn missing_primary(&self, trait_name: &str) -> Cow<'_, str> {
         Cow::Owned(format!(
             "`{}` defines canonical-looking ordering for `{}` outside `{trait_name}`",
-            self.candidate.source.name, self.candidate.protocol.type_name
+            self.analyze_candidate.source.name, self.analyze_candidate.protocol.type_name
         ))
     }
 
@@ -51,7 +51,7 @@ impl Violation {
     fn ambiguous_primary(&self, count: usize) -> Cow<'_, str> {
         Cow::Owned(format!(
             "`{}` is one of {count} APIs competing to define ordering for `{}`",
-            self.candidate.source.name, self.candidate.protocol.type_name
+            self.analyze_candidate.source.name, self.analyze_candidate.protocol.type_name
         ))
     }
 
@@ -59,7 +59,7 @@ impl Violation {
     fn competing_primary(&self, trait_name: &str) -> Cow<'_, str> {
         Cow::Owned(format!(
             "`{}` implements ordering for `{}` separately from its `{trait_name}` contract",
-            self.candidate.source.name, self.candidate.protocol.type_name
+            self.analyze_candidate.source.name, self.analyze_candidate.protocol.type_name
         ))
     }
 
@@ -67,7 +67,7 @@ impl Violation {
     fn missing_remediation(&self, trait_name: &str) -> Cow<'_, str> {
         Cow::Owned(format!(
             "if this is the canonical relation, implement `{trait_name}` for `{}` and keep its equality stack consistent; otherwise name the ordering context or introduce a wrapper type",
-            self.candidate.protocol.type_name
+            self.analyze_candidate.protocol.type_name
         ))
     }
 
@@ -75,7 +75,7 @@ impl Violation {
     fn ambiguous_remediation(&self, trait_name: &str) -> Cow<'_, str> {
         Cow::Owned(format!(
             "select one lawful `{trait_name}` relation for `{}` and represent display, priority, version, or key orderings with explicit names or wrapper types",
-            self.candidate.protocol.type_name
+            self.analyze_candidate.protocol.type_name
         ))
     }
 
@@ -83,7 +83,7 @@ impl Violation {
     fn competing_remediation(&self, trait_name: &str) -> Cow<'_, str> {
         Cow::Owned(format!(
             "delegate to `{}`'s `{trait_name}` implementation or make this distinct ordering explicit; do not let `cmp == Equal` disagree with canonical equality",
-            self.candidate.protocol.type_name
+            self.analyze_candidate.protocol.type_name
         ))
     }
 }
@@ -91,7 +91,7 @@ impl Violation {
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         // Name the inferred trait before classifying its ownership problem.
-        let trait_name = self.candidate.protocol.contract.trait_name();
+        let trait_name = self.analyze_candidate.protocol.contract.trait_name();
         match self.problem {
             ComparisonProblem::MissingTrait => self.missing_primary(trait_name),
             ComparisonProblem::AmbiguousFamily { count } => self.ambiguous_primary(count),
@@ -102,13 +102,13 @@ impl LateViolation for Violation {
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "canonical ordering controls sorting, ordered collections, min/max operations, and equality coherence for `{}`; detached comparators can silently disagree",
-            self.candidate.protocol.type_name
+            self.analyze_candidate.protocol.type_name
         ))
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
         // Keep totality-specific guidance beside the selected standard trait.
-        let trait_name = self.candidate.protocol.contract.trait_name();
+        let trait_name = self.analyze_candidate.protocol.contract.trait_name();
         match self.problem {
             ComparisonProblem::MissingTrait => self.missing_remediation(trait_name),
             ComparisonProblem::AmbiguousFamily { .. } => self.ambiguous_remediation(trait_name),
@@ -119,20 +119,20 @@ impl LateViolation for Violation {
     fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
             AD_HOC_ORDERING,
-            self.candidate.source.hir_id,
-            self.candidate.source.name_span,
+            self.analyze_candidate.source.hir_id,
+            self.analyze_candidate.source.name_span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
                 diag.span_label(
-                    self.candidate.evidence.left,
+                    self.analyze_candidate.evidence.left,
                     "first value in the inferred ordering relation",
                 );
                 diag.span_label(
-                    self.candidate.evidence.right,
+                    self.analyze_candidate.evidence.right,
                     "second value in the same relation",
                 );
                 diag.span_label(
-                    self.candidate.evidence.relation,
+                    self.analyze_candidate.evidence.relation,
                     "both values determine this ordering result",
                 );
                 diag.note(self.rationale_message().into_owned());
@@ -145,9 +145,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // AdHocOrdering: Standard ordering ownership policy
 // -----------------------------------------------------------------------------
-
-/// Collects ordering families and existing trait ownership before reporting.
 #[derive(Default)]
+/// Collects ordering families and existing trait ownership before reporting.
 struct AdHocOrdering {
     /// Shared relation analyzer used to select canonical ordering families.
     comparisons: ComparisonAnalysis,

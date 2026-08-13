@@ -6,10 +6,6 @@ use rustc_lexer::{FrontmatterAllowed, TokenKind, tokenize};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::{BytePos, Span};
 
-// -----------------------------------------------------------------------------
-// FunctionLayoutSource: Authored comment extraction
-// -----------------------------------------------------------------------------
-
 /// Authored ordinary line comment with source position metadata.
 pub(super) struct Comment {
     /// Exact source range of the comment token.

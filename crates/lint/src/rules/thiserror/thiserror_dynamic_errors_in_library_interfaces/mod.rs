@@ -13,10 +13,15 @@ use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `owner` value used by this analysis.
     owner: rustc_hir::HirId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `function` value used by this analysis.
     function: String,
+    /// Stores the `error` value used by this analysis.
     error: String,
 }
 
@@ -58,50 +63,19 @@ impl LateViolation for Violation {
     }
 }
 
-struct ThiserrorDynamicErrorsInLibraryInterfaces;
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub THISERROR_DYNAMIC_ERRORS_IN_LIBRARY_INTERFACES,
-    Warn,
-    "finds dynamic error types in public library interfaces",
-    ThiserrorDynamicErrorsInLibraryInterfaces
+/// Performs the `boxed_error_trait` step of the lint analysis.
+fn boxed_error_trait(cx: &LateContext<'_>, inner: Ty<'_>) -> Option<String> {
+    let ty::Dynamic(predicates, ..) = inner.kind() else {
+        return None;
+    };
+    let principal = predicates.principal()?;
+    let definition = principal.def_id();
+    (cx.tcx.item_name(definition).as_str() == "Error"
+        && matches!(cx.tcx.crate_name(definition.krate).as_str(), "core" | "std"))
+    .then(|| "Box<dyn Error>".to_owned())
 }
 
-impl LateLintPass<'_> for ThiserrorDynamicErrorsInLibraryInterfaces {
-    fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        if item.span.from_expansion()
-            || !matches!(item.kind, ItemKind::Fn { .. })
-            || !cx.tcx.visibility(item.owner_id.def_id).is_public()
-        {
-            return;
-        }
-        let output = cx
-            .tcx
-            .fn_sig(item.owner_id.def_id)
-            .instantiate_identity()
-            .skip_binder()
-            .output();
-        let ty::Adt(result, arguments) = output.kind() else {
-            return;
-        };
-        if cx.tcx.item_name(result.did()).as_str() != "Result" || arguments.len() != 2 {
-            return;
-        }
-        let error = arguments.type_at(1);
-        let Some(error_name) = dynamic_error_name(cx, error) else {
-            return;
-        };
-        Violation {
-            owner: item.hir_id(),
-            span: item.span,
-            function: cx.tcx.item_name(item.owner_id.def_id).to_string(),
-            error: error_name,
-        }
-        .emit(cx);
-    }
-}
-
+/// Performs the `dynamic_error_name` step of the lint analysis.
 fn dynamic_error_name(cx: &LateContext<'_>, error: Ty<'_>) -> Option<String> {
     if let ty::Adt(definition, arguments) = error.kind() {
         let name_symbol = cx.tcx.item_name(definition.did());
@@ -118,13 +92,62 @@ fn dynamic_error_name(cx: &LateContext<'_>, error: Ty<'_>) -> Option<String> {
     None
 }
 
-fn boxed_error_trait(cx: &LateContext<'_>, inner: Ty<'_>) -> Option<String> {
-    let ty::Dynamic(predicates, ..) = inner.kind() else {
-        return None;
-    };
-    let principal = predicates.principal()?;
-    let definition = principal.def_id();
-    (cx.tcx.item_name(definition).as_str() == "Error"
-        && matches!(cx.tcx.crate_name(definition.krate).as_str(), "core" | "std"))
-    .then(|| "Box<dyn Error>".to_owned())
+/// Carries the `ThiserrorDynamicErrorsInLibraryInterfaces` state used by this analysis.
+struct ThiserrorDynamicErrorsInLibraryInterfaces;
+
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub THISERROR_DYNAMIC_ERRORS_IN_LIBRARY_INTERFACES,
+    Warn,
+    "finds dynamic error types in public library interfaces",
+    ThiserrorDynamicErrorsInLibraryInterfaces
+}
+
+impl LateLintPass<'_> for ThiserrorDynamicErrorsInLibraryInterfaces {
+    fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        /// Success and error arguments carried by `Result`.
+        // Fix the expected shape before inspecting a function's result type.
+        const RESULT_TYPE_ARGUMENT_COUNT: usize = 2;
+
+        // Reject inputs that do not satisfy this stage.
+        if item.span.from_expansion()
+            || !matches!(item.kind, ItemKind::Fn { .. })
+            || !cx.tcx.visibility(item.owner_id.def_id).is_public()
+        {
+            return;
+        }
+
+        // Prepare the values used by this stage.
+        let output = cx
+            .tcx
+            .fn_sig(item.owner_id.def_id)
+            .instantiate_identity()
+            .skip_binder()
+            .output();
+
+        // Prepare the values used by this stage.
+        let ty::Adt(result, arguments) = output.kind() else {
+            return;
+        };
+        if cx.tcx.item_name(result.did()).as_str() != "Result"
+            || arguments.len() != RESULT_TYPE_ARGUMENT_COUNT
+        {
+            return;
+        }
+        let error = arguments.type_at(1);
+
+        // Prepare the values used by this stage.
+        let Some(error_name) = dynamic_error_name(cx, error) else {
+            return;
+        };
+
+        // Perform the next step of the analysis.
+        Violation {
+            owner: item.hir_id(),
+            span: item.span,
+            function: cx.tcx.item_name(item.owner_id.def_id).to_string(),
+            error: error_name,
+        }
+        .emit(cx);
+    }
 }

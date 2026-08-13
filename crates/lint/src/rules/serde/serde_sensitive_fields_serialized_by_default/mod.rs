@@ -10,18 +10,25 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeContractCatalog, SerdeFlag, serde_attributes};
+use super::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::authored_item_source;
+use crate::utils::source_provenance::AuthoredItemSource;
 
+/// Carries the `Candidate` state used by this analysis.
 struct Candidate {
+    /// Stores the `definition` value used by this analysis.
     definition: LocalDefId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `fields` value used by this analysis.
     fields: Vec<String>,
 }
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `fields` value used by this analysis.
     fields: Vec<String>,
 }
 
@@ -70,84 +77,12 @@ impl LateViolation for Violation {
     }
 }
 
-#[derive(Default)]
-struct SerdeSensitiveFieldsSerializedByDefault {
-    catalog: SerdeContractCatalog,
-    candidates: Vec<Candidate>,
-}
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub SERDE_SENSITIVE_FIELDS_SERIALIZED_BY_DEFAULT,
-    Warn,
-    "finds raw credential fields included in public Serde serializers",
-    SerdeSensitiveFieldsSerializedByDefault::default()
-}
-
-impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
-    fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        self.catalog.check_item(cx, item);
-        if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
-            return;
-        }
-        let Some(source) = authored_item_source(cx, item) else {
-            return;
-        };
-        let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
-            return;
-        };
-        if !matches!(structure.vis, syn::Visibility::Public(_)) {
-            return;
-        }
-        let fields = structure
-            .fields
-            .iter()
-            .filter_map(|field| {
-                let name = field.ident.as_ref()?.to_string();
-                let attributes = serde_attributes(&field.attrs);
-                if attributes.has(SerdeFlag::SkipSerialize)
-                    || !sensitive_name(&name)
-                    || !raw_secret_carrier(&field.ty)
-                    || attributes
-                        .serialize_with
-                        .as_deref()
-                        .is_some_and(explicit_sensitive_policy)
-                {
-                    return None;
-                }
-                Some(format!("`{name}`"))
-            })
-            .collect::<Vec<_>>();
-        if fields.is_empty() {
-            return;
-        }
-        self.candidates.push(Candidate {
-            definition: item.owner_id.def_id,
-            span: item.span,
-            fields,
-        });
-    }
-
-    fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for candidate in self.candidates.drain(..) {
-            if self
-                .catalog
-                .derived_type(candidate.definition, "Serialize")
-                .is_none()
-            {
-                continue;
-            }
-            Violation {
-                span: candidate.span,
-                fields: candidate.fields,
-            }
-            .emit(cx);
-        }
-    }
-}
-
+/// Performs the `sensitive_name` step of the lint analysis.
 fn sensitive_name(name: &str) -> bool {
+    // Prepare the values used by this stage.
     let name = name.to_ascii_lowercase();
+
+    // Perform the next step of the analysis.
     [
         "password",
         "passphrase",
@@ -164,14 +99,24 @@ fn sensitive_name(name: &str) -> bool {
     .any(|term| name == *term || name.ends_with(&format!("_{term}")))
 }
 
+/// Performs the `is_u8` step of the lint analysis.
+fn is_u8(ty: &syn::Type) -> bool {
+    matches!(ty, syn::Type::Path(path)
+        if path.path.segments.last().is_some_and(|segment| segment.ident == "u8"))
+}
+
+/// Performs the `raw_secret_carrier` step of the lint analysis.
 fn raw_secret_carrier(ty: &syn::Type) -> bool {
     match ty {
         syn::Type::Array(array) => is_u8(&array.elem),
         syn::Type::Slice(slice) => is_u8(&slice.elem),
         syn::Type::Path(path) => {
+            // Prepare the values used by this stage.
             let Some(segment) = path.path.segments.last() else {
                 return false;
             };
+
+            // Classify the current analyze_candidate.
             match segment.ident.to_string().as_str() {
                 "String" => true,
                 "Vec" => match &segment.arguments {
@@ -187,14 +132,101 @@ fn raw_secret_carrier(ty: &syn::Type) -> bool {
     }
 }
 
-fn is_u8(ty: &syn::Type) -> bool {
-    matches!(ty, syn::Type::Path(path)
-        if path.path.segments.last().is_some_and(|segment| segment.ident == "u8"))
-}
-
+/// Performs the `explicit_sensitive_policy` step of the lint analysis.
 fn explicit_sensitive_policy(path: &str) -> bool {
     let path = path.to_ascii_lowercase();
     ["redact", "secret", "encrypt", "mask"]
         .iter()
         .any(|term| path.contains(term))
+}
+
+#[derive(Default)]
+/// Carries the `SerdeSensitiveFieldsSerializedByDefault` state used by this analysis.
+struct SerdeSensitiveFieldsSerializedByDefault {
+    /// Stores the `catalog` value used by this analysis.
+    catalog: SerdeContractCatalog,
+    /// Stores the `candidates` value used by this analysis.
+    candidates: Vec<Candidate>,
+}
+
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub SERDE_SENSITIVE_FIELDS_SERIALIZED_BY_DEFAULT,
+    Warn,
+    "finds raw credential fields included in public Serde serializers",
+    SerdeSensitiveFieldsSerializedByDefault::default()
+}
+
+impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
+    fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Update the accumulated analysis state.
+        self.catalog.check_item(cx, item);
+        if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
+            return;
+        }
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
+            return;
+        };
+
+        // Prepare the values used by this stage.
+        let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
+            return;
+        };
+        if !matches!(structure.vis, syn::Visibility::Public(_)) {
+            return;
+        }
+
+        // Prepare the values used by this stage.
+        let fields = structure
+            .fields
+            .iter()
+            .filter_map(|field| {
+                let name = field.ident.as_ref()?.to_string();
+                let attributes = SerdeAttributes::analyze_serde_attributes(&field.attrs);
+                if attributes.has(SerdeFlag::SkipSerialize)
+                    || !sensitive_name(&name)
+                    || !raw_secret_carrier(&field.ty)
+                    || attributes
+                        .serialize_with
+                        .as_deref()
+                        .is_some_and(explicit_sensitive_policy)
+                {
+                    return None;
+                }
+                Some(format!("`{name}`"))
+            })
+            .collect::<Vec<_>>();
+
+        // Reject inputs that do not satisfy this stage.
+        if fields.is_empty() {
+            return;
+        }
+
+        // Update the accumulated analysis state.
+        self.candidates.push(Candidate {
+            definition: item.owner_id.def_id,
+            span: item.span,
+            fields,
+        });
+    }
+
+    fn check_crate_post(&mut self, cx: &LateContext<'_>) {
+        for analyze_candidate in self.candidates.drain(..) {
+            // Reject inputs that do not satisfy this stage.
+            if self
+                .catalog
+                .derived_type(analyze_candidate.definition, "Serialize")
+                .is_none()
+            {
+                continue;
+            }
+
+            // Perform the next step of the analysis.
+            Violation {
+                span: analyze_candidate.span,
+                fields: analyze_candidate.fields,
+            }
+            .emit(cx);
+        }
+    }
 }

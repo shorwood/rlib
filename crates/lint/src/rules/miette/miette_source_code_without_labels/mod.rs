@@ -9,28 +9,70 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
+use super::contracts::{
+    DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole, DiagnosticMetadata,
+};
 use crate::utils::diagnostic::LateViolation;
 
+/// Whether a diagnostic delegates presentation to another diagnostic.
+#[derive(Clone, Copy)]
+enum Transparency {
+    /// The diagnostic delegates its label contract.
+    Transparent,
+    /// The diagnostic owns its label contract.
+    Opaque,
+}
+
+impl Transparency {
+    /// Classifies a complete diagnostic contract.
+    const fn for_contract(metadata: &DiagnosticMetadata) -> Self {
+        if metadata.is_transparent {
+            Self::Transparent
+        } else {
+            Self::Opaque
+        }
+    }
+
+    /// Classifies a member together with its containing diagnostic contract.
+    const fn for_member(member: &DiagnosticMetadata, contract: &DiagnosticMetadata) -> Self {
+        if member.is_transparent || contract.is_transparent {
+            Self::Transparent
+        } else {
+            Self::Opaque
+        }
+    }
+
+    /// Returns whether the diagnostic delegates its label contract.
+    const fn is_transparent(self) -> bool {
+        matches!(self, Self::Transparent)
+    }
+}
+
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `sources` value used by this analysis.
     sources: Vec<String>,
 }
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("diagnostic retains source code without a focus")
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "source fields {} have no label, related diagnostic, or diagnostic source that can select a relevant location",
             self.sources.join(", ")
         ))
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "add focused label metadata or remove source-code storage from this diagnostic",
         )
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         cx.emit_span_lint(
             MIETTE_SOURCE_CODE_WITHOUT_LABELS,
@@ -45,8 +87,46 @@ impl LateViolation for Violation {
     }
 }
 
+/// Performs the `check_fields` step of the lint analysis.
+fn check_fields(
+    cx: &LateContext<'_>,
+    span: Span,
+    fields: &[DiagnosticField],
+    transparency: Transparency,
+) {
+    // Prepare the values used by this stage.
+    let sources = fields
+        .iter()
+        .filter(|field| field.roles.contains(DiagnosticFieldRole::SourceCode))
+        .collect::<Vec<_>>();
+
+    // Reject inputs that do not satisfy this stage.
+    if sources.is_empty()
+        || transparency.is_transparent()
+        || fields.iter().any(|field| {
+            field.roles.contains(DiagnosticFieldRole::Label)
+                || field.roles.contains(DiagnosticFieldRole::Related)
+                || field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
+        })
+    {
+        return;
+    }
+
+    // Perform the next step of the analysis.
+    Violation {
+        span,
+        sources: sources
+            .into_iter()
+            .map(|field| format!("`{}`", field.name))
+            .collect(),
+    }
+    .emit(cx);
+}
+
 #[derive(Default)]
+/// Carries the `MietteSourceCodeWithoutLabels` state used by this analysis.
 struct MietteSourceCodeWithoutLabels {
+    /// Stores the `catalog` value used by this analysis.
     catalog: DiagnosticCatalog,
 }
 dylint_linting::impl_late_lint! {
@@ -60,46 +140,23 @@ impl LateLintPass<'_> for MietteSourceCodeWithoutLabels {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
     }
+
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.derived_contracts() {
             check_fields(
                 cx,
                 contract.span,
                 &contract.fields,
-                contract.metadata.transparent,
+                Transparency::for_contract(&contract.metadata),
             );
             for member in &contract.members {
                 check_fields(
                     cx,
                     member.span,
                     &member.fields,
-                    member.metadata.transparent || contract.metadata.transparent,
+                    Transparency::for_member(&member.metadata, &contract.metadata),
                 );
             }
         }
     }
-}
-fn check_fields(cx: &LateContext<'_>, span: Span, fields: &[DiagnosticField], transparent: bool) {
-    let sources = fields
-        .iter()
-        .filter(|field| field.roles.contains(DiagnosticFieldRole::SourceCode))
-        .collect::<Vec<_>>();
-    if sources.is_empty()
-        || transparent
-        || fields.iter().any(|field| {
-            field.roles.contains(DiagnosticFieldRole::Label)
-                || field.roles.contains(DiagnosticFieldRole::Related)
-                || field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
-        })
-    {
-        return;
-    }
-    Violation {
-        span,
-        sources: sources
-            .into_iter()
-            .map(|field| format!("`{}`", field.name))
-            .collect(),
-    }
-    .emit(cx);
 }

@@ -17,13 +17,18 @@ use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// Classifies `Receiver` cases used by this analysis.
 enum Receiver {
+    /// Represents the `Owned` case.
     Owned,
+    /// Represents the `Ref` case.
     Ref,
+    /// Represents the `RefMut` case.
     RefMut,
 }
 
 impl Receiver {
+    /// Performs the `attribute` operation for this value.
     const fn attribute(self) -> &'static str {
         match self {
             Self::Owned => "owned",
@@ -33,13 +38,21 @@ impl Receiver {
     }
 }
 
+/// Carries the `Family` state used by this analysis.
 struct Family {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `name` value used by this analysis.
     name: String,
+    /// Stores the `receivers` value used by this analysis.
     receivers: Vec<Receiver>,
 }
 
-struct Violation(Family);
+/// Stores the `item` value used by this analysis.
+struct Violation(
+    /// Iterator family that triggered the violation.
+    Family,
+);
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
@@ -54,6 +67,7 @@ impl LateViolation for Violation {
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
+        // Prepare the values used by this stage.
         let receivers = self
             .0
             .receivers
@@ -61,6 +75,8 @@ impl LateViolation for Violation {
             .map(|receiver| receiver.attribute())
             .collect::<Vec<_>>()
             .join(", ");
+
+        // Perform the next step of the analysis.
         Cow::Owned(format!(
             "replace this family with `#[derive(derive_more::IntoIterator)]` and `#[into_iterator({receivers})]`"
         ))
@@ -80,8 +96,103 @@ impl LateViolation for Violation {
     }
 }
 
+/// Identifies one transparent iteration implementation.
+struct ExactDelegation {
+    /// Local wrapper type receiving the implementation.
+    definition: LocalDefId,
+    /// Form of receiver forwarded to the wrapped field.
+    receiver: Receiver,
+}
+
+impl ExactDelegation {
+    /// Recognizes one transparent iteration implementation.
+    fn analyze(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Prepare the values used by this stage.
+        let ImplItemKind::Fn(signature, body_id) = item.kind else {
+            return None;
+        };
+        if item.ident.name.as_str() != "into_iter" || item.span.from_expansion() {
+            return None;
+        }
+        let implementation = cx.tcx.local_parent(item.owner_id.def_id);
+
+        // Prepare the values used by this stage.
+        let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
+            return None;
+        };
+        let ItemKind::Impl(implementation_item) = parent.kind else {
+            return None;
+        };
+        let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
+
+        // Reject inputs that do not satisfy this stage.
+        if cx.tcx.crate_name(trait_id.krate).as_str() != "core"
+            || cx.tcx.item_name(trait_id).as_str() != "IntoIterator"
+        {
+            return None;
+        }
+        let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
+
+        // Prepare the values used by this stage.
+        let (wrapper, receiver) = match trait_ref.self_ty().kind() {
+            ty::Adt(definition, _) => (*definition, Receiver::Owned),
+            ty::Ref(_, inner, Mutability::Not) => (inner.ty_adt_def()?, Receiver::Ref),
+            ty::Ref(_, inner, Mutability::Mut) => (inner.ty_adt_def()?, Receiver::RefMut),
+            _ => return None,
+        };
+        let definition = wrapper.did().as_local()?;
+
+        // Reject inputs that do not satisfy this stage.
+        if !wrapper.is_struct() || wrapper.non_enum_variant().fields.len() != 1 {
+            return None;
+        }
+        let body = cx.tcx.hir_body(body_id);
+        let forwarding =
+            DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
+
+        // Prepare the values used by this stage.
+        let [binding] = forwarding.bindings.as_slice() else {
+            return None;
+        };
+        let call = DirectForwarding::call(cx, forwarding.typeck_owner, forwarding.forwarded)?;
+        let called_trait = cx.tcx.trait_of_assoc(call.target)?;
+
+        // Reject inputs that do not satisfy this stage.
+        if called_trait != trait_id || cx.tcx.item_name(call.target).as_str() != "into_iter" {
+            return None;
+        }
+        let [argument] = call.arguments.as_slice() else {
+            return None;
+        };
+
+        // Classify the current analyze_candidate.
+        match (receiver, argument.kind) {
+            (Receiver::Owned, ExprKind::Field(base, _))
+                if DirectForwarding::is_binding(cx, base, *binding) => {}
+            (Receiver::Ref, ExprKind::AddrOf(_, Mutability::Not, inner))
+            | (Receiver::RefMut, ExprKind::AddrOf(_, Mutability::Mut, inner)) => {
+                let ExprKind::Field(base, _) = inner.kind else {
+                    return None;
+                };
+                if !DirectForwarding::is_binding(cx, base, *binding) {
+                    return None;
+                }
+            }
+            _ => return None,
+        }
+
+        // Return the completed analysis result.
+        Some(Self {
+            definition,
+            receiver,
+        })
+    }
+}
+
 #[derive(Default)]
+/// Carries the `DeriveMoreManualIntoIteratorImpls` state used by this analysis.
 struct DeriveMoreManualIntoIteratorImpls {
+    /// Stores the `families` value used by this analysis.
     families: HashMap<LocalDefId, Family>,
 }
 
@@ -95,7 +206,11 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualIntoIteratorImpls {
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
-        let Some((definition, receiver)) = exact_delegation(cx, item) else {
+        let Some(ExactDelegation {
+            definition,
+            receiver,
+        }) = ExactDelegation::analyze(cx, item)
+        else {
             return;
         };
         let family = self.families.entry(definition).or_insert_with(|| Family {
@@ -103,9 +218,10 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualIntoIteratorImpls {
             name: cx.tcx.item_name(definition).to_string(),
             receivers: Vec::new(),
         });
-        if !family.receivers.contains(&receiver) {
-            family.receivers.push(receiver);
+        if family.receivers.contains(&receiver) {
+            return;
         }
+        family.receivers.push(receiver);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
@@ -114,66 +230,4 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualIntoIteratorImpls {
             Violation(family).emit(cx);
         }
     }
-}
-
-fn exact_delegation(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<(LocalDefId, Receiver)> {
-    let ImplItemKind::Fn(signature, body_id) = item.kind else {
-        return None;
-    };
-    if item.ident.name.as_str() != "into_iter" || item.span.from_expansion() {
-        return None;
-    }
-    let implementation = cx.tcx.local_parent(item.owner_id.def_id);
-    let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
-        return None;
-    };
-    let ItemKind::Impl(implementation_item) = parent.kind else {
-        return None;
-    };
-    let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
-    if cx.tcx.crate_name(trait_id.krate).as_str() != "core"
-        || cx.tcx.item_name(trait_id).as_str() != "IntoIterator"
-    {
-        return None;
-    }
-    let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
-    let (wrapper, receiver) = match trait_ref.self_ty().kind() {
-        ty::Adt(definition, _) => (*definition, Receiver::Owned),
-        ty::Ref(_, inner, Mutability::Not) => (inner.ty_adt_def()?, Receiver::Ref),
-        ty::Ref(_, inner, Mutability::Mut) => (inner.ty_adt_def()?, Receiver::RefMut),
-        _ => return None,
-    };
-    let definition = wrapper.did().as_local()?;
-    if !wrapper.is_struct() || wrapper.non_enum_variant().fields.len() != 1 {
-        return None;
-    }
-    let body = cx.tcx.hir_body(body_id);
-    let forwarding =
-        DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
-    let [binding] = forwarding.bindings.as_slice() else {
-        return None;
-    };
-    let call = DirectForwarding::call(cx, forwarding.typeck_owner, forwarding.forwarded)?;
-    let called_trait = cx.tcx.trait_of_assoc(call.target)?;
-    if called_trait != trait_id || cx.tcx.item_name(call.target).as_str() != "into_iter" {
-        return None;
-    }
-    let [argument] = call.arguments.as_slice() else {
-        return None;
-    };
-    match (receiver, argument.kind) {
-        (Receiver::Owned, ExprKind::Field(base, _))
-            if DirectForwarding::is_binding(cx, base, *binding) => {}
-        (Receiver::Ref, ExprKind::AddrOf(_, Mutability::Not, inner))
-        | (Receiver::RefMut, ExprKind::AddrOf(_, Mutability::Mut, inner)) => {
-            let ExprKind::Field(base, _) = inner.kind else {
-                return None;
-            };
-            if !DirectForwarding::is_binding(cx, base, *binding) {
-                return None;
-            }
-        }
-        _ => return None,
-    }
-    Some((definition, receiver))
 }

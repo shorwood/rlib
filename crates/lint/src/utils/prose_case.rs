@@ -1,7 +1,7 @@
 use convert_case::{Case, Casing};
 
 // -----------------------------------------------------------------------------
-// ProseCase: Free text casing
+// Sentence: Free text casing
 // -----------------------------------------------------------------------------
 
 /// Converts prose to canonical sentence case.

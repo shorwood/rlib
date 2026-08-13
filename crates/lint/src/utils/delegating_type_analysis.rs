@@ -48,9 +48,8 @@ struct DelegatingTypeCandidate {
     /// Resolved stored type rendered in guidance.
     inner_type: String,
 }
-
-/// Complete crate evidence retained for one wrapper candidate.
 #[derive(Default)]
+/// Complete crate evidence retained for one wrapper `analyze_candidate`.
 struct DelegatingTypeEvidence {
     /// Authored direct construction sites.
     constructions: Vec<Span>,
@@ -107,9 +106,8 @@ pub struct DelegatingTypeFinding {
 // -----------------------------------------------------------------------------
 // DelegatingTypeAnalyzer: Crate wide wrapper policy
 // -----------------------------------------------------------------------------
-
-/// Collects wrapper declarations, complete inherent behavior, traits, and constructions.
 #[derive(Default)]
+/// Collects wrapper declarations, complete inherent behavior, traits, and constructions.
 pub struct DelegatingTypeAnalyzer {
     /// Eligible declarations indexed independently from traversal order.
     candidates: HashMap<LocalDefId, DelegatingTypeCandidate>,
@@ -134,7 +132,7 @@ impl DelegatingTypeAnalyzer {
             .flatten()
     }
 
-    /// Returns whether one expression directly selects the candidate's sole field from `self`.
+    /// Returns whether one expression directly selects the `analyze_candidate`'s sole field from `self`.
     fn is_inner_field(cx: &LateContext<'_>, expression: &Expr<'_>, self_binding: HirId) -> bool {
         // Permit an explicit borrow around the field while preserving its identity.
         let expression = match expression.kind {
@@ -289,7 +287,7 @@ impl DelegatingTypeAnalyzer {
         }
     }
 
-    /// Classifies every inherent associated item owned by a candidate wrapper.
+    /// Classifies every inherent associated item owned by a `analyze_candidate` wrapper.
     pub(crate) fn record_impl_item<'tcx>(
         &mut self,
         cx: &LateContext<'tcx>,
@@ -336,7 +334,7 @@ impl DelegatingTypeAnalyzer {
         }
     }
 
-    /// Records one authored direct construction of a candidate struct.
+    /// Records one authored direct construction of a `analyze_candidate` struct.
     pub(crate) fn record_expression(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
         // Ignore generated use sites before resolving tuple or record construction syntax.
         if expression.span.from_expansion() {
@@ -378,12 +376,12 @@ impl DelegatingTypeAnalyzer {
         let binary = delegating_type_is_binary_crate(cx);
         let mut evidence = self.evidence;
         let mut findings = Vec::new();
-        for candidate in self.candidates.into_values() {
+        for analyze_candidate in self.candidates.into_values() {
             // Require an eligible wrapper with construction and the minimum forwarding surface.
-            if self.disqualified.contains(&candidate.def_id) {
+            if self.disqualified.contains(&analyze_candidate.def_id) {
                 continue;
             }
-            let Some(mut candidate_evidence) = evidence.remove(&candidate.def_id) else {
+            let Some(mut candidate_evidence) = evidence.remove(&analyze_candidate.def_id) else {
                 continue;
             };
             if candidate_evidence.constructions.is_empty()
@@ -397,7 +395,7 @@ impl DelegatingTypeAnalyzer {
             let exported = cx
                 .tcx
                 .effective_visibilities(())
-                .is_exported(candidate.def_id);
+                .is_exported(analyze_candidate.def_id);
             if !binary && package.preserves_exported_public_items() && exported {
                 continue;
             }
@@ -409,16 +407,16 @@ impl DelegatingTypeAnalyzer {
 
             // Separate declaration identity from stored-value behavior evidence.
             let declaration = DelegatingTypeFindingDeclaration {
-                def_id: candidate.def_id,
-                hir_id: cx.tcx.local_def_id_to_hir_id(candidate.def_id),
-                name: candidate.name,
-                name_span: candidate.name_span,
+                def_id: analyze_candidate.def_id,
+                hir_id: cx.tcx.local_def_id_to_hir_id(analyze_candidate.def_id),
+                name: analyze_candidate.name,
+                name_span: analyze_candidate.name_span,
             };
 
             // Retain the sole field and representative exact-forwarding methods.
             let delegation = DelegatingTypeFindingDelegation {
-                field_span: candidate.field_span,
-                inner_type: candidate.inner_type,
+                field_span: analyze_candidate.field_span,
+                inner_type: analyze_candidate.inner_type,
                 forwarding_methods: candidate_evidence.forwarding_methods,
             };
 
@@ -461,7 +459,7 @@ impl DelegatingTypeAnalyzer {
         }
 
         // Retain complete declaration context independently from traversal order.
-        let candidate = DelegatingTypeCandidate {
+        let analyze_candidate = DelegatingTypeCandidate {
             def_id: item.owner_id.def_id,
             name: ident.name,
             name_span: ident.span,
@@ -470,10 +468,11 @@ impl DelegatingTypeAnalyzer {
         };
 
         // Seed ownership evidence for visibility precedence.
-        let evidence = self.evidence.entry(candidate.def_id).or_default();
-        evidence.owned_declarations.insert(candidate.def_id);
+        let evidence = self.evidence.entry(analyze_candidate.def_id).or_default();
+        evidence.owned_declarations.insert(analyze_candidate.def_id);
         evidence.owned_declarations.insert(field.def_id);
-        self.candidates.insert(candidate.def_id, candidate);
+        self.candidates
+            .insert(analyze_candidate.def_id, analyze_candidate);
     }
 
     /// Records trait ownership or semantic attributes on an implementation block.

@@ -10,14 +10,18 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
 use super::contracts::ThiserrorContractCatalog;
-use super::manual_from::ManualFromCandidate;
+use super::manual_from::Candidate as ManualFromCandidate;
 use crate::rules::framework::config::{DeriveResolutionConfig, ErrorVariantConversionProvider};
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `error` value used by this analysis.
     error: String,
+    /// Stores the `variant` value used by this analysis.
     variant: String,
 }
 
@@ -53,13 +57,18 @@ impl LateViolation for Violation {
     }
 }
 
+/// Carries the `ThiserrorManualFromErrorVariants` state used by this analysis.
 struct ThiserrorManualFromErrorVariants {
+    /// Stores the `catalog` value used by this analysis.
     catalog: ThiserrorContractCatalog,
+    /// Stores the `config` value used by this analysis.
     config: DeriveResolutionConfig,
+    /// Stores the `candidates` value used by this analysis.
     candidates: Vec<ManualFromCandidate>,
 }
 
 impl ThiserrorManualFromErrorVariants {
+    /// Performs the `new` operation for this value.
     fn new() -> Self {
         Self {
             catalog: ThiserrorContractCatalog::default(),
@@ -68,6 +77,7 @@ impl ThiserrorManualFromErrorVariants {
         }
     }
 
+    /// Performs the `selected` operation for this value.
     fn selected(&self) -> bool {
         if cfg!(feature = "derive_more") {
             self.config.error_variant_conversion()
@@ -94,23 +104,31 @@ impl LateLintPass<'_> for ThiserrorManualFromErrorVariants {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        if let Some(candidate) = ManualFromCandidate::from_impl_item(cx, item) {
-            self.candidates.push(candidate);
-        }
+        let Some(analyze_candidate) = ManualFromCandidate::from_impl_item(cx, item) else {
+            return;
+        };
+        self.candidates.push(analyze_candidate);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         if !self.selected() {
             return;
         }
-        for candidate in self.candidates.drain(..) {
-            if self.catalog.derived_type(candidate.definition).is_none() {
+        for analyze_candidate in self.candidates.drain(..) {
+            // Reject inputs that do not satisfy this stage.
+            if self
+                .catalog
+                .derived_type(analyze_candidate.definition)
+                .is_none()
+            {
                 continue;
             }
+
+            // Perform the next step of the analysis.
             Violation {
-                span: candidate.span,
-                error: candidate.error,
-                variant: candidate.variant,
+                span: analyze_candidate.span,
+                error: analyze_candidate.error,
+                variant: analyze_candidate.variant,
             }
             .emit(cx);
         }

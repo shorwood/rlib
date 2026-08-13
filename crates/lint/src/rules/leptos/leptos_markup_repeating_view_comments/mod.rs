@@ -58,6 +58,46 @@ impl LateViolation for Violation {
     }
 }
 
+/// Normalizes a short authored name without fuzzy matching.
+fn heading_normalize(value: &str) -> String {
+    value
+        .to_case(Case::Snake)
+        .split('_')
+        .filter(|word| !word.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Returns whether one heading exactly translates its only structural node.
+fn heading_repeats_node(content: &str, node: &ViewNode) -> bool {
+    // Prepare the values used by this stage.
+    let heading = heading_normalize(content);
+    let Some(name) = node.name.as_deref() else {
+        return false;
+    };
+    let node_name = heading_normalize(name);
+
+    // Reject inputs that do not satisfy this stage.
+    if heading == node_name {
+        return true;
+    }
+
+    // Reject inputs that do not satisfy this stage.
+    if matches!(
+        (heading.as_str(), node_name.as_str()),
+        ("navigation", "nav")
+    ) {
+        return true;
+    }
+
+    // Perform the next step of the analysis.
+    node_name == "button"
+        && node.literal.as_deref().is_some_and(|literal| {
+            let literal = heading_normalize(literal);
+            heading == format!("{literal} button") || heading == format!("button {literal}")
+        })
+}
+
 // -----------------------------------------------------------------------------
 // LeptosMarkupRepeatingViewComments: Informative heading policy
 // -----------------------------------------------------------------------------
@@ -80,47 +120,6 @@ impl LeptosMarkupRepeatingViewComments {
     }
 }
 
-/// Normalizes a short authored name without fuzzy matching.
-fn normalize(value: &str) -> String {
-    value
-        .to_case(Case::Snake)
-        .split('_')
-        .filter(|word| !word.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// Returns whether one heading exactly translates its only structural node.
-fn repeats_node(content: &str, node: &ViewNode) -> bool {
-    let heading = normalize(content);
-    let Some(name) = node.name.as_deref() else {
-        return false;
-    };
-    let node_name = normalize(name);
-    if heading == node_name {
-        return true;
-    }
-    if matches!(
-        (heading.as_str(), node_name.as_str()),
-        ("navigation", "nav")
-    ) {
-        return true;
-    }
-    node_name == "button"
-        && node.literal.as_deref().is_some_and(|literal| {
-            let literal = normalize(literal);
-            heading == format!("{literal} button") || heading == format!("button {literal}")
-        })
-}
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub LEPTOS_MARKUP_REPEATING_VIEW_COMMENTS,
-    Warn,
-    "rejects one-node Leptos headings that merely restate markup",
-    LeptosMarkupRepeatingViewComments::new()
-}
-
 impl<'tcx> LateLintPass<'tcx> for LeptosMarkupRepeatingViewComments {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
         let Some(view) = self.views.analyze(cx, expression) else {
@@ -131,6 +130,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMarkupRepeatingViewComments {
             .iter()
             .flat_map(|scope| scope.sections(&self.config))
         {
+            // Prepare the values used by this stage.
             let [node] = section.nodes else {
                 continue;
             };
@@ -138,46 +138,58 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMarkupRepeatingViewComments {
                 .heading
                 .canonical_content(&self.config)
                 .expect("sections have canonical headings");
-            if repeats_node(content, node) {
-                Violation {
-                    owner: view.owner,
-                    heading: section.heading.span,
-                    node: node.span,
-                }
-                .emit(cx);
+
+            // Reject inputs that do not satisfy this stage.
+            if !heading_repeats_node(content, node) {
+                continue;
             }
+
+            // Perform the next step of the analysis.
+            Violation {
+                owner: view.owner,
+                heading: section.heading.span,
+                node: node.span,
+            }
+            .emit(cx);
         }
     }
 }
 
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub LEPTOS_MARKUP_REPEATING_VIEW_COMMENTS,
+    Warn,
+    "rejects one-node Leptos headings that merely restate markup",
+    LeptosMarkupRepeatingViewComments::new()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::repeats_node;
-    use super::rustc_span::DUMMY_SP;
+    use super::heading_repeats_node;
     use crate::rules::leptos::utils::view_structure::ViewNode;
 
     fn node(name: &str, literal: Option<&str>) -> ViewNode {
-        ViewNode {
-            span: DUMMY_SP,
-            range: 0..1,
-            complexity: 1,
-            name: Some(name.to_owned()),
-            literal: literal.map(str::to_owned),
-        }
+        ViewNode::for_test(name, literal)
     }
 
     #[test]
     fn recognizes_only_exact_structural_restatements() {
-        assert!(repeats_node("Navigation", &node("Navigation", None)));
-        assert!(repeats_node("Navigation", &node("nav", None)));
-        assert!(repeats_node(
+        assert!(heading_repeats_node(
+            "Navigation",
+            &node("Navigation", None)
+        ));
+        assert!(heading_repeats_node("Navigation", &node("nav", None)));
+        assert!(heading_repeats_node(
             "Submit button",
             &node("button", Some("Submit"))
         ));
-        assert!(!repeats_node(
+        assert!(!heading_repeats_node(
             "Account navigation",
             &node("Navigation", None)
         ));
-        assert!(!repeats_node("Submit button", &node("button", None)));
+        assert!(!heading_repeats_node(
+            "Submit button",
+            &node("button", None)
+        ));
     }
 }

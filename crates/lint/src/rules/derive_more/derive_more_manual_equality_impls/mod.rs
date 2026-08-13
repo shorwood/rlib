@@ -16,14 +16,21 @@ use rustc_span::def_id::LocalDefId;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
 
+/// Carries the `Candidate` state used by this analysis.
 struct Candidate {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `name` value used by this analysis.
     name: String,
+    /// Stores the `field_count` value used by this analysis.
     field_count: usize,
 }
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
-    candidate: Candidate,
+    /// Stores the `analyze_candidate` value used by this analysis.
+    analyze_candidate: Candidate,
+    /// Stores the `has_eq` value used by this analysis.
     has_eq: bool,
 }
 
@@ -31,15 +38,15 @@ impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "manual structural equality for `{}` is derivable",
-            self.candidate.name
+            self.analyze_candidate.name
         ))
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "the implementation compares {} corresponding field{} without normalization, adaptation, or external state",
-            self.candidate.field_count,
-            if self.candidate.field_count == 1 {
+            self.analyze_candidate.field_count,
+            if self.analyze_candidate.field_count == 1 {
                 ""
             } else {
                 "s"
@@ -62,11 +69,11 @@ impl LateViolation for Violation {
     fn emit(self, cx: &LateContext<'_>) {
         cx.emit_span_lint(
             DERIVE_MORE_MANUAL_EQUALITY_IMPLS,
-            self.candidate.span,
+            self.analyze_candidate.span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
                 diag.span_label(
-                    self.candidate.span,
+                    self.analyze_candidate.span,
                     "this equality is pure component comparison",
                 );
                 diag.note(self.rationale_message().into_owned());
@@ -76,9 +83,189 @@ impl LateViolation for Violation {
     }
 }
 
+/// Identifies a relevant equality trait and its local target type.
+struct TraitTarget {
+    /// Equality trait implemented by the analyzed item.
+    trait_name: &'static str,
+    /// Local type receiving the implementation.
+    target: LocalDefId,
+}
+
+impl TraitTarget {
+    /// Recognizes a relevant equality trait implementation.
+    fn for_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+        // Reject inputs that do not satisfy this stage.
+        if item.span.from_expansion() || !matches!(item.kind, ItemKind::Impl(_)) {
+            return None;
+        }
+        let trait_ref = cx
+            .tcx
+            .impl_opt_trait_ref(item.owner_id.def_id)?
+            .instantiate_identity();
+
+        // Reject inputs that do not satisfy this stage.
+        if cx.tcx.crate_name(trait_ref.def_id.krate).as_str() != "core" {
+            return None;
+        }
+
+        // Prepare the values used by this stage.
+        let name = match cx.tcx.item_name(trait_ref.def_id).as_str() {
+            "PartialEq" => "PartialEq",
+            "Eq" => "Eq",
+            _ => return None,
+        };
+
+        // Prepare the values used by this stage.
+        let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
+            return None;
+        };
+        Some(Self {
+            trait_name: name,
+            target: definition.did().as_local()?,
+        })
+    }
+}
+
+/// Describes a field projection and the expression it projects from.
+struct FieldAccess<'hir> {
+    /// Base expression containing the projected field.
+    base: &'hir Expr<'hir>,
+    /// Authored field name.
+    field: String,
+}
+
+impl<'hir> FieldAccess<'hir> {
+    /// Recognizes one field projection expression.
+    fn from_expr(expression: &'hir Expr<'hir>) -> Option<Self> {
+        let ExprKind::Field(base, field) = expression.kind else {
+            return None;
+        };
+        Some(Self {
+            base,
+            field: field.name.to_string(),
+        })
+    }
+}
+
+/// Performs the `collect_equal_fields` step of the lint analysis.
+fn collect_equal_fields(
+    cx: &LateContext<'_>,
+    expression: &Expr<'_>,
+    left: rustc_hir::HirId,
+    right: rustc_hir::HirId,
+    fields: &mut HashSet<String>,
+) -> Option<()> {
+    // Prepare the values used by this stage.
+    let ExprKind::Binary(analyze_operator, lhs, rhs) = expression.kind else {
+        return None;
+    };
+    if analyze_operator.node == BinOpKind::And {
+        collect_equal_fields(cx, lhs, left, right, fields)?;
+        return collect_equal_fields(cx, rhs, left, right, fields);
+    }
+
+    // Reject inputs that do not satisfy this stage.
+    if analyze_operator.node != BinOpKind::Eq {
+        return None;
+    }
+    let lhs = FieldAccess::from_expr(lhs)?;
+    let rhs = FieldAccess::from_expr(rhs)?;
+
+    // Reject inputs that do not satisfy this stage.
+    if lhs.field != rhs.field
+        || !((DirectForwarding::is_binding(cx, lhs.base, left)
+            && DirectForwarding::is_binding(cx, rhs.base, right))
+            || (DirectForwarding::is_binding(cx, lhs.base, right)
+                && DirectForwarding::is_binding(cx, rhs.base, left)))
+        || !fields.insert(lhs.field)
+    {
+        return None;
+    }
+    Some(())
+}
+
+/// Summarizes a structural equality implementation.
+struct StructuralEquality {
+    /// Local type compared by the implementation.
+    target: LocalDefId,
+    /// Number of distinct fields compared.
+    field_count: usize,
+}
+
+impl StructuralEquality {
+    /// Recognizes a complete structural equality method.
+    fn for_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Prepare the values used by this stage.
+        let ImplItemKind::Fn(_, body_id) = item.kind else {
+            return None;
+        };
+        if item.ident.name.as_str() != "eq" || item.span.from_expansion() {
+            return None;
+        }
+        let implementation = cx.tcx.local_parent(item.owner_id.def_id);
+
+        // Prepare the values used by this stage.
+        let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
+            return None;
+        };
+        let ItemKind::Impl(implementation_item) = parent.kind else {
+            return None;
+        };
+
+        // Reject inputs that do not satisfy this stage.
+        if implementation_item.items.iter().any(|id| {
+            let associated = cx.tcx.hir_impl_item(*id);
+            associated.ident.name.as_str() == "ne"
+        }) {
+            return None;
+        }
+        let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
+
+        // Reject inputs that do not satisfy this stage.
+        if cx.tcx.crate_name(trait_ref.def_id.krate).as_str() != "core"
+            || cx.tcx.item_name(trait_ref.def_id).as_str() != "PartialEq"
+            || trait_ref.self_ty() != trait_ref.args.type_at(1)
+        {
+            return None;
+        }
+
+        // Prepare the values used by this stage.
+        let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
+            return None;
+        };
+        if !definition.is_struct() || !cx.tcx.generics_of(definition.did()).own_params.is_empty() {
+            return None;
+        }
+        let body = cx.tcx.hir_body(body_id);
+
+        // Prepare the values used by this stage.
+        let [left, right] = body.params else {
+            return None;
+        };
+        let PatKind::Binding(_, left, _, None) = left.pat.kind else {
+            return None;
+        };
+
+        // Prepare the values used by this stage.
+        let PatKind::Binding(_, right, _, None) = right.pat.kind else {
+            return None;
+        };
+        let expression = DirectForwarding::single_body_expression(body.value)?;
+        let mut fields = HashSet::new();
+        collect_equal_fields(cx, expression, left, right, &mut fields)?;
+        (!fields.is_empty()).then_some(Self {
+            target: definition.did().as_local()?,
+            field_count: fields.len(),
+        })
+    }
+}
+
 #[derive(Default)]
+/// Carries the `DeriveMoreManualEqualityImpls` state used by this analysis.
 struct DeriveMoreManualEqualityImpls {
+    /// Stores the `candidates` value used by this analysis.
     candidates: HashMap<LocalDefId, Candidate>,
+    /// Stores the `eq_targets` value used by this analysis.
     eq_targets: HashSet<LocalDefId>,
 }
 
@@ -92,18 +279,26 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualEqualityImpls {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
-        let Some((trait_name, target)) = trait_target(cx, item) else {
+        let Some(TraitTarget { trait_name, target }) = TraitTarget::for_item(cx, item) else {
             return;
         };
-        if trait_name == "Eq" {
-            self.eq_targets.insert(target);
+        if trait_name != "Eq" {
+            return;
         }
+        self.eq_targets.insert(target);
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
-        let Some((target, field_count)) = structural_equality(cx, item) else {
+        // Prepare the values used by this stage.
+        let Some(StructuralEquality {
+            target,
+            field_count,
+        }) = StructuralEquality::for_item(cx, item)
+        else {
             return;
         };
+
+        // Update the accumulated analysis state.
         self.candidates.insert(
             target,
             Candidate {
@@ -115,121 +310,12 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualEqualityImpls {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (target, candidate) in self.candidates.drain() {
+        for (target, analyze_candidate) in self.candidates.drain() {
             Violation {
-                candidate,
+                analyze_candidate,
                 has_eq: self.eq_targets.contains(&target),
             }
             .emit(cx);
         }
     }
-}
-
-fn trait_target(cx: &LateContext<'_>, item: &Item<'_>) -> Option<(&'static str, LocalDefId)> {
-    if item.span.from_expansion() || !matches!(item.kind, ItemKind::Impl(_)) {
-        return None;
-    }
-    let trait_ref = cx
-        .tcx
-        .impl_opt_trait_ref(item.owner_id.def_id)?
-        .instantiate_identity();
-    if cx.tcx.crate_name(trait_ref.def_id.krate).as_str() != "core" {
-        return None;
-    }
-    let name = match cx.tcx.item_name(trait_ref.def_id).as_str() {
-        "PartialEq" => "PartialEq",
-        "Eq" => "Eq",
-        _ => return None,
-    };
-    let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
-        return None;
-    };
-    Some((name, definition.did().as_local()?))
-}
-
-fn structural_equality(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<(LocalDefId, usize)> {
-    let ImplItemKind::Fn(_, body_id) = item.kind else {
-        return None;
-    };
-    if item.ident.name.as_str() != "eq" || item.span.from_expansion() {
-        return None;
-    }
-    let implementation = cx.tcx.local_parent(item.owner_id.def_id);
-    let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
-        return None;
-    };
-    let ItemKind::Impl(implementation_item) = parent.kind else {
-        return None;
-    };
-    if implementation_item.items.iter().any(|id| {
-        let associated = cx.tcx.hir_impl_item(*id);
-        associated.ident.name.as_str() == "ne"
-    }) {
-        return None;
-    }
-    let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
-    if cx.tcx.crate_name(trait_ref.def_id.krate).as_str() != "core"
-        || cx.tcx.item_name(trait_ref.def_id).as_str() != "PartialEq"
-        || trait_ref.self_ty() != trait_ref.args.type_at(1)
-    {
-        return None;
-    }
-    let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
-        return None;
-    };
-    if !definition.is_struct() || !cx.tcx.generics_of(definition.did()).own_params.is_empty() {
-        return None;
-    }
-    let body = cx.tcx.hir_body(body_id);
-    let [left, right] = body.params else {
-        return None;
-    };
-    let PatKind::Binding(_, left, _, None) = left.pat.kind else {
-        return None;
-    };
-    let PatKind::Binding(_, right, _, None) = right.pat.kind else {
-        return None;
-    };
-    let expression = DirectForwarding::single_body_expression(body.value)?;
-    let mut fields = HashSet::new();
-    collect_equal_fields(cx, expression, left, right, &mut fields)?;
-    (!fields.is_empty()).then_some((definition.did().as_local()?, fields.len()))
-}
-
-fn collect_equal_fields(
-    cx: &LateContext<'_>,
-    expression: &Expr<'_>,
-    left: rustc_hir::HirId,
-    right: rustc_hir::HirId,
-    fields: &mut HashSet<String>,
-) -> Option<()> {
-    let ExprKind::Binary(operator, lhs, rhs) = expression.kind else {
-        return None;
-    };
-    if operator.node == BinOpKind::And {
-        collect_equal_fields(cx, lhs, left, right, fields)?;
-        return collect_equal_fields(cx, rhs, left, right, fields);
-    }
-    if operator.node != BinOpKind::Eq {
-        return None;
-    }
-    let (lhs_base, lhs_field) = field_access(lhs)?;
-    let (rhs_base, rhs_field) = field_access(rhs)?;
-    if lhs_field != rhs_field
-        || !(DirectForwarding::is_binding(cx, lhs_base, left)
-            && DirectForwarding::is_binding(cx, rhs_base, right)
-            || DirectForwarding::is_binding(cx, lhs_base, right)
-                && DirectForwarding::is_binding(cx, rhs_base, left))
-        || !fields.insert(lhs_field)
-    {
-        return None;
-    }
-    Some(())
-}
-
-fn field_access<'hir>(expression: &'hir Expr<'hir>) -> Option<(&'hir Expr<'hir>, String)> {
-    let ExprKind::Field(base, field) = expression.kind else {
-        return None;
-    };
-    Some((base, field.name.to_string()))
 }

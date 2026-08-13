@@ -2,19 +2,17 @@
 
 ## What it does
 
-Requires module-level declaration groups to be covered by a configured section divider.
-Nominal types and their direct impls always participate. Free functions, constants, and
-statics also participate when they form a group or occur inside an hand-written section; an
-isolated value declaration does not require a divider by itself. A conventional in-source
-`#[cfg(test)] mod test` or `mod tests` always requires a divider, even when it is the only
-declaration in its group.
+Requires a module-level declaration group to use section dividers when it contains more
+distinct declarations than one configured section may hold. Small modules remain readable
+without headings. A conventional in-source `#[cfg(test)] mod test` or `mod tests` still gets
+an explicit divider so production code and tests have a clear boundary.
 
 ## Why is this bad?
 
-A divider makes the intended naming family explicit. Without one, agents cannot tell
-whether neighboring declarations are deliberately related or merely accumulated in the
-same file. Ignoring free helpers also lets a nominally valid section conceal inconsistent
-vocabulary.
+A divider is useful when a module is large enough to need navigation. Requiring one around
+every type creates visual noise and obscures the few boundaries that matter. This lint waits
+until a declaration group exceeds the configured section size, then asks the author to find
+the real conceptual boundaries.
 
 For example, these declarations have no stated family:
 
@@ -22,7 +20,11 @@ For example, these declarations have no stated family:
 
 ```rust
 struct Request;
-impl Request {}
+struct Response;
+struct Transport;
+struct TransportDecoder;
+struct TransportEncoder;
+struct TransportRetryPolicy;
 
 #[cfg(test)]
 mod tests {
@@ -33,22 +35,22 @@ mod tests {
 ## Use instead
 
 
-A divider establishes the naming contract:
+Dividers separate the larger module into meaningful families:
 
 ```rust
 // -----------------------------------------------------------------------------
-// Request: Request model and behavior
+// Request: Request and response models
 // -----------------------------------------------------------------------------
 
 struct Request;
-impl Request {}
+struct Response;
 
 // -----------------------------------------------------------------------------
-// Tests: In-source tests
+// Transport: Transport behavior
 // -----------------------------------------------------------------------------
 
-#[cfg(test)]
-mod tests {
-    // ...
-}
+struct Transport;
+struct Decoder;
+struct Encoder;
+struct RetryPolicy;
 ```

@@ -11,6 +11,9 @@ struct Missing;
 impl Missing {}
 fn missing_parser() {}
 fn missing_renderer() {}
+fn missing_validator() {}
+fn missing_loader() {}
+fn missing_writer() {}
 
 // -----------------------------------------------------------------------------
 // Covered: Covered model and behavior

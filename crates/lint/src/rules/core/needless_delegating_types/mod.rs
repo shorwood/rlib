@@ -78,9 +78,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // NeedlessDelegatingTypes: Wrapper ownership policy
 // -----------------------------------------------------------------------------
-
-/// Crate-wide collector for wrapper declarations, constructions, and inherent behavior.
 #[derive(Default)]
+/// Crate-wide collector for wrapper declarations, constructions, and inherent behavior.
 struct NeedlessDelegatingTypes {
     /// Shared semantic analyzer.
     analyzer: DelegatingTypeAnalyzer,

@@ -16,10 +16,15 @@ use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::construction_analysis::{ConstructionAnalysis, ConstructionOrigin};
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `struct_span` value used by this analysis.
     struct_span: Span,
+    /// Stores the `constructor_span` value used by this analysis.
     constructor_span: Span,
+    /// Stores the `name` value used by this analysis.
     name: String,
+    /// Stores the `derives` value used by this analysis.
     derives: Vec<&'static str>,
 }
 
@@ -64,8 +69,11 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `DeriveMoreMutableForwardingBypassingInvariants` state used by this analysis.
 struct DeriveMoreMutableForwardingBypassingInvariants {
+    /// Stores the `catalog` value used by this analysis.
     catalog: DeriveMoreContractCatalog,
+    /// Stores the `constructions` value used by this analysis.
     constructions: ConstructionAnalysis,
 }
 
@@ -103,12 +111,15 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreMutableForwardingBypassingInvariants
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         let mut reported = HashSet::new();
         for constructor in &self.constructions.candidates {
+            // Reject inputs that do not satisfy this stage.
             if constructor.ownership.origin != ConstructionOrigin::Inherent
                 || !constructor.is_fallible_direct()
                 || !reported.insert(constructor.target.def_id)
             {
                 continue;
             }
+
+            // Prepare the values used by this stage.
             let derives = self.catalog.derives_for(
                 constructor.target.def_id,
                 &["AsMut", "DerefMut", "IndexMut"],
@@ -116,12 +127,16 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreMutableForwardingBypassingInvariants
             if derives.is_empty() {
                 continue;
             }
+
+            // Prepare the values used by this stage.
             let Some(contract) = self.catalog.type_contract(constructor.target.def_id) else {
                 continue;
             };
             if !contract.has_restricted_fields {
                 continue;
             }
+
+            // Perform the next step of the analysis.
             Violation {
                 struct_span: contract.span,
                 constructor_span: constructor.function.name_span,

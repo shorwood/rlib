@@ -21,9 +21,8 @@ use crate::utils::source_provenance::ItemProvenanceExt;
 // -----------------------------------------------------------------------------
 // SectionEventCandidate: Section events and participants
 // -----------------------------------------------------------------------------
-
-/// Semantic role of a named declaration within a source section.
 #[derive(Clone, Copy)]
+/// Semantic role of a named declaration within a source section.
 enum SectionEventCandidateKind {
     /// A type-like declaration that establishes a nominal concept.
     Nominal,
@@ -41,14 +40,14 @@ pub(super) struct SectionEventCandidate {
     name: String,
     /// Complete declaration source range.
     span: Span,
-    /// Whether this candidate introduces a nominal type.
+    /// Whether this `analyze_candidate` introduces a nominal type.
     is_nominal_declaration: bool,
     /// Whether this declaration requires a divider even when it stands alone.
     is_standalone_divider_required: bool,
 }
 
 impl SectionEventCandidate {
-    /// Converts a section-relevant module item into a source candidate.
+    /// Converts a section-relevant module item into a source `analyze_candidate`.
     pub(super) fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         // Ignore declarations whose source was synthesized by expansion.
         if item.span.from_expansion() || item.is_framework_generated() {
@@ -104,7 +103,7 @@ impl SectionEventCandidate {
         }
     }
 
-    /// Builds a candidate from an item whose definition and name are direct.
+    /// Builds a `analyze_candidate` from an item whose definition and name are direct.
     fn from_named_item(
         cx: &LateContext<'_>,
         item: &Item<'_>,
@@ -119,7 +118,7 @@ impl SectionEventCandidate {
         }
     }
 
-    /// Converts a direct inherent implementation into a candidate for its self type.
+    /// Converts a direct inherent implementation into a `analyze_candidate` for its self type.
     fn from_impl(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         // Resolve the implementation's nominal self type and local definition.
         let self_type = cx.tcx.type_of(item.owner_id).instantiate_identity();
@@ -166,7 +165,6 @@ impl SectionEventStreamEntry {
         }
     }
 }
-
 #[derive(Default)]
 /// Declarations accumulated before the next divider boundary.
 pub(super) struct SectionEventStreamCandidates(
@@ -179,17 +177,17 @@ impl SectionEventStreamCandidates {
     fn record_distinct_declaration(
         positions: &mut HashMap<LocalDefId, usize>,
         declarations: &mut Vec<SectionParticipant>,
-        candidate: SectionParticipant,
+        analyze_candidate: SectionParticipant,
     ) {
-        let Some(index) = positions.get(&candidate.def_id).copied() else {
-            positions.insert(candidate.def_id, declarations.len());
-            declarations.push(candidate);
+        let Some(index) = positions.get(&analyze_candidate.def_id).copied() else {
+            positions.insert(analyze_candidate.def_id, declarations.len());
+            declarations.push(analyze_candidate);
             return;
         };
-        if !candidate.is_nominal || declarations[index].is_nominal {
+        if !analyze_candidate.is_nominal || declarations[index].is_nominal {
             return;
         }
-        declarations[index] = candidate;
+        declarations[index] = analyze_candidate;
     }
 
     /// Returns whether the group contains no declarations.
@@ -197,15 +195,49 @@ impl SectionEventStreamCandidates {
         self.0.is_empty()
     }
 
-    /// Returns candidate names in their authored order.
-    pub(super) fn names(&self) -> Vec<&str> {
+    /// Collapses supporting impls and returns distinct declarations in source order.
+    pub(super) fn distinct_declarations(&self) -> Vec<SectionParticipant> {
+        let mut positions = HashMap::<LocalDefId, usize>::new();
+        let mut declarations = Vec::<SectionParticipant>::new();
+        for participant in &self.0 {
+            let analyze_candidate = SectionParticipant {
+                def_id: participant.def_id,
+                name: participant.name.clone(),
+                span: participant.span,
+                is_nominal: participant.is_nominal_declaration,
+            };
+            Self::record_distinct_declaration(&mut positions, &mut declarations, analyze_candidate);
+        }
+
+        // Return declarations in authored order after collapsing their impls.
+        declarations.sort_unstable_by_key(|participant| participant.span.lo());
+        declarations
+    }
+
+    /// Returns `analyze_candidate` names in their authored order.
+    fn names(&self) -> Vec<&str> {
         self.0
             .iter()
             .map(|participant| participant.name.as_str())
             .collect()
     }
 
-    /// Formats a stable, deduplicated set of candidate names for diagnostics.
+    /// Returns nominal declaration names, falling back to supporting declarations for helpers.
+    pub(super) fn family_names(&self) -> Vec<&str> {
+        let nominal = self
+            .0
+            .iter()
+            .filter(|participant| participant.is_nominal_declaration)
+            .map(|participant| participant.name.as_str())
+            .collect::<Vec<_>>();
+        if nominal.is_empty() {
+            self.names()
+        } else {
+            nominal
+        }
+    }
+
+    /// Formats a stable, deduplicated set of `analyze_candidate` names for diagnostics.
     pub(super) fn formatted_names(&self) -> String {
         // Stabilize and deduplicate authored participant names.
         let mut names = self.names();
@@ -220,25 +252,6 @@ impl SectionEventStreamCandidates {
         quoted_names.join(", ")
     }
 
-    /// Collapses supporting impls and returns distinct declarations in source order.
-    pub(super) fn distinct_declarations(&self) -> Vec<SectionParticipant> {
-        let mut positions = HashMap::<LocalDefId, usize>::new();
-        let mut declarations = Vec::<SectionParticipant>::new();
-        for participant in &self.0 {
-            let candidate = SectionParticipant {
-                def_id: participant.def_id,
-                name: participant.name.clone(),
-                span: participant.span,
-                is_nominal: participant.is_nominal_declaration,
-            };
-            Self::record_distinct_declaration(&mut positions, &mut declarations, candidate);
-        }
-
-        // Return declarations in authored order after collapsing their impls.
-        declarations.sort_unstable_by_key(|participant| participant.span.lo());
-        declarations
-    }
-
     /// Removes all accumulated declarations after their group has been handled.
     fn clear(&mut self) {
         self.0.clear();
@@ -249,12 +262,13 @@ impl SectionEventStreamCandidates {
         self.0.push(participant);
     }
 
-    /// Returns whether the accumulated declarations require an authored section.
-    fn requires_divider(&self) -> bool {
-        self.0.len() > 1
-            || self.0.iter().any(|participant| {
-                participant.is_nominal_declaration || participant.is_standalone_divider_required
-            })
+    /// Returns whether this group is large enough to need navigation boundaries.
+    fn requires_divider(&self, max_declarations_per_section: usize) -> bool {
+        self.distinct_declarations().len() > max_declarations_per_section
+            || self
+                .0
+                .iter()
+                .any(|participant| participant.is_standalone_divider_required)
     }
 
     /// Produces naming-first guidance for a declaration group without a divider.
@@ -293,7 +307,6 @@ pub(super) struct SectionEventStreamGroup {
     /// Declarations governed by the divider.
     pub(super) participants: SectionEventStreamCandidates,
 }
-
 #[derive(Default)]
 /// Mutable reducer state for a module's section event stream.
 pub(super) struct SectionEventStreamState {
@@ -320,8 +333,11 @@ impl SectionEventStreamState {
     }
 
     /// Reports and clears declarations accumulated outside a section.
-    fn record_uncovered(&mut self) {
-        if self.uncovered.requires_divider() {
+    fn record_uncovered(&mut self, analyzer: &SectionAnalyzer) {
+        if self
+            .uncovered
+            .requires_divider(analyzer.max_declarations_per_section)
+        {
             self.analysis.missing.push(self.uncovered.missing_finding());
         }
         self.uncovered.clear();
@@ -330,7 +346,7 @@ impl SectionEventStreamState {
     /// Closes the final groups and returns the completed analysis.
     pub(super) fn finish(mut self, analyzer: &SectionAnalyzer) -> SectionAnalysis {
         // Preserve declarations that appeared outside any authored section.
-        self.record_uncovered();
+        self.record_uncovered(analyzer);
         let Some(section) = self.current.take() else {
             return self.analysis;
         };
@@ -350,7 +366,7 @@ impl SectionEventStreamState {
 
     /// Closes preceding groups and starts the section introduced by `divider`.
     fn start_section(&mut self, analyzer: &SectionAnalyzer, divider: SectionEventDivider) {
-        self.record_uncovered();
+        self.record_uncovered(analyzer);
 
         // Finish the preceding section before installing its successor.
         if let Some(section) = self.current.take() {

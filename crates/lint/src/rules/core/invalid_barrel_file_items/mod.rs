@@ -16,9 +16,8 @@ use crate::utils::diagnostic::EarlyViolation;
 // -----------------------------------------------------------------------------
 // Violation: Invalid barrel item classification
 // -----------------------------------------------------------------------------
-
-/// The four useful classifications for code that does not belong in a barrel file.
 #[derive(Clone, Copy)]
+/// The four useful classifications for code that does not belong in a barrel file.
 enum ViolationKind {
     /// An inline module hides implementation code inside a barrel file.
     InlineModule,
@@ -117,13 +116,12 @@ impl EarlyViolation for Violation {
 // -----------------------------------------------------------------------------
 // InvalidBarrelFileItems: Lint state
 // -----------------------------------------------------------------------------
-
+#[derive(Default)]
 /// Enforces the barrel-file boundary while remembering when traversal is inside an inline module.
 ///
 /// The depth prevents one inline module from producing another warning for every item in its
 /// body. The inline module itself is the single actionable mistake: moving its body fixes all
 /// children.
-#[derive(Default)]
 struct InvalidBarrelFileItems {
     /// Number of nested inline modules whose children should not be reported separately.
     ignored_inline_depth: usize,

@@ -77,9 +77,8 @@ pub struct SingleImplementationTraitFinding {
     /// Whether a public trait was analyzed under an explicitly closed package policy.
     pub(crate) is_closed_package_public: bool,
 }
-
-/// Crate-wide collector for trait declarations, implementations, and abstract type boundaries.
 #[derive(Default)]
+/// Crate-wide collector for trait declarations, implementations, and abstract type boundaries.
 pub struct SingleImplementationTraitAnalyzer {
     /// Eligible authored trait declarations indexed by definition.
     traits: HashMap<LocalDefId, SingleImplementationTraitCandidate>,
@@ -142,17 +141,20 @@ impl SingleImplementationTraitAnalyzer {
         let mut findings = Vec::new();
 
         // Evaluate each declaration against complete implementation and consumer evidence.
-        for candidate in self.traits.into_values() {
+        for analyze_candidate in self.traits.into_values() {
             // Reject any structural reason the trait is intentionally abstract or open-ended.
-            if candidate.is_sealed
-                || self.consumers.contains(&candidate.def_id)
-                || self.ineligible_implementations.contains(&candidate.def_id)
+            if analyze_candidate.is_sealed
+                || self.consumers.contains(&analyze_candidate.def_id)
+                || self
+                    .ineligible_implementations
+                    .contains(&analyze_candidate.def_id)
             {
                 continue;
             }
 
             // Require exactly one eligible implementation after considering every active block.
-            let Some(mut trait_implementations) = implementations.remove(&candidate.def_id) else {
+            let Some(mut trait_implementations) = implementations.remove(&analyze_candidate.def_id)
+            else {
                 continue;
             };
             if trait_implementations.len() != 1 {
@@ -164,7 +166,7 @@ impl SingleImplementationTraitAnalyzer {
             let exported = cx
                 .tcx
                 .effective_visibilities(())
-                .is_exported(candidate.def_id);
+                .is_exported(analyze_candidate.def_id);
             if !binary && package.preserves_exported_public_items() && exported {
                 continue;
             }
@@ -174,10 +176,10 @@ impl SingleImplementationTraitAnalyzer {
 
             // Preserve declaration evidence independently from its sole implementation.
             let declaration = SingleImplementationTraitDeclaration {
-                def_id: candidate.def_id,
-                hir_id: candidate.hir_id,
-                span: candidate.span,
-                name: candidate.name,
+                def_id: analyze_candidate.def_id,
+                hir_id: analyze_candidate.hir_id,
+                span: analyze_candidate.span,
+                name: analyze_candidate.name,
             };
 
             // Join both evidence records with the package-policy decision.
@@ -236,7 +238,7 @@ impl SingleImplementationTraitAnalyzer {
             || (is_exported && has_private_supertrait);
 
         // Retain the source identity only after every eligibility decision is complete.
-        let candidate = SingleImplementationTraitCandidate {
+        let analyze_candidate = SingleImplementationTraitCandidate {
             def_id: item.owner_id.def_id,
             hir_id: item.hir_id(),
             span: ident.span,
@@ -245,7 +247,7 @@ impl SingleImplementationTraitAnalyzer {
         };
 
         // Index the declaration by the identity shared with trait references and impl blocks.
-        self.traits.insert(item.owner_id.def_id, candidate);
+        self.traits.insert(item.owner_id.def_id, analyze_candidate);
     }
 
     /// Classifies one local trait implementation and retains concrete local evidence.
@@ -260,7 +262,7 @@ impl SingleImplementationTraitAnalyzer {
             return;
         };
 
-        // Foreign traits cannot match a candidate declared by this compilation.
+        // Foreign traits cannot match a analyze_candidate declared by this compilation.
         let Some(local_trait) = trait_ref.trait_ref.trait_def_id().and_then(DefId::as_local) else {
             return;
         };

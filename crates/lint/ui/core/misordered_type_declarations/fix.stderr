@@ -1,5 +1,5 @@
 warning: local types should be declared before their use
-  --> $DIR/fix.rs:9:1
+  --> $DIR/fix.rs:13:1
    |
 LL | / struct Consumer(Dependency);
 LL | | impl Consumer {}

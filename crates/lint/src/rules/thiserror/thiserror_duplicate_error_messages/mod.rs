@@ -13,18 +13,27 @@ use rustc_span::def_id::LocalDefId;
 
 use super::contracts::{ThiserrorContractCatalog, static_error_message};
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::authored_item_source;
+use crate::utils::source_provenance::AuthoredItemSource;
 
+/// Carries the `Candidate` state used by this analysis.
 struct Candidate {
+    /// Stores the `definition` value used by this analysis.
     definition: LocalDefId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `message` value used by this analysis.
     message: String,
+    /// Stores the `variants` value used by this analysis.
     variants: Vec<String>,
 }
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `message` value used by this analysis.
     message: String,
+    /// Stores the `variants` value used by this analysis.
     variants: Vec<String>,
 }
 
@@ -67,8 +76,11 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `ThiserrorDuplicateErrorMessages` state used by this analysis.
 struct ThiserrorDuplicateErrorMessages {
+    /// Stores the `catalog` value used by this analysis.
     catalog: ThiserrorContractCatalog,
+    /// Stores the `candidates` value used by this analysis.
     candidates: Vec<Candidate>,
 }
 
@@ -86,7 +98,7 @@ impl LateLintPass<'_> for ThiserrorDuplicateErrorMessages {
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Enum(..)) {
             return;
         }
-        let Some(source) = authored_item_source(cx, item) else {
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
         let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
@@ -103,7 +115,9 @@ impl LateLintPass<'_> for ThiserrorDuplicateErrorMessages {
                 .push(format!("`{}`", variant.ident));
         }
         for (message, variants) in messages {
-            if variants.len() < 2 {
+            /// Smallest variant count that establishes a duplicate message.
+            const MINIMUM_DUPLICATE_MESSAGE_VARIANTS: usize = 2;
+            if variants.len() < MINIMUM_DUPLICATE_MESSAGE_VARIANTS {
                 continue;
             }
             self.candidates.push(Candidate {
@@ -116,14 +130,21 @@ impl LateLintPass<'_> for ThiserrorDuplicateErrorMessages {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for candidate in self.candidates.drain(..) {
-            if self.catalog.derived_type(candidate.definition).is_none() {
+        for analyze_candidate in self.candidates.drain(..) {
+            // Reject inputs that do not satisfy this stage.
+            if self
+                .catalog
+                .derived_type(analyze_candidate.definition)
+                .is_none()
+            {
                 continue;
             }
+
+            // Perform the next step of the analysis.
             Violation {
-                span: candidate.span,
-                message: candidate.message,
-                variants: candidate.variants,
+                span: analyze_candidate.span,
+                message: analyze_candidate.message,
+                variants: analyze_candidate.variants,
             }
             .emit(cx);
         }

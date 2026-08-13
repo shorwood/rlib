@@ -9,17 +9,54 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::config::BonApiBaselineConfig;
-use super::utils::{
-    builder_attribute, builder_attribute_contains, derives_bon_builder, is_option_type,
-};
+use super::config::{BonApiBaselineConfig, BonMemberPath};
+use super::utils::{BonAttributeAnalysis, builder_attribute, is_option_type};
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::EarlyViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `builder` value used by this analysis.
     builder: String,
+    /// Stores the `member` value used by this analysis.
     member: String,
+}
+
+impl Violation {
+    /// Performs the `member_violation` step of the lint analysis.
+    fn member_violation(
+        cx: &EarlyContext<'_>,
+        baseline: &BonApiBaselineConfig,
+        member_path: BonMemberPath<'_>,
+        ty_span: Span,
+        attributes: &[rustc_ast::Attribute],
+    ) -> Option<Self> {
+        // Reject inputs that do not satisfy this stage.
+        if !baseline.contains_builder(member_path.builder)
+            || baseline.contains_member(member_path)
+            || BonAttributeAnalysis::builder_contains(cx, attributes, "default")
+            || BonAttributeAnalysis::builder_contains(cx, attributes, "skip")
+            || BonAttributeAnalysis::builder_contains(cx, attributes, "field")
+        // Perform the next step of the analysis.
+        {
+            return None;
+        }
+        let ty = match cx.sess().source_map().span_to_snippet(ty_span) {
+            Ok(ty) => ty,
+            Err(_error) => return None,
+        };
+
+        // Prepare the values used by this stage.
+        let required = !is_option_type(&ty)
+            || BonAttributeAnalysis::builder_contains(cx, attributes, "required");
+        required.then_some(Self {
+            span: ty_span,
+            builder: member_path.builder.to_owned(),
+            member: member_path.member.to_owned(),
+        })
+    }
 }
 
 impl EarlyViolation for Violation {
@@ -59,11 +96,60 @@ impl EarlyViolation for Violation {
     }
 }
 
+/// Performs the `parameter_violation` step of the lint analysis.
+fn parameter_violation(
+    cx: &EarlyContext<'_>,
+    baseline: &BonApiBaselineConfig,
+    builder: &str,
+    parameter: &Param,
+) -> Option<Violation> {
+    // Prepare the values used by this stage.
+    let member = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
+        Ok(member) => member,
+        Err(_error) => return None,
+    };
+
+    // Perform the next step of the analysis.
+    Violation::member_violation(
+        cx,
+        baseline,
+        BonMemberPath {
+            builder,
+            member: member.trim(),
+        },
+        parameter.ty.span,
+        &parameter.attrs,
+    )
+}
+
+/// Performs the `field_violation` step of the lint analysis.
+fn field_violation(
+    cx: &EarlyContext<'_>,
+    baseline: &BonApiBaselineConfig,
+    builder: &str,
+    field: &FieldDef,
+) -> Option<Violation> {
+    // Perform the next step of the analysis.
+    Violation::member_violation(
+        cx,
+        baseline,
+        BonMemberPath {
+            builder,
+            member: field.ident?.name.as_str(),
+        },
+        field.ty.span,
+        &field.attrs,
+    )
+}
+
+/// Carries the `BonRequiredBuilderMembersBreakingCompatibility` state used by this analysis.
 struct BonRequiredBuilderMembersBreakingCompatibility {
+    /// Stores the `baseline` value used by this analysis.
     baseline: BonApiBaselineConfig,
 }
 
 impl BonRequiredBuilderMembersBreakingCompatibility {
+    /// Performs the `new` operation for this value.
     fn new() -> Self {
         Self {
             baseline: LibraryConfig::load().bon_api_baseline,
@@ -91,84 +177,27 @@ impl EarlyLintPass for BonRequiredBuilderMembersBreakingCompatibility {
                 };
                 let builder = identifier.name.to_string();
                 for parameter in &function.sig.decl.inputs {
-                    if let Some(violation) =
+                    let Some(violation) =
                         parameter_violation(cx, &self.baseline, &builder, parameter)
-                    {
-                        violation.emit(cx);
-                    }
+                    else {
+                        continue;
+                    };
+                    violation.emit(cx);
                 }
             }
-            ItemKind::Struct(identifier, _, data) if derives_bon_builder(cx, &item.attrs) => {
+            ItemKind::Struct(identifier, _, data)
+                if BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
+            {
                 let builder = identifier.name.to_string();
                 for field in data.fields() {
-                    if let Some(violation) = field_violation(cx, &self.baseline, &builder, field) {
-                        violation.emit(cx);
-                    }
+                    let Some(violation) = field_violation(cx, &self.baseline, &builder, field)
+                    else {
+                        continue;
+                    };
+                    violation.emit(cx);
                 }
             }
             _ => {}
         }
     }
-}
-
-fn parameter_violation(
-    cx: &EarlyContext<'_>,
-    baseline: &BonApiBaselineConfig,
-    builder: &str,
-    parameter: &Param,
-) -> Option<Violation> {
-    let member = cx
-        .sess()
-        .source_map()
-        .span_to_snippet(parameter.pat.span)
-        .ok()?;
-    member_violation(
-        cx,
-        baseline,
-        builder,
-        member.trim(),
-        parameter.ty.span,
-        &parameter.attrs,
-    )
-}
-
-fn field_violation(
-    cx: &EarlyContext<'_>,
-    baseline: &BonApiBaselineConfig,
-    builder: &str,
-    field: &FieldDef,
-) -> Option<Violation> {
-    member_violation(
-        cx,
-        baseline,
-        builder,
-        field.ident?.name.as_str(),
-        field.ty.span,
-        &field.attrs,
-    )
-}
-
-fn member_violation(
-    cx: &EarlyContext<'_>,
-    baseline: &BonApiBaselineConfig,
-    builder: &str,
-    member: &str,
-    ty_span: Span,
-    attributes: &[rustc_ast::Attribute],
-) -> Option<Violation> {
-    if !baseline.contains_builder(builder)
-        || baseline.contains_member(builder, member)
-        || builder_attribute_contains(cx, attributes, "default")
-        || builder_attribute_contains(cx, attributes, "skip")
-        || builder_attribute_contains(cx, attributes, "field")
-    {
-        return None;
-    }
-    let ty = cx.sess().source_map().span_to_snippet(ty_span).ok()?;
-    let required = !is_option_type(&ty) || builder_attribute_contains(cx, attributes, "required");
-    required.then_some(Violation {
-        span: ty_span,
-        builder: builder.to_owned(),
-        member: member.to_owned(),
-    })
 }

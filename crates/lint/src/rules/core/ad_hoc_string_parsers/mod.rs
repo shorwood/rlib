@@ -32,12 +32,14 @@ struct Violation {
 
 impl Violation {
     /// Retains the precise parser and target context needed for remediation.
-    fn from_candidate(cx: &LateContext<'_>, candidate: &ConstructionCandidate) -> Self {
+    fn from_candidate(cx: &LateContext<'_>, analyze_candidate: &ConstructionCandidate) -> Self {
         Self {
-            hir_id: cx.tcx.local_def_id_to_hir_id(candidate.function.def_id),
-            span: candidate.function.name_span,
-            function_name: candidate.function.name.to_string(),
-            target_name: candidate.target.name.to_string(),
+            hir_id: cx
+                .tcx
+                .local_def_id_to_hir_id(analyze_candidate.function.def_id),
+            span: analyze_candidate.function.name_span,
+            function_name: analyze_candidate.function.name.to_string(),
+            target_name: analyze_candidate.target.name.to_string(),
         }
     }
 }
@@ -81,9 +83,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // AdHocStringParsers: Canonical textual conversion policy
 // -----------------------------------------------------------------------------
-
-/// Collects structural parsing evidence before selecting unique canonical parsers.
 #[derive(Default)]
+/// Collects structural parsing evidence before selecting unique canonical parsers.
 struct AdHocStringParsers {
     /// Shared semantic analyzer used to group parsers by their constructed type.
     constructions: ConstructionAnalysis,
@@ -124,24 +125,25 @@ impl<'tcx> LateLintPass<'tcx> for AdHocStringParsers {
         let mut candidates = Vec::new();
         for family in parser_families.values() {
             // Retain only one unqualified parser for a target without the standard contract.
-            let [candidate] = family.as_slice() else {
+            let [analyze_candidate] = family.as_slice() else {
                 continue;
             };
-            if !candidate.has_unqualified_parser_name()
+            if !analyze_candidate.has_unqualified_parser_name()
                 || self
                     .constructions
                     .from_str_targets
-                    .contains(&candidate.target.def_id)
+                    .contains(&analyze_candidate.target.def_id)
             {
                 continue;
             }
 
             // Defer emission until source order can be restored across hash-map families.
-            candidates.push(*candidate);
+            candidates.push(*analyze_candidate);
         }
-        candidates.sort_unstable_by_key(|candidate| candidate.function.name_span.lo());
-        for candidate in candidates {
-            Violation::from_candidate(cx, candidate).emit(cx);
+        candidates
+            .sort_unstable_by_key(|analyze_candidate| analyze_candidate.function.name_span.lo());
+        for analyze_candidate in candidates {
+            Violation::from_candidate(cx, analyze_candidate).emit(cx);
         }
     }
 }

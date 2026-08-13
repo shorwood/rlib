@@ -201,11 +201,14 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedTypeDeclarations {
             }
 
             // Materialize one dependency node for the complete type declaration group.
+            let Some(section) = sections.section_ordinal_for_span(item.span) else {
+                continue;
+            };
             let source = DeclarationSource {
                 defs,
                 name: cx.tcx.item_name(item.owner_id.to_def_id()).to_string(),
                 span,
-                section: sections.section_ordinal_for_span(item.span).unwrap_or(0),
+                section,
             };
 
             // Attach neutral tie-breaks and semantic dependencies to the source identity.

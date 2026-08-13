@@ -10,26 +10,38 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{ThiserrorContractCatalog, thiserror_attributes};
+use super::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::authored_item_source;
+use crate::utils::source_provenance::AuthoredItemSource;
 
+/// Carries the `FieldCandidate` state used by this analysis.
 struct FieldCandidate {
+    /// Stores the `name` value used by this analysis.
     name: String,
+    /// Stores the `target` value used by this analysis.
     target: LocalDefId,
-    selected: bool,
+    /// Stores the `is_selected` value used by this analysis.
+    is_selected: bool,
 }
 
+/// Carries the `Candidate` state used by this analysis.
 struct Candidate {
+    /// Stores the `definition` value used by this analysis.
     definition: LocalDefId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `fields` value used by this analysis.
     fields: Vec<FieldCandidate>,
 }
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `fields` value used by this analysis.
     fields: Vec<String>,
-    selected: Vec<String>,
+    /// Stores the `is_selected` value used by this analysis.
+    is_selected: Vec<String>,
 }
 
 impl LateViolation for Violation {
@@ -38,12 +50,12 @@ impl LateViolation for Violation {
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
-        let policy = if self.selected.is_empty() {
+        let policy = if self.is_selected.is_empty() {
             "none is selected for the standard source chain".to_owned()
         } else {
             format!(
                 "only {} enters the standard source chain",
-                self.selected.join(", ")
+                self.is_selected.join(", ")
             )
         };
         Cow::Owned(format!(
@@ -75,10 +87,29 @@ impl LateViolation for Violation {
     }
 }
 
+/// Performs the `causal_name` step of the lint analysis.
+fn causal_name(name: &str) -> bool {
+    if ["related", "suppressed", "fallback", "retry"]
+        .iter()
+        .any(|role| name.contains(role))
+    {
+        return false;
+    }
+    matches!(name, "cause" | "error" | "source") || name.ends_with("_error")
+}
+
 #[derive(Default)]
+/// Carries the `ThiserrorAmbiguousErrorSources` state used by this analysis.
 struct ThiserrorAmbiguousErrorSources {
+    /// Stores the `catalog` value used by this analysis.
     catalog: ThiserrorContractCatalog,
+    /// Stores the `candidates` value used by this analysis.
     candidates: Vec<Candidate>,
+}
+
+impl ThiserrorAmbiguousErrorSources {
+    /// Smallest field count that makes error-source selection ambiguous.
+    const MINIMUM_CAUSAL_FIELD_CANDIDATES: usize = 2;
 }
 
 dylint_linting::impl_late_lint! {
@@ -91,10 +122,13 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for ThiserrorAmbiguousErrorSources {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() {
             return;
         }
+
+        // Prepare the values used by this stage.
         let hir_fields = match item.kind {
             ItemKind::Struct(_, _, data) => data.fields().iter().collect::<Vec<_>>(),
             ItemKind::Enum(_, _, definition) => definition
@@ -104,20 +138,28 @@ impl LateLintPass<'_> for ThiserrorAmbiguousErrorSources {
                 .collect(),
             _ => return,
         };
-        let Some(source) = authored_item_source(cx, item) else {
+
+        // Prepare the values used by this stage.
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
-        let syn_fields = if let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) {
-            structure.fields.into_iter().collect::<Vec<_>>()
-        } else if let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) {
-            enumeration
-                .variants
-                .into_iter()
-                .flat_map(|variant| variant.fields)
-                .collect()
-        } else {
-            return;
+
+        // Prepare the values used by this stage.
+        let syn_fields = match syn::parse_str::<syn::ItemStruct>(&source) {
+            Ok(structure) => structure.fields.into_iter().collect::<Vec<_>>(),
+            Err(_error) => {
+                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
+                    return;
+                };
+                enumeration
+                    .variants
+                    .into_iter()
+                    .flat_map(|variant| variant.fields)
+                    .collect()
+            }
         };
+
+        // Prepare the values used by this stage.
         let fields = syn_fields
             .iter()
             .zip(hir_fields)
@@ -133,14 +175,16 @@ impl LateLintPass<'_> for ThiserrorAmbiguousErrorSources {
                     .ty_adt_def()?
                     .did()
                     .as_local()?;
-                let attributes = thiserror_attributes(&field.attrs);
+                let attributes = ThiserrorAttributes::from_attributes(&field.attrs);
                 Some(FieldCandidate {
-                    selected: attributes.source || name == "source",
+                    is_selected: attributes.is_source || name == "source",
                     name,
                     target,
                 })
             })
             .collect();
+
+        // Update the accumulated analysis state.
         self.candidates.push(Candidate {
             definition: item.owner_id.def_id,
             span: item.span,
@@ -149,23 +193,34 @@ impl LateLintPass<'_> for ThiserrorAmbiguousErrorSources {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for candidate in self.candidates.drain(..) {
-            if self.catalog.derived_type(candidate.definition).is_none() {
+        for analyze_candidate in self.candidates.drain(..) {
+            // Reject inputs that do not satisfy this stage.
+            if self
+                .catalog
+                .derived_type(analyze_candidate.definition)
+                .is_none()
+            {
                 continue;
             }
-            let fields = candidate
+
+            // Prepare the values used by this stage.
+            let fields = analyze_candidate
                 .fields
                 .into_iter()
                 .filter(|field| self.catalog.derived_type(field.target).is_some())
                 .collect::<Vec<_>>();
-            if fields.len() < 2 {
+
+            // Reject inputs that do not satisfy this stage.
+            if fields.len() < Self::MINIMUM_CAUSAL_FIELD_CANDIDATES {
                 continue;
             }
+
+            // Perform the next step of the analysis.
             Violation {
-                span: candidate.span,
-                selected: fields
+                span: analyze_candidate.span,
+                is_selected: fields
                     .iter()
-                    .filter(|field| field.selected)
+                    .filter(|field| field.is_selected)
                     .map(|field| format!("`{}`", field.name))
                     .collect(),
                 fields: fields
@@ -176,14 +231,4 @@ impl LateLintPass<'_> for ThiserrorAmbiguousErrorSources {
             .emit(cx);
         }
     }
-}
-
-fn causal_name(name: &str) -> bool {
-    if ["related", "suppressed", "fallback", "retry"]
-        .iter()
-        .any(|role| name.contains(role))
-    {
-        return false;
-    }
-    matches!(name, "cause" | "error" | "source") || name.ends_with("_error")
 }

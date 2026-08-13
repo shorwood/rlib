@@ -6,5 +6,6 @@ ok:
     cargo test --workspace --lib --tests --all-features
     # UI examples deliberately contain code that violates the rules under test.
     cargo-clippy clippy --workspace --lib --tests --all-features -- -D warnings
-    # Core policy work is intentionally outside this framework-lint validation slice.
-    DYLINT_LIBRARY_PATH="$PWD/target/debug" DYLINT_RUSTFLAGS="-Dwarnings -A rlib_core" cargo dylint --lib rlib_lint --workspace -- --all-features
+    cargo build -p rlib-lint --all-features
+    cp target/debug/librlib_lint.so target/debug/librlib_lint@nightly-x86_64-unknown-linux-gnu.so
+    DYLINT_LIBRARY_PATH="$PWD/target/debug" DYLINT_RUSTFLAGS="-Dwarnings" cargo dylint --lib rlib_lint --workspace -- --all-features

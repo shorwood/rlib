@@ -14,14 +14,21 @@ use rustc_span::def_id::LocalDefId;
 use super::contracts::ThiserrorContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Candidate` state used by this analysis.
 struct Candidate {
+    /// Stores the `definition` value used by this analysis.
     definition: LocalDefId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `operation` value used by this analysis.
     operation: &'static str,
 }
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `operation` value used by this analysis.
     operation: &'static str,
 }
 
@@ -57,9 +64,46 @@ impl LateViolation for Violation {
     }
 }
 
+/// Performs the `displayed_error` step of the lint analysis.
+fn displayed_error(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
+    // Prepare the values used by this stage.
+    let ExprKind::MethodCall(segment, receiver, _, _) = expression.kind else {
+        return None;
+    };
+    if segment.ident.as_str() != "to_string" {
+        return None;
+    }
+
+    // Prepare the values used by this stage.
+    let method = cx
+        .typeck_results()
+        .type_dependent_def_id(expression.hir_id)?;
+    let trait_id = cx.tcx.trait_of_assoc(method)?;
+    if cx.tcx.item_name(trait_id).as_str() != "ToString" {
+        return None;
+    }
+
+    // Perform the next step of the analysis.
+    cx.typeck_results()
+        .expr_ty(receiver)
+        .peel_refs()
+        .ty_adt_def()?
+        .did()
+        .as_local()
+}
+
+/// Performs the `is_string_literal` step of the lint analysis.
+const fn is_string_literal(expression: &Expr<'_>) -> bool {
+    matches!(expression.kind, ExprKind::Lit(literal)
+        if matches!(literal.node, rustc_ast::LitKind::Str(..)))
+}
+
 #[derive(Default)]
+/// Carries the `ThiserrorErrorMessagesUsedAsIdentifiers` state used by this analysis.
 struct ThiserrorErrorMessagesUsedAsIdentifiers {
+    /// Stores the `catalog` value used by this analysis.
     catalog: ThiserrorContractCatalog,
+    /// Stores the `candidates` value used by this analysis.
     candidates: Vec<Candidate>,
 }
 
@@ -77,12 +121,15 @@ impl LateLintPass<'_> for ThiserrorErrorMessagesUsedAsIdentifiers {
     }
 
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        // Reject inputs that do not satisfy this stage.
         if expression.span.from_expansion() {
             return;
         }
-        let candidate = match expression.kind {
-            ExprKind::Binary(operator, left, right)
-                if matches!(operator.node, BinOpKind::Eq | BinOpKind::Ne) =>
+
+        // Prepare the values used by this stage.
+        let analyze_candidate = match expression.kind {
+            ExprKind::Binary(analyze_operator, left, right)
+                if matches!(analyze_operator.node, BinOpKind::Eq | BinOpKind::Ne) =>
             {
                 if is_string_literal(right) {
                     displayed_error(cx, left).map(|definition| (definition, "string comparison"))
@@ -104,9 +151,13 @@ impl LateLintPass<'_> for ThiserrorErrorMessagesUsedAsIdentifiers {
             }
             _ => None,
         };
-        let Some((definition, operation)) = candidate else {
+
+        // Prepare the values used by this stage.
+        let Some((definition, operation)) = analyze_candidate else {
             return;
         };
+
+        // Update the accumulated analysis state.
         self.candidates.push(Candidate {
             definition,
             span: expression.span,
@@ -115,42 +166,22 @@ impl LateLintPass<'_> for ThiserrorErrorMessagesUsedAsIdentifiers {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for candidate in self.candidates.drain(..) {
-            if self.catalog.derived_type(candidate.definition).is_none() {
+        for analyze_candidate in self.candidates.drain(..) {
+            // Reject inputs that do not satisfy this stage.
+            if self
+                .catalog
+                .derived_type(analyze_candidate.definition)
+                .is_none()
+            {
                 continue;
             }
+
+            // Perform the next step of the analysis.
             Violation {
-                span: candidate.span,
-                operation: candidate.operation,
+                span: analyze_candidate.span,
+                operation: analyze_candidate.operation,
             }
             .emit(cx);
         }
     }
-}
-
-fn displayed_error(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
-    let ExprKind::MethodCall(segment, receiver, _, _) = expression.kind else {
-        return None;
-    };
-    if segment.ident.as_str() != "to_string" {
-        return None;
-    }
-    let method = cx
-        .typeck_results()
-        .type_dependent_def_id(expression.hir_id)?;
-    let trait_id = cx.tcx.trait_of_assoc(method)?;
-    if cx.tcx.item_name(trait_id).as_str() != "ToString" {
-        return None;
-    }
-    cx.typeck_results()
-        .expr_ty(receiver)
-        .peel_refs()
-        .ty_adt_def()?
-        .did()
-        .as_local()
-}
-
-const fn is_string_literal(expression: &Expr<'_>) -> bool {
-    matches!(expression.kind, ExprKind::Lit(literal)
-        if matches!(literal.node, rustc_ast::LitKind::Str(..)))
 }

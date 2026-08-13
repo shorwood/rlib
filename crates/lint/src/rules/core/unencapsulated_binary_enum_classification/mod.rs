@@ -77,7 +77,7 @@ impl LateViolation for Violation {
 struct BinaryEnumVariant {
     /// Unit variant selected by one conditional branch.
     variant: LocalDefId,
-    /// Binary-enum candidate that owns the variant.
+    /// Binary-enum `analyze_candidate` that owns the variant.
     enum_definition: LocalDefId,
 }
 

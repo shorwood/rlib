@@ -72,9 +72,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // Module: Dependency graph records
 // -----------------------------------------------------------------------------
-
-/// One resolved import from a module to one of its siblings.
 #[derive(Clone, Copy)]
+/// One resolved import from a module to one of its siblings.
 struct ModuleDependency {
     /// Sibling module containing the import.
     source: LocalDefId,
@@ -83,9 +82,8 @@ struct ModuleDependency {
     /// Import span used to relate both directions of a cycle.
     span: Span,
 }
-
-/// One directed module pair that has already produced a diagnostic.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
+/// One directed module pair that has already produced a diagnostic.
 struct ModulePair {
     /// Origin of the directed dependency.
     source: LocalDefId,
@@ -103,9 +101,8 @@ impl ModulePair {
 // -----------------------------------------------------------------------------
 // BidirectionalModuleDependencies: Module dependency direction policy
 // -----------------------------------------------------------------------------
-
-/// Collects sibling imports and reports each two-way module pair once.
 #[derive(Default)]
+/// Collects sibling imports and reports each two-way module pair once.
 struct BidirectionalModuleDependencies {
     /// Sibling dependency edges collected from resolved imports.
     dependencies: Vec<ModuleDependency>,
@@ -171,8 +168,9 @@ impl BidirectionalModuleDependencies {
     /// Emits a diagnostic when the latest dependency completes an unreported cycle.
     fn report_cycle(&mut self, cx: &LateContext<'_>, dependency: ModuleDependency) {
         // Locate the import that closes the dependency cycle.
-        let Some(reverse) = self.dependencies.iter().find(|candidate| {
-            candidate.source == dependency.target && candidate.target == dependency.source
+        let Some(reverse) = self.dependencies.iter().find(|analyze_candidate| {
+            analyze_candidate.source == dependency.target
+                && analyze_candidate.target == dependency.source
         }) else {
             return;
         };

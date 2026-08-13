@@ -17,7 +17,7 @@ impl IdentifierWords {
 }
 
 // -----------------------------------------------------------------------------
-// IdentifierCase: Rust identifier casing
+// To: Rust identifier casing
 // -----------------------------------------------------------------------------
 
 /// Converts identifier text to canonical `PascalCase`.
@@ -72,11 +72,11 @@ pub(super) fn longest_common_pascal_prefix(names: &[&str]) -> Option<String> {
     let mut names = names.iter();
     let mut prefix = words(names.next()?);
 
-    // Shorten the candidate prefix against each remaining identifier.
+    // Shorten the analyze_candidate prefix against each remaining identifier.
     for name in names {
-        // Measure the common leading word sequence before truncating the candidate.
-        let candidate = words(name);
-        let paired_words = prefix.iter().zip(&candidate);
+        // Measure the common leading word sequence before truncating the analyze_candidate.
+        let analyze_candidate = words(name);
+        let paired_words = prefix.iter().zip(&analyze_candidate);
         let shared = paired_words
             .take_while(|(left, right)| left == right)
             .count();

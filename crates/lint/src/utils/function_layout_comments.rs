@@ -8,7 +8,7 @@ use rustc_span::Span;
 
 use super::function_layout_prose::FunctionLayoutProse;
 use super::function_layout_source::{Comment, SourcePositionExt, SourceSpanExt};
-use super::function_structure::FunctionStructureConfig;
+use super::function_structure_config::FunctionStructureConfig;
 
 // -----------------------------------------------------------------------------
 // FunctionLayoutFinding: Layout diagnostic
@@ -107,7 +107,11 @@ impl Block {
         let Ok(snippet) = source_map.span_to_snippet(before) else {
             return false;
         };
-        let previous_line = snippet.lines().rev().nth(1);
+        let mut lines = snippet.lines().rev();
+        let mut previous_line = lines.nth(1);
+        while previous_line.is_some_and(|line| line.trim_start().starts_with("#[")) {
+            previous_line = lines.next();
+        }
         previous_line.is_some_and(|line| line.trim().is_empty())
     }
 }
@@ -133,7 +137,7 @@ impl FunctionLayoutEntryGap {
         previous: Option<Span>,
         next: Option<Span>,
     ) -> Self {
-        // Resolve source positions needed to validate every candidate header.
+        // Resolve source positions needed to validate every analyze_candidate header.
         let blocks = Block::collect(cx, span, &config.phase_comment_prefix);
         let next_line = next.map(|span| span.lo().source_line(cx));
         let previous_line = previous.map(|span| span.hi().source_line(cx));

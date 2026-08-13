@@ -10,18 +10,25 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::{SerdeContractCatalog, SerdeFlag, serde_attributes};
+use super::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::authored_item_source;
+use crate::utils::source_provenance::AuthoredItemSource;
 
+/// Carries the `Candidate` state used by this analysis.
 struct Candidate {
+    /// Stores the `definition` value used by this analysis.
     definition: LocalDefId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `fields` value used by this analysis.
     fields: Vec<String>,
 }
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `fields` value used by this analysis.
     fields: Vec<String>,
 }
 
@@ -71,8 +78,11 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `SerdeFlattenedUnknownFieldPolicies` state used by this analysis.
 struct SerdeFlattenedUnknownFieldPolicies {
+    /// Stores the `catalog` value used by this analysis.
     catalog: SerdeContractCatalog,
+    /// Stores the `candidates` value used by this analysis.
     candidates: Vec<Candidate>,
 }
 
@@ -86,23 +96,32 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
             return;
         }
-        let Some(source) = authored_item_source(cx, item) else {
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
+
+        // Prepare the values used by this stage.
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
-        if !serde_attributes(&structure.attrs).has(SerdeFlag::DenyUnknownFields) {
+        if !SerdeAttributes::analyze_serde_attributes(&structure.attrs)
+            .has(SerdeFlag::DenyUnknownFields)
+        {
             return;
         }
+
+        // Prepare the values used by this stage.
         let fields = structure
             .fields
             .iter()
-            .filter(|field| serde_attributes(&field.attrs).has(SerdeFlag::Flatten))
+            .filter(|field| {
+                SerdeAttributes::analyze_serde_attributes(&field.attrs).has(SerdeFlag::Flatten)
+            })
             .map(|field| {
                 field
                     .ident
@@ -110,9 +129,13 @@ impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
                     .map_or_else(|| "`<positional>`".to_owned(), |name| format!("`{name}`"))
             })
             .collect::<Vec<_>>();
+
+        // Reject inputs that do not satisfy this stage.
         if fields.is_empty() {
             return;
         }
+
+        // Update the accumulated analysis state.
         self.candidates.push(Candidate {
             definition: item.owner_id.def_id,
             span: item.span,
@@ -121,17 +144,20 @@ impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for candidate in self.candidates.drain(..) {
+        for analyze_candidate in self.candidates.drain(..) {
+            // Reject inputs that do not satisfy this stage.
             if self
                 .catalog
-                .derived_type(candidate.definition, "Deserialize")
+                .derived_type(analyze_candidate.definition, "Deserialize")
                 .is_none()
             {
                 continue;
             }
+
+            // Perform the next step of the analysis.
             Violation {
-                span: candidate.span,
-                fields: candidate.fields,
+                span: analyze_candidate.span,
+                fields: analyze_candidate.fields,
             }
             .emit(cx);
         }

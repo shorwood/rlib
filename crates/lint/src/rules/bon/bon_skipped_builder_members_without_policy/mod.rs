@@ -9,12 +9,44 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{attribute_source, builder_attribute, derives_bon_builder, has_attribute};
+use super::utils::{BonAttributeAnalysis, builder_attribute, has_attribute};
 use crate::utils::diagnostic::EarlyViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `member` value used by this analysis.
     member: String,
+}
+
+impl Violation {
+    /// Builds a violation for a skipped field without an explicit policy.
+    fn from_field(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Self> {
+        // Prepare the values used by this stage.
+        let attribute = builder_attribute(&field.attrs)?;
+        let source = match BonAttributeAnalysis::source(cx, attribute) {
+            Ok(source) => source,
+            Err(_error) => return None,
+        };
+
+        // Reject inputs that do not satisfy this stage.
+        if source.split_whitespace().collect::<String>() != "#[builder(skip)]"
+            || has_attribute(&field.attrs, "doc")
+            || cx
+                .sess()
+                .source_map()
+                .span_to_snippet(field.ty.span)
+                .is_ok_and(|ty| ty.contains("PhantomData"))
+        // Perform the next step of the analysis.
+        {
+            return None;
+        }
+        Some(Self {
+            span: attribute.span,
+            member: field.ident?.name.to_string(),
+        })
+    }
 }
 
 impl EarlyViolation for Violation {
@@ -51,6 +83,7 @@ impl EarlyViolation for Violation {
     }
 }
 
+/// Carries the `BonSkippedBuilderMembersWithoutPolicy` state used by this analysis.
 struct BonSkippedBuilderMembersWithoutPolicy;
 
 dylint_linting::impl_pre_expansion_lint! {
@@ -66,32 +99,14 @@ impl EarlyLintPass for BonSkippedBuilderMembersWithoutPolicy {
         let ItemKind::Struct(_, _, data) = &item.kind else {
             return;
         };
-        if !derives_bon_builder(cx, &item.attrs) {
+        if !BonAttributeAnalysis::derives_builder(cx, &item.attrs) {
             return;
         }
         for field in data.fields() {
-            if let Some(violation) = violation(cx, field) {
-                violation.emit(cx);
-            }
+            let Some(violation) = Violation::from_field(cx, field) else {
+                continue;
+            };
+            violation.emit(cx);
         }
     }
-}
-
-fn violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Violation> {
-    let attribute = builder_attribute(&field.attrs)?;
-    let source = attribute_source(cx, attribute)?;
-    if source.split_whitespace().collect::<String>() != "#[builder(skip)]"
-        || has_attribute(&field.attrs, "doc")
-        || cx
-            .sess()
-            .source_map()
-            .span_to_snippet(field.ty.span)
-            .is_ok_and(|ty| ty.contains("PhantomData"))
-    {
-        return None;
-    }
-    Some(Violation {
-        span: attribute.span,
-        member: field.ident?.name.to_string(),
-    })
 }

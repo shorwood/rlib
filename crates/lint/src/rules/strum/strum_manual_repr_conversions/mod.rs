@@ -18,9 +18,13 @@ use crate::utils::variant_methods::ReprConversionCandidate;
 
 /// Exact integer-to-variant conversion reproducible by `FromRepr`.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `owner` value used by this analysis.
     owner: rustc_hir::HirId,
+    /// Stores the `enum_name` value used by this analysis.
     enum_name: Symbol,
+    /// Stores the `is_public_api` value used by this analysis.
     is_public_api: bool,
 }
 
@@ -43,9 +47,12 @@ impl LateViolation for Violation {
     }
 
     fn emit(self, cx: &LateContext<'_>) {
+        // Prepare the values used by this stage.
         let primary = self.primary_message().into_owned();
         let rationale = self.rationale_message().into_owned();
         let remediation = self.remediation_message().into_owned();
+
+        // Perform the next step of the analysis.
         cx.tcx.emit_node_span_lint(
             STRUM_MANUAL_REPR_CONVERSIONS,
             self.owner,
@@ -79,14 +86,17 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for StrumManualReprConversions {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        let Some(candidate) = ReprConversionCandidate::from_impl_item(cx, item) else {
+        // Prepare the values used by this stage.
+        let Some(analyze_candidate) = ReprConversionCandidate::from_impl_item(cx, item) else {
             return;
         };
+
+        // Perform the next step of the analysis.
         Violation {
-            span: candidate.span,
-            owner: candidate.owner,
-            enum_name: candidate.enum_name(cx),
-            is_public_api: candidate.is_public_api(),
+            span: analyze_candidate.span,
+            owner: analyze_candidate.owner,
+            enum_name: analyze_candidate.enum_name(cx),
+            is_public_api: analyze_candidate.is_public_api(),
         }
         .emit(cx);
     }

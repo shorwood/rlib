@@ -76,9 +76,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // RevalidatedStringParameters
 // -----------------------------------------------------------------------------
-
-/// Collects consumer-side string validation across one crate.
 #[derive(Default)]
+/// Collects consumer-side string validation across one crate.
 struct RevalidatedStringParameters {
     /// Shared module-local domain and dataflow analysis.
     analyzer: DomainAnalyzer,

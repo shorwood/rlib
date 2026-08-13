@@ -96,9 +96,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // UnconsumedGenericAbstractions: Nominal substitution policy
 // -----------------------------------------------------------------------------
-
-/// Late pass collecting generic nominal declarations and active authored substitutions.
 #[derive(Default)]
+/// Late pass collecting generic nominal declarations and active authored substitutions.
 struct UnconsumedGenericAbstractions {
     /// Crate-wide nominal substitution analyzer.
     analyzer: GenericAbstractionAnalyzer,

@@ -12,10 +12,15 @@ use rustc_span::{Span, Symbol};
 use super::utils::contracts::{ContractCatalog, StrumDerive};
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `owner` value used by this analysis.
     owner: rustc_hir::HirId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `variant` value used by this analysis.
     variant: Symbol,
+    /// Stores the `derives` value used by this analysis.
     derives: String,
 }
 
@@ -52,7 +57,9 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `StrumDefaultedPayloadEnumConstruction` state used by this analysis.
 struct StrumDefaultedPayloadEnumConstruction {
+    /// Stores the `catalog` value used by this analysis.
     catalog: ContractCatalog,
 }
 
@@ -75,6 +82,7 @@ impl LateLintPass<'_> for StrumDefaultedPayloadEnumConstruction {
                 .enabled_variants()
                 .filter(|variant| variant.has_domain_payload)
             {
+                // Prepare the values used by this stage.
                 let mut derives = Vec::new();
                 if contract.derives(StrumDerive::EnumIter) {
                     derives.push("`EnumIter`");
@@ -82,18 +90,23 @@ impl LateLintPass<'_> for StrumDefaultedPayloadEnumConstruction {
                 if contract.derives(StrumDerive::FromRepr) {
                     derives.push("`FromRepr`");
                 }
-                if contract.derives(StrumDerive::EnumString) && !variant.default_capture {
+
+                // Reject inputs that do not satisfy this stage.
+                if contract.derives(StrumDerive::EnumString) && !variant.is_default_capture {
                     derives.push("`EnumString`");
                 }
-                if !derives.is_empty() {
-                    Violation {
-                        owner: contract.owner,
-                        span: variant.span,
-                        variant: variant.name,
-                        derives: derives.join(", "),
-                    }
-                    .emit(cx);
+                if derives.is_empty() {
+                    continue;
                 }
+
+                // Perform the next step of the analysis.
+                Violation {
+                    owner: contract.owner,
+                    span: variant.span,
+                    variant: variant.name,
+                    derives: derives.join(", "),
+                }
+                .emit(cx);
             }
         }
     }

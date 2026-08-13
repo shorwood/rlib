@@ -8,10 +8,6 @@ use rustc_hir::{Body, Expr, ExprKind, FnHeader, HirId, MatchSource, PatKind};
 use rustc_lint::LateContext;
 use rustc_span::symbol::sym;
 
-// -----------------------------------------------------------------------------
-// DirectForwarding: Shared forwarding syntax
-// -----------------------------------------------------------------------------
-
 /// A direct call and its semantic argument order.
 pub struct Call<'hir> {
     /// Resolved function or method target.
@@ -128,6 +124,8 @@ impl DirectForwarding {
             return None;
         };
         let resolution = cx.qpath_res(&path, callee.hir_id);
+
+        // Prepare the values used by this stage.
         let target = match resolution {
             Res::SelfCtor(implementation) => cx
                 .tcx

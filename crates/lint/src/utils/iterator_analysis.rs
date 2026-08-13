@@ -19,9 +19,8 @@ use super::identifier_case;
 // -----------------------------------------------------------------------------
 // IteratorCandidate: Complete diagnostic context
 // -----------------------------------------------------------------------------
-
-/// One unique stateful traversal that should use Rust's iterator protocol.
 #[derive(Clone)]
+/// One unique stateful traversal that should use Rust's iterator protocol.
 pub struct IteratorCandidateSource {
     /// HIR node used for lint-level configuration.
     pub hir_id: HirId,
@@ -34,18 +33,16 @@ pub struct IteratorCandidateSource {
     /// State advance or delegated `next` operation.
     pub evidence_span: Span,
 }
-
-/// Inferred iterator contract shown in diagnostics.
 #[derive(Clone)]
+/// Inferred iterator contract shown in diagnostics.
 pub struct IteratorCandidateProtocol {
     /// Receiver type that should own `Iterator`.
     pub type_name: String,
     /// Concrete yielded item spelling.
     pub item_name: String,
 }
-
-/// One unique stateful traversal that should use Rust's iterator protocol.
 #[derive(Clone)]
+/// One unique stateful traversal that should use Rust's iterator protocol.
 pub struct IteratorCandidate {
     /// Authored method identity and structural evidence.
     pub source: IteratorCandidateSource,
@@ -58,9 +55,8 @@ pub struct IteratorCandidate {
 // -----------------------------------------------------------------------------
 // IteratorAnalysis: Stateful traversal family selection
 // -----------------------------------------------------------------------------
-
-/// Finds unique cursor-like methods that reproduce `Iterator::next`.
 #[derive(Default)]
+/// Finds unique cursor-like methods that reproduce `Iterator::next`.
 pub struct IteratorAnalysis {
     /// Proven cursor-like methods in traversal order.
     candidates: Vec<IteratorCandidate>,
@@ -194,11 +190,11 @@ impl IteratorAnalysis {
     pub fn findings(&self) -> Vec<&IteratorCandidate> {
         // Group all traversal candidates by the receiver that would own `Iterator`.
         let mut families = HashMap::<LocalDefId, Vec<&IteratorCandidate>>::new();
-        for candidate in &self.candidates {
+        for analyze_candidate in &self.candidates {
             families
-                .entry(candidate.type_def_id)
+                .entry(analyze_candidate.type_def_id)
                 .or_default()
-                .push(candidate);
+                .push(analyze_candidate);
         }
 
         // Retain only unique traversals without existing or reusable iteration ownership.
@@ -212,7 +208,7 @@ impl IteratorAnalysis {
             }
             findings.push(family[0]);
         }
-        findings.sort_unstable_by_key(|candidate| candidate.source.name_span.lo());
+        findings.sort_unstable_by_key(|analyze_candidate| analyze_candidate.source.name_span.lo());
         findings
     }
 }
@@ -316,9 +312,8 @@ fn iterator_classification_has_neutral_name(
 // -----------------------------------------------------------------------------
 // IteratorEvidence: Persistent state advance proof
 // -----------------------------------------------------------------------------
-
-/// Mutable facts accumulated while traversing one iterator-like body.
 #[derive(Default)]
+/// Mutable facts accumulated while traversing one iterator-like body.
 struct IteratorEvidenceState {
     /// First explicit assignment to receiver-owned state.
     mutation: Option<Span>,

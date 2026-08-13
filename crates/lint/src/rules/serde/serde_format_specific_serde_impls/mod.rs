@@ -12,13 +12,19 @@ use rustc_middle::ty;
 use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::authored_item_source;
+use crate::utils::source_provenance::AuthoredItemSource;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `owner` value used by this analysis.
     owner: rustc_hir::HirId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `trait_name` value used by this analysis.
     trait_name: String,
+    /// Stores the `type_name` value used by this analysis.
     type_name: String,
+    /// Stores the `evidence` value used by this analysis.
     evidence: String,
 }
 
@@ -58,71 +64,10 @@ impl LateViolation for Violation {
     }
 }
 
-struct SerdeFormatSpecificSerdeImpls;
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub SERDE_FORMAT_SPECIFIC_SERDE_IMPLS,
-    Warn,
-    "finds format-specific behavior hidden in generic Serde implementations",
-    SerdeFormatSpecificSerdeImpls
-}
-
-impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
-    fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        let ItemKind::Impl(implementation) = item.kind else {
-            return;
-        };
-        if item.span.from_expansion() {
-            return;
-        }
-        let Some(trait_id) = implementation
-            .of_trait
-            .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
-        else {
-            return;
-        };
-        let trait_name = cx.tcx.item_name(trait_id).to_string();
-        if !matches!(trait_name.as_str(), "Serialize" | "Deserialize")
-            || !matches!(
-                cx.tcx.crate_name(trait_id.krate).as_str(),
-                "serde" | "serde_core"
-            )
-        {
-            return;
-        }
-        let Some(source) = authored_item_source(cx, item) else {
-            return;
-        };
-        if source.lines().any(|line| {
-            let line = line.trim_start();
-            line.starts_with("///") || line.starts_with("#[doc")
-        }) {
-            return;
-        }
-        let Some(evidence) = format_specific_evidence(&source) else {
-            return;
-        };
-        let trait_ref = cx
-            .tcx
-            .impl_trait_ref(item.owner_id.def_id)
-            .instantiate_identity();
-        let type_name = match trait_ref.self_ty().kind() {
-            ty::Adt(definition, _) => cx.tcx.item_name(definition.did()).to_string(),
-            _ => trait_ref.self_ty().to_string(),
-        };
-        Violation {
-            owner: item.hir_id(),
-            span: item.span,
-            trait_name,
-            type_name,
-            evidence,
-        }
-        .emit(cx);
-    }
-}
-
+/// Performs the `format_specific_evidence` step of the lint analysis.
 fn format_specific_evidence(source: &str) -> Option<String> {
+    /// Defines the `FORMAT_CRATES` value used by this analysis.
+    // Perform the next step of the analysis.
     const FORMAT_CRATES: &[&str] = &[
         "serde_json::",
         "serde_yaml::",
@@ -131,6 +76,8 @@ fn format_specific_evidence(source: &str) -> Option<String> {
         "bincode::",
         "rmp_serde::",
     ];
+
+    // Reject inputs that do not satisfy this stage.
     if let Some(format) = FORMAT_CRATES
         .iter()
         .find(|format| source.contains(**format))
@@ -140,12 +87,16 @@ fn format_specific_evidence(source: &str) -> Option<String> {
             format.trim_end_matches("::")
         ));
     }
+
+    // Reject inputs that do not satisfy this stage.
     if !source.contains("is_human_readable()") {
         return None;
     }
     let string_shape = ["serialize_str", "deserialize_str", "deserialize_string"]
         .iter()
         .any(|operation| source.contains(operation));
+
+    // Prepare the values used by this stage.
     let binary_shape = [
         "serialize_u",
         "serialize_i",
@@ -160,8 +111,88 @@ fn format_specific_evidence(source: &str) -> Option<String> {
     ]
     .iter()
     .any(|operation| source.contains(operation));
+
+    // Perform the next step of the analysis.
     (string_shape && binary_shape).then(|| {
         "`is_human_readable()` selects different string and binary Serde data-model shapes"
             .to_owned()
     })
+}
+
+/// Carries the `SerdeFormatSpecificSerdeImpls` state used by this analysis.
+struct SerdeFormatSpecificSerdeImpls;
+
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub SERDE_FORMAT_SPECIFIC_SERDE_IMPLS,
+    Warn,
+    "finds format-specific behavior hidden in generic Serde implementations",
+    SerdeFormatSpecificSerdeImpls
+}
+
+impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
+    fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Prepare the values used by this stage.
+        let ItemKind::Impl(implementation) = item.kind else {
+            return;
+        };
+        if item.span.from_expansion() {
+            return;
+        }
+
+        // Prepare the values used by this stage.
+        let Some(trait_id) = implementation
+            .of_trait
+            .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
+        else {
+            return;
+        };
+        let trait_name = cx.tcx.item_name(trait_id).to_string();
+
+        // Reject inputs that do not satisfy this stage.
+        if !matches!(trait_name.as_str(), "Serialize" | "Deserialize")
+            || !matches!(
+                cx.tcx.crate_name(trait_id.krate).as_str(),
+                "serde" | "serde_core"
+            )
+        {
+            return;
+        }
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
+            return;
+        };
+
+        // Reject inputs that do not satisfy this stage.
+        if source.lines().any(|line| {
+            let line = line.trim_start();
+            line.starts_with("///") || line.starts_with("#[doc")
+        }) {
+            return;
+        }
+
+        // Prepare the values used by this stage.
+        let Some(evidence) = format_specific_evidence(&source) else {
+            return;
+        };
+        let trait_ref = cx
+            .tcx
+            .impl_trait_ref(item.owner_id.def_id)
+            .instantiate_identity();
+
+        // Prepare the values used by this stage.
+        let type_name = match trait_ref.self_ty().kind() {
+            ty::Adt(definition, _) => cx.tcx.item_name(definition.did()).to_string(),
+            _ => trait_ref.self_ty().to_string(),
+        };
+
+        // Perform the next step of the analysis.
+        Violation {
+            owner: item.hir_id(),
+            span: item.span,
+            trait_name,
+            type_name,
+            evidence,
+        }
+        .emit(cx);
+    }
 }

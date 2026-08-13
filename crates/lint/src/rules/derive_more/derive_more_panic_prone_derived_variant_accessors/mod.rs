@@ -14,8 +14,11 @@ use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `method` value used by this analysis.
     method: String,
 }
 
@@ -51,6 +54,47 @@ impl LateViolation for Violation {
     }
 }
 
+/// Performs the `is_derive_more_unwrap` step of the lint analysis.
+fn is_derive_more_unwrap(cx: &LateContext<'_>, target: DefId) -> bool {
+    cx.tcx.def_span(target).macro_backtrace().any(|expansion| {
+        expansion.macro_def_id.is_some_and(|definition| {
+            cx.tcx.crate_name(definition.krate).as_str() == "derive_more_impl"
+                && cx.tcx.item_name(definition).as_str() == "Unwrap"
+        })
+    })
+}
+
+/// Performs the `receiver_constructs_expected_variant` step of the lint analysis.
+fn receiver_constructs_expected_variant(
+    cx: &LateContext<'_>,
+    receiver: &Expr<'_>,
+    method: &str,
+) -> bool {
+    // Prepare the values used by this stage.
+    let ExprKind::Call(constructor, _) = receiver.kind else {
+        return false;
+    };
+    let ExprKind::Path(path) = constructor.kind else {
+        return false;
+    };
+
+    // Prepare the values used by this stage.
+    let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
+        cx.qpath_res(&path, constructor.hir_id)
+    else {
+        return false;
+    };
+    let variant = cx.tcx.parent(constructor);
+
+    // Prepare the values used by this stage.
+    let expected = format!(
+        "unwrap_{}",
+        cx.tcx.item_name(variant).as_str().to_case(Case::Snake)
+    );
+    method == expected || method == format!("{expected}_ref") || method == format!("{expected}_mut")
+}
+
+/// Carries the `DeriveMorePanicProneDerivedVariantAccessors` state used by this analysis.
 struct DeriveMorePanicProneDerivedVariantAccessors;
 
 dylint_linting::impl_late_lint! {
@@ -63,12 +107,15 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for DeriveMorePanicProneDerivedVariantAccessors {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        // Prepare the values used by this stage.
         let ExprKind::MethodCall(segment, receiver, arguments, _) = expression.kind else {
             return;
         };
         if !arguments.is_empty() || !segment.ident.name.as_str().starts_with("unwrap_") {
             return;
         }
+
+        // Prepare the values used by this stage.
         let Some(target) = cx
             .tcx
             .typeck(expression.hir_id.owner.def_id)
@@ -76,6 +123,8 @@ impl LateLintPass<'_> for DeriveMorePanicProneDerivedVariantAccessors {
         else {
             return;
         };
+
+        // Reject inputs that do not satisfy this stage.
         if !is_derive_more_unwrap(cx, target) {
             return;
         }
@@ -83,43 +132,12 @@ impl LateLintPass<'_> for DeriveMorePanicProneDerivedVariantAccessors {
         if receiver_constructs_expected_variant(cx, receiver, &method) {
             return;
         }
+
+        // Perform the next step of the analysis.
         Violation {
             span: expression.span,
             method,
         }
         .emit(cx);
     }
-}
-
-fn is_derive_more_unwrap(cx: &LateContext<'_>, target: DefId) -> bool {
-    cx.tcx.def_span(target).macro_backtrace().any(|expansion| {
-        expansion.macro_def_id.is_some_and(|definition| {
-            cx.tcx.crate_name(definition.krate).as_str() == "derive_more_impl"
-                && cx.tcx.item_name(definition).as_str() == "Unwrap"
-        })
-    })
-}
-
-fn receiver_constructs_expected_variant(
-    cx: &LateContext<'_>,
-    receiver: &Expr<'_>,
-    method: &str,
-) -> bool {
-    let ExprKind::Call(constructor, _) = receiver.kind else {
-        return false;
-    };
-    let ExprKind::Path(path) = constructor.kind else {
-        return false;
-    };
-    let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
-        cx.qpath_res(&path, constructor.hir_id)
-    else {
-        return false;
-    };
-    let variant = cx.tcx.parent(constructor);
-    let expected = format!(
-        "unwrap_{}",
-        cx.tcx.item_name(variant).as_str().to_case(Case::Snake)
-    );
-    method == expected || method == format!("{expected}_ref") || method == format!("{expected}_mut")
 }

@@ -6,6 +6,10 @@
 #![register_tool(rlib_lint)]
 #![warn(misordered_module_declarations)]
 
+// -----------------------------------------------------------------------------
+// Fixture: Declaration ordering fixture
+// -----------------------------------------------------------------------------
+
 fn run() -> Value {
     make()
 }

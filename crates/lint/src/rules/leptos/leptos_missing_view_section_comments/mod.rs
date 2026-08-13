@@ -97,14 +97,19 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMissingViewSectionComments {
             return;
         };
         for scope in &view.scopes {
+            // Prepare the values used by this stage.
             let complexity = scope.complexity();
             let first_is_named = scope.headings.iter().any(|heading| heading.node == Some(0));
             if complexity <= self.config.max_unnamed_view_complexity || first_is_named {
                 continue;
             }
+
+            // Prepare the values used by this stage.
             let (Some(first), Some(last)) = (scope.nodes.first(), scope.nodes.last()) else {
                 continue;
             };
+
+            // Perform the next step of the analysis.
             Violation {
                 owner: view.owner,
                 span: first.span.with_hi(last.span.hi()),

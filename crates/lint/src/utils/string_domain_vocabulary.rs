@@ -63,7 +63,7 @@ impl DomainWords {
         Self(words.into_iter().map(|word| word.to_lowercase()).collect())
     }
 
-    /// Removes action and generic transport vocabulary from a domain candidate.
+    /// Removes action and generic transport vocabulary from a domain `analyze_candidate`.
     fn filtered_for_domain_inference(identifier: Symbol) -> Self {
         let words = Self::normalized(identifier).0.into_iter().filter(|word| {
             !BehaviorVocabulary::contains(word)
@@ -109,7 +109,7 @@ impl DomainWords {
 }
 
 // -----------------------------------------------------------------------------
-// StringDomainVocabulary: Public vocabulary queries
+// StringDomainSymbolExt: Public vocabulary queries
 // -----------------------------------------------------------------------------
 
 /// Domain-vocabulary queries colocated with compiler symbols.

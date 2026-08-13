@@ -18,13 +18,21 @@ use syn::punctuated::Punctuated;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
 
+/// Carries the `Family` state used by this analysis.
 struct Family {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `name` value used by this analysis.
     name: String,
+    /// Stores the `traits` value used by this analysis.
     traits: Vec<&'static str>,
 }
 
-struct Violation(Family);
+/// Stores the `item` value used by this analysis.
+struct Violation(
+    /// Formatting family that triggered the violation.
+    Family,
+);
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
@@ -41,6 +49,7 @@ impl LateViolation for Violation {
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
+        // Prepare the values used by this stage.
         let derives = self
             .0
             .traits
@@ -48,6 +57,8 @@ impl LateViolation for Violation {
             .map(|name| format!("derive_more::{name}"))
             .collect::<Vec<_>>()
             .join(", ");
+
+        // Perform the next step of the analysis.
         Cow::Owned(format!(
             "replace this family with `#[derive({derives})]`, preserving exact format strings in derive_more attributes"
         ))
@@ -67,94 +78,9 @@ impl LateViolation for Violation {
     }
 }
 
-#[derive(Default)]
-struct DeriveMoreManualFormattingImpls {
-    families: HashMap<LocalDefId, Family>,
-}
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub DERIVE_MORE_MANUAL_FORMATTING_IMPLS,
-    Warn,
-    "finds formatting implementations reproducible by derive_more",
-    DeriveMoreManualFormattingImpls::default()
-}
-
-impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualFormattingImpls {
-    fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
-        let Some((definition, trait_name)) = exact_formatting(cx, item) else {
-            return;
-        };
-        let family = self.families.entry(definition).or_insert_with(|| Family {
-            span: cx.tcx.def_span(definition),
-            name: cx.tcx.item_name(definition).to_string(),
-            traits: Vec::new(),
-        });
-        if !family.traits.contains(&trait_name) {
-            family.traits.push(trait_name);
-        }
-    }
-
-    fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (_, mut family) in self.families.drain() {
-            family.traits.sort_unstable();
-            Violation(family).emit(cx);
-        }
-    }
-}
-
-fn exact_formatting(
-    cx: &LateContext<'_>,
-    item: &ImplItem<'_>,
-) -> Option<(LocalDefId, &'static str)> {
-    let ImplItemKind::Fn(signature, body_id) = item.kind else {
-        return None;
-    };
-    if item.ident.name.as_str() != "fmt" || item.span.from_expansion() {
-        return None;
-    }
-    let implementation = cx.tcx.local_parent(item.owner_id.def_id);
-    let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
-        return None;
-    };
-    let ItemKind::Impl(implementation_item) = parent.kind else {
-        return None;
-    };
-    let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
-    if cx.tcx.crate_name(trait_id.krate).as_str() != "core" {
-        return None;
-    }
-    let trait_name = formatting_trait(cx.tcx.item_name(trait_id).as_str())?;
-    let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
-    let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
-        return None;
-    };
-    if !definition.is_struct() {
-        return None;
-    }
-    let definition = definition.did().as_local()?;
-    let body = cx.tcx.hir_body(body_id);
-    let forwarding =
-        DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
-    let [self_binding, formatter_binding] = forwarding.bindings.as_slice() else {
-        return None;
-    };
-    if direct_trait_delegation(
-        cx,
-        forwarding.typeck_owner,
-        forwarding.forwarded,
-        *self_binding,
-        *formatter_binding,
-        trait_id,
-    ) || single_field_write(cx, item)
-    {
-        Some((definition, trait_name))
-    } else {
-        None
-    }
-}
-
+/// Performs the `formatting_trait` step of the lint analysis.
 fn formatting_trait(name: &str) -> Option<&'static str> {
+    // Classify the current analyze_candidate.
     match name {
         "Debug" => Some("Debug"),
         "Display" => Some("Display"),
@@ -169,6 +95,19 @@ fn formatting_trait(name: &str) -> Option<&'static str> {
     }
 }
 
+/// Performs the `field_reference` step of the lint analysis.
+fn field_reference(cx: &LateContext<'_>, expression: &Expr<'_>, binding: rustc_hir::HirId) -> bool {
+    let expression = match expression.kind {
+        ExprKind::AddrOf(_, Mutability::Not, inner) => inner,
+        _ => expression,
+    };
+    let ExprKind::Field(base, _) = expression.kind else {
+        return false;
+    };
+    DirectForwarding::is_binding(cx, base, binding)
+}
+
+/// Performs the `direct_trait_delegation` step of the lint analysis.
 fn direct_trait_delegation(
     cx: &LateContext<'_>,
     owner: LocalDefId,
@@ -188,63 +127,7 @@ fn direct_trait_delegation(
         && DirectForwarding::is_binding(cx, formatter, formatter_binding)
 }
 
-fn field_reference(cx: &LateContext<'_>, expression: &Expr<'_>, binding: rustc_hir::HirId) -> bool {
-    let expression = match expression.kind {
-        ExprKind::AddrOf(_, Mutability::Not, inner) => inner,
-        _ => expression,
-    };
-    let ExprKind::Field(base, _) = expression.kind else {
-        return false;
-    };
-    DirectForwarding::is_binding(cx, base, binding)
-}
-
-fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
-    let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
-        return false;
-    };
-    let Ok(method) = syn::parse_str::<syn::ImplItemFn>(&source) else {
-        return false;
-    };
-    let [syn::Stmt::Expr(syn::Expr::Macro(invocation), _)] = method.block.stmts.as_slice() else {
-        return false;
-    };
-    if !invocation.mac.path.is_ident("write") {
-        return false;
-    }
-    let inputs = method.sig.inputs.iter().collect::<Vec<_>>();
-    let [
-        syn::FnArg::Receiver(_),
-        syn::FnArg::Typed(formatter_parameter),
-    ] = inputs.as_slice()
-    else {
-        return false;
-    };
-    let syn::Pat::Ident(formatter_parameter) = formatter_parameter.pat.as_ref() else {
-        return false;
-    };
-    let parser = Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
-    let Ok(arguments) = parser.parse2(invocation.mac.tokens.clone()) else {
-        return false;
-    };
-    let arguments = arguments.iter().collect::<Vec<_>>();
-    let [formatter, syn::Expr::Lit(format), field] = arguments.as_slice() else {
-        return false;
-    };
-    let syn::Expr::Path(formatter) = formatter else {
-        return false;
-    };
-    let syn::Lit::Str(format) = &format.lit else {
-        return false;
-    };
-    let syn::Expr::Field(field) = field else {
-        return false;
-    };
-    formatter.path.is_ident(&formatter_parameter.ident)
-        && matches!(field.base.as_ref(), syn::Expr::Path(base) if base.path.is_ident("self"))
-        && has_one_placeholder(&format.value())
-}
-
+/// Performs the `has_one_placeholder` step of the lint analysis.
 fn has_one_placeholder(format: &str) -> bool {
     let mut placeholders = 0;
     let mut characters = format.chars().peekable();
@@ -259,4 +142,181 @@ fn has_one_placeholder(format: &str) -> bool {
         placeholders += 1;
     }
     placeholders == 1
+}
+
+/// Performs the `single_field_write` step of the lint analysis.
+fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
+    // Prepare the values used by this stage.
+    let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
+        return false;
+    };
+    let Ok(method) = syn::parse_str::<syn::ImplItemFn>(&source) else {
+        return false;
+    };
+
+    // Prepare the values used by this stage.
+    let [syn::Stmt::Expr(syn::Expr::Macro(invocation), _)] = method.block.stmts.as_slice() else {
+        return false;
+    };
+    if !invocation.mac.path.is_ident("write") {
+        return false;
+    }
+    let inputs = method.sig.inputs.iter().collect::<Vec<_>>();
+
+    // Prepare the values used by this stage.
+    let [
+        syn::FnArg::Receiver(_),
+        syn::FnArg::Typed(formatter_parameter),
+    ] = inputs.as_slice()
+    else {
+        return false;
+    };
+
+    // Prepare the values used by this stage.
+    let syn::Pat::Ident(formatter_parameter) = formatter_parameter.pat.as_ref() else {
+        return false;
+    };
+    let parser = Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
+    let Ok(arguments) = parser.parse2(invocation.mac.tokens.clone()) else {
+        return false;
+    };
+
+    // Prepare the values used by this stage.
+    let arguments = arguments.iter().collect::<Vec<_>>();
+    let [formatter, syn::Expr::Lit(format), field] = arguments.as_slice() else {
+        return false;
+    };
+    let syn::Expr::Path(formatter) = formatter else {
+        return false;
+    };
+
+    // Prepare the values used by this stage.
+    let syn::Lit::Str(format) = &format.lit else {
+        return false;
+    };
+    let syn::Expr::Field(field) = field else {
+        return false;
+    };
+
+    // Perform the next step of the analysis.
+    formatter.path.is_ident(&formatter_parameter.ident)
+        && matches!(field.base.as_ref(), syn::Expr::Path(base) if base.path.is_ident("self"))
+        && has_one_placeholder(&format.value())
+}
+
+/// Identifies one exact formatting implementation.
+struct ExactFormatting {
+    /// Local type receiving the formatting implementation.
+    definition: LocalDefId,
+    /// Formatting trait implemented by the analyzed method.
+    trait_name: &'static str,
+}
+
+impl ExactFormatting {
+    /// Recognizes one exact formatting implementation.
+    fn analyze(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Prepare the values used by this stage.
+        let ImplItemKind::Fn(signature, body_id) = item.kind else {
+            return None;
+        };
+        if item.ident.name.as_str() != "fmt" || item.span.from_expansion() {
+            return None;
+        }
+        let implementation = cx.tcx.local_parent(item.owner_id.def_id);
+
+        // Prepare the values used by this stage.
+        let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
+            return None;
+        };
+        let ItemKind::Impl(implementation_item) = parent.kind else {
+            return None;
+        };
+        let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
+
+        // Reject inputs that do not satisfy this stage.
+        if cx.tcx.crate_name(trait_id.krate).as_str() != "core" {
+            return None;
+        }
+        let trait_name = formatting_trait(cx.tcx.item_name(trait_id).as_str())?;
+        let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
+
+        // Prepare the values used by this stage.
+        let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
+            return None;
+        };
+        if !definition.is_struct() {
+            return None;
+        }
+        let definition = definition.did().as_local()?;
+
+        // Prepare the values used by this stage.
+        let body = cx.tcx.hir_body(body_id);
+        let forwarding =
+            DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
+        let [self_binding, formatter_binding] = forwarding.bindings.as_slice() else {
+            return None;
+        };
+
+        // Reject inputs that do not satisfy this stage.
+        if direct_trait_delegation(
+            cx,
+            forwarding.typeck_owner,
+            forwarding.forwarded,
+            *self_binding,
+            *formatter_binding,
+            trait_id,
+        ) || single_field_write(cx, item)
+        // Perform the next step of the analysis.
+        {
+            Some(Self {
+                definition,
+                trait_name,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Default)]
+/// Carries the `DeriveMoreManualFormattingImpls` state used by this analysis.
+struct DeriveMoreManualFormattingImpls {
+    /// Stores the `families` value used by this analysis.
+    families: HashMap<LocalDefId, Family>,
+}
+
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub DERIVE_MORE_MANUAL_FORMATTING_IMPLS,
+    Warn,
+    "finds formatting implementations reproducible by derive_more",
+    DeriveMoreManualFormattingImpls::default()
+}
+
+impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualFormattingImpls {
+    fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
+        let Some(ExactFormatting {
+            definition,
+            trait_name,
+        }) = ExactFormatting::analyze(cx, item)
+        else {
+            return;
+        };
+        let family = self.families.entry(definition).or_insert_with(|| Family {
+            span: cx.tcx.def_span(definition),
+            name: cx.tcx.item_name(definition).to_string(),
+            traits: Vec::new(),
+        });
+        if family.traits.contains(&trait_name) {
+            return;
+        }
+        family.traits.push(trait_name);
+    }
+
+    fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
+        for (_, mut family) in self.families.drain() {
+            family.traits.sort_unstable();
+            Violation(family).emit(cx);
+        }
+    }
 }

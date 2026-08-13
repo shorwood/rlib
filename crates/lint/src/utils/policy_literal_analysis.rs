@@ -43,27 +43,26 @@ pub struct PolicyLiteralFinding {
 
 impl PolicyLiteralFinding {
     /// Replaces weaker overlapping evidence while preserving one diagnostic per source expression.
-    fn merge(&mut self, candidate: Self) {
-        let is_stronger = candidate.evidence_strength > self.evidence_strength
-            || (candidate.evidence_strength == self.evidence_strength
-                && candidate.category.evidence_rank() > self.category.evidence_rank());
+    fn merge(&mut self, analyze_candidate: Self) {
+        let is_stronger = analyze_candidate.evidence_strength > self.evidence_strength
+            || (analyze_candidate.evidence_strength == self.evidence_strength
+                && analyze_candidate.category.evidence_rank() > self.category.evidence_rank());
         if is_stronger {
-            *self = candidate;
+            *self = analyze_candidate;
             return;
         }
         if self.suggested_name.is_some() {
             return;
         }
-        self.suggested_name = candidate.suggested_name;
+        self.suggested_name = analyze_candidate.suggested_name;
     }
 }
 
 // -----------------------------------------------------------------------------
 // PolicyLiteral: Authored numeric policy material
 // -----------------------------------------------------------------------------
-
-/// Span and optional authored name of one literal-derived value.
 #[derive(Clone)]
+/// Span and optional authored name of one literal-derived value.
 struct PolicyLiteralOrigin {
     /// Maximal source span that can be extracted into a constant.
     span: Span,
@@ -118,18 +117,18 @@ impl<'analysis, 'tcx> PolicyLiteralOriginCollector<'analysis, 'tcx> {
         }
 
         // Require both operands of arithmetic expressions to remain literal-derived.
-        let ExprKind::Binary(operator, left, right) = expression.kind else {
+        let ExprKind::Binary(analyze_operator, left, right) = expression.kind else {
             return false;
         };
-        Self::is_arithmetic(operator.node)
+        Self::is_arithmetic(analyze_operator.node)
             && Self::is_literal_derived(left)
             && Self::is_literal_derived(right)
     }
 
-    /// Returns whether a binary operator can participate in a numeric constant expression.
-    const fn is_arithmetic(operator: BinOpKind) -> bool {
+    /// Returns whether a binary `analyze_operator` can participate in a numeric constant expression.
+    const fn is_arithmetic(analyze_operator: BinOpKind) -> bool {
         matches!(
-            operator,
+            analyze_operator,
             BinOpKind::Add
                 | BinOpKind::Sub
                 | BinOpKind::Mul
@@ -304,9 +303,8 @@ impl<'tcx> Visitor<'tcx> for LocalLiteralCollector<'_, 'tcx> {
 // -----------------------------------------------------------------------------
 // ControlFlowEvidence: Fallibility and exits
 // -----------------------------------------------------------------------------
-
-/// Semantic proof retained while examining one controlled body.
 #[derive(Default)]
+/// Semantic proof retained while examining one controlled body.
 struct ControlFlowEvidence {
     /// Body contains `?` or an expression producing the standard `Result` type.
     has_fallible_operation: bool,
@@ -405,14 +403,15 @@ impl<'analysis, 'tcx> EvidenceCollector<'analysis, 'tcx> {
     }
 
     /// Deduplicates a finding by exact authored source span.
-    fn record(&mut self, candidate: PolicyLiteralFinding) {
+    fn record(&mut self, analyze_candidate: PolicyLiteralFinding) {
         if let Some(existing) = self.findings.iter_mut().find(|finding| {
-            finding.span.lo() == candidate.span.lo() && finding.span.hi() == candidate.span.hi()
+            finding.span.lo() == analyze_candidate.span.lo()
+                && finding.span.hi() == analyze_candidate.span.hi()
         }) {
-            existing.merge(candidate);
+            existing.merge(analyze_candidate);
             return;
         }
-        self.findings.push(candidate);
+        self.findings.push(analyze_candidate);
     }
 
     /// Starts policy classification with any name-derived local findings.
@@ -656,19 +655,18 @@ struct PolicyComparison<'tcx> {
     /// Simple opposite-side identifier available for constant-name inference.
     subject_name: Option<String>,
 }
-
-/// Finds numeric comparison expressions without entering nested closures.
 #[derive(Default)]
+/// Finds numeric comparison expressions without entering nested closures.
 struct PolicyComparisonCollector<'tcx> {
     /// Comparisons retained from a compound condition.
     comparisons: Vec<PolicyComparison<'tcx>>,
 }
 
 impl PolicyComparisonCollector<'_> {
-    /// Returns whether one operator establishes a branch threshold.
-    const fn is_comparison(operator: BinOpKind) -> bool {
+    /// Returns whether one `analyze_operator` establishes a branch threshold.
+    const fn is_comparison(analyze_operator: BinOpKind) -> bool {
         matches!(
-            operator,
+            analyze_operator,
             BinOpKind::Eq
                 | BinOpKind::Ne
                 | BinOpKind::Lt
@@ -706,8 +704,8 @@ impl<'tcx> Visitor<'tcx> for PolicyComparisonCollector<'tcx> {
         ) {
             return;
         }
-        if let ExprKind::Binary(operator, left, right) = expression.kind
-            && Self::is_comparison(operator.node)
+        if let ExprKind::Binary(analyze_operator, left, right) = expression.kind
+            && Self::is_comparison(analyze_operator.node)
         {
             // Retain both orientations; literal collection naturally rejects the nonliteral side.
             self.comparisons.push(PolicyComparison {

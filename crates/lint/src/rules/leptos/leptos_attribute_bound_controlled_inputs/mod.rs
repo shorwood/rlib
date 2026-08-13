@@ -13,7 +13,7 @@ use super::utils::reactive_capability::ReactiveCapability;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
-// Violation: Attribute-bound control diagnostic
+// Violation: Attribute bound control diagnostic
 // -----------------------------------------------------------------------------
 
 /// Writable state supplied through an initial-state HTML attribute.
@@ -83,18 +83,28 @@ dylint_linting::impl_late_lint! {
 impl LeptosAttributeBoundControlledInputs {
     /// Recovers a raw authored state attribute immediately before a reactive value.
     fn raw_state_attribute(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<Symbol> {
+        // Reject inputs that do not satisfy this stage.
         if !matches!(expression.kind, ExprKind::Path(_)) {
             return None;
         }
         let callsite = expression.span.source_callsite();
         let prefix =
             Span::with_root_ctxt(BytePos(callsite.lo().0.saturating_sub(128)), callsite.lo());
-        let source = cx.sess().source_map().span_to_snippet(prefix).ok()?;
+
+        // Prepare the values used by this stage.
+        let source = match cx.sess().source_map().span_to_snippet(prefix) {
+            Ok(source) => source,
+            Err(_error) => return None,
+        };
         let source = source.trim_end();
         let tag = source.rsplit_once('<')?.1.split_ascii_whitespace().next()?;
+
+        // Reject inputs that do not satisfy this stage.
         if !matches!(tag, "input" | "select" | "textarea") {
             return None;
         }
+
+        // Process the candidates handled by this stage.
         for attribute in ["value", "checked"] {
             let Some(before) = source
                 .strip_suffix('=')
@@ -106,20 +116,27 @@ impl LeptosAttributeBoundControlledInputs {
                 return Some(Symbol::intern(attribute));
             }
         }
+
+        // Perform the next step of the analysis.
         None
     }
 }
 
 impl<'tcx> LateLintPass<'tcx> for LeptosAttributeBoundControlledInputs {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Prepare the values used by this stage.
         let Some(attribute) = Self::raw_state_attribute(cx, expression) else {
             return;
         };
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
         let ty = cx.tcx.typeck(owner).expr_ty(expression);
+
+        // Reject inputs that do not satisfy this stage.
         if !ReactiveCapability::carries_write(cx, owner, ty) {
             return;
         }
+
+        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
             span: expression.span.source_callsite(),

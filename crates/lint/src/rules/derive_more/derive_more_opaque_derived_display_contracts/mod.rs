@@ -13,13 +13,19 @@ use rustc_span::def_id::LocalDefId;
 use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Candidate` state used by this analysis.
 struct Candidate {
+    /// Stores the `definition` value used by this analysis.
     definition: LocalDefId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
 }
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `name` value used by this analysis.
     name: String,
 }
 
@@ -58,8 +64,11 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `DeriveMoreOpaqueDerivedDisplayContracts` state used by this analysis.
 struct DeriveMoreOpaqueDerivedDisplayContracts {
+    /// Stores the `catalog` value used by this analysis.
     catalog: DeriveMoreContractCatalog,
+    /// Stores the `candidates` value used by this analysis.
     candidates: Vec<Candidate>,
 }
 
@@ -77,6 +86,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
     }
 
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return;
         };
@@ -84,24 +94,30 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
             .tcx
             .typeck(expression.hir_id.owner.def_id)
             .type_dependent_def_id(expression.hir_id)
+        // Perform the next step of the analysis.
         else {
             return;
         };
         let path = cx.tcx.def_path_str(target);
         if cx.tcx.item_name(target).as_str() != "insert"
             || (!path.contains("collections::HashMap") && !path.contains("collections::BTreeMap"))
+        // Perform the next step of the analysis.
         {
             return;
         }
         let Some(key) = arguments.first() else {
             return;
         };
+
+        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, source, to_string_arguments, _) = key.kind else {
             return;
         };
         if !to_string_arguments.is_empty() {
             return;
         }
+
+        // Prepare the values used by this stage.
         let Some(to_string) = cx
             .tcx
             .typeck(key.hir_id.owner.def_id)
@@ -109,6 +125,8 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
         else {
             return;
         };
+
+        // Reject inputs that do not satisfy this stage.
         if cx.tcx.item_name(to_string).as_str() != "to_string"
             || cx
                 .tcx
@@ -117,6 +135,8 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
         {
             return;
         }
+
+        // Prepare the values used by this stage.
         let Some(definition) = cx
             .tcx
             .typeck(key.hir_id.owner.def_id)
@@ -124,6 +144,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
             .peel_refs()
             .ty_adt_def()
             .and_then(|definition| definition.did().as_local())
+        // Perform the next step of the analysis.
         else {
             return;
         };
@@ -134,12 +155,18 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for candidate in self.candidates.drain(..) {
-            let Some(contract) = self.catalog.derived_type(candidate.definition, "Display") else {
+        for analyze_candidate in self.candidates.drain(..) {
+            // Prepare the values used by this stage.
+            let Some(contract) = self
+                .catalog
+                .derived_type(analyze_candidate.definition, "Display")
+            else {
                 continue;
             };
+
+            // Perform the next step of the analysis.
             Violation {
-                span: candidate.span,
+                span: analyze_candidate.span,
                 name: contract.name.to_string(),
             }
             .emit(cx);

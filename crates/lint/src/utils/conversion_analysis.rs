@@ -22,9 +22,8 @@ use super::identifier_case;
 // -----------------------------------------------------------------------------
 // ConversionType: Lifetime erased semantic identity
 // -----------------------------------------------------------------------------
-
-/// Concrete source or target identity used to group equivalent conversion APIs.
 #[derive(Clone, PartialEq, Eq, Hash)]
+/// Concrete source or target identity used to group equivalent conversion APIs.
 enum ConversionType {
     /// Nominal type with every concrete type and constant argument retained.
     Adt {
@@ -63,9 +62,8 @@ enum ConversionType {
         elements: Vec<Self>,
     },
 }
-
-/// Concrete generic argument retained in a nominal conversion type.
 #[derive(Clone, PartialEq, Eq, Hash)]
+/// Concrete generic argument retained in a nominal conversion type.
 enum ConversionTypeArgument {
     /// One concrete type argument.
     Type {
@@ -195,18 +193,16 @@ impl ConversionType {
 // -----------------------------------------------------------------------------
 // Conversion: Report and ownership context
 // -----------------------------------------------------------------------------
-
-/// Exact semantic source and target pair used for ambiguity and trait checks.
 #[derive(Clone, PartialEq, Eq, Hash)]
+/// Exact semantic source and target pair used for ambiguity and trait checks.
 struct ConversionPair {
     /// Concrete input family offered by the conversion API.
     source: ConversionType,
     /// Concrete result family owned by the conversion API.
     target: ConversionType,
 }
-
-/// Standard conversion contract implied by a candidate's exact return shape.
 #[derive(Clone)]
+/// Standard conversion contract implied by a `analyze_candidate`'s exact return shape.
 pub enum ConversionContract {
     /// Direct result suitable for `From` and reciprocal `Into`.
     Infallible,
@@ -259,9 +255,8 @@ impl<'tcx> ConversionReturn<'tcx> {
             })
     }
 }
-
-/// How directly the authored name claims to be a general conversion.
 #[derive(Clone, Copy)]
+/// How directly the authored name claims to be a general conversion.
 pub enum ConversionConfidence {
     /// Authored name explicitly claims a general source-to-target conversion.
     Conventional,
@@ -304,9 +299,8 @@ impl ConversionConfidence {
 // -----------------------------------------------------------------------------
 // ConversionCandidate: Diagnostic record
 // -----------------------------------------------------------------------------
-
-/// Authored function identity and source ranges for one conversion candidate.
 #[derive(Clone)]
+/// Authored function identity and source ranges for one conversion `analyze_candidate`.
 pub struct ConversionCandidateIdentity {
     /// Function definition used for cross-lint precedence.
     pub(crate) def_id: LocalDefId,
@@ -325,20 +319,21 @@ impl ConversionCandidateIdentity {
     fn from_construction(
         cx: &LateContext<'_>,
         body: &Body<'_>,
-        candidate: &ConstructionCandidate,
+        analyze_candidate: &ConstructionCandidate,
     ) -> Self {
         Self {
-            def_id: candidate.function.def_id,
-            hir_id: cx.tcx.local_def_id_to_hir_id(candidate.function.def_id),
-            name: candidate.function.name,
-            name_span: candidate.function.name_span,
+            def_id: analyze_candidate.function.def_id,
+            hir_id: cx
+                .tcx
+                .local_def_id_to_hir_id(analyze_candidate.function.def_id),
+            name: analyze_candidate.function.name,
+            name_span: analyze_candidate.function.name_span,
             source_span: body.params[0].span,
         }
     }
 }
-
-/// Concrete type and trait context retained for one conversion diagnostic.
 #[derive(Clone)]
+/// Concrete type and trait context retained for one conversion diagnostic.
 pub struct ConversionCandidateSemantics {
     /// Concrete source type shown in diagnostics.
     pub(crate) source: String,
@@ -366,9 +361,8 @@ impl ConversionCandidateSemantics {
         }
     }
 }
-
-/// One unique, effect-free conversion that should use a standard trait.
 #[derive(Clone)]
+/// One unique, effect-free conversion that should use a standard trait.
 pub struct ConversionCandidate {
     /// Function identity and authored source ranges.
     pub(crate) identity: ConversionCandidateIdentity,
@@ -383,9 +377,8 @@ pub struct ConversionCandidate {
 // -----------------------------------------------------------------------------
 // ConversionAnalysis: Crate wide family selection
 // -----------------------------------------------------------------------------
-
-/// Discovers conversion ownership independently from individual lint passes.
 #[derive(Default)]
+/// Discovers conversion ownership independently from individual lint passes.
 pub struct ConversionAnalysis {
     /// Structurally proven one-source conversions in traversal order.
     candidates: Vec<ConversionCandidate>,
@@ -400,10 +393,10 @@ impl ConversionAnalysis {
     fn return_contract<'tcx>(
         cx: &LateContext<'tcx>,
         output: Ty<'tcx>,
-        candidate: &ConstructionCandidate,
+        analyze_candidate: &ConstructionCandidate,
     ) -> Option<ConversionReturn<'tcx>> {
         // Map the construction shape to its precise standard conversion contract.
-        match candidate.target.return_shape {
+        match analyze_candidate.target.return_shape {
             ConstructionReturn::Direct => Some(ConversionReturn::infallible(output)),
             ConstructionReturn::FallibleDirect => ConversionReturn::fallible(cx, output),
             ConstructionReturn::Contained => None,
@@ -513,7 +506,7 @@ impl ConversionAnalysis {
         cx: &LateContext<'tcx>,
         kind: FnKind<'tcx>,
         body: &'tcx Body<'tcx>,
-        candidate: &ConstructionCandidate,
+        analyze_candidate: &ConstructionCandidate,
     ) {
         // Reject closures and function contracts outside ordinary safe runtime Rust.
         let header = match kind {
@@ -532,7 +525,7 @@ impl ConversionAnalysis {
         }
 
         // Reject unresolved type and constant parameters while permitting erased lifetimes.
-        let generics = cx.tcx.generics_of(candidate.function.def_id);
+        let generics = cx.tcx.generics_of(analyze_candidate.function.def_id);
         let has_unresolved_family_parameter = generics
             .own_params
             .iter()
@@ -544,7 +537,7 @@ impl ConversionAnalysis {
         // Require exactly one semantic source and one authored source pattern.
         let signature = cx
             .tcx
-            .fn_sig(candidate.function.def_id)
+            .fn_sig(analyze_candidate.function.def_id)
             .instantiate_identity()
             .skip_binder();
         if signature.inputs().len() != 1 || body.params.len() != 1 {
@@ -558,7 +551,7 @@ impl ConversionAnalysis {
         };
 
         // Resolve the exact direct or fallible target contract.
-        let Some(return_) = Self::return_contract(cx, signature.output(), candidate) else {
+        let Some(return_) = Self::return_contract(cx, signature.output(), analyze_candidate) else {
             return;
         };
         let target_ty = return_.target;
@@ -577,24 +570,25 @@ impl ConversionAnalysis {
         .visit_pat(body.params[0].pat);
 
         // Follow derived bindings and effects through the complete function body.
-        let mut evidence = ConversionEvidence::new(cx, candidate.target.def_id, source_bindings);
+        let mut evidence =
+            ConversionEvidence::new(cx, analyze_candidate.target.def_id, source_bindings);
         evidence.visit_expr(body.value);
         if !evidence.has_source_reached_target {
             return;
         }
         self.target_owned_definitions
-            .insert(candidate.function.def_id);
+            .insert(analyze_candidate.function.def_id);
 
         // Apply parser, effect, policy, and confidence classification.
-        let name = candidate.function.name;
+        let name = analyze_candidate.function.name;
         let has_hard_exclusion = Self::has_hard_name_exclusion(name.as_str());
-        let parser_owned = candidate.is_text_parser() && source.is_str_slice();
+        let parser_owned = analyze_candidate.is_text_parser() && source.is_str_slice();
         let is_reportable = !has_hard_exclusion && !evidence.has_effect && !parser_owned;
         let pair = ConversionPair { source, target };
         let confidence = Self::confidence(name.as_str(), source_ty, target_ty);
 
         // Retain complete diagnostic and family context until crate traversal ends.
-        let identity = ConversionCandidateIdentity::from_construction(cx, body, candidate);
+        let identity = ConversionCandidateIdentity::from_construction(cx, body, analyze_candidate);
         let semantics = ConversionCandidateSemantics::new(
             source_ty.to_string(),
             target_ty.to_string(),
@@ -602,7 +596,7 @@ impl ConversionAnalysis {
             confidence,
         );
 
-        // Store the compact candidate beside its pair-selection policy.
+        // Store the compact analyze_candidate beside its pair-selection policy.
         self.candidates.push(ConversionCandidate {
             identity,
             semantics,
@@ -615,12 +609,15 @@ impl ConversionAnalysis {
     pub(crate) fn reportable_candidates(&self) -> Vec<&ConversionCandidate> {
         // Group policy-eligible candidates by their exact semantic pair.
         let mut families = HashMap::<&ConversionPair, Vec<&ConversionCandidate>>::new();
-        for candidate in self
+        for analyze_candidate in self
             .candidates
             .iter()
-            .filter(|candidate| candidate.is_reportable)
+            .filter(|analyze_candidate| analyze_candidate.is_reportable)
         {
-            families.entry(&candidate.pair).or_default().push(candidate);
+            families
+                .entry(&analyze_candidate.pair)
+                .or_default()
+                .push(analyze_candidate);
         }
 
         // Keep only unique families that no standard implementation already owns.
@@ -631,7 +628,8 @@ impl ConversionAnalysis {
         let mut candidates = unoccupied.collect::<Vec<_>>();
 
         // Stabilize emission independently from hash-map iteration order.
-        candidates.sort_unstable_by_key(|candidate| candidate.identity.name_span.lo());
+        candidates
+            .sort_unstable_by_key(|analyze_candidate| analyze_candidate.identity.name_span.lo());
         candidates
     }
 
@@ -704,7 +702,7 @@ const CONVERSION_EVIDENCE_EFFECT_PREFIXES: &[&str] = &[
 struct ConversionEvidence<'analysis, 'tcx> {
     /// Compiler context whose typeck results cover the visited body.
     cx: &'analysis LateContext<'tcx>,
-    /// Nominal type promised by the candidate's return contract.
+    /// Nominal type promised by the `analyze_candidate`'s return contract.
     target: LocalDefId,
     /// Local bindings transitively derived from the sole source parameter.
     tainted: HashSet<HirId>,
@@ -715,7 +713,7 @@ struct ConversionEvidence<'analysis, 'tcx> {
 }
 
 impl<'analysis, 'tcx> ConversionEvidence<'analysis, 'tcx> {
-    /// Starts source-flow and effect analysis for one candidate body.
+    /// Starts source-flow and effect analysis for one `analyze_candidate` body.
     const fn new(
         cx: &'analysis LateContext<'tcx>,
         target: LocalDefId,

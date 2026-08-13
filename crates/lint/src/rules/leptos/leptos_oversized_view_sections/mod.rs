@@ -60,7 +60,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// LeptosOversizedViewSections: Named-region size policy
+// LeptosOversizedViewSections: Named region size policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass measuring sections projected from rstml sibling scopes.
@@ -99,16 +99,20 @@ impl<'tcx> LateLintPass<'tcx> for LeptosOversizedViewSections {
             .iter()
             .flat_map(|scope| scope.sections(&self.config))
         {
+            // Prepare the values used by this stage.
             let complexity = section.complexity();
-            if complexity > self.config.max_view_section_complexity {
-                Violation {
-                    owner: view.owner,
-                    span: section.heading.span,
-                    complexity,
-                    maximum: self.config.max_view_section_complexity,
-                }
-                .emit(cx);
+            if complexity <= self.config.max_view_section_complexity {
+                continue;
             }
+
+            // Perform the next step of the analysis.
+            Violation {
+                owner: view.owner,
+                span: section.heading.span,
+                complexity,
+                maximum: self.config.max_view_section_complexity,
+            }
+            .emit(cx);
         }
     }
 }

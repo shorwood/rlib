@@ -313,11 +313,15 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedModuleDeclarations {
             }
 
             // Materialize the complete source-ordering node for this declaration group.
+            let Some(section) = sections.section_ordinal_for_span(item.span) else {
+                index = end + 1;
+                continue;
+            };
             let source = DeclarationSource {
                 defs: definitions.into_iter().collect(),
                 name: Self::canonical_name(cx, item),
                 span: item.span.with_hi(items[end].span.hi()),
-                section: sections.section_ordinal_for_span(item.span).unwrap_or(0),
+                section,
             };
 
             // Attach dependency and tie-break constraints to the source identity.

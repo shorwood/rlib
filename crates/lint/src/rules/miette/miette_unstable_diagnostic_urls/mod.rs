@@ -12,8 +12,11 @@ use rustc_span::Span;
 use super::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `url` value used by this analysis.
     url: String,
 }
 
@@ -24,14 +27,17 @@ impl LateViolation for Violation {
             self.url
         ))
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "local, insecure, relative, or presentation-derived links are unsuitable as durable diagnostic metadata",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("use a static HTTPS documentation URL with a stable path")
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         cx.emit_span_lint(
             MIETTE_UNSTABLE_DIAGNOSTIC_URLS,
@@ -46,8 +52,38 @@ impl LateViolation for Violation {
     }
 }
 
+/// Performs the `stable_url` step of the lint analysis.
+fn stable_url(url: &str) -> bool {
+    url.starts_with("https://")
+        && !url.contains('{')
+        && !url.contains('}')
+        && !url.contains("localhost")
+        && !url.contains("127.0.0.1")
+        && url[8..].contains('.')
+}
+
+/// Performs the `check_url` step of the lint analysis.
+fn check_url(cx: &LateContext<'_>, span: Span, url: Option<&str>) {
+    // Prepare the values used by this stage.
+    let Some(url) = url else {
+        return;
+    };
+    if stable_url(url) {
+        return;
+    }
+
+    // Perform the next step of the analysis.
+    Violation {
+        span,
+        url: url.to_owned(),
+    }
+    .emit(cx);
+}
+
 #[derive(Default)]
+/// Carries the `MietteUnstableDiagnosticUrls` state used by this analysis.
 struct MietteUnstableDiagnosticUrls {
+    /// Stores the `catalog` value used by this analysis.
     catalog: DiagnosticCatalog,
 }
 
@@ -63,6 +99,7 @@ impl LateLintPass<'_> for MietteUnstableDiagnosticUrls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
     }
+
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.derived_contracts() {
             check_url(cx, contract.span, contract.metadata.url.as_deref());
@@ -71,26 +108,4 @@ impl LateLintPass<'_> for MietteUnstableDiagnosticUrls {
             }
         }
     }
-}
-
-fn check_url(cx: &LateContext<'_>, span: Span, url: Option<&str>) {
-    let Some(url) = url else {
-        return;
-    };
-    if !stable_url(url) {
-        Violation {
-            span,
-            url: url.to_owned(),
-        }
-        .emit(cx);
-    }
-}
-
-fn stable_url(url: &str) -> bool {
-    url.starts_with("https://")
-        && !url.contains('{')
-        && !url.contains('}')
-        && !url.contains("localhost")
-        && !url.contains("127.0.0.1")
-        && url[8..].contains('.')
 }

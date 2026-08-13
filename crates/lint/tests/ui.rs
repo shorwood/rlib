@@ -266,6 +266,7 @@ fn rerun_with_feature_aware_cargo_wrapper() -> bool {
         .args(["ui", "--exact", "--nocapture"])
         .env("RLIB_LINT_ALL_FEATURE_UI_CHILD", "1")
         .env("RLIB_LINT_REAL_CARGO", cargo)
+        .env("DYLINT_TOML", "")
         .env("PATH", path)
         .status()
         .expect("wrapped all-feature UI child should start");

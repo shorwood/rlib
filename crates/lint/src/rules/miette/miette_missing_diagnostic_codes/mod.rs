@@ -12,8 +12,11 @@ use rustc_span::Span;
 use super::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `diagnostic` value used by this analysis.
     diagnostic: String,
 }
 
@@ -50,7 +53,9 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `MietteMissingDiagnosticCodes` state used by this analysis.
 struct MietteMissingDiagnosticCodes {
+    /// Stores the `catalog` value used by this analysis.
     catalog: DiagnosticCatalog,
 }
 
@@ -78,16 +83,20 @@ impl LateLintPass<'_> for MietteMissingDiagnosticCodes {
                 continue;
             }
             for member in &contract.members {
-                if !member.metadata.transparent
+                // Reject inputs that do not satisfy this stage.
+                if !(!member.metadata.is_transparent
                     && member.metadata.code.is_none()
-                    && contract.metadata.code.is_none()
+                    && contract.metadata.code.is_none())
                 {
-                    Violation {
-                        span: member.span,
-                        diagnostic: format!("{}::{}", contract.name, member.name),
-                    }
-                    .emit(cx);
+                    continue;
                 }
+
+                // Perform the next step of the analysis.
+                Violation {
+                    span: member.span,
+                    diagnostic: format!("{}::{}", contract.name, member.name),
+                }
+                .emit(cx);
             }
         }
     }

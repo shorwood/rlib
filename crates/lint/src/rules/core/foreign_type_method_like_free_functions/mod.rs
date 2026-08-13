@@ -110,10 +110,10 @@ impl LateViolation for Violation {
                         );
                     }
                     Self::AmbiguousOwner { finding } => {
-                        for candidate in &finding.candidates {
+                        for analyze_candidate in &finding.candidates {
                             diag.span_label(
-                                candidate.span,
-                                format!("`{}` remains a plausible owner", candidate.name),
+                                analyze_candidate.span,
+                                format!("`{}` remains a plausible owner", analyze_candidate.name),
                             );
                         }
                     }
@@ -135,9 +135,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // ForeignTypeMethodLikeFreeFunctions: Lint pass
 // -----------------------------------------------------------------------------
-
-/// Collects visible free functions whose behavior may belong on a foreign type extension trait.
 #[derive(Default)]
+/// Collects visible free functions whose behavior may belong on a foreign type extension trait.
 struct ForeignTypeMethodLikeFreeFunctions {
     /// Cross-function analysis used to distinguish subjects from ambient infrastructure.
     analyzer: ForeignTypeAnalyzer,

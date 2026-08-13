@@ -11,9 +11,8 @@ use rustc_middle::ty::TyCtxt;
 // -----------------------------------------------------------------------------
 // VisibilityBoundary: Canonical reach
 // -----------------------------------------------------------------------------
-
-/// Canonical source visibility ordered from narrowest to broadest.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+/// Canonical source visibility ordered from narrowest to broadest.
 pub enum VisibilityBoundary {
     /// Reach limited to the defining module and its descendants.
     Private,

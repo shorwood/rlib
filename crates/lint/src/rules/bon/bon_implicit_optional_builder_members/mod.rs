@@ -9,12 +9,61 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{builder_attribute, builder_attribute_contains, has_attribute, is_option_type};
+use super::utils::{BonAttributeAnalysis, builder_attribute, has_attribute, is_option_type};
 use crate::utils::diagnostic::EarlyViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `member` value used by this analysis.
     member: String,
+}
+
+impl Violation {
+    /// Builds a violation for an undocumented policy-bearing optional parameter.
+    fn from_parameter(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Self> {
+        // Prepare the values used by this stage.
+        let source_map = cx.sess().source_map();
+        let ty = match source_map.span_to_snippet(parameter.ty.span) {
+            Ok(ty) => ty,
+            Err(_error) => return None,
+        };
+
+        // Reject inputs that do not satisfy this stage.
+        if !is_option_type(&ty)
+            || BonAttributeAnalysis::builder_contains(cx, &parameter.attrs, "required")
+            || has_attribute(&parameter.attrs, "doc")
+        {
+            return None;
+        }
+
+        // Prepare the values used by this stage.
+        let member = match source_map.span_to_snippet(parameter.pat.span) {
+            Ok(member) => member,
+            Err(_error) => return None,
+        }
+        .trim()
+        .trim_start_matches("mut ")
+        .trim_start_matches("ref ")
+        .to_owned();
+
+        // Perform the next step of the analysis.
+        Self::is_policy_bearing(&member).then_some(Self {
+            span: parameter.ty.span,
+            member,
+        })
+    }
+
+    /// Returns whether a member name carries caller-selected policy.
+    fn is_policy_bearing(member: &str) -> bool {
+        member.split('_').any(|word| {
+            matches!(
+                word,
+                "authorization" | "callback" | "destination" | "limit" | "policy" | "timeout"
+            )
+        })
+    }
 }
 
 impl EarlyViolation for Violation {
@@ -51,6 +100,7 @@ impl EarlyViolation for Violation {
     }
 }
 
+/// Carries the `BonImplicitOptionalBuilderMembers` state used by this analysis.
 struct BonImplicitOptionalBuilderMembers;
 
 dylint_linting::impl_pre_expansion_lint! {
@@ -67,46 +117,16 @@ impl EarlyLintPass for BonImplicitOptionalBuilderMembers {
             return;
         };
         if builder_attribute(&item.attrs).is_none()
-            || (builder_attribute_contains(cx, &item.attrs, "on(")
-                && builder_attribute_contains(cx, &item.attrs, "required"))
+            || (BonAttributeAnalysis::builder_contains(cx, &item.attrs, "on(")
+                && BonAttributeAnalysis::builder_contains(cx, &item.attrs, "required"))
         {
             return;
         }
         for parameter in &function.sig.decl.inputs {
-            if let Some(violation) = violation(cx, parameter) {
-                violation.emit(cx);
-            }
+            let Some(violation) = Violation::from_parameter(cx, parameter) else {
+                continue;
+            };
+            violation.emit(cx);
         }
     }
-}
-
-fn violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
-    let source_map = cx.sess().source_map();
-    let ty = source_map.span_to_snippet(parameter.ty.span).ok()?;
-    if !is_option_type(&ty)
-        || builder_attribute_contains(cx, &parameter.attrs, "required")
-        || has_attribute(&parameter.attrs, "doc")
-    {
-        return None;
-    }
-    let member = source_map
-        .span_to_snippet(parameter.pat.span)
-        .ok()?
-        .trim()
-        .trim_start_matches("mut ")
-        .trim_start_matches("ref ")
-        .to_owned();
-    is_policy_bearing(&member).then_some(Violation {
-        span: parameter.ty.span,
-        member,
-    })
-}
-
-fn is_policy_bearing(member: &str) -> bool {
-    member.split('_').any(|word| {
-        matches!(
-            word,
-            "authorization" | "callback" | "destination" | "limit" | "policy" | "timeout"
-        )
-    })
 }

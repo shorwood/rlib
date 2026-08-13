@@ -33,11 +33,11 @@ struct ViolationLocation {
 }
 
 impl From<&ConversionCandidate> for ViolationLocation {
-    fn from(candidate: &ConversionCandidate) -> Self {
+    fn from(analyze_candidate: &ConversionCandidate) -> Self {
         Self {
-            hir_id: candidate.identity.hir_id,
-            span: candidate.identity.name_span,
-            source_span: candidate.identity.source_span,
+            hir_id: analyze_candidate.identity.hir_id,
+            span: analyze_candidate.identity.name_span,
+            source_span: analyze_candidate.identity.source_span,
         }
     }
 }
@@ -51,10 +51,10 @@ struct ViolationTypes {
 }
 
 impl From<&ConversionCandidate> for ViolationTypes {
-    fn from(candidate: &ConversionCandidate) -> Self {
+    fn from(analyze_candidate: &ConversionCandidate) -> Self {
         Self {
-            source: candidate.semantics.source.clone(),
-            target: candidate.semantics.target.clone(),
+            source: analyze_candidate.semantics.source.clone(),
+            target: analyze_candidate.semantics.target.clone(),
         }
     }
 }
@@ -74,14 +74,14 @@ struct Violation {
 }
 
 impl From<&ConversionCandidate> for Violation {
-    fn from(candidate: &ConversionCandidate) -> Self {
+    fn from(analyze_candidate: &ConversionCandidate) -> Self {
         // Carry complete remediation context across the diagnostic boundary.
         Self {
-            location: ViolationLocation::from(candidate),
-            function_name: candidate.identity.name.to_string(),
-            types: ViolationTypes::from(candidate),
-            contract: candidate.semantics.contract.clone(),
-            confidence: candidate.semantics.confidence,
+            location: ViolationLocation::from(analyze_candidate),
+            function_name: analyze_candidate.identity.name.to_string(),
+            types: ViolationTypes::from(analyze_candidate),
+            contract: analyze_candidate.semantics.contract.clone(),
+            confidence: analyze_candidate.semantics.confidence,
         }
     }
 }
@@ -169,9 +169,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // AdHocConversions: Canonical conversion policy
 // -----------------------------------------------------------------------------
-
-/// Collects construction and trait evidence before selecting unique conversion families.
 #[derive(Default)]
+/// Collects construction and trait evidence before selecting unique conversion families.
 struct AdHocConversions {
     /// Construction discovery supplying local target and parser evidence.
     constructions: ConstructionAnalysis,
@@ -208,19 +207,20 @@ impl<'tcx> LateLintPass<'tcx> for AdHocConversions {
         self.constructions
             .record_function(cx, kind, body, span, def_id);
         self.collections.record_function(cx, kind, body, def_id);
-        let Some(candidate) = self.constructions.candidate(def_id) else {
+        let Some(analyze_candidate) = self.constructions.analyze_candidate(def_id) else {
             return;
         };
-        self.conversions.record_function(cx, kind, body, candidate);
+        self.conversions
+            .record_function(cx, kind, body, analyze_candidate);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         let collection_definitions = self.collections.reportable_definitions();
-        for candidate in self.conversions.reportable_candidates() {
-            if collection_definitions.contains(&candidate.identity.def_id) {
+        for analyze_candidate in self.conversions.reportable_candidates() {
+            if collection_definitions.contains(&analyze_candidate.identity.def_id) {
                 continue;
             }
-            Violation::from(candidate).emit(cx);
+            Violation::from(analyze_candidate).emit(cx);
         }
     }
 }

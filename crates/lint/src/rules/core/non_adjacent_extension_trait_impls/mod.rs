@@ -64,9 +64,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // NonAdjacentExtensionTraitImpls: Lint pass
 // -----------------------------------------------------------------------------
-
-/// Collects extension declarations and their authored implementation groups.
 #[derive(Default)]
+/// Collects extension declarations and their authored implementation groups.
 struct NonAdjacentExtensionTraitImpls {
     /// Shared semantic extension-trait analysis.
     analyzer: ExtensionTraitAnalyzer,

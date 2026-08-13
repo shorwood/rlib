@@ -24,7 +24,7 @@ use crate::utils::diagnostic::LateViolation;
 /// Proven sequence-to-storage operation with exact trait-family context.
 struct Violation {
     /// Complete collection and remediation context discovered by the analyzer.
-    candidate: CollectionFamilyCandidate,
+    analyze_candidate: CollectionFamilyCandidate,
     /// Missing, ambiguous, or competing trait ownership.
     problem: CollectionProblem,
 }
@@ -32,7 +32,7 @@ struct Violation {
 impl From<CollectionFamilyFinding<'_>> for Violation {
     fn from(finding: CollectionFamilyFinding<'_>) -> Self {
         Self {
-            candidate: finding.candidate.clone(),
+            analyze_candidate: finding.analyze_candidate.clone(),
             problem: finding.problem,
         }
     }
@@ -43,10 +43,10 @@ impl Violation {
     fn missing_primary(&self, trait_name: &str) -> Cow<'_, str> {
         Cow::Owned(format!(
             "`{}` reproduces `{}<{}>` for `{}`",
-            self.candidate.source.name,
+            self.analyze_candidate.source.name,
             trait_name,
-            self.candidate.protocol.item_name,
-            self.candidate.protocol.target_name
+            self.analyze_candidate.protocol.item_name,
+            self.analyze_candidate.protocol.target_name
         ))
     }
 
@@ -54,9 +54,9 @@ impl Violation {
     fn ambiguous_primary(&self, count: usize) -> Cow<'_, str> {
         Cow::Owned(format!(
             "`{}` is one of {count} APIs competing to ingest `{}` into `{}`",
-            self.candidate.source.name,
-            self.candidate.protocol.item_name,
-            self.candidate.protocol.target_name
+            self.analyze_candidate.source.name,
+            self.analyze_candidate.protocol.item_name,
+            self.analyze_candidate.protocol.target_name
         ))
     }
 
@@ -64,9 +64,9 @@ impl Violation {
     fn competing_primary(&self, trait_name: &str) -> Cow<'_, str> {
         Cow::Owned(format!(
             "`{}` ingests `{}` separately from `{}`'s `{}` contract",
-            self.candidate.source.name,
-            self.candidate.protocol.item_name,
-            self.candidate.protocol.target_name,
+            self.analyze_candidate.source.name,
+            self.analyze_candidate.protocol.item_name,
+            self.analyze_candidate.protocol.target_name,
             trait_name
         ))
     }
@@ -76,9 +76,9 @@ impl Violation {
         Cow::Owned(format!(
             "implement `{}<{}>` for `{}` and accept `IntoIterator<Item = {}>` at convenience boundaries; retain a named API only when its policy is explicit and cannot be represented by the item type",
             trait_name,
-            self.candidate.protocol.item_name,
-            self.candidate.protocol.target_name,
-            self.candidate.protocol.item_name
+            self.analyze_candidate.protocol.item_name,
+            self.analyze_candidate.protocol.target_name,
+            self.analyze_candidate.protocol.item_name
         ))
     }
 
@@ -86,7 +86,9 @@ impl Violation {
     fn ambiguous_remediation(&self, trait_name: &str) -> Cow<'_, str> {
         Cow::Owned(format!(
             "select one intrinsic `{}<{}>` behavior for `{}` and expose alternative ordering, duplicate, validation, or truncation policies explicitly",
-            trait_name, self.candidate.protocol.item_name, self.candidate.protocol.target_name
+            trait_name,
+            self.analyze_candidate.protocol.item_name,
+            self.analyze_candidate.protocol.target_name
         ))
     }
 
@@ -94,7 +96,9 @@ impl Violation {
     fn competing_remediation(&self, trait_name: &str) -> Cow<'_, str> {
         Cow::Owned(format!(
             "delegate to `{}`'s existing `{}<{}>` implementation or make the different ingestion policy explicit in the method name and source item type",
-            self.candidate.protocol.target_name, trait_name, self.candidate.protocol.item_name
+            self.analyze_candidate.protocol.target_name,
+            trait_name,
+            self.analyze_candidate.protocol.item_name
         ))
     }
 }
@@ -102,7 +106,7 @@ impl Violation {
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         // Select wording that distinguishes absent, ambiguous, and competing ownership.
-        let trait_name = self.candidate.protocol.contract.trait_name();
+        let trait_name = self.analyze_candidate.protocol.contract.trait_name();
         match self.problem {
             CollectionProblem::MissingTrait => self.missing_primary(trait_name),
             CollectionProblem::AmbiguousFamily { count } => self.ambiguous_primary(count),
@@ -113,13 +117,13 @@ impl LateViolation for Violation {
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "the complete infallible flow from an item sequence into target-owned storage is the standard `{}` protocol; a named duplicate hides collection and extension support from generic code",
-            self.candidate.protocol.contract.trait_name()
+            self.analyze_candidate.protocol.contract.trait_name()
         ))
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
         // Keep the exact target, item, and standard trait in every remediation path.
-        let trait_name = self.candidate.protocol.contract.trait_name();
+        let trait_name = self.analyze_candidate.protocol.contract.trait_name();
         match self.problem {
             CollectionProblem::MissingTrait => self.missing_remediation(trait_name),
             CollectionProblem::AmbiguousFamily { .. } => self.ambiguous_remediation(trait_name),
@@ -130,16 +134,16 @@ impl LateViolation for Violation {
     fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
             AD_HOC_COLLECTION_CONSTRUCTION,
-            self.candidate.source.hir_id,
-            self.candidate.source.name_span,
+            self.analyze_candidate.source.hir_id,
+            self.analyze_candidate.source.name_span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
                 diag.span_label(
-                    self.candidate.source.source_span,
+                    self.analyze_candidate.source.source_span,
                     "this source supplies the stored item sequence",
                 );
                 diag.span_label(
-                    self.candidate.source.evidence_span,
+                    self.analyze_candidate.source.evidence_span,
                     "items flow into target-owned collection storage here",
                 );
                 diag.note(self.rationale_message().into_owned());
@@ -152,9 +156,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // AdHocCollectionConstruction: Standard sequence ingestion policy
 // -----------------------------------------------------------------------------
-
-/// Collects collection storage, trait occupancy, and sequence-flow evidence.
 #[derive(Default)]
+/// Collects collection storage, trait occupancy, and sequence-flow evidence.
 struct AdHocCollectionConstruction {
     /// Shared analyzer for storage flow and existing collection traits.
     collections: CollectionConstructionAnalysis,

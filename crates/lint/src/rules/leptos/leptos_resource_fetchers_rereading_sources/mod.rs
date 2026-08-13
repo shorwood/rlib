@@ -13,12 +13,11 @@ use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 
-// -----------------------------------------------------------------------------
-// Violation: Resource input bypass diagnostic
-// -----------------------------------------------------------------------------
-
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `owner` value used by this analysis.
     owner: HirId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
 }
 
@@ -52,19 +51,42 @@ impl LateViolation for Violation {
     }
 }
 
-// -----------------------------------------------------------------------------
-// ReactiveReads: Closure dependency analysis
-// -----------------------------------------------------------------------------
+/// Selects whether closure parameters participate in reactive-read analysis.
+#[derive(Clone, Copy)]
+enum ReactiveParameterCollection {
+    /// Ignore closure parameters when analyzing the source closure.
+    Ignore,
+    /// Collect closure parameters when analyzing the fetcher closure.
+    Collect,
+}
 
+/// One reactive binding read and its authored expression span.
+struct ReactiveRead {
+    /// Binding read by the expression.
+    binding: HirId,
+    /// Authored read expression span.
+    span: Span,
+}
+
+/// Carries the `ReactiveReads` state used by this analysis.
 struct ReactiveReads<'analysis, 'tcx> {
+    /// Stores the `cx` value used by this analysis.
     cx: &'analysis LateContext<'tcx>,
-    reads: Vec<(HirId, Span)>,
+    /// Stores the `reads` value used by this analysis.
+    reads: Vec<ReactiveRead>,
+    /// Stores the `parameter_bindings` value used by this analysis.
     parameter_bindings: Vec<HirId>,
+    /// Stores the `used_parameters` value used by this analysis.
     used_parameters: Vec<HirId>,
+    /// Stores the `body_depth` value used by this analysis.
     body_depth: u8,
 }
 
 impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
+    /// Deepest closure body that executes as part of the analyzed resource closure.
+    const MAXIMUM_RESOURCE_BODY_DEPTH: u8 = 2;
+
+    /// Performs the `new` operation for this value.
     const fn new(cx: &'analysis LateContext<'tcx>) -> Self {
         Self {
             cx,
@@ -75,7 +97,9 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
         }
     }
 
+    /// Performs the `is_reactive_get` operation for this value.
     fn is_reactive_get(&self, expression: &Expr<'_>) -> bool {
+        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return false;
         };
@@ -83,6 +107,8 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
             return false;
         }
         let owner = self.cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+
+        // Prepare the values used by this stage.
         let Some(method) = self
             .cx
             .tcx
@@ -91,6 +117,8 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
         else {
             return false;
         };
+
+        // Update the accumulated analysis state.
         self.cx.tcx.crate_name(method.krate).as_str() == "reactive_graph"
             && self.cx.tcx.item_name(method).as_str() == "get"
             && self
@@ -100,6 +128,7 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
                 .is_some_and(|trait_id| self.cx.tcx.item_name(trait_id).as_str() == "Get")
     }
 
+    /// Performs the `ignored_source` operation for this value.
     fn ignored_source(&self) -> bool {
         self.parameter_bindings
             .iter()
@@ -109,7 +138,7 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
 
 impl<'tcx> Visitor<'tcx> for ReactiveReads<'_, 'tcx> {
     fn visit_nested_body(&mut self, body_id: BodyId) {
-        if self.body_depth >= 2 {
+        if self.body_depth >= Self::MAXIMUM_RESOURCE_BODY_DEPTH {
             return;
         }
         self.body_depth += 1;
@@ -118,6 +147,7 @@ impl<'tcx> Visitor<'tcx> for ReactiveReads<'_, 'tcx> {
     }
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Reject inputs that do not satisfy this stage.
         if let ExprKind::Path(path) = expression.kind
             && let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id)
             && self.parameter_bindings.contains(&binding)
@@ -125,19 +155,26 @@ impl<'tcx> Visitor<'tcx> for ReactiveReads<'_, 'tcx> {
         {
             self.used_parameters.push(binding);
         }
+
+        // Reject inputs that do not satisfy this stage.
         if self.is_reactive_get(expression)
             && let ExprKind::MethodCall(_, receiver, _, _) = expression.kind
             && let ExprKind::Path(path) = receiver.kind
             && let Res::Local(binding) = self.cx.qpath_res(&path, receiver.hir_id)
-            && !self.reads.iter().any(|(existing, _)| *existing == binding)
+            && !self.reads.iter().any(|read| read.binding == binding)
         {
-            self.reads.push((binding, expression.span));
+            self.reads.push(ReactiveRead {
+                binding,
+                span: expression.span,
+            });
         }
         intravisit::walk_expr(self, expression);
     }
 }
 
+/// Carries the `ParameterBindings` state used by this analysis.
 struct ParameterBindings<'bindings> {
+    /// Stores the `bindings` value used by this analysis.
     bindings: &'bindings mut Vec<HirId>,
 }
 
@@ -150,10 +187,15 @@ impl<'tcx> Visitor<'tcx> for ParameterBindings<'_> {
     }
 }
 
-// -----------------------------------------------------------------------------
-// LeptosResourceFetchersRereadingSources: Resource input policy
-// -----------------------------------------------------------------------------
+/// Source and fetcher closures passed to a resource constructor.
+struct ResourceClosures<'tcx> {
+    /// Tracked source closure.
+    source: &'tcx Expr<'tcx>,
+    /// Asynchronous fetcher closure.
+    fetcher: &'tcx Expr<'tcx>,
+}
 
+/// Carries the `LeptosResourceFetchersRereadingSources` state used by this analysis.
 struct LeptosResourceFetchersRereadingSources;
 
 dylint_linting::impl_late_lint! {
@@ -165,51 +207,62 @@ dylint_linting::impl_late_lint! {
 }
 
 impl LeptosResourceFetchersRereadingSources {
+    /// Performs the `closures` operation for this value.
     fn closures<'tcx>(
         cx: &LateContext<'tcx>,
         expression: &'tcx Expr<'tcx>,
-    ) -> Option<(&'tcx Expr<'tcx>, &'tcx Expr<'tcx>)> {
+    ) -> Option<ResourceClosures<'tcx>> {
+        // Prepare the values used by this stage.
         let ExprKind::Call(callee, arguments) = expression.kind else {
             return None;
         };
         let [source, fetcher] = arguments else {
             return None;
         };
+
+        // Prepare the values used by this stage.
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
         let Res::Def(_, method) = cx.qpath_res(&path, callee.hir_id) else {
             return None;
         };
+
+        // Reject inputs that do not satisfy this stage.
         if cx.tcx.crate_name(method.krate).as_str() != "leptos_server"
             || cx.tcx.item_name(method).as_str() != "new"
         {
             return None;
         }
         let implementation = cx.tcx.impl_of_assoc(method)?;
+
+        // Prepare the values used by this stage.
         let definition = cx
             .tcx
             .type_of(implementation)
             .instantiate_identity()
             .ty_adt_def()?;
+
+        // Perform the next step of the analysis.
         matches!(
             cx.tcx.item_name(definition.did()).as_str(),
             "Resource" | "ArcResource"
         )
-        .then_some((source, fetcher))
+        .then_some(ResourceClosures { source, fetcher })
     }
 
+    /// Performs the `analyze` operation for this value.
     fn analyze<'analysis, 'tcx>(
         cx: &'analysis LateContext<'tcx>,
         closure: &'tcx Expr<'tcx>,
-        collect_parameters: bool,
+        parameter_collection: ReactiveParameterCollection,
     ) -> Option<ReactiveReads<'analysis, 'tcx>> {
         let ExprKind::Closure(closure) = closure.kind else {
             return None;
         };
         let body = cx.tcx.hir_body(closure.body);
         let mut analysis = ReactiveReads::new(cx);
-        if collect_parameters {
+        if matches!(parameter_collection, ReactiveParameterCollection::Collect) {
             let mut collector = ParameterBindings {
                 bindings: &mut analysis.parameter_bindings,
             };
@@ -224,29 +277,36 @@ impl LeptosResourceFetchersRereadingSources {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosResourceFetchersRereadingSources {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
-        let Some((source, fetcher)) = Self::closures(cx, expression) else {
+        // Prepare the values used by this stage.
+        let Some(ResourceClosures { source, fetcher }) = Self::closures(cx, expression) else {
             return;
         };
-        let Some(source) = Self::analyze(cx, source, false) else {
+        let Some(source) = Self::analyze(cx, source, ReactiveParameterCollection::Ignore) else {
             return;
         };
-        let Some(fetcher) = Self::analyze(cx, fetcher, true) else {
+
+        // Prepare the values used by this stage.
+        let Some(fetcher) = Self::analyze(cx, fetcher, ReactiveParameterCollection::Collect) else {
             return;
         };
         if !fetcher.ignored_source() {
             return;
         }
-        let Some((_, span)) = fetcher.reads.iter().find(|(binding, _)| {
+
+        // Prepare the values used by this stage.
+        let Some(read) = fetcher.reads.iter().find(|read| {
             source
                 .reads
                 .iter()
-                .any(|(source_binding, _)| source_binding == binding)
+                .any(|source_read| source_read.binding == read.binding)
         }) else {
             return;
         };
+
+        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
-            span: *span,
+            span: read.span,
         }
         .emit(cx);
     }

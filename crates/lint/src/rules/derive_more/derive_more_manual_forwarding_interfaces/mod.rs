@@ -17,18 +17,35 @@ use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// Carries the `Contract` state used by this analysis.
 struct Contract {
+    /// Stores the `derive` value used by this analysis.
     derive: &'static str,
-    forward: bool,
+    /// Stores the `is_forwarding` value used by this analysis.
+    is_forwarding: bool,
 }
 
+/// Receiver and index arguments required by an indexing operation.
+const INDEX_ARGUMENT_COUNT: usize = 2;
+
+/// Receiver and index bindings required by an indexing implementation.
+const INDEX_BINDING_COUNT: usize = 2;
+
+/// Carries the `Family` state used by this analysis.
 struct Family {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `name` value used by this analysis.
     name: String,
+    /// Stores the `contracts` value used by this analysis.
     contracts: Vec<Contract>,
 }
 
-struct Violation(Family);
+/// Stores the `item` value used by this analysis.
+struct Violation(
+    /// Forwarding-interface family that triggered the violation.
+    Family,
+);
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
@@ -45,6 +62,7 @@ impl LateViolation for Violation {
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
+        // Prepare the values used by this stage.
         let derives = self
             .0
             .contracts
@@ -52,12 +70,22 @@ impl LateViolation for Violation {
             .map(|contract| format!("derive_more::{}", contract.derive))
             .collect::<Vec<_>>()
             .join(", ");
-        let forwarding = self.0.contracts.iter().any(|contract| contract.forward);
+
+        // Prepare the values used by this stage.
+        let forwarding = self
+            .0
+            .contracts
+            .iter()
+            .any(|contract| contract.is_forwarding);
+
+        // Prepare the values used by this stage.
         let qualifier = if forwarding {
             "; preserve pass-through targets with the corresponding `forward` attribute"
         } else {
             ""
         };
+
+        // Perform the next step of the analysis.
         Cow::Owned(format!(
             "replace this family with `#[derive({derives})]`{qualifier}"
         ))
@@ -77,116 +105,14 @@ impl LateViolation for Violation {
     }
 }
 
-#[derive(Default)]
-struct DeriveMoreManualForwardingInterfaces {
-    families: HashMap<LocalDefId, Family>,
-}
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub DERIVE_MORE_MANUAL_FORWARDING_INTERFACES,
-    Warn,
-    "finds forwarding interfaces reproducible by derive_more",
-    DeriveMoreManualForwardingInterfaces::default()
-}
-
-impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualForwardingInterfaces {
-    fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
-        let Some((definition, contract)) = exact_contract(cx, item) else {
-            return;
-        };
-        let family = self.families.entry(definition).or_insert_with(|| Family {
-            span: cx.tcx.def_span(definition),
-            name: cx.tcx.item_name(definition).to_string(),
-            contracts: Vec::new(),
-        });
-        if !family.contracts.contains(&contract) {
-            family.contracts.push(contract);
-        }
-    }
-
-    fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (_, mut family) in self.families.drain() {
-            family.contracts.sort();
-            Violation(family).emit(cx);
-        }
-    }
-}
-
-fn exact_contract(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<(LocalDefId, Contract)> {
-    let ImplItemKind::Fn(signature, body_id) = item.kind else {
-        return None;
-    };
-    if item.span.from_expansion() {
-        return None;
-    }
-    let implementation = cx.tcx.local_parent(item.owner_id.def_id);
-    let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
-        return None;
-    };
-    let ItemKind::Impl(implementation_item) = parent.kind else {
-        return None;
-    };
-    let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
-    let derive = supported_trait(cx, trait_id, item.ident.name.as_str())?;
-    let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
-    let ty::Adt(wrapper, _) = trait_ref.self_ty().kind() else {
-        return None;
-    };
-    let definition = wrapper.did().as_local()?;
-    if !wrapper.is_struct() {
-        return None;
-    }
-    let body = cx.tcx.hir_body(body_id);
-    let forwarding =
-        DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
-    let expected_bindings = if matches!(derive, "Index" | "IndexMut") {
-        2
-    } else {
-        1
-    };
-    if forwarding.bindings.len() != expected_bindings {
-        return None;
-    }
-    let self_binding = forwarding.bindings[0];
-    if !matches!(derive, "Index" | "IndexMut")
-        && let Some((field, mutability)) = direct_field_reference(forwarding.forwarded)
-        && mutability == expected_mutability(derive)
-        && DirectForwarding::is_binding(cx, field.0, self_binding)
-    {
-        let field_type = cx.tcx.typeck(forwarding.typeck_owner).expr_ty(field.1);
-        let output = cx
-            .tcx
-            .fn_sig(item.owner_id.def_id)
-            .instantiate_identity()
-            .skip_binder()
-            .output();
-        let ty::Ref(_, target, _) = output.kind() else {
-            return None;
-        };
-        return Some((
-            definition,
-            Contract {
-                derive,
-                forward: field_type != *target,
-            },
-        ));
-    }
-    forwarded_contract(
-        cx,
-        forwarding.typeck_owner,
-        forwarding.forwarded,
-        &forwarding.bindings,
-        trait_id,
-        derive,
-        definition,
-    )
-}
-
+/// Performs the `supported_trait` step of the lint analysis.
 fn supported_trait(cx: &LateContext<'_>, trait_id: DefId, method: &str) -> Option<&'static str> {
+    // Reject inputs that do not satisfy this stage.
     if cx.tcx.crate_name(trait_id.krate).as_str() != "core" {
         return None;
     }
+
+    // Classify the current analyze_candidate.
     match (cx.tcx.item_name(trait_id).as_str(), method) {
         ("AsRef", "as_ref") => Some("AsRef"),
         ("AsMut", "as_mut") => Some("AsMut"),
@@ -198,6 +124,7 @@ fn supported_trait(cx: &LateContext<'_>, trait_id: DefId, method: &str) -> Optio
     }
 }
 
+/// Performs the `expected_mutability` step of the lint analysis.
 fn expected_mutability(derive: &str) -> Mutability {
     if matches!(derive, "AsMut" | "DerefMut" | "IndexMut") {
         Mutability::Mut
@@ -206,50 +133,34 @@ fn expected_mutability(derive: &str) -> Mutability {
     }
 }
 
-const fn direct_field_reference<'hir>(
-    expression: &'hir Expr<'hir>,
-) -> Option<((&'hir Expr<'hir>, &'hir Expr<'hir>), Mutability)> {
-    let ExprKind::AddrOf(_, mutability, field_expression) = expression.kind else {
-        return None;
-    };
-    let ExprKind::Field(base, _) = field_expression.kind else {
-        return None;
-    };
-    Some(((base, field_expression), mutability))
+/// Describes a borrowed field expression and its receiver.
+struct DirectFieldReference<'hir> {
+    /// Expression from which the field is projected.
+    base: &'hir Expr<'hir>,
+    /// Complete field projection expression.
+    field: &'hir Expr<'hir>,
+    /// Mutability of the borrow.
+    mutability: Mutability,
 }
 
-fn forwarded_contract(
-    cx: &LateContext<'_>,
-    owner: LocalDefId,
-    expression: &Expr<'_>,
-    bindings: &[rustc_hir::HirId],
-    trait_id: DefId,
-    derive: &'static str,
-    definition: LocalDefId,
-) -> Option<(LocalDefId, Contract)> {
-    let call = DirectForwarding::call(cx, owner, expression)?;
-    if cx.tcx.trait_of_assoc(call.target) != Some(trait_id) {
-        return None;
+impl<'hir> DirectFieldReference<'hir> {
+    /// Recognizes a direct borrow of one field.
+    const fn from_expr(expression: &'hir Expr<'hir>) -> Option<Self> {
+        let ExprKind::AddrOf(_, mutability, field_expression) = expression.kind else {
+            return None;
+        };
+        let ExprKind::Field(base, _) = field_expression.kind else {
+            return None;
+        };
+        Some(Self {
+            base,
+            field: field_expression,
+            mutability,
+        })
     }
-    let first = call.arguments.first()?;
-    if !field_argument(cx, first, bindings[0], expected_mutability(derive)) {
-        return None;
-    }
-    if matches!(derive, "Index" | "IndexMut")
-        && (call.arguments.len() != 2
-            || !DirectForwarding::is_binding(cx, call.arguments[1], bindings[1]))
-    {
-        return None;
-    }
-    Some((
-        definition,
-        Contract {
-            derive,
-            forward: true,
-        },
-    ))
 }
 
+/// Performs the `field_argument` step of the lint analysis.
 fn field_argument(
     cx: &LateContext<'_>,
     expression: &Expr<'_>,
@@ -264,4 +175,186 @@ fn field_argument(
         return false;
     };
     DirectForwarding::is_binding(cx, base, binding)
+}
+
+/// Connects a forwarding contract to the local wrapper that implements it.
+struct ContractTarget {
+    /// Local wrapper type receiving the implementation.
+    definition: LocalDefId,
+    /// Forwarding behavior implemented for the wrapper.
+    contract: Contract,
+}
+
+impl ContractTarget {
+    /// Recognizes a method that forwards through the wrapped field's trait.
+    fn from_forwarded_call(
+        cx: &LateContext<'_>,
+        owner: LocalDefId,
+        expression: &Expr<'_>,
+        bindings: &[rustc_hir::HirId],
+        trait_id: DefId,
+        derive: &'static str,
+        definition: LocalDefId,
+    ) -> Option<Self> {
+        // Prepare the values used by this stage.
+        let call = DirectForwarding::call(cx, owner, expression)?;
+        if cx.tcx.trait_of_assoc(call.target) != Some(trait_id) {
+            return None;
+        }
+        let first = call.arguments.first()?;
+
+        // Reject inputs that do not satisfy this stage.
+        if !field_argument(cx, first, bindings[0], expected_mutability(derive)) {
+            return None;
+        }
+        if matches!(derive, "Index" | "IndexMut")
+            && (call.arguments.len() != INDEX_ARGUMENT_COUNT
+                || !DirectForwarding::is_binding(cx, call.arguments[1], bindings[1]))
+        {
+            return None;
+        }
+
+        // Return the completed analysis result.
+        Some(Self {
+            definition,
+            contract: Contract {
+                derive,
+                is_forwarding: true,
+            },
+        })
+    }
+
+    /// Recognizes one exact field forwarding contract.
+    fn for_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Prepare the values used by this stage.
+        let ImplItemKind::Fn(signature, body_id) = item.kind else {
+            return None;
+        };
+        if item.span.from_expansion() {
+            return None;
+        }
+        let implementation = cx.tcx.local_parent(item.owner_id.def_id);
+
+        // Prepare the values used by this stage.
+        let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
+            return None;
+        };
+        let ItemKind::Impl(implementation_item) = parent.kind else {
+            return None;
+        };
+        let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
+
+        // Prepare the values used by this stage.
+        let derive = supported_trait(cx, trait_id, item.ident.name.as_str())?;
+        let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
+        let ty::Adt(wrapper, _) = trait_ref.self_ty().kind() else {
+            return None;
+        };
+        let definition = wrapper.did().as_local()?;
+
+        // Reject inputs that do not satisfy this stage.
+        if !wrapper.is_struct() {
+            return None;
+        }
+        let body = cx.tcx.hir_body(body_id);
+        let forwarding =
+            DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
+
+        // Prepare the values used by this stage.
+        let expected_bindings = if matches!(derive, "Index" | "IndexMut") {
+            INDEX_BINDING_COUNT
+        } else {
+            1
+        };
+
+        // Reject inputs that do not satisfy this stage.
+        if forwarding.bindings.len() != expected_bindings {
+            return None;
+        }
+        let self_binding = forwarding.bindings[0];
+
+        // Reject inputs that do not satisfy this stage.
+        if !matches!(derive, "Index" | "IndexMut")
+            && let Some(field) = DirectFieldReference::from_expr(forwarding.forwarded)
+            && field.mutability == expected_mutability(derive)
+            && DirectForwarding::is_binding(cx, field.base, self_binding)
+        {
+            // Prepare the values used by this stage.
+            let field_type = cx.tcx.typeck(forwarding.typeck_owner).expr_ty(field.field);
+            let output = cx
+                .tcx
+                .fn_sig(item.owner_id.def_id)
+                .instantiate_identity()
+                .skip_binder()
+                .output();
+
+            // Prepare the values used by this stage.
+            let ty::Ref(_, target, _) = output.kind() else {
+                return None;
+            };
+
+            // Return the completed analysis result.
+            return Some(Self {
+                definition,
+                contract: Contract {
+                    derive,
+                    is_forwarding: field_type != *target,
+                },
+            });
+        }
+
+        // Perform the next step of the analysis.
+        Self::from_forwarded_call(
+            cx,
+            forwarding.typeck_owner,
+            forwarding.forwarded,
+            &forwarding.bindings,
+            trait_id,
+            derive,
+            definition,
+        )
+    }
+}
+
+#[derive(Default)]
+/// Carries the `DeriveMoreManualForwardingInterfaces` state used by this analysis.
+struct DeriveMoreManualForwardingInterfaces {
+    /// Stores the `families` value used by this analysis.
+    families: HashMap<LocalDefId, Family>,
+}
+
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub DERIVE_MORE_MANUAL_FORWARDING_INTERFACES,
+    Warn,
+    "finds forwarding interfaces reproducible by derive_more",
+    DeriveMoreManualForwardingInterfaces::default()
+}
+
+impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualForwardingInterfaces {
+    fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
+        let Some(ContractTarget {
+            definition,
+            contract,
+        }) = ContractTarget::for_item(cx, item)
+        else {
+            return;
+        };
+        let family = self.families.entry(definition).or_insert_with(|| Family {
+            span: cx.tcx.def_span(definition),
+            name: cx.tcx.item_name(definition).to_string(),
+            contracts: Vec::new(),
+        });
+        if family.contracts.contains(&contract) {
+            return;
+        }
+        family.contracts.push(contract);
+    }
+
+    fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
+        for (_, mut family) in self.families.drain() {
+            family.contracts.sort();
+            Violation(family).emit(cx);
+        }
+    }
 }

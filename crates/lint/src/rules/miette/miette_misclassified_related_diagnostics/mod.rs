@@ -11,13 +11,21 @@ use rustc_span::Span;
 use super::contracts::{DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole};
 use crate::utils::diagnostic::LateViolation;
 
+/// Classifies `Kind` cases used by this analysis.
 enum Kind {
+    /// Represents the `CauseAsRelated` case.
     CauseAsRelated,
+    /// Represents the `SiblingAsCause` case.
     SiblingAsCause,
 }
+
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `field` value used by this analysis.
     field: String,
+    /// Stores the `kind` value used by this analysis.
     kind: Kind,
 }
 impl LateViolation for Violation {
@@ -33,11 +41,13 @@ impl LateViolation for Violation {
             ),
         })
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "the declared Miette relationship contradicts the field's explicit domain role and distorts the rendered diagnostic tree",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(match self.kind {
             Kind::CauseAsRelated => {
@@ -48,6 +58,7 @@ impl LateViolation for Violation {
             }
         })
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         cx.emit_span_lint(
             MIETTE_MISCLASSIFIED_RELATED_DIAGNOSTICS,
@@ -61,8 +72,57 @@ impl LateViolation for Violation {
         );
     }
 }
+
+/// Performs the `causal_name` step of the lint analysis.
+fn causal_name(name: &str) -> bool {
+    matches!(
+        name,
+        "source" | "cause" | "error" | "root_error" | "source_error" | "source_errors"
+    )
+}
+
+/// Performs the `sibling_name` step of the lint analysis.
+fn sibling_name(name: &str) -> bool {
+    matches!(
+        name,
+        "related" | "findings" | "warnings" | "suppressed" | "alternatives"
+    )
+}
+
+/// Performs the `check_fields` step of the lint analysis.
+fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
+    for field in fields {
+        // Prepare the values used by this stage.
+        let name = field.name.to_ascii_lowercase();
+        let kind = if field.roles.contains(DiagnosticFieldRole::Related) && causal_name(&name) {
+            Some(Kind::CauseAsRelated)
+        } else if field.roles.contains(DiagnosticFieldRole::DiagnosticSource) && sibling_name(&name)
+        // Perform the next step of the analysis.
+        {
+            Some(Kind::SiblingAsCause)
+        } else {
+            None
+        };
+
+        // Prepare the values used by this stage.
+        let Some(kind) = kind else {
+            continue;
+        };
+
+        // Perform the next step of the analysis.
+        Violation {
+            span: field.span,
+            field: field.name.clone(),
+            kind,
+        }
+        .emit(cx);
+    }
+}
+
 #[derive(Default)]
+/// Carries the `MietteMisclassifiedRelatedDiagnostics` state used by this analysis.
 struct MietteMisclassifiedRelatedDiagnostics {
+    /// Stores the `catalog` value used by this analysis.
     catalog: DiagnosticCatalog,
 }
 dylint_linting::impl_late_lint! {
@@ -76,6 +136,7 @@ impl LateLintPass<'_> for MietteMisclassifiedRelatedDiagnostics {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
     }
+
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.derived_contracts() {
             check_fields(cx, &contract.fields);
@@ -84,37 +145,4 @@ impl LateLintPass<'_> for MietteMisclassifiedRelatedDiagnostics {
             }
         }
     }
-}
-fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
-    for field in fields {
-        let name = field.name.to_ascii_lowercase();
-        let kind = if field.roles.contains(DiagnosticFieldRole::Related) && causal_name(&name) {
-            Some(Kind::CauseAsRelated)
-        } else if field.roles.contains(DiagnosticFieldRole::DiagnosticSource) && sibling_name(&name)
-        {
-            Some(Kind::SiblingAsCause)
-        } else {
-            None
-        };
-        if let Some(kind) = kind {
-            Violation {
-                span: field.span,
-                field: field.name.clone(),
-                kind,
-            }
-            .emit(cx);
-        }
-    }
-}
-fn causal_name(name: &str) -> bool {
-    matches!(
-        name,
-        "source" | "cause" | "error" | "root_error" | "source_error" | "source_errors"
-    )
-}
-fn sibling_name(name: &str) -> bool {
-    matches!(
-        name,
-        "related" | "findings" | "warnings" | "suppressed" | "alternatives"
-    )
 }

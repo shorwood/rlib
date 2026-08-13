@@ -1,5 +1,5 @@
 warning: module declarations are not in dependency-first order
-  --> $DIR/fix.rs:9:1
+  --> $DIR/fix.rs:13:1
    |
 LL | / fn run() -> Value {
 LL | |     make()

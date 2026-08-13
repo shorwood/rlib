@@ -12,10 +12,6 @@ use rustc_lint::LateContext;
 use super::parameter_analysis::Parameter;
 use super::string_domain_vocabulary::StringDomainSymbolExt;
 
-// -----------------------------------------------------------------------------
-// StringDomainRevalidation: Raw string invariant analysis
-// -----------------------------------------------------------------------------
-
 /// Collects local bindings referenced by one expression.
 struct BindingCollector<'analysis, 'tcx> {
     /// Compiler context used to resolve paths.
@@ -35,8 +31,8 @@ impl<'tcx> Visitor<'tcx> for BindingCollector<'_, 'tcx> {
     }
 }
 
-/// Finds returns without descending into nested closures.
 #[derive(Default)]
+/// Finds returns without descending into nested closures.
 struct ReturnFinder {
     /// Whether a return expression was encountered.
     has_return: bool,

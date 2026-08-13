@@ -9,11 +9,14 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::plain_builder_attribute;
+use super::utils::BonAttributeAnalysis;
 use crate::utils::diagnostic::EarlyViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `parameter_count` value used by this analysis.
     parameter_count: usize,
 }
 
@@ -49,6 +52,7 @@ impl EarlyViolation for Violation {
     }
 }
 
+/// Carries the `BonNeedlessBuildersForSmallApis` state used by this analysis.
 struct BonNeedlessBuildersForSmallApis;
 
 dylint_linting::impl_pre_expansion_lint! {
@@ -60,23 +64,38 @@ dylint_linting::impl_pre_expansion_lint! {
 }
 
 impl BonNeedlessBuildersForSmallApis {
+    /// Largest private required-only API for which a builder adds no naming value.
+    const MAXIMUM_SIMPLE_PARAMETERS: usize = 2;
+
+    /// Performs the `required_distinct_parameters` operation for this value.
     fn required_distinct_parameters(cx: &EarlyContext<'_>, item: &Item) -> Option<usize> {
+        // Prepare the values used by this stage.
         let ItemKind::Fn(function) = &item.kind else {
             return None;
         };
         let inputs = &function.sig.decl.inputs;
-        if inputs.is_empty() || inputs.len() > 2 {
+        if inputs.is_empty() || inputs.len() > Self::MAXIMUM_SIMPLE_PARAMETERS {
             return None;
         }
+
+        // Prepare the values used by this stage.
         let source_map = cx.sess().source_map();
         let mut types = Vec::with_capacity(inputs.len());
+
+        // Process the candidates handled by this stage.
         for parameter in inputs {
-            types.push(source_map.span_to_snippet(parameter.ty.span).ok()?);
+            let ty = match source_map.span_to_snippet(parameter.ty.span) {
+                Ok(ty) => ty,
+                Err(_error) => return None,
+            };
+            types.push(ty);
         }
+
+        // Reject inputs that do not satisfy this stage.
         if types
             .iter()
             .any(|ty| ty.trim_start().starts_with("Option<"))
-            || (types.len() == 2 && types[0] == types[1])
+            || (types.len() == Self::MAXIMUM_SIMPLE_PARAMETERS && types[0] == types[1])
             || inputs.iter().any(|parameter| !parameter.attrs.is_empty())
         {
             return None;
@@ -87,15 +106,20 @@ impl BonNeedlessBuildersForSmallApis {
 
 impl EarlyLintPass for BonNeedlessBuildersForSmallApis {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
+        // Reject inputs that do not satisfy this stage.
         if !matches!(item.vis.kind, VisibilityKind::Inherited) {
             return;
         }
-        let Some(span) = plain_builder_attribute(cx, &item.attrs) else {
+        let Some(span) = BonAttributeAnalysis::plain_builder(cx, &item.attrs) else {
             return;
         };
+
+        // Prepare the values used by this stage.
         let Some(parameter_count) = Self::required_distinct_parameters(cx, item) else {
             return;
         };
+
+        // Perform the next step of the analysis.
         Violation {
             span,
             parameter_count,

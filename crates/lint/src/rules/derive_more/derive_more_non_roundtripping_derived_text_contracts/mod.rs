@@ -15,15 +15,23 @@ use rustc_span::{Span, Symbol};
 
 use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::authored_item_source;
+use crate::utils::source_provenance::AuthoredItemSource;
 
+/// Carries the `Candidate` state used by this analysis.
 struct Candidate {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `name` value used by this analysis.
     name: Symbol,
+    /// Stores the `format` value used by this analysis.
     format: String,
 }
 
-struct Violation(Candidate);
+/// Stores the `item` value used by this analysis.
+struct Violation(
+    /// Derived text contract that cannot round-trip.
+    Candidate,
+);
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
@@ -60,9 +68,48 @@ impl LateViolation for Violation {
     }
 }
 
+/// Performs the `explicit_nontransparent_format` step of the lint analysis.
+fn explicit_nontransparent_format(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
+    // Prepare the values used by this stage.
+    let source = AuthoredItemSource::for_item(cx, item)?;
+    let item = match syn::parse_str::<syn::ItemStruct>(&source) {
+        Ok(item) => item,
+        Err(_error) => return None,
+    };
+
+    // Prepare the values used by this stage.
+    let attribute = item
+        .attrs
+        .iter()
+        .find(|attribute| attribute.path().is_ident("display"))?;
+    let format = match attribute.parse_args::<syn::LitStr>() {
+        Ok(format) => format,
+        Err(_error) => return None,
+    };
+
+    // Prepare the values used by this stage.
+    let format = format.value();
+    (!matches!(format.as_str(), "{}" | "{_0}" | "{0}")).then_some(format)
+}
+
+/// Performs the `has_numeric_field` step of the lint analysis.
+fn has_numeric_field(cx: &LateContext<'_>, definition: LocalDefId) -> bool {
+    let definition = cx.tcx.adt_def(definition);
+    let Some(field) = definition.non_enum_variant().fields.iter().next() else {
+        return false;
+    };
+    matches!(
+        field.ty(cx.tcx, ty::GenericArgs::empty()).kind(),
+        ty::Int(_) | ty::Uint(_) | ty::Float(_)
+    )
+}
+
 #[derive(Default)]
+/// Carries the `DeriveMoreNonRoundtrippingDerivedTextContracts` state used by this analysis.
 struct DeriveMoreNonRoundtrippingDerivedTextContracts {
+    /// Stores the `catalog` value used by this analysis.
     catalog: DeriveMoreContractCatalog,
+    /// Stores the `candidates` value used by this analysis.
     candidates: HashMap<LocalDefId, Candidate>,
 }
 
@@ -76,6 +123,7 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreNonRoundtrippingDerivedTextContracts {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() {
             return;
@@ -83,12 +131,16 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreNonRoundtrippingDerivedTextContracts
         let ItemKind::Struct(identifier, _, data) = item.kind else {
             return;
         };
+
+        // Reject inputs that do not satisfy this stage.
         if data.fields().len() != 1 {
             return;
         }
         let Some(format) = explicit_nontransparent_format(cx, item) else {
             return;
         };
+
+        // Update the accumulated analysis state.
         self.candidates.insert(
             item.owner_id.def_id,
             Candidate {
@@ -100,39 +152,14 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreNonRoundtrippingDerivedTextContracts
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (definition, candidate) in self.candidates.drain() {
+        for (definition, analyze_candidate) in self.candidates.drain() {
             if self.catalog.derived_type(definition, "Display").is_none()
                 || self.catalog.derived_type(definition, "FromStr").is_none()
                 || !has_numeric_field(cx, definition)
             {
                 continue;
             }
-            Violation(candidate).emit(cx);
+            Violation(analyze_candidate).emit(cx);
         }
     }
-}
-
-fn explicit_nontransparent_format(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
-    let source = authored_item_source(cx, item)?;
-    let item = syn::parse_str::<syn::ItemStruct>(&source).ok()?;
-    let format = item.attrs.iter().find_map(|attribute| {
-        attribute
-            .path()
-            .is_ident("display")
-            .then(|| attribute.parse_args::<syn::LitStr>().ok())
-            .flatten()
-    })?;
-    let format = format.value();
-    (!matches!(format.as_str(), "{}" | "{_0}" | "{0}")).then_some(format)
-}
-
-fn has_numeric_field(cx: &LateContext<'_>, definition: LocalDefId) -> bool {
-    let definition = cx.tcx.adt_def(definition);
-    let Some(field) = definition.non_enum_variant().fields.iter().next() else {
-        return false;
-    };
-    matches!(
-        field.ty(cx.tcx, ty::GenericArgs::empty()).kind(),
-        ty::Int(_) | ty::Uint(_) | ty::Float(_)
-    )
 }

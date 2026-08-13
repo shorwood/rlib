@@ -12,28 +12,94 @@ use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
 use super::contracts::{
-    SerdeContractCatalog, SerdeDirection, SerdeFlag, apply_case, serde_attributes,
+    SerdeAttributes, SerdeCase, SerdeContractCatalog, SerdeDirection, SerdeFlag,
 };
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::authored_item_source;
+use crate::utils::source_provenance::AuthoredItemSource;
 
 #[derive(Clone)]
+/// Carries the `FieldContract` state used by this analysis.
 struct FieldContract {
+    /// Stores the `serialize_name` value used by this analysis.
     serialize_name: Option<String>,
+    /// Stores the `deserialize_name` value used by this analysis.
     deserialize_name: Option<String>,
+    /// Stores the `flatten_target` value used by this analysis.
     flatten_target: Option<LocalDefId>,
 }
 
+impl FieldContract {
+    /// Returns this field's name in one Serde direction.
+    const fn directional_name(&self, direction: SerdeDirection) -> Option<&String> {
+        match direction {
+            SerdeDirection::Serialize => self.serialize_name.as_ref(),
+            SerdeDirection::Deserialize => self.deserialize_name.as_ref(),
+        }
+    }
+}
+
 #[derive(Clone)]
+/// Carries the `StructContract` state used by this analysis.
 struct StructContract {
+    /// Stores the `definition` value used by this analysis.
     definition: LocalDefId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `fields` value used by this analysis.
     fields: Vec<FieldContract>,
 }
 
+impl StructContract {
+    /// Finds wire names duplicated by this structure's flattened fields.
+    fn collisions(
+        &self,
+        direction: SerdeDirection,
+        structs: &HashMap<LocalDefId, Self>,
+        catalog: &SerdeContractCatalog,
+    ) -> BTreeSet<String> {
+        let mut observed = BTreeSet::new();
+        let mut collisions = BTreeSet::new();
+        for field in &self.fields {
+            let Some(name) = field.directional_name(direction) else {
+                continue;
+            };
+            observed.insert(name.clone());
+        }
+        for field in &self.fields {
+            let Some(target) = field.flatten_target else {
+                continue;
+            };
+            let derive = match direction {
+                SerdeDirection::Serialize => "Serialize",
+                SerdeDirection::Deserialize => "Deserialize",
+            };
+            if catalog.derived_type(target, derive).is_none() {
+                continue;
+            }
+            let Some(flattened) = structs.get(&target) else {
+                continue;
+            };
+            for nested in &flattened.fields {
+                let Some(name) = nested.directional_name(direction) else {
+                    continue;
+                };
+                if observed.insert(name.clone()) {
+                    continue;
+                }
+                collisions.insert(name.clone());
+            }
+        }
+        collisions
+    }
+}
+
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `direction` value used by this analysis.
     direction: &'static str,
+    /// Stores the `names` value used by this analysis.
     names: Vec<String>,
 }
 
@@ -71,8 +137,11 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `SerdeFlattenedFieldCollisions` state used by this analysis.
 struct SerdeFlattenedFieldCollisions {
+    /// Stores the `catalog` value used by this analysis.
     catalog: SerdeContractCatalog,
+    /// Stores the `structs` value used by this analysis.
     structs: HashMap<LocalDefId, StructContract>,
 }
 
@@ -86,6 +155,7 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         let ItemKind::Struct(_, _, data) = item.kind else {
             return;
@@ -93,20 +163,24 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
         if item.span.from_expansion() {
             return;
         }
-        let Some(source) = authored_item_source(cx, item) else {
+
+        // Prepare the values used by this stage.
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
-        let container = serde_attributes(&structure.attrs);
+        let container = SerdeAttributes::analyze_serde_attributes(&structure.attrs);
+
+        // Prepare the values used by this stage.
         let fields = structure
             .fields
             .iter()
             .zip(data.fields())
             .filter_map(|(field, hir_field)| {
                 let rust_name = field.ident.as_ref()?.to_string();
-                let attributes = serde_attributes(&field.attrs);
+                let attributes = SerdeAttributes::analyze_serde_attributes(&field.attrs);
                 let flattened = attributes.has(SerdeFlag::Flatten);
                 let serialize = !attributes.has(SerdeFlag::SkipSerialize) && !flattened;
                 let deserialize = !attributes.has(SerdeFlag::SkipDeserialize) && !flattened;
@@ -122,18 +196,23 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
                 Some(FieldContract {
                     serialize_name: serialize.then(|| {
                         attributes.rename_serialize.unwrap_or_else(|| {
-                            apply_case(&rust_name, container.rename_all_serialize.as_deref())
+                            SerdeCase::apply(&rust_name, container.rename_all_serialize.as_deref())
                         })
                     }),
                     deserialize_name: deserialize.then(|| {
                         attributes.rename_deserialize.unwrap_or_else(|| {
-                            apply_case(&rust_name, container.rename_all_deserialize.as_deref())
+                            SerdeCase::apply(
+                                &rust_name,
+                                container.rename_all_deserialize.as_deref(),
+                            )
                         })
                     }),
                     flatten_target,
                 })
             })
             .collect();
+
+        // Update the accumulated analysis state.
         self.structs.insert(
             item.owner_id.def_id,
             StructContract {
@@ -147,6 +226,7 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for structure in self.structs.values() {
             for direction in [SerdeDirection::Serialize, SerdeDirection::Deserialize] {
+                // Reject inputs that do not satisfy this stage.
                 if self
                     .catalog
                     .derived_type(
@@ -157,13 +237,16 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
                         },
                     )
                     .is_none()
+                // Perform the next step of the analysis.
                 {
                     continue;
                 }
-                let collisions = collisions(structure, direction, &self.structs, &self.catalog);
+                let collisions = structure.collisions(direction, &self.structs, &self.catalog);
                 if collisions.is_empty() {
                     continue;
                 }
+
+                // Perform the next step of the analysis.
                 Violation {
                     span: structure.span,
                     direction: direction.label(),
@@ -175,51 +258,5 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
                 .emit(cx);
             }
         }
-    }
-}
-
-fn collisions(
-    structure: &StructContract,
-    direction: SerdeDirection,
-    structs: &HashMap<LocalDefId, StructContract>,
-    catalog: &SerdeContractCatalog,
-) -> BTreeSet<String> {
-    let mut observed = BTreeSet::new();
-    let mut collisions = BTreeSet::new();
-    for field in &structure.fields {
-        if let Some(name) = directional_name(field, direction) {
-            observed.insert(name.clone());
-        }
-    }
-    for field in &structure.fields {
-        let Some(target) = field.flatten_target else {
-            continue;
-        };
-        let derive = match direction {
-            SerdeDirection::Serialize => "Serialize",
-            SerdeDirection::Deserialize => "Deserialize",
-        };
-        if catalog.derived_type(target, derive).is_none() {
-            continue;
-        }
-        let Some(flattened) = structs.get(&target) else {
-            continue;
-        };
-        for nested in &flattened.fields {
-            let Some(name) = directional_name(nested, direction) else {
-                continue;
-            };
-            if !observed.insert(name.clone()) {
-                collisions.insert(name.clone());
-            }
-        }
-    }
-    collisions
-}
-
-const fn directional_name(field: &FieldContract, direction: SerdeDirection) -> Option<&String> {
-    match direction {
-        SerdeDirection::Serialize => field.serialize_name.as_ref(),
-        SerdeDirection::Deserialize => field.deserialize_name.as_ref(),
     }
 }

@@ -12,9 +12,13 @@ use rustc_span::{Span, Symbol};
 use super::utils::contracts::{ContractCatalog, StrumDerive};
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `owner` value used by this analysis.
     owner: rustc_hir::HirId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `variant` value used by this analysis.
     variant: Symbol,
 }
 
@@ -51,7 +55,9 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `StrumDivergentVariantNameContracts` state used by this analysis.
 struct StrumDivergentVariantNameContracts {
+    /// Stores the `catalog` value used by this analysis.
     catalog: ContractCatalog,
 }
 
@@ -70,24 +76,30 @@ impl LateLintPass<'_> for StrumDivergentVariantNameContracts {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.contracts() {
+            // Reject inputs that do not satisfy this stage.
             if !contract.derives(StrumDerive::VariantNames)
                 || !contract.derives(StrumDerive::EnumString)
             {
                 continue;
             }
-            if let Some(variant) = contract.enabled_variants().find(|variant| {
+
+            // Prepare the values used by this stage.
+            let Some(variant) = contract.enabled_variants().find(|variant| {
                 variant
                     .parser_names
                     .iter()
                     .any(|name| name != &variant.preferred_name)
-            }) {
-                Violation {
-                    owner: contract.owner,
-                    span: variant.span,
-                    variant: variant.name,
-                }
-                .emit(cx);
+            }) else {
+                continue;
+            };
+
+            // Perform the next step of the analysis.
+            Violation {
+                owner: contract.owner,
+                span: variant.span,
+                variant: variant.name,
             }
+            .emit(cx);
         }
     }
 }

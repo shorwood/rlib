@@ -1,5 +1,5 @@
 warning: local types should be declared before their use
-  --> $DIR/semantic.rs:8:1
+  --> $DIR/semantic.rs:12:1
    |
 LL | / struct UsesAlias {
 LL | |     value: Alias,

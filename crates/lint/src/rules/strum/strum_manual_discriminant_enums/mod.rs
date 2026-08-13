@@ -12,10 +12,15 @@ use rustc_span::{Span, Symbol};
 use super::utils::authored_contracts::DiscriminantMirrorCandidate;
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `owner` value used by this analysis.
     owner: rustc_hir::HirId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `source` value used by this analysis.
     source: Symbol,
+    /// Stores the `mirror` value used by this analysis.
     mirror: Symbol,
 }
 
@@ -26,17 +31,20 @@ impl LateViolation for Violation {
             self.mirror, self.source
         ))
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "the private unit enum and conversion duplicate every source variant one-for-one",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "derive `strum::EnumDiscriminants` and configure its generated name as `{}`",
             self.mirror
         ))
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
             STRUM_MANUAL_DISCRIMINANT_ENUMS,
@@ -51,6 +59,7 @@ impl LateViolation for Violation {
     }
 }
 
+/// Carries the `StrumManualDiscriminantEnums` state used by this analysis.
 struct StrumManualDiscriminantEnums;
 
 dylint_linting::impl_late_lint! {
@@ -63,14 +72,17 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for StrumManualDiscriminantEnums {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        let Some(candidate) = DiscriminantMirrorCandidate::from_impl_item(cx, item) else {
+        // Prepare the values used by this stage.
+        let Some(analyze_candidate) = DiscriminantMirrorCandidate::from_impl_item(cx, item) else {
             return;
         };
+
+        // Perform the next step of the analysis.
         Violation {
-            owner: candidate.owner,
-            span: candidate.span,
-            source: cx.tcx.item_name(candidate.source_enum.to_def_id()),
-            mirror: cx.tcx.item_name(candidate.mirror_enum.to_def_id()),
+            owner: analyze_candidate.owner,
+            span: analyze_candidate.span,
+            source: cx.tcx.item_name(analyze_candidate.source_enum.to_def_id()),
+            mirror: cx.tcx.item_name(analyze_candidate.mirror_enum.to_def_id()),
         }
         .emit(cx);
     }

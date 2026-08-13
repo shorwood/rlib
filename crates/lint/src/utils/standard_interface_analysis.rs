@@ -25,9 +25,8 @@ mod text_body_evidence;
 // -----------------------------------------------------------------------------
 // FormattingProblem: Canonical ownership problem
 // -----------------------------------------------------------------------------
-
-/// Why one formatting family is reportable.
 #[derive(Clone, Copy)]
+/// Why one formatting family is reportable.
 pub enum FormattingProblem {
     /// One canonical-looking family has no `Display` owner.
     MissingDisplay,
@@ -40,9 +39,8 @@ pub enum FormattingProblem {
 // -----------------------------------------------------------------------------
 // FormattingCandidate: Authored textual helper evidence
 // -----------------------------------------------------------------------------
-
-/// One authored textual helper retained for diagnostic evidence.
 #[derive(Clone)]
+/// One authored textual helper retained for diagnostic evidence.
 pub struct FormattingCandidateSource {
     /// HIR node used for lint-level attributes.
     pub hir_id: HirId,
@@ -51,9 +49,8 @@ pub struct FormattingCandidateSource {
     /// Identifier span used by diagnostics.
     pub span: Span,
 }
-
-/// One authored textual helper retained for diagnostic evidence.
 #[derive(Clone)]
+/// One authored textual helper retained for diagnostic evidence.
 pub struct FormattingCandidate {
     /// Function definition used for cross-lint precedence.
     def_id: LocalDefId,
@@ -130,9 +127,8 @@ const SECRET_TYPE_MARKERS: &[&str] = &[
 // -----------------------------------------------------------------------------
 // ErrorInterface: Standard error diagnostic evidence
 // -----------------------------------------------------------------------------
-
-/// One standard error contract that structural evidence requires.
 #[derive(Clone, Copy, Eq, PartialEq)]
+/// One standard error contract that structural evidence requires.
 pub enum ErrorInterfaceContract {
     /// `Debug`, required by `Error`.
     Debug,
@@ -385,9 +381,8 @@ fn standard_interface_vocabulary_is_secret_type(name: &str) -> bool {
 // -----------------------------------------------------------------------------
 // StandardInterfaceAnalysis: Crate wide protocol evidence
 // -----------------------------------------------------------------------------
-
-/// Crate-wide evidence for canonical formatting and error interfaces.
 #[derive(Default)]
+/// Crate-wide evidence for canonical formatting and error interfaces.
 pub struct StandardInterfaceAnalysis {
     /// Eligible authored local types.
     types: HashMap<LocalDefId, InterfaceType>,
@@ -402,7 +397,7 @@ pub struct StandardInterfaceAnalysis {
     /// Types implementing `std::error::Error`.
     error: HashSet<LocalDefId>,
     /// Error implementations overriding `source`.
-    error_source: HashSet<LocalDefId>,
+    analyze_error_source: HashSet<LocalDefId>,
     /// Types implementing Serde serialization.
     serialized: HashSet<LocalDefId>,
 }
@@ -468,8 +463,8 @@ impl StandardInterfaceAnalysis {
             let formatting = self
                 .formatting
                 .iter()
-                .filter(|candidate| candidate.target == *target)
-                .map(|candidate| candidate.source.span);
+                .filter(|analyze_candidate| analyze_candidate.target == *target)
+                .map(|analyze_candidate| analyze_candidate.source.span);
             let mut presentation_spans = declaration.evidence.presentation_spans.clone();
             presentation_spans.extend(formatting);
 
@@ -507,7 +502,7 @@ impl StandardInterfaceAnalysis {
             if requires_error && !self.error.contains(target) {
                 missing.push(ErrorInterfaceContract::Error);
             }
-            if !causal_spans.is_empty() && !self.error_source.contains(target) {
+            if !causal_spans.is_empty() && !self.analyze_error_source.contains(target) {
                 missing.push(ErrorInterfaceContract::Source);
             }
             if missing.is_empty() {
@@ -550,10 +545,10 @@ impl StandardInterfaceAnalysis {
     pub fn formatting_findings(&self, cx: &LateContext<'_>) -> Vec<FormattingFinding> {
         let error_targets = self.reportable_error_targets();
         let mut families = HashMap::<LocalDefId, Vec<FormattingCandidate>>::new();
-        for candidate in &self.formatting {
+        for analyze_candidate in &self.formatting {
             // Error-specific and secret-bearing ownership supersede formatting advice.
-            let is_error = error_targets.contains(&candidate.target);
-            let declaration = self.types.get(&candidate.target);
+            let is_error = error_targets.contains(&analyze_candidate.target);
+            let declaration = self.types.get(&analyze_candidate.target);
             let is_secret = declaration.is_some_and(|ty| ty.classification.is_secret);
             if is_error || is_secret {
                 continue;
@@ -561,15 +556,15 @@ impl StandardInterfaceAnalysis {
 
             // Group every remaining helper by represented local type.
             families
-                .entry(candidate.target)
+                .entry(analyze_candidate.target)
                 .or_default()
-                .push(candidate.clone());
+                .push(analyze_candidate.clone());
         }
         let mut findings = Vec::new();
         for (target, mut family) in families {
             // Classify missing, competing, or redundant canonical ownership.
             let problem = if self.display.contains(&target) {
-                family.retain(|candidate| candidate.has_display_delegation);
+                family.retain(|analyze_candidate| analyze_candidate.has_display_delegation);
                 FormattingProblem::RedundantDisplay
             } else if family.len() > 1 {
                 FormattingProblem::Ambiguous
@@ -581,7 +576,7 @@ impl StandardInterfaceAnalysis {
             }
 
             // Retain one deterministically ordered family diagnostic.
-            family.sort_by_key(|candidate| candidate.source.span.lo());
+            family.sort_by_key(|analyze_candidate| analyze_candidate.source.span.lo());
             findings.push(FormattingFinding {
                 target_name: cx.tcx.def_path_str(target.to_def_id()),
                 candidates: family,
@@ -596,7 +591,9 @@ impl StandardInterfaceAnalysis {
     pub fn reportable_formatting_definitions(&self, cx: &LateContext<'_>) -> HashSet<LocalDefId> {
         let findings = self.formatting_findings(cx);
         let candidates = findings.into_iter().flat_map(|finding| finding.candidates);
-        candidates.map(|candidate| candidate.def_id).collect()
+        candidates
+            .map(|analyze_candidate| analyze_candidate.def_id)
+            .collect()
     }
 
     /// Records one eligible authored local struct or enum.
@@ -686,7 +683,7 @@ impl StandardInterfaceAnalysis {
                     == "source"
             });
             if has_source {
-                self.error_source.insert(target);
+                self.analyze_error_source.insert(target);
             }
             return;
         }
@@ -838,13 +835,13 @@ impl StandardInterfaceAnalysis {
         };
 
         // Combine source identity with protocol classification.
-        let candidate = FormattingCandidate {
+        let analyze_candidate = FormattingCandidate {
             def_id,
             source,
             has_display_delegation: evidence.has_display_delegation,
             target,
         };
-        self.formatting.push(candidate);
+        self.formatting.push(analyze_candidate);
     }
 
     /// Records inferred standard `Result` expressions as active error-interface evidence.

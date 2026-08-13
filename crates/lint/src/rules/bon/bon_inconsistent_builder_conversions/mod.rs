@@ -10,11 +10,14 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{builder_attribute, builder_attribute_contains};
+use super::utils::{BonAttributeAnalysis, builder_attribute};
 use crate::utils::diagnostic::EarlyViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `ty` value used by this analysis.
     ty: String,
 }
 
@@ -55,7 +58,21 @@ impl EarlyViolation for Violation {
     }
 }
 
+/// One same-typed member and whether it opts into `Into` conversion.
+struct ConversionMember {
+    /// Whether the member accepts values through `Into`.
+    has_into: bool,
+    /// Authored member type span.
+    span: Span,
+}
+
+/// Carries the `BonInconsistentBuilderConversions` state used by this analysis.
 struct BonInconsistentBuilderConversions;
+
+impl BonInconsistentBuilderConversions {
+    /// Minimum same-typed members needed to compare conversion policy.
+    const MINIMUM_COMPARABLE_MEMBERS: usize = 2;
+}
 
 dylint_linting::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
@@ -71,34 +88,41 @@ impl EarlyLintPass for BonInconsistentBuilderConversions {
             return;
         };
         if builder_attribute(&item.attrs).is_none()
-            || builder_attribute_contains(cx, &item.attrs, "on(")
+            || BonAttributeAnalysis::builder_contains(cx, &item.attrs, "on(")
         {
             return;
         }
         let source_map = cx.sess().source_map();
-        let mut groups = HashMap::<String, Vec<(bool, Span)>>::new();
+        let mut groups = HashMap::<String, Vec<ConversionMember>>::new();
         for parameter in &function.sig.decl.inputs {
+            // Prepare the values used by this stage.
             let Ok(ty) = source_map.span_to_snippet(parameter.ty.span) else {
                 continue;
             };
             let has_custom_conversion = builder_attribute(&parameter.attrs).is_some()
-                && !builder_attribute_contains(cx, &parameter.attrs, "into");
+                && !BonAttributeAnalysis::builder_contains(cx, &parameter.attrs, "into");
+
+            // Reject inputs that do not satisfy this stage.
             if has_custom_conversion {
                 continue;
             }
-            groups.entry(ty).or_default().push((
-                builder_attribute_contains(cx, &parameter.attrs, "into"),
-                parameter.ty.span,
-            ));
+            groups.entry(ty).or_default().push(ConversionMember {
+                has_into: BonAttributeAnalysis::builder_contains(cx, &parameter.attrs, "into"),
+                span: parameter.ty.span,
+            });
         }
         for (ty, members) in groups {
-            let has_into = members.iter().any(|(into, _)| *into);
-            let strict = members.iter().find(|(into, _)| !into);
-            if !has_into || members.len() < 2 {
+            let has_into = members.iter().any(|member| member.has_into);
+            let strict = members.iter().find(|member| !member.has_into);
+            if !has_into || members.len() < Self::MINIMUM_COMPARABLE_MEMBERS {
                 continue;
             }
-            let Some((_, span)) = strict else { continue };
-            Violation { span: *span, ty }.emit(cx);
+            let Some(strict) = strict else { continue };
+            Violation {
+                span: strict.span,
+                ty,
+            }
+            .emit(cx);
         }
     }
 }

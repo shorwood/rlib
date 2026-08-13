@@ -15,8 +15,11 @@ use rustc_span::def_id::LocalDefId;
 use super::contracts::BonContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `ty` value used by this analysis.
     ty: String,
 }
 
@@ -54,87 +57,17 @@ impl LateViolation for Violation {
     }
 }
 
+/// Carries the `Exposure` state used by this analysis.
 struct Exposure {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `definition` value used by this analysis.
     definition: LocalDefId,
+    /// Stores the `ty` value used by this analysis.
     ty: String,
 }
 
-#[derive(Default)]
-struct BonPublicBuilderImplementationTypes {
-    catalog: BonContractCatalog,
-    exposures: Vec<Exposure>,
-}
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub BON_PUBLIC_BUILDER_IMPLEMENTATION_TYPES,
-    Warn,
-    "rejects generated Bon implementation types in public APIs",
-    BonPublicBuilderImplementationTypes::default()
-}
-
-impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
-    fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
-        self.catalog.check_item(cx, item);
-        if item.span.from_expansion() || !cx.tcx.visibility(item.owner_id.def_id).is_public() {
-            return;
-        }
-        if let ItemKind::Fn { sig, .. } = item.kind {
-            self.collect_decl(cx, item.owner_id.def_id, sig.decl);
-        }
-    }
-
-    fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
-        if item.span.from_expansion() || !cx.tcx.visibility(item.owner_id.def_id).is_public() {
-            return;
-        }
-        if let ImplItemKind::Fn(signature, _) = item.kind {
-            self.collect_decl(cx, item.owner_id.def_id, signature.decl);
-        }
-    }
-
-    fn check_field_def(&mut self, cx: &LateContext<'tcx>, field: &'tcx FieldDef<'tcx>) {
-        if !field.span.from_expansion() && cx.tcx.visibility(field.def_id).is_public() {
-            let ty = cx.tcx.type_of(field.def_id).instantiate_identity();
-            self.collect_ty(cx, ty, field.ty.span);
-        }
-    }
-
-    fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for exposure in &self.exposures {
-            if self.catalog.is_generated_type(exposure.definition) {
-                Violation {
-                    span: exposure.span,
-                    ty: exposure.ty.clone(),
-                }
-                .emit(cx);
-            }
-        }
-    }
-}
-
-impl BonPublicBuilderImplementationTypes {
-    fn collect_decl<'tcx>(
-        &mut self,
-        cx: &LateContext<'tcx>,
-        def_id: LocalDefId,
-        declaration: &'tcx rustc_hir::FnDecl<'tcx>,
-    ) {
-        let signature = cx.tcx.fn_sig(def_id).instantiate_identity().skip_binder();
-        for (input, semantic) in declaration.inputs.iter().zip(signature.inputs()) {
-            self.collect_ty(cx, *semantic, input.span);
-        }
-        if let FnRetTy::Return(output) = declaration.output {
-            self.collect_ty(cx, signature.output(), output.span);
-        }
-    }
-
-    fn collect_ty(&mut self, cx: &LateContext<'_>, ty: Ty<'_>, span: Span) {
-        collect_definitions(cx, ty, span, &mut self.exposures);
-    }
-}
-
+/// Performs the `collect_definitions` step of the lint analysis.
 fn collect_definitions(
     cx: &LateContext<'_>,
     ty: Ty<'_>,
@@ -144,11 +77,14 @@ fn collect_definitions(
     match ty.kind() {
         ty::Adt(definition, arguments) => {
             if let Some(definition) = definition.did().as_local() {
+                // Prepare the values used by this stage.
                 let spelling = cx
                     .sess()
                     .source_map()
                     .span_to_snippet(span)
                     .unwrap_or_else(|_| cx.tcx.item_name(definition.to_def_id()).to_string());
+
+                // Perform the next step of the analysis.
                 exposures.push(Exposure {
                     span,
                     definition,
@@ -169,5 +105,90 @@ fn collect_definitions(
             }
         }
         _ => {}
+    }
+}
+
+#[derive(Default)]
+/// Carries the `BonPublicBuilderImplementationTypes` state used by this analysis.
+struct BonPublicBuilderImplementationTypes {
+    /// Stores the `catalog` value used by this analysis.
+    catalog: BonContractCatalog,
+    /// Stores the `exposures` value used by this analysis.
+    exposures: Vec<Exposure>,
+}
+
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub BON_PUBLIC_BUILDER_IMPLEMENTATION_TYPES,
+    Warn,
+    "rejects generated Bon implementation types in public APIs",
+    BonPublicBuilderImplementationTypes::default()
+}
+
+impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
+    fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        self.catalog.check_item(cx, item);
+        if item.span.from_expansion() || !cx.tcx.visibility(item.owner_id.def_id).is_public() {
+            return;
+        }
+        let ItemKind::Fn { sig, .. } = item.kind else {
+            return;
+        };
+        self.collect_decl(cx, item.owner_id.def_id, sig.decl);
+    }
+
+    fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
+        if item.span.from_expansion() || !cx.tcx.visibility(item.owner_id.def_id).is_public() {
+            return;
+        }
+        let ImplItemKind::Fn(signature, _) = item.kind else {
+            return;
+        };
+        self.collect_decl(cx, item.owner_id.def_id, signature.decl);
+    }
+
+    fn check_field_def(&mut self, cx: &LateContext<'tcx>, field: &'tcx FieldDef<'tcx>) {
+        if field.span.from_expansion() || !cx.tcx.visibility(field.def_id).is_public() {
+            return;
+        }
+        let ty = cx.tcx.type_of(field.def_id).instantiate_identity();
+        self.collect_ty(cx, ty, field.ty.span);
+    }
+
+    fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
+        for exposure in &self.exposures {
+            if !(self.catalog.is_generated_type(exposure.definition)) {
+                continue;
+            }
+            Violation {
+                span: exposure.span,
+                ty: exposure.ty.clone(),
+            }
+            .emit(cx);
+        }
+    }
+}
+
+impl BonPublicBuilderImplementationTypes {
+    /// Performs the `collect_ty` operation for this value.
+    fn collect_ty(&mut self, cx: &LateContext<'_>, ty: Ty<'_>, span: Span) {
+        collect_definitions(cx, ty, span, &mut self.exposures);
+    }
+
+    /// Performs the `collect_decl` operation for this value.
+    fn collect_decl<'tcx>(
+        &mut self,
+        cx: &LateContext<'tcx>,
+        def_id: LocalDefId,
+        declaration: &'tcx rustc_hir::FnDecl<'tcx>,
+    ) {
+        let signature = cx.tcx.fn_sig(def_id).instantiate_identity().skip_binder();
+        for (input, semantic) in declaration.inputs.iter().zip(signature.inputs()) {
+            self.collect_ty(cx, *semantic, input.span);
+        }
+        let FnRetTy::Return(output) = declaration.output else {
+            return;
+        };
+        self.collect_ty(cx, signature.output(), output.span);
     }
 }

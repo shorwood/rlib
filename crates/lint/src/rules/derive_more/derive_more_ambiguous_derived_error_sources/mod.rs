@@ -12,17 +12,25 @@ use rustc_span::def_id::LocalDefId;
 
 use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::authored_item_source;
+use crate::utils::source_provenance::AuthoredItemSource;
 
+/// Carries the `Candidate` state used by this analysis.
 struct Candidate {
+    /// Stores the `definition` value used by this analysis.
     definition: LocalDefId,
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `competing_field` value used by this analysis.
     competing_field: String,
 }
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `name` value used by this analysis.
     name: String,
+    /// Stores the `competing_field` value used by this analysis.
     competing_field: String,
 }
 
@@ -61,8 +69,11 @@ impl LateViolation for Violation {
 }
 
 #[derive(Default)]
+/// Carries the `DeriveMoreAmbiguousDerivedErrorSources` state used by this analysis.
 struct DeriveMoreAmbiguousDerivedErrorSources {
+    /// Stores the `catalog` value used by this analysis.
     catalog: DeriveMoreContractCatalog,
+    /// Stores the `candidates` value used by this analysis.
     candidates: Vec<Candidate>,
 }
 
@@ -76,16 +87,21 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for DeriveMoreAmbiguousDerivedErrorSources {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Update the accumulated analysis state.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
             return;
         }
-        let Some(source) = authored_item_source(cx, item) else {
+        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
+
+        // Prepare the values used by this stage.
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
+
+        // Reject inputs that do not satisfy this stage.
         if structure.fields.iter().any(|field| {
             field
                 .attrs
@@ -94,6 +110,8 @@ impl LateLintPass<'_> for DeriveMoreAmbiguousDerivedErrorSources {
         }) {
             return;
         }
+
+        // Prepare the values used by this stage.
         let has_implicit_source = structure
             .fields
             .iter()
@@ -101,6 +119,8 @@ impl LateLintPass<'_> for DeriveMoreAmbiguousDerivedErrorSources {
         if !has_implicit_source {
             return;
         }
+
+        // Prepare the values used by this stage.
         let Some(competing_field) = structure.fields.iter().find_map(|field| {
             let name = field.ident.as_ref()?;
             let normalized = name.to_string().to_ascii_lowercase();
@@ -109,6 +129,8 @@ impl LateLintPass<'_> for DeriveMoreAmbiguousDerivedErrorSources {
         }) else {
             return;
         };
+
+        // Update the accumulated analysis state.
         self.candidates.push(Candidate {
             definition: item.owner_id.def_id,
             span: item.span,
@@ -117,14 +139,20 @@ impl LateLintPass<'_> for DeriveMoreAmbiguousDerivedErrorSources {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for candidate in self.candidates.drain(..) {
-            let Some(contract) = self.catalog.derived_type(candidate.definition, "Error") else {
+        for analyze_candidate in self.candidates.drain(..) {
+            // Prepare the values used by this stage.
+            let Some(contract) = self
+                .catalog
+                .derived_type(analyze_candidate.definition, "Error")
+            else {
                 continue;
             };
+
+            // Perform the next step of the analysis.
             Violation {
-                span: candidate.span,
+                span: analyze_candidate.span,
                 name: contract.name.to_string(),
-                competing_field: candidate.competing_field,
+                competing_field: analyze_candidate.competing_field,
             }
             .emit(cx);
         }

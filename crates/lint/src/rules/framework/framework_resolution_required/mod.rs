@@ -29,9 +29,9 @@ use crate::rules::strum::utils::enumeration::CollectionCandidate;
 #[cfg(all(feature = "thiserror", feature = "derive_more"))]
 use crate::rules::thiserror::contracts::ThiserrorContractCatalog;
 #[cfg(all(feature = "thiserror", feature = "derive_more"))]
-use crate::rules::thiserror::manual_error::ManualErrorCatalog;
+use crate::rules::thiserror::manual_error::Catalog as ManualErrorCatalog;
 #[cfg(all(feature = "thiserror", feature = "derive_more"))]
-use crate::rules::thiserror::manual_from::ManualFromCandidate;
+use crate::rules::thiserror::manual_from::Candidate as ManualFromCandidate;
 #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 use crate::utils::config::LibraryConfig;
 #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
@@ -39,13 +39,10 @@ use crate::utils::diagnostic::LateViolation;
 #[cfg(feature = "strum")]
 use crate::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer};
 
-// -----------------------------------------------------------------------------
-// Violation: Missing provider resolution
-// -----------------------------------------------------------------------------
-
 /// Exhaustive enum collection whose two compatible Strum APIs need explicit policy.
 #[cfg(feature = "strum")]
 struct CollectionViolation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
 }
 
@@ -83,6 +80,7 @@ impl LateViolation for CollectionViolation {
 /// Complete enum predicate family whose two derive providers need explicit policy.
 #[cfg(feature = "strum")]
 struct PredicateViolation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
 }
 
@@ -118,7 +116,9 @@ impl LateViolation for PredicateViolation {
 }
 
 #[cfg(feature = "strum")]
+/// Carries the `DisplayViolation` state used by this analysis.
 struct DisplayViolation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
 }
 
@@ -127,14 +127,17 @@ impl LateViolation for DisplayViolation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("enum display has multiple eligible framework resolutions")
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("Strum and derive_more can both generate this static enum `Display` contract")
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "set `derive_resolution.enum_display` to `strum_display` or `derive_more_display`",
         )
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         cx.emit_span_lint(
             FRAMEWORK_RESOLUTION_REQUIRED,
@@ -149,7 +152,9 @@ impl LateViolation for DisplayViolation {
 }
 
 #[cfg(feature = "strum")]
+/// Carries the `ParserViolation` state used by this analysis.
 struct ParserViolation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
 }
 
@@ -158,16 +163,19 @@ impl LateViolation for ParserViolation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("enum string parsing has multiple eligible framework resolutions")
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "Strum `EnumString` and derive_more `FromStr` can both generate this flat unit-enum parser",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "set `derive_resolution.enum_string_parsing` to `strum_enum_string` or `derive_more_from_str`",
         )
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         cx.emit_span_lint(
             FRAMEWORK_RESOLUTION_REQUIRED,
@@ -182,7 +190,9 @@ impl LateViolation for ParserViolation {
 }
 
 #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+/// Carries the `ErrorConversionViolation` state used by this analysis.
 struct ErrorConversionViolation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
 }
 
@@ -218,8 +228,11 @@ impl LateViolation for ErrorConversionViolation {
 }
 
 #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+/// Carries the `ErrorImplementationViolation` state used by this analysis.
 struct ErrorImplementationViolation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `name` value used by this analysis.
     name: String,
 }
 
@@ -257,31 +270,36 @@ impl LateViolation for ErrorImplementationViolation {
     }
 }
 
-// -----------------------------------------------------------------------------
-// FrameworkResolutionRequired: Provider arbitration
-// -----------------------------------------------------------------------------
-
 /// Reports unresolved framework choices without selecting a provider.
 struct FrameworkResolutionRequired {
     #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
+    /// Stores the `config` value used by this analysis.
     config: DeriveResolutionConfig,
     #[cfg(feature = "strum")]
+    /// Stores the `predicates` value used by this analysis.
     predicates: PredicateFamilyAnalyzer,
     #[cfg(feature = "strum")]
+    /// Stores the `catalog` value used by this analysis.
     catalog: ContractCatalog,
     #[cfg(feature = "strum")]
+    /// Stores the `displays` value used by this analysis.
     displays: Vec<DisplayCandidate>,
     #[cfg(feature = "strum")]
+    /// Stores the `parsers` value used by this analysis.
     parsers: Vec<StringParserCandidate>,
     #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+    /// Stores the `thiserror_catalog` value used by this analysis.
     thiserror_catalog: ThiserrorContractCatalog,
     #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+    /// Stores the `error_conversions` value used by this analysis.
     error_conversions: Vec<ManualFromCandidate>,
     #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+    /// Stores the `manual_errors` value used by this analysis.
     manual_errors: ManualErrorCatalog,
 }
 
 impl FrameworkResolutionRequired {
+    /// Performs the `new` operation for this value.
     fn new() -> Self {
         Self {
             #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
@@ -304,57 +322,73 @@ impl FrameworkResolutionRequired {
     }
 
     #[cfg(feature = "strum")]
-    fn check_candidate(&self, cx: &LateContext<'_>, candidate: Option<CollectionCandidate>) {
-        let Some(candidate) = candidate else {
+    /// Performs the `check_candidate` operation for this value.
+    fn check_candidate(
+        &self,
+        cx: &LateContext<'_>,
+        analyze_candidate: Option<CollectionCandidate>,
+    ) {
+        // Prepare the values used by this stage.
+        let Some(analyze_candidate) = analyze_candidate else {
             return;
         };
-        if candidate.providers().len() > 1 && self.config.enum_variant_collection().is_none() {
-            CollectionViolation {
-                span: candidate.span,
-            }
-            .emit(cx);
+        if !(analyze_candidate.providers().len() > 1
+            && self.config.enum_variant_collection().is_none())
+        // Perform the next step of the analysis.
+        {
+            return;
         }
+        CollectionViolation {
+            span: analyze_candidate.span,
+        }
+        .emit(cx);
     }
 
     #[cfg(feature = "strum")]
+    /// Performs the `emit_unresolved_predicates` operation for this value.
     fn emit_unresolved_predicates(&self, cx: &LateContext<'_>) {
         for family in self.predicates.complete_families(cx) {
-            if PredicateFamily::providers(cx).len() > 1
-                && self.config.enum_variant_predicates().is_none()
+            if !(PredicateFamily::providers(cx).len() > 1
+                && self.config.enum_variant_predicates().is_none())
             {
-                PredicateViolation { span: family.span }.emit(cx);
+                continue;
             }
+            PredicateViolation { span: family.span }.emit(cx);
         }
     }
 
     #[cfg(feature = "strum")]
+    /// Performs the `emit_unresolved_text_contracts` operation for this value.
     fn emit_unresolved_text_contracts(&self, cx: &LateContext<'_>) {
         let contracts = self.catalog.contracts();
         if DisplayProvider::providers(cx).len() > 1 && self.config.enum_display().is_none() {
             for display in &self.displays {
-                if contracts.iter().any(|contract| {
+                if !(contracts.iter().any(|contract| {
                     contract.def_id == display.enum_def
                         && contract.variants.iter().all(|variant| {
                             display.values.get(&variant.def_id) == Some(&variant.preferred_name)
                         })
-                }) {
-                    DisplayViolation { span: display.span }.emit(cx);
+                })) {
+                    continue;
                 }
+                DisplayViolation { span: display.span }.emit(cx);
             }
         }
-        if StringParserProvider::providers(cx).len() > 1
-            && self.config.enum_string_parsing().is_none()
+        if StringParserProvider::providers(cx).len() <= 1
+            || self.config.enum_string_parsing().is_some()
         {
-            for parser in &self.parsers {
-                if contracts.iter().any(|contract| {
-                    contract.def_id == parser.enum_def
-                        && contract.variants.iter().all(|variant| {
-                            parser.names.get(&variant.def_id) == Some(&variant.parser_names)
-                        })
-                }) {
-                    ParserViolation { span: parser.span }.emit(cx);
-                }
+            return;
+        }
+        for parser in &self.parsers {
+            if !(contracts.iter().any(|contract| {
+                contract.def_id == parser.enum_def
+                    && contract.variants.iter().all(|variant| {
+                        parser.names.get(&variant.def_id) == Some(&variant.parser_names)
+                    })
+            })) {
+                continue;
             }
+            ParserViolation { span: parser.span }.emit(cx);
         }
     }
 }
@@ -396,9 +430,11 @@ impl LateLintPass<'_> for FrameworkResolutionRequired {
             }
         }
         #[cfg(all(feature = "thiserror", feature = "derive_more"))]
-        if let Some(candidate) = ManualFromCandidate::from_impl_item(cx, item) {
-            self.error_conversions.push(candidate);
-        }
+        let Some(analyze_candidate) = ManualFromCandidate::from_impl_item(cx, item) else {
+            return;
+        };
+        self.error_conversions.push(analyze_candidate);
+
         #[cfg(not(any(feature = "strum", all(feature = "thiserror", feature = "derive_more"))))]
         let _ = (cx, item);
     }
@@ -412,36 +448,43 @@ impl LateLintPass<'_> for FrameworkResolutionRequired {
         }
         #[cfg(all(feature = "thiserror", feature = "derive_more"))]
         if self.config.error_variant_conversion().is_none() {
-            for candidate in &self.error_conversions {
+            // Reject inputs that do not satisfy this stage.
+            for analyze_candidate in &self.error_conversions {
                 if self
                     .thiserror_catalog
-                    .derived_type(candidate.definition)
-                    .is_some()
-                {
-                    ErrorConversionViolation {
-                        span: candidate.span,
-                    }
-                    .emit(cx);
-                }
-            }
-        }
-        #[cfg(all(feature = "thiserror", feature = "derive_more"))]
-        if self.config.error_implementation().is_none() {
-            for candidate in self.manual_errors.candidates() {
-                if candidate
-                    .source_field
-                    .as_deref()
-                    .is_some_and(|field| field != "source")
+                    .derived_type(analyze_candidate.definition)
+                    .is_none()
                 {
                     continue;
                 }
-                ErrorImplementationViolation {
-                    span: candidate.span,
-                    name: candidate.name,
+                ErrorConversionViolation {
+                    span: analyze_candidate.span,
                 }
                 .emit(cx);
             }
         }
+        #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+        if self.config.error_implementation().is_some() {
+            return;
+        }
+        for analyze_candidate in self.manual_errors.candidates() {
+            // Reject inputs that do not satisfy this stage.
+            if analyze_candidate
+                .source_field
+                .as_deref()
+                .is_some_and(|field| field != "source")
+            {
+                continue;
+            }
+
+            // Perform the next step of the analysis.
+            ErrorImplementationViolation {
+                span: analyze_candidate.span,
+                name: analyze_candidate.name,
+            }
+            .emit(cx);
+        }
+
         #[cfg(not(any(feature = "strum", all(feature = "thiserror", feature = "derive_more"))))]
         let _ = cx;
     }

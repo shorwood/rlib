@@ -25,9 +25,8 @@ const MIN_AMBIGUOUS_PARAMETER_COUNT: usize = 2;
 // -----------------------------------------------------------------------------
 // Parameter: Semantic function parameter analysis
 // -----------------------------------------------------------------------------
-
-/// One simple authored parameter from a function-like declaration.
 #[derive(Clone)]
+/// One simple authored parameter from a function-like declaration.
 pub struct Parameter {
     /// HIR identity used to recognize binding references.
     pub(super) hir_id: HirId,
@@ -48,9 +47,8 @@ pub struct ParameterGroup<'signature> {
     /// Parameters carrying distinct roles through names alone.
     pub(crate) parameters: Vec<&'signature Parameter>,
 }
-
-/// One authored function or method signature with simple named parameters.
 #[derive(Clone)]
+/// One authored function or method signature with simple named parameters.
 pub struct ParameterSignature {
     /// Definition identity used for semantic type queries.
     pub(crate) def_id: LocalDefId,
@@ -65,16 +63,6 @@ pub struct ParameterSignature {
 }
 
 impl ParameterSignature {
-    /// Returns the number of direct authored parameters excluding `self`.
-    pub(crate) const fn parameter_count(&self) -> usize {
-        self.parameters.len()
-    }
-
-    /// Returns the authored function or method name span.
-    pub(crate) const fn name_span(&self) -> Span {
-        self.span
-    }
-
     /// Collects a function or provided method under an authored Rust API boundary.
     pub(crate) fn from_body(
         cx: &LateContext<'_>,
@@ -254,7 +242,7 @@ impl ParameterSignature {
             .map(|parameter| parameter.name.as_str().to_owned())
             .collect::<Vec<_>>();
         names.sort_unstable();
-        parameter_role::names_are_conventional(function.as_str(), kind, &names)
+        parameter_role::parameter_role_names_are_conventional(function.as_str(), kind, &names)
     }
 
     /// Requires precise authored names before inferring distinct domains.
@@ -262,12 +250,22 @@ impl ParameterSignature {
         let mut unique_names = HashSet::new();
         for parameter in parameters {
             let name = parameter.name.as_str();
-            if parameter_role::is_weak(name) {
+            if parameter_role::parameter_role_is_weak(name) {
                 return false;
             }
             unique_names.insert(name);
         }
         unique_names.len() >= MIN_AMBIGUOUS_PARAMETER_COUNT
+    }
+
+    /// Returns the number of direct authored parameters excluding `self`.
+    pub(crate) const fn parameter_count(&self) -> usize {
+        self.parameters.len()
+    }
+
+    /// Returns the authored function or method name span.
+    pub(crate) const fn name_span(&self) -> Span {
+        self.span
     }
 
     /// Returns direct boolean parameters in source order.

@@ -11,7 +11,7 @@ use rustc_span::Span;
 
 use super::control_flow_loop::LoopBodyExt;
 use super::control_flow_metrics::{ControlFlowArmExt, ControlFlowExpressionExt};
-use super::function_structure::FunctionStructureConfig;
+use super::function_structure_config::FunctionStructureConfig;
 
 // -----------------------------------------------------------------------------
 // ControlFlow: Analyze semantic function structure
@@ -40,9 +40,8 @@ pub struct ControlFlowDeepFinding {
     /// Refactoring guidance for reducing nesting.
     pub(crate) help: String,
 }
-
-/// Findings split by public lint identity.
 #[derive(Default)]
+/// Findings split by public lint identity.
 pub struct ControlFlowAnalysis {
     /// Branches that can be inverted into early exits.
     pub(crate) needless_nesting: Vec<ControlFlowFinding>,
@@ -57,7 +56,6 @@ pub struct ControlFlowAnalysis {
 // -----------------------------------------------------------------------------
 // ControlFlowAnalyzer: Traversal state and semantic analysis
 // -----------------------------------------------------------------------------
-
 #[derive(Clone, Copy)]
 /// Early-exit form available when flattening a trailing conditional.
 enum ControlFlowAnalyzerGuardExit {
@@ -68,9 +66,8 @@ enum ControlFlowAnalyzerGuardExit {
     /// A direct loop body can invert the condition and continue early.
     Continue,
 }
-
-/// Return behavior of the outer function under analysis.
 #[derive(Clone, Copy)]
+/// Return behavior of the outer function under analysis.
 pub(super) enum ControlFlowAnalyzerFunctionReturn {
     /// A bare return can exit the outer function.
     Unit,
@@ -88,9 +85,8 @@ impl ControlFlowAnalyzerFunctionReturn {
         }
     }
 }
-
-/// Mutable traversal state shared by the control-flow readability analyses.
 #[derive(Default)]
+/// Mutable traversal state shared by the control-flow readability analyses.
 struct ControlFlowAnalyzerState {
     /// Current semantic nesting depth.
     depth: usize,
@@ -108,9 +104,8 @@ impl ControlFlowAnalyzerState {
             .any(|guardable| guardable.lo() == span.lo() && guardable.hi() == span.hi())
     }
 }
-
-/// More specific remediation available for an excessive-depth finding.
 #[derive(Clone, Copy)]
+/// More specific remediation available for an excessive-depth finding.
 enum ControlFlowAnalyzerDepthRemedy {
     /// Guard-clause guidance supersedes generic depth guidance.
     GuardClause,

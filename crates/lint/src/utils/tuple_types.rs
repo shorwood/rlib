@@ -10,7 +10,6 @@ use rustc_span::Span;
 // -----------------------------------------------------------------------------
 // ExplicitTuple: Tuple classification for authored type annotations
 // -----------------------------------------------------------------------------
-
 #[derive(Clone, Copy, Eq, PartialEq)]
 /// Relationship between a reported tuple and its explicit root type.
 pub enum ExplicitTupleKind {
@@ -89,7 +88,6 @@ impl ExplicitTupleType {
 // -----------------------------------------------------------------------------
 // NestedTupleFinder: First tuple beneath an explicit root type
 // -----------------------------------------------------------------------------
-
 #[derive(Default)]
 /// HIR visitor that records the first tuple beneath an explicit root type.
 struct NestedTupleFinder {

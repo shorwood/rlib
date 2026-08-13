@@ -2,7 +2,8 @@
 
 ## What it does
 
-Requires local type declarations to appear before declarations that reference them.
+Requires local type declarations within each authored section to appear before declarations
+that reference them. Small modules without section dividers keep their authored order.
 Recursive type groups are kept contiguous in their existing internal order.
 
 ## Why is this bad?

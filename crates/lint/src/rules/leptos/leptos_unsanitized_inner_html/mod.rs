@@ -78,6 +78,7 @@ dylint_linting::impl_late_lint! {
 impl LeptosUnsanitizedInnerHtml {
     /// Returns whether the selected method is Leptos's semantic inner HTML attribute operation.
     fn is_inner_html(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // Prepare the values used by this stage.
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
         let Some(method) = cx
             .tcx
@@ -86,6 +87,8 @@ impl LeptosUnsanitizedInnerHtml {
         else {
             return false;
         };
+
+        // Perform the next step of the analysis.
         cx.tcx.crate_name(method.krate).as_str() == "tachys"
             && cx.tcx.item_name(method).as_str() == "inner_html"
             && cx
@@ -117,12 +120,15 @@ impl LeptosUnsanitizedInnerHtml {
         cx: &LateContext<'tcx>,
         expression: &'tcx Expr<'tcx>,
     ) -> &'tcx Expr<'tcx> {
+        // Prepare the values used by this stage.
         let ExprKind::Call(callee, [value]) = expression.kind else {
             return expression;
         };
         let ExprKind::Path(path) = callee.kind else {
             return expression;
         };
+
+        // Prepare the values used by this stage.
         let Res::Def(_, method) = cx.qpath_res(&path, callee.hir_id) else {
             return expression;
         };
@@ -130,12 +136,15 @@ impl LeptosUnsanitizedInnerHtml {
             && cx.tcx.trait_of_assoc(method).is_some_and(|trait_id| {
                 cx.tcx.item_name(trait_id).as_str() == "IntoAttributeValue"
             });
+
+        // Reject inputs that do not satisfy this stage.
         if is_conversion { value } else { expression }
     }
 }
 
 impl<'tcx> LateLintPass<'tcx> for LeptosUnsanitizedInnerHtml {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Prepare the values used by this stage.
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return;
         };
@@ -143,6 +152,8 @@ impl<'tcx> LateLintPass<'tcx> for LeptosUnsanitizedInnerHtml {
             return;
         };
         let value = Self::authored_value(cx, value);
+
+        // Prepare the values used by this stage.
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
         if !Self::is_inner_html(cx, expression)
             || Self::is_string_literal(value)
@@ -150,6 +161,8 @@ impl<'tcx> LateLintPass<'tcx> for LeptosUnsanitizedInnerHtml {
         {
             return;
         }
+
+        // Perform the next step of the analysis.
         Violation {
             owner: expression.hir_id,
             span: value.span,

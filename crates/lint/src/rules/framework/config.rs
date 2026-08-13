@@ -1,18 +1,23 @@
 use serde::Deserialize;
 
-#[cfg(feature = "thiserror")]
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[cfg(feature = "thiserror")]
 #[serde(rename_all = "snake_case")]
+/// Classifies `ErrorVariantConversionProvider` cases used by this analysis.
 pub enum ErrorVariantConversionProvider {
+    /// Represents the `DeriveMoreFrom` case.
     DeriveMoreFrom,
+    /// Represents the `ThiserrorFrom` case.
     ThiserrorFrom,
 }
-
-#[cfg(feature = "thiserror")]
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[cfg(feature = "thiserror")]
 #[serde(rename_all = "snake_case")]
+/// Classifies `ErrorImplementationProvider` cases used by this analysis.
 pub enum ErrorImplementationProvider {
+    /// Represents the `DeriveMoreError` case.
     DeriveMoreError,
+    /// Represents the `ThiserrorError` case.
     ThiserrorError,
 }
 
@@ -26,9 +31,8 @@ use crate::utils::variant_methods::PredicateProvider;
 // -----------------------------------------------------------------------------
 // DeriveResolutionConfig: Explicit framework provider policy
 // -----------------------------------------------------------------------------
-
-/// Workspace-wide provider choices for overlapping framework remediations.
 #[derive(Clone, Default, Deserialize)]
+/// Workspace-wide provider choices for overlapping framework remediations.
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct DeriveResolutionConfig {
     /// Provider selected for complete error implementations.
@@ -53,13 +57,17 @@ pub struct DeriveResolutionConfig {
 
 impl DeriveResolutionConfig {
     #[cfg(feature = "thiserror")]
+    /// Performs the `error_implementation` operation for this value.
     pub(crate) const fn error_implementation(&self) -> Option<ErrorImplementationProvider> {
         self.error_implementation
     }
+
     #[cfg(feature = "thiserror")]
+    /// Performs the `error_variant_conversion` operation for this value.
     pub(crate) const fn error_variant_conversion(&self) -> Option<ErrorVariantConversionProvider> {
         self.error_variant_conversion
     }
+
     /// Returns the configured provider for exhaustive enum collections.
     #[cfg(feature = "strum")]
     pub(crate) const fn enum_variant_collection(&self) -> Option<CollectionProvider> {

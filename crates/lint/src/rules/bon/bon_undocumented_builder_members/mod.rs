@@ -9,16 +9,67 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{
-    attribute_source, builder_attribute, builder_attribute_contains, derives_bon_builder,
-    has_attribute, is_option_type,
-};
+use super::utils::{BonAttributeAnalysis, builder_attribute, has_attribute, is_option_type};
 use crate::utils::diagnostic::EarlyViolation;
 
+/// Carries the `Violation` state used by this analysis.
 struct Violation {
+    /// Stores the `span` value used by this analysis.
     span: Span,
+    /// Stores the `member` value used by this analysis.
     member: String,
+    /// Stores the `behavior` value used by this analysis.
     behavior: &'static str,
+}
+
+impl Violation {
+    /// Performs the `member_violation` step of the lint analysis.
+    fn member_violation(
+        cx: &EarlyContext<'_>,
+        attributes: &[rustc_ast::Attribute],
+        ty_span: Span,
+        member: &str,
+    ) -> Option<Self> {
+        // Prepare the values used by this stage.
+        let builder_documents = builder_attribute(attributes).is_some_and(|attribute| {
+            BonAttributeAnalysis::source(cx, attribute).is_ok_and(|source| source.contains("doc"))
+        });
+        if has_attribute(attributes, "doc") || builder_documents {
+            return None;
+        }
+
+        // Prepare the values used by this stage.
+        let ty = match cx.sess().source_map().span_to_snippet(ty_span) {
+            Ok(ty) => ty,
+            Err(_error) => return None,
+        };
+        let behavior = if is_option_type(&ty)
+            && !BonAttributeAnalysis::builder_contains(cx, attributes, "required")
+        // Perform the next step of the analysis.
+        {
+            "optional"
+        } else if BonAttributeAnalysis::builder_contains(cx, attributes, "default") {
+            "default"
+        } else if BonAttributeAnalysis::builder_contains(cx, attributes, "into")
+            || BonAttributeAnalysis::builder_contains(cx, attributes, "with")
+        {
+            "conversion"
+        } else {
+            if !BonAttributeAnalysis::builder_contains(cx, attributes, "skip")
+                && !BonAttributeAnalysis::builder_contains(cx, attributes, "field")
+            {
+                return None;
+            }
+            "hidden initialization"
+        };
+
+        // Return the completed analysis result.
+        Some(Self {
+            span: ty_span,
+            member: member.trim().to_owned(),
+            behavior,
+        })
+    }
 }
 
 impl EarlyViolation for Violation {
@@ -55,6 +106,26 @@ impl EarlyViolation for Violation {
     }
 }
 
+/// Performs the `parameter_violation` step of the lint analysis.
+fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
+    let member = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
+        Ok(member) => member,
+        Err(_error) => return None,
+    };
+    Violation::member_violation(cx, &parameter.attrs, parameter.ty.span, &member)
+}
+
+/// Performs the `field_violation` step of the lint analysis.
+fn field_violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Violation> {
+    Violation::member_violation(
+        cx,
+        &field.attrs,
+        field.ty.span,
+        &field.ident?.name.to_string(),
+    )
+}
+
+/// Carries the `BonUndocumentedBuilderMembers` state used by this analysis.
 struct BonUndocumentedBuilderMembers;
 
 dylint_linting::impl_pre_expansion_lint! {
@@ -73,69 +144,23 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
         match &item.kind {
             ItemKind::Fn(function) if builder_attribute(&item.attrs).is_some() => {
                 for parameter in &function.sig.decl.inputs {
-                    if let Some(violation) = parameter_violation(cx, parameter) {
-                        violation.emit(cx);
-                    }
+                    let Some(violation) = parameter_violation(cx, parameter) else {
+                        continue;
+                    };
+                    violation.emit(cx);
                 }
             }
-            ItemKind::Struct(_, _, data) if derives_bon_builder(cx, &item.attrs) => {
+            ItemKind::Struct(_, _, data)
+                if BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
+            {
                 for field in data.fields() {
-                    if let Some(violation) = field_violation(cx, field) {
-                        violation.emit(cx);
-                    }
+                    let Some(violation) = field_violation(cx, field) else {
+                        continue;
+                    };
+                    violation.emit(cx);
                 }
             }
             _ => {}
         }
     }
-}
-
-fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
-    let member = cx
-        .sess()
-        .source_map()
-        .span_to_snippet(parameter.pat.span)
-        .ok()?;
-    member_violation(cx, &parameter.attrs, parameter.ty.span, &member)
-}
-
-fn field_violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Violation> {
-    member_violation(
-        cx,
-        &field.attrs,
-        field.ty.span,
-        &field.ident?.name.to_string(),
-    )
-}
-
-fn member_violation(
-    cx: &EarlyContext<'_>,
-    attributes: &[rustc_ast::Attribute],
-    ty_span: Span,
-    member: &str,
-) -> Option<Violation> {
-    let builder_source = builder_attribute(attributes)
-        .and_then(|attribute| attribute_source(cx, attribute))
-        .unwrap_or_default();
-    if has_attribute(attributes, "doc") || builder_source.contains("doc") {
-        return None;
-    }
-    let ty = cx.sess().source_map().span_to_snippet(ty_span).ok()?;
-    let behavior = if is_option_type(&ty) && !builder_attribute_contains(cx, attributes, "required")
-    {
-        "optional"
-    } else if builder_source.contains("default") {
-        "default"
-    } else if builder_source.contains("into") || builder_source.contains("with") {
-        "conversion"
-    } else if builder_source.contains("skip") || builder_source.contains("field") {
-        "hidden initialization"
-    } else {
-        return None;
-    };
-    Some(Violation {
-        span: ty_span,
-        member: member.trim().to_owned(),
-        behavior,
-    })
 }

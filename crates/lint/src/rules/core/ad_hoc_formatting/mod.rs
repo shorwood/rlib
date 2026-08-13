@@ -111,12 +111,12 @@ impl LateViolation for Violation {
             first.source.span,
             DiagDecorator(|diag| {
                 diag.primary_message(primary);
-                for candidate in self.finding.candidates {
+                for analyze_candidate in self.finding.candidates {
                     diag.span_label(
-                        candidate.source.span,
+                        analyze_candidate.source.span,
                         format!(
                             "`{}` contributes this representation",
-                            candidate.source.name
+                            analyze_candidate.source.name
                         ),
                     );
                 }
@@ -130,9 +130,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // AdHocFormatting: Crate wide lint pass
 // -----------------------------------------------------------------------------
-
-/// Collects text-producing APIs, standard implementations, and error-specific ownership.
 #[derive(Default)]
+/// Collects text-producing APIs, standard implementations, and error-specific ownership.
 struct AdHocFormatting {
     /// Shared crate-wide standard-interface evidence.
     interfaces: StandardInterfaceAnalysis,
