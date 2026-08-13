@@ -44,3 +44,9 @@ pub(super) fn builder_attribute_contains(
         .and_then(|attribute| attribute_source(cx, attribute))
         .is_some_and(|source| source.contains(needle))
 }
+
+pub(super) fn has_attribute(attributes: &[Attribute], name: &str) -> bool {
+    attributes
+        .iter()
+        .any(|attribute| attribute_name(attribute).is_some_and(|actual| actual.as_str() == name))
+}
