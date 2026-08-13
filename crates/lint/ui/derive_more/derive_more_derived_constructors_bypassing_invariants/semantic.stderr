@@ -1,0 +1,15 @@
+warning: derive_more generates raw construction for `Percentage` despite its checked constructor
+  --> $DIR/semantic.rs:4:8
+   |
+LL | struct Percentage(u8);
+   |        ^^^^^^^^^^ this derive exposes raw field assembly
+...
+LL |     fn checked(value: u8) -> Result<Self, &'static str> {
+   |        ------- this constructor owns fallible validation
+   |
+   = note: the derived public `new` method can assemble restricted fields without passing through the fallible invariant boundary
+   = help: remove `derive_more::Constructor` and retain the checked constructor as the construction boundary
+   = note: `#[warn(derive_more_derived_constructors_bypassing_invariants)]` on by default
+
+warning: 1 warning emitted
+

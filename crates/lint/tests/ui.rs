@@ -288,6 +288,7 @@ fn run_bon_fixtures() {
 fn run_derive_more_fixtures() {
     let selected = selected_framework_fixture();
     for example in [
+        "derive_more_derived_constructors_bypassing_invariants",
         "derive_more_manual_conversion_impls",
         "derive_more_manual_constructors",
     ] {

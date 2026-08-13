@@ -105,6 +105,11 @@ path = "ui/bon/bon_undocumented_builder_members/semantic.rs"
 required-features = ["bon"]
 
 [[example]]
+name = "derive_more_derived_constructors_bypassing_invariants"
+path = "ui/derive_more/derive_more_derived_constructors_bypassing_invariants/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
 name = "derive_more_manual_conversion_impls"
 path = "ui/derive_more/derive_more_manual_conversion_impls/semantic.rs"
 required-features = ["derive_more"]

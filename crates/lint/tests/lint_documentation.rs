@@ -30,7 +30,7 @@ fn active_lints_have_canonical_public_documentation() {
     let expected = 60
         + 14 * usize::from(cfg!(feature = "bon"))
         + 26 * usize::from(cfg!(feature = "leptos"))
-        + 2 * usize::from(cfg!(feature = "derive_more"))
+        + 3 * usize::from(cfg!(feature = "derive_more"))
         + usize::from(cfg!(feature = "framework"))
         + 19 * usize::from(cfg!(feature = "strum"));
     assert_eq!(
