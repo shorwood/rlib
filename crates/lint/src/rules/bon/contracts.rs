@@ -20,6 +20,7 @@ pub(super) struct BonStructContract {
 pub(super) struct BonContractCatalog {
     structs: HashMap<LocalDefId, BonStructContract>,
     derived: HashSet<LocalDefId>,
+    generated_types: HashSet<LocalDefId>,
 }
 
 impl BonContractCatalog {
@@ -48,8 +49,18 @@ impl BonContractCatalog {
             .flatten()
     }
 
+    pub(super) fn is_generated_type(&self, def_id: LocalDefId) -> bool {
+        self.generated_types.contains(&def_id)
+    }
+
     fn record_generated_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        if !is_bon_builder_expansion(cx, item.span) || !matches!(item.kind, ItemKind::Impl(_)) {
+        if !is_bon_expansion(cx, item.span) {
+            return;
+        }
+        if matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..)) {
+            self.generated_types.insert(item.owner_id.def_id);
+        }
+        if !matches!(item.kind, ItemKind::Impl(_)) || !is_bon_builder_expansion(cx, item.span) {
             return;
         }
         let Some(definition) = cx
@@ -63,6 +74,14 @@ impl BonContractCatalog {
         };
         self.derived.insert(definition);
     }
+}
+
+fn is_bon_expansion(cx: &LateContext<'_>, span: Span) -> bool {
+    span.macro_backtrace().any(|expansion| {
+        expansion
+            .macro_def_id
+            .is_some_and(|definition| cx.tcx.crate_name(definition.krate).as_str() == "bon_macros")
+    })
 }
 
 pub(super) fn is_bon_builder_expansion(cx: &LateContext<'_>, span: Span) -> bool {

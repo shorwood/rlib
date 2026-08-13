@@ -230,6 +230,7 @@ fn run_bon_fixtures() {
         "bon_manual_builder_implementations",
         "bon_needless_builders_for_small_apis",
         "bon_parameter_heavy_apis_without_builders",
+        "bon_public_builder_implementation_types",
         "bon_redundant_positional_and_builder_apis",
         "bon_skipped_builder_members_without_policy",
         "bon_undocumented_builder_members",

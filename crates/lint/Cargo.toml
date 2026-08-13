@@ -74,6 +74,11 @@ path = "ui/bon/bon_parameter_heavy_apis_without_builders/semantic.rs"
 required-features = ["bon"]
 
 [[example]]
+name = "bon_public_builder_implementation_types"
+path = "ui/bon/bon_public_builder_implementation_types/semantic.rs"
+required-features = ["bon"]
+
+[[example]]
 name = "bon_redundant_positional_and_builder_apis"
 path = "ui/bon/bon_redundant_positional_and_builder_apis/semantic.rs"
 required-features = ["bon"]
