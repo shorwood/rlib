@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 default = ["leptos"]
 framework = []
 bon = []
-derive_more = ["framework"]
+derive_more = ["framework", "dep:syn"]
 leptos = ["dep:proc-macro2", "dep:quote", "dep:rstml", "dep:syn"]
 strum = ["framework", "dep:syn"]
 
@@ -107,6 +107,11 @@ required-features = ["bon"]
 [[example]]
 name = "derive_more_derived_constructors_bypassing_invariants"
 path = "ui/derive_more/derive_more_derived_constructors_bypassing_invariants/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
+name = "derive_more_inconsistent_derived_equality"
+path = "ui/derive_more/derive_more_inconsistent_derived_equality/semantic.rs"
 required-features = ["derive_more"]
 
 [[example]]

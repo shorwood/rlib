@@ -104,6 +104,7 @@ fn derive_more_expansion(cx: &LateContext<'_>, span: Span) -> Option<&'static st
             "AsMut" => Some("AsMut"),
             "DerefMut" => Some("DerefMut"),
             "IndexMut" => Some("IndexMut"),
+            "PartialEq" => Some("PartialEq"),
             _ => None,
         }
     })

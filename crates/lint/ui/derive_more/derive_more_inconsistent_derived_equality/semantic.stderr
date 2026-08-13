@@ -1,0 +1,15 @@
+warning: derived equality for `Key` conflicts with its derived Hash contract
+  --> $DIR/semantic.rs:6:8
+   |
+LL | struct Key {
+   |        ^^^
+   |        |
+   |        derive_more equality is configured here
+   |        1 field is omitted only from equality
+   |
+   = note: equality skips fields that the structural hash or total-order implementation still observes, violating their required agreement
+   = help: use the same selected fields for equality, hashing, and ordering, or move the alternative identity into a dedicated wrapper type
+   = note: `#[warn(derive_more_inconsistent_derived_equality)]` on by default
+
+warning: 1 warning emitted
+
