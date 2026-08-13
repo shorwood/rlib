@@ -226,6 +226,7 @@ fn run_bon_fixtures() {
         "bon_incoherent_builder_vocabulary",
         "bon_incoherent_conditional_builder_members",
         "bon_inconsistent_builder_conversions",
+        "bon_manual_builder_implementations",
         "bon_needless_builders_for_small_apis",
         "bon_parameter_heavy_apis_without_builders",
         "bon_redundant_positional_and_builder_apis",

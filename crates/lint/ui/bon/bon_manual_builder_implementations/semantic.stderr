@@ -1,0 +1,12 @@
+warning: manual builder `RequestBuilder` has a Bon-compatible structural protocol
+  --> $DIR/semantic.rs:8:8
+   |
+LL | struct RequestBuilder {
+   |        ^^^^^^^^^^^^^^ this authored type duplicates Bon's builder protocol
+   |
+   = note: its start method, 2 consuming setters, and infallible terminal method reproduce generated builder mechanics
+   = help: derive `bon::Builder` for structural construction, or put `#[builder]` on the domain constructor when it owns policy
+   = note: `#[warn(bon_manual_builder_implementations)]` on by default
+
+warning: 1 warning emitted
+

@@ -1,0 +1,169 @@
+extern crate rustc_errors;
+extern crate rustc_hir;
+extern crate rustc_middle;
+extern crate rustc_span;
+
+use std::borrow::Cow;
+use std::collections::HashMap;
+
+use rustc_errors::DiagDecorator;
+use rustc_hir::{ImplItem, ImplItemKind, Item, ItemKind, Node};
+use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_middle::ty;
+use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
+
+use crate::utils::diagnostic::LateViolation;
+use crate::utils::impl_target::ImplTargetExt;
+
+struct Violation {
+    span: Span,
+    name: String,
+    setters: usize,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "manual builder `{}` has a Bon-compatible structural protocol",
+            self.name
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "its start method, {} consuming setters, and infallible terminal method reproduce generated builder mechanics",
+            self.setters
+        ))
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "derive `bon::Builder` for structural construction, or put `#[builder]` on the domain constructor when it owns policy",
+        )
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        cx.emit_span_lint(
+            BON_MANUAL_BUILDER_IMPLEMENTATIONS,
+            self.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(self.primary_message().into_owned());
+                diag.span_label(
+                    self.span,
+                    "this authored type duplicates Bon's builder protocol",
+                );
+                diag.note(self.rationale_message().into_owned());
+                diag.help(self.remediation_message().into_owned());
+            }),
+        );
+    }
+}
+
+#[derive(Default)]
+struct Candidate {
+    span: Span,
+    name: String,
+    fields: usize,
+    has_start: bool,
+    setters: usize,
+    has_terminal: bool,
+}
+
+#[derive(Default)]
+struct BonManualBuilderImplementations {
+    candidates: HashMap<LocalDefId, Candidate>,
+}
+
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub BON_MANUAL_BUILDER_IMPLEMENTATIONS,
+    Warn,
+    "finds manual structural builders reproducible by Bon",
+    BonManualBuilderImplementations::default()
+}
+
+impl LateLintPass<'_> for BonManualBuilderImplementations {
+    fn check_item(&mut self, _cx: &LateContext<'_>, item: &Item<'_>) {
+        let ItemKind::Struct(identifier, _, data) = item.kind else {
+            return;
+        };
+        let name = identifier.name.as_str();
+        if item.span.from_expansion() || !name.ends_with("Builder") || data.fields().len() < 2 {
+            return;
+        }
+        self.candidates.insert(
+            item.owner_id.def_id,
+            Candidate {
+                span: identifier.span,
+                name: name.to_owned(),
+                fields: data.fields().len(),
+                ..Candidate::default()
+            },
+        );
+    }
+
+    fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        let ImplItemKind::Fn(signature, _) = item.kind else {
+            return;
+        };
+        if item.span.from_expansion() {
+            return;
+        }
+        let implementation = cx.tcx.local_parent(item.owner_id.def_id);
+        let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
+            return;
+        };
+        let Some(definition) = parent.direct_struct(cx) else {
+            return;
+        };
+        let Some(candidate) = self.candidates.get_mut(&definition) else {
+            return;
+        };
+        let function = cx
+            .tcx
+            .fn_sig(item.owner_id.def_id)
+            .instantiate_identity()
+            .skip_binder();
+        let output_is_builder = matches!(function.output().kind(), ty::Adt(adt, _) if adt.did() == definition.to_def_id());
+        let receiver_is_builder = function
+            .inputs()
+            .first()
+            .is_some_and(|receiver| matches!(receiver.kind(), ty::Adt(adt, _) if adt.did() == definition.to_def_id()));
+        let name = item.ident.name.as_str();
+        if !signature.decl.implicit_self.has_implicit_self() {
+            candidate.has_start |=
+                name == "new" && function.inputs().is_empty() && output_is_builder;
+        } else if receiver_is_builder && function.inputs().len() == 2 && output_is_builder {
+            candidate.setters += 1;
+        } else if receiver_is_builder
+            && function.inputs().len() == 1
+            && matches!(name, "build" | "complete" | "finish")
+            && !output_is_builder
+            && !is_fallible(cx, function.output())
+        {
+            candidate.has_terminal = true;
+        }
+    }
+
+    fn check_crate_post(&mut self, cx: &LateContext<'_>) {
+        for candidate in self.candidates.values() {
+            if candidate.has_start
+                && candidate.has_terminal
+                && candidate.setters >= 2
+                && candidate.setters >= candidate.fields
+            {
+                Violation {
+                    span: candidate.span,
+                    name: candidate.name.clone(),
+                    setters: candidate.setters,
+                }
+                .emit(cx);
+            }
+        }
+    }
+}
+
+fn is_fallible(cx: &LateContext<'_>, ty: ty::Ty<'_>) -> bool {
+    matches!(ty.kind(), ty::Adt(definition, _) if matches!(cx.tcx.item_name(definition.did()).as_str(), "Result" | "Option"))
+}

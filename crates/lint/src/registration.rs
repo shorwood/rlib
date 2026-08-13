@@ -27,6 +27,8 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "bon")]
     rules::bon::bon_inconsistent_builder_conversions::register_lints(sess, lint_store);
     #[cfg(feature = "bon")]
+    rules::bon::bon_manual_builder_implementations::register_lints(sess, lint_store);
+    #[cfg(feature = "bon")]
     rules::bon::bon_needless_builders_for_small_apis::register_lints(sess, lint_store);
     #[cfg(feature = "bon")]
     rules::bon::bon_parameter_heavy_apis_without_builders::register_lints(sess, lint_store);

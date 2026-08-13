@@ -54,6 +54,11 @@ path = "ui/bon/bon_inconsistent_builder_conversions/semantic.rs"
 required-features = ["bon"]
 
 [[example]]
+name = "bon_manual_builder_implementations"
+path = "ui/bon/bon_manual_builder_implementations/semantic.rs"
+required-features = ["bon"]
+
+[[example]]
 name = "bon_needless_builders_for_small_apis"
 path = "ui/bon/bon_needless_builders_for_small_apis/semantic.rs"
 required-features = ["bon"]
