@@ -10,7 +10,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::BonAttributeAnalysis;
+use super::utils::attributes::BonAttributeAnalysis;
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -81,11 +81,6 @@ struct ConversionMember {
 /// Compares conversion behavior among members with the same representation.
 struct BonInconsistentBuilderConversions;
 
-impl BonInconsistentBuilderConversions {
-    /// Minimum same-typed members needed to compare conversion policy.
-    const MINIMUM_COMPARABLE_MEMBERS: usize = 2;
-}
-
 dylint_linting::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub BON_INCONSISTENT_BUILDER_CONVERSIONS,
@@ -94,6 +89,10 @@ dylint_linting::impl_pre_expansion_lint! {
     BonInconsistentBuilderConversions
 }
 
+impl BonInconsistentBuilderConversions {
+    /// Minimum same-typed members needed to compare conversion policy.
+    const MINIMUM_COMPARABLE_MEMBERS: usize = 2;
+}
 impl EarlyLintPass for BonInconsistentBuilderConversions {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         let ItemKind::Fn(function) = &item.kind else {

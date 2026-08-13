@@ -11,16 +11,16 @@ use rustc_span::{Span, Symbol};
 // -----------------------------------------------------------------------------
 
 /// Owns source-level analysis of Bon-related attributes.
-pub(super) struct BonAttributeAnalysis;
+pub struct BonAttributeAnalysis;
 
 impl BonAttributeAnalysis {
     /// Returns the final path component of an attribute.
-    pub(super) fn name(attribute: &Attribute) -> Option<Symbol> {
+    pub fn name(attribute: &Attribute) -> Option<Symbol> {
         attribute.path().last().copied()
     }
 
     /// Recovers the authored source for an attribute.
-    pub(super) fn source(cx: &EarlyContext<'_>, attribute: &Attribute) -> Result<String, ()> {
+    pub fn source(cx: &EarlyContext<'_>, attribute: &Attribute) -> Result<String, ()> {
         cx.sess()
             .source_map()
             .span_to_snippet(attribute.span)
@@ -28,7 +28,7 @@ impl BonAttributeAnalysis {
     }
 
     /// Returns a plain `builder` attribute with no additional policy.
-    pub(super) fn plain_builder(cx: &EarlyContext<'_>, attributes: &[Attribute]) -> Option<Span> {
+    pub fn plain_builder(cx: &EarlyContext<'_>, attributes: &[Attribute]) -> Option<Span> {
         let attribute = Self::builder(attributes)?;
         let source = match Self::source(cx, attribute) {
             Ok(source) => source,
@@ -38,11 +38,7 @@ impl BonAttributeAnalysis {
     }
 
     /// Returns whether a builder attribute contains an authored policy token.
-    pub(super) fn builder_contains(
-        cx: &EarlyContext<'_>,
-        attributes: &[Attribute],
-        needle: &str,
-    ) -> bool {
+    pub fn builder_contains(cx: &EarlyContext<'_>, attributes: &[Attribute], needle: &str) -> bool {
         let Some(attribute) = Self::builder(attributes) else {
             return false;
         };
@@ -50,7 +46,7 @@ impl BonAttributeAnalysis {
     }
 
     /// Returns whether the attributes derive `bon::Builder`.
-    pub(super) fn derives_builder(cx: &EarlyContext<'_>, attributes: &[Attribute]) -> bool {
+    pub fn derives_builder(cx: &EarlyContext<'_>, attributes: &[Attribute]) -> bool {
         attributes.iter().any(|attribute| {
             Self::name(attribute).is_some_and(|name| name.as_str() == "derive")
                 && Self::source(cx, attribute).is_ok_and(|source| source.contains("bon::Builder"))
@@ -58,14 +54,14 @@ impl BonAttributeAnalysis {
     }
 
     /// Returns the first Bon builder attribute in a declaration.
-    pub(super) fn builder(attributes: &[Attribute]) -> Option<&Attribute> {
+    pub fn builder(attributes: &[Attribute]) -> Option<&Attribute> {
         attributes
             .iter()
             .find(|attribute| Self::name(attribute).is_some_and(|name| name.as_str() == "builder"))
     }
 
     /// Returns whether a declaration carries an attribute with the requested final path name.
-    pub(super) fn has(attributes: &[Attribute], name: &str) -> bool {
+    pub fn has(attributes: &[Attribute], name: &str) -> bool {
         attributes
             .iter()
             .any(|attribute| Self::name(attribute).is_some_and(|actual| actual.as_str() == name))
@@ -77,16 +73,16 @@ impl BonAttributeAnalysis {
 // -----------------------------------------------------------------------------
 
 /// Authored attribute source and the named key to extract from it.
-pub(super) struct ConfiguredIdentifier<'source> {
+pub struct ConfiguredIdentifier<'source> {
     /// Complete authored attribute source.
-    pub(super) source: &'source str,
+    pub source: &'source str,
     /// Configuration key whose identifier value is requested.
-    pub(super) key: &'source str,
+    pub key: &'source str,
 }
 
 impl ConfiguredIdentifier<'_> {
     /// Parses the configured identifier when the key has an identifier-like value.
-    pub(super) fn parse(self) -> Option<String> {
+    pub fn parse(self) -> Option<String> {
         let tail = self
             .source
             .get(self.source.find(self.key)? + self.key.len()..)?
@@ -107,11 +103,11 @@ impl ConfiguredIdentifier<'_> {
 // -----------------------------------------------------------------------------
 
 /// Source-level recognition for optional builder member types.
-pub(super) struct OptionType;
+pub struct OptionType;
 
 impl OptionType {
     /// Recognizes common source spellings of `Option<T>`.
-    pub(super) fn is_option(ty: &str) -> bool {
+    pub fn is_option(ty: &str) -> bool {
         let compact: String = ty
             .chars()
             .filter(|character| !character.is_whitespace())

@@ -9,7 +9,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::BonAttributeAnalysis;
+use super::utils::attributes::BonAttributeAnalysis;
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -107,7 +107,6 @@ impl BonNeedlessBuildersForSmallApis {
         Some(inputs.len())
     }
 }
-
 impl EarlyLintPass for BonNeedlessBuildersForSmallApis {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         if !matches!(item.vis.kind, VisibilityKind::Inherited) {

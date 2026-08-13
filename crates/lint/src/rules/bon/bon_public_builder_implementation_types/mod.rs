@@ -12,7 +12,7 @@ use rustc_middle::ty::{self, Ty};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::BonContractCatalog;
+use super::utils::contracts::BonContractCatalog;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -75,45 +75,6 @@ struct Exposure {
     ty: String,
 }
 
-/// Recursively records named definitions nested in one public type.
-fn exposure_collect_definitions(
-    cx: &LateContext<'_>,
-    ty: Ty<'_>,
-    span: Span,
-    exposures: &mut Vec<Exposure>,
-) {
-    match ty.kind() {
-        ty::Adt(definition, arguments) => {
-            if let Some(definition) = definition.did().as_local() {
-                let spelling = cx
-                    .sess()
-                    .source_map()
-                    .span_to_snippet(span)
-                    .unwrap_or_else(|_| cx.tcx.item_name(definition.to_def_id()).to_string());
-
-                exposures.push(Exposure {
-                    span,
-                    definition,
-                    ty: spelling,
-                });
-            }
-            for nested in arguments.types() {
-                exposure_collect_definitions(cx, nested, span, exposures);
-            }
-        }
-        ty::Ref(_, nested, _) | ty::Slice(nested) => {
-            exposure_collect_definitions(cx, *nested, span, exposures);
-        }
-        ty::Array(nested, _) => exposure_collect_definitions(cx, *nested, span, exposures),
-        ty::Tuple(elements) => {
-            for nested in *elements {
-                exposure_collect_definitions(cx, nested, span, exposures);
-            }
-        }
-        _ => {}
-    }
-}
-
 // -----------------------------------------------------------------------------
 // BonPublicBuilderImplementationTypes: Public representation policy
 // -----------------------------------------------------------------------------
@@ -135,6 +96,57 @@ dylint_linting::impl_late_lint! {
     BonPublicBuilderImplementationTypes::default()
 }
 
+impl BonPublicBuilderImplementationTypes {
+    /// Records a named aggregate and recursively visits its generic arguments.
+    fn collect_aggregate(
+        cx: &LateContext<'_>,
+        ty: Ty<'_>,
+        span: Span,
+        exposures: &mut Vec<Exposure>,
+    ) {
+        let ty::Adt(definition, arguments) = ty.kind() else {
+            return;
+        };
+        if let Some(definition) = definition.did().as_local() {
+            let spelling = cx
+                .sess()
+                .source_map()
+                .span_to_snippet(span)
+                .unwrap_or_else(|_| cx.tcx.item_name(definition.to_def_id()).to_string());
+
+            exposures.push(Exposure {
+                span,
+                definition,
+                ty: spelling,
+            });
+        }
+        for nested in arguments.types() {
+            Self::collect_definitions(cx, nested, span, exposures);
+        }
+    }
+
+    /// Recursively records named definitions nested in one public type.
+    fn collect_definitions(
+        cx: &LateContext<'_>,
+        ty: Ty<'_>,
+        span: Span,
+        exposures: &mut Vec<Exposure>,
+    ) {
+        match ty.kind() {
+            ty::Adt(..) => Self::collect_aggregate(cx, ty, span, exposures),
+            ty::Ref(_, nested, _) | ty::Slice(nested) => {
+                Self::collect_definitions(cx, *nested, span, exposures);
+            }
+            ty::Array(nested, _) => Self::collect_definitions(cx, *nested, span, exposures),
+            ty::Tuple(elements) => {
+                for nested in *elements {
+                    Self::collect_definitions(cx, nested, span, exposures);
+                }
+            }
+            _ => {}
+        }
+    }
+}
 impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.catalog.check_item(cx, item);
@@ -178,11 +190,10 @@ impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
         }
     }
 }
-
 impl BonPublicBuilderImplementationTypes {
     /// Adds every named definition nested in one public type.
     fn collect_ty(&mut self, cx: &LateContext<'_>, ty: Ty<'_>, span: Span) {
-        exposure_collect_definitions(cx, ty, span, &mut self.exposures);
+        Self::collect_definitions(cx, ty, span, &mut self.exposures);
     }
 
     /// Collects named types from every input and the explicit return type.

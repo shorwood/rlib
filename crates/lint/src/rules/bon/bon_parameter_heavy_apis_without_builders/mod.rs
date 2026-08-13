@@ -74,6 +74,14 @@ impl LateViolation for Violation {
 /// Recommends named construction for large or ambiguous public signatures.
 struct BonParameterHeavyApisWithoutBuilders;
 
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub BON_PARAMETER_HEAVY_APIS_WITHOUT_BUILDERS,
+    Warn,
+    "recommends Bon for public parameter-heavy ambiguous APIs",
+    BonParameterHeavyApisWithoutBuilders
+}
+
 impl BonParameterHeavyApisWithoutBuilders {
     /// Parameter count at which ambiguity warrants a builder unconditionally.
     const UNCONDITIONAL_PARAMETER_THRESHOLD: usize = 7;
@@ -84,15 +92,6 @@ impl BonParameterHeavyApisWithoutBuilders {
     /// Boolean choices sufficient to make a medium-sized signature ambiguous.
     const BOOLEAN_CHOICE_THRESHOLD: usize = 2;
 }
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub BON_PARAMETER_HEAVY_APIS_WITHOUT_BUILDERS,
-    Warn,
-    "recommends Bon for public parameter-heavy ambiguous APIs",
-    BonParameterHeavyApisWithoutBuilders
-}
-
 impl LateLintPass<'_> for BonParameterHeavyApisWithoutBuilders {
     fn check_fn(
         &mut self,

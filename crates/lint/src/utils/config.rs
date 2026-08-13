@@ -3,7 +3,7 @@ use serde::Deserialize;
 use super::function_structure_config::FunctionStructureConfig;
 use super::section_divider_config::SectionDividerConfig;
 #[cfg(feature = "bon")]
-use crate::rules::bon::config::BonApiBaselineConfig;
+use crate::rules::bon::utils::config::BonApiBaselineConfig;
 use crate::rules::core::incoherent_extension_traits::ExtensionTraitConfig;
 use crate::rules::framework::config::DeriveResolutionConfig;
 #[cfg(feature = "leptos")]

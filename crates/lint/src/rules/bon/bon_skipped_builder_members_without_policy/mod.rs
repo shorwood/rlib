@@ -9,7 +9,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::BonAttributeAnalysis;
+use super::utils::attributes::BonAttributeAnalysis;
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------

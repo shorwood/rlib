@@ -9,7 +9,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{BonAttributeAnalysis, ConfiguredIdentifier};
+use super::utils::attributes::{BonAttributeAnalysis, ConfiguredIdentifier};
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -44,8 +44,8 @@ impl Violation {
         }
         .parse()?;
 
-        (builder_vocabulary_generic_member(&configured)
-            && !builder_vocabulary_generic_member(&established))
+        (BonIncoherentBuilderVocabulary::generic_member_name(&configured)
+            && !BonIncoherentBuilderVocabulary::generic_member_name(&established))
         .then_some(Self {
             span: attribute.span,
             configured,
@@ -89,47 +89,45 @@ impl EarlyViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// BuilderVocabulary: Generic-name classification
-// -----------------------------------------------------------------------------
-
-/// Returns whether a generated operation name lacks domain meaning.
-fn builder_vocabulary_generic_operation(name: &str) -> bool {
-    matches!(name, "done" | "execute" | "finish" | "process" | "run")
-}
-
-/// Returns whether a generated member name lacks domain meaning.
-fn builder_vocabulary_generic_member(name: &str) -> bool {
-    matches!(name, "arg" | "data" | "item" | "param" | "thing" | "value")
-}
-
-/// Checks a function parameter's configured setter name.
-fn builder_vocabulary_parameter_violation(
-    cx: &EarlyContext<'_>,
-    parameter: &Param,
-) -> Option<Violation> {
-    let established = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
-        Ok(established) => established,
-        Err(_error) => return None,
-    };
-    Violation::member_violation(cx, &parameter.attrs, established.trim().to_owned())
-}
-
-/// Checks a struct field's configured setter name.
-fn builder_vocabulary_field_violation(
-    cx: &EarlyContext<'_>,
-    field: &FieldDef,
-) -> Option<Violation> {
-    Violation::member_violation(cx, &field.attrs, field.ident?.name.to_string())
-}
-
-// -----------------------------------------------------------------------------
 // BonIncoherentBuilderVocabulary: Domain naming policy
 // -----------------------------------------------------------------------------
 
 /// Preserves authored domain vocabulary in Bon-generated entry points and setters.
 struct BonIncoherentBuilderVocabulary;
 
+dylint_linting::impl_pre_expansion_lint! {
+    #[doc = include_str!("README.md")]
+    pub BON_INCOHERENT_BUILDER_VOCABULARY,
+    Warn,
+    "rejects generic Bon names that erase established domain vocabulary",
+    BonIncoherentBuilderVocabulary
+}
+
 impl BonIncoherentBuilderVocabulary {
+    /// Returns whether a generated operation name lacks domain meaning.
+    fn generic_operation_name(name: &str) -> bool {
+        matches!(name, "done" | "execute" | "finish" | "process" | "run")
+    }
+
+    /// Returns whether a generated member name lacks domain meaning.
+    fn generic_member_name(name: &str) -> bool {
+        matches!(name, "arg" | "data" | "item" | "param" | "thing" | "value")
+    }
+
+    /// Checks a function parameter's configured setter name.
+    fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
+        let established = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
+            Ok(established) => established,
+            Err(_error) => return None,
+        };
+        Violation::member_violation(cx, &parameter.attrs, established.trim().to_owned())
+    }
+
+    /// Checks a struct field's configured setter name.
+    fn field_violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Violation> {
+        Violation::member_violation(cx, &field.attrs, field.ident?.name.to_string())
+    }
+
     /// Checks the configured builder vocabulary and every function parameter.
     fn check_function(cx: &EarlyContext<'_>, item: &Item, function: &Fn) {
         let Some(attribute) = BonAttributeAnalysis::builder(&item.attrs) else {
@@ -149,7 +147,7 @@ impl BonIncoherentBuilderVocabulary {
                     key,
                 })
                 .parse()
-                    && builder_vocabulary_generic_operation(&configured)
+                    && Self::generic_operation_name(&configured)
                     && !operation.split('_').any(|word| word == configured)
                 {
                     Violation {
@@ -165,22 +163,13 @@ impl BonIncoherentBuilderVocabulary {
 
         // Diagnose parameter-level vocabulary independently.
         for parameter in &function.sig.decl.inputs {
-            let Some(violation) = builder_vocabulary_parameter_violation(cx, parameter) else {
+            let Some(violation) = Self::parameter_violation(cx, parameter) else {
                 continue;
             };
             violation.emit(cx);
         }
     }
 }
-
-dylint_linting::impl_pre_expansion_lint! {
-    #[doc = include_str!("README.md")]
-    pub BON_INCOHERENT_BUILDER_VOCABULARY,
-    Warn,
-    "rejects generic Bon names that erase established domain vocabulary",
-    BonIncoherentBuilderVocabulary
-}
-
 impl EarlyLintPass for BonIncoherentBuilderVocabulary {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         match &item.kind {
@@ -191,7 +180,7 @@ impl EarlyLintPass for BonIncoherentBuilderVocabulary {
                 if BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
             {
                 for field in data.fields() {
-                    let Some(violation) = builder_vocabulary_field_violation(cx, field) else {
+                    let Some(violation) = Self::field_violation(cx, field) else {
                         continue;
                     };
                     violation.emit(cx);

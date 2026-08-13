@@ -9,7 +9,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::BonAttributeAnalysis;
+use super::utils::attributes::BonAttributeAnalysis;
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -70,6 +70,14 @@ impl EarlyViolation for Violation {
 /// Ensures large public builders retain the readability benefit of named setters.
 struct BonRedundantPositionalAndBuilderApis;
 
+dylint_linting::impl_pre_expansion_lint! {
+    #[doc = include_str!("README.md")]
+    pub BON_REDUNDANT_POSITIONAL_AND_BUILDER_APIS,
+    Warn,
+    "rejects positional-heavy public Bon builders",
+    BonRedundantPositionalAndBuilderApis
+}
+
 impl BonRedundantPositionalAndBuilderApis {
     /// Minimum total members that make positional builder entry points hard to read.
     const MINIMUM_TOTAL_MEMBERS: usize = 5;
@@ -80,15 +88,6 @@ impl BonRedundantPositionalAndBuilderApis {
     /// Denominator for the maximum one-half positional share.
     const POSITIONAL_SHARE_DENOMINATOR: usize = 2;
 }
-
-dylint_linting::impl_pre_expansion_lint! {
-    #[doc = include_str!("README.md")]
-    pub BON_REDUNDANT_POSITIONAL_AND_BUILDER_APIS,
-    Warn,
-    "rejects positional-heavy public Bon builders",
-    BonRedundantPositionalAndBuilderApis
-}
-
 impl EarlyLintPass for BonRedundantPositionalAndBuilderApis {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         let ItemKind::Fn(function) = &item.kind else {

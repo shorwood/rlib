@@ -89,11 +89,6 @@ struct Candidate {
     has_terminal: bool,
 }
 
-/// Returns whether a terminal result still communicates domain failure.
-fn candidate_is_fallible(cx: &LateContext<'_>, ty: ty::Ty<'_>) -> bool {
-    matches!(ty.kind(), ty::Adt(definition, _) if matches!(cx.tcx.item_name(definition.did()).as_str(), "Result" | "Option"))
-}
-
 // -----------------------------------------------------------------------------
 // BonManualBuilderImplementations: Derivable builder policy
 // -----------------------------------------------------------------------------
@@ -105,11 +100,6 @@ struct BonManualBuilderImplementations {
     candidates: HashMap<LocalDefId, Candidate>,
 }
 
-impl BonManualBuilderImplementations {
-    /// Minimum structural fields and setters that establish a builder protocol.
-    const MINIMUM_STRUCTURAL_MEMBERS: usize = 2;
-}
-
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub BON_MANUAL_BUILDER_IMPLEMENTATIONS,
@@ -118,6 +108,15 @@ dylint_linting::impl_late_lint! {
     BonManualBuilderImplementations::default()
 }
 
+impl BonManualBuilderImplementations {
+    /// Minimum structural fields and setters that establish a builder protocol.
+    const MINIMUM_STRUCTURAL_MEMBERS: usize = 2;
+
+    /// Returns whether a terminal result still communicates domain failure.
+    fn is_fallible(cx: &LateContext<'_>, ty: ty::Ty<'_>) -> bool {
+        matches!(ty.kind(), ty::Adt(definition, _) if matches!(cx.tcx.item_name(definition.did()).as_str(), "Result" | "Option"))
+    }
+}
 impl LateLintPass<'_> for BonManualBuilderImplementations {
     fn check_item(&mut self, _cx: &LateContext<'_>, item: &Item<'_>) {
         let ItemKind::Struct(identifier, _, data) = item.kind else {
@@ -185,7 +184,7 @@ impl LateLintPass<'_> for BonManualBuilderImplementations {
             && function.inputs().len() == 1
             && matches!(name, "build" | "complete" | "finish")
             && !output_is_builder
-            && !candidate_is_fallible(cx, function.output())
+            && !Self::is_fallible(cx, function.output())
         {
             candidate.has_terminal = true;
         }

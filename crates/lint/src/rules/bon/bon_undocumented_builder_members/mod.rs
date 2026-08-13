@@ -9,7 +9,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::{BonAttributeAnalysis, OptionType};
+use super::utils::attributes::{BonAttributeAnalysis, OptionType};
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -109,35 +109,6 @@ impl EarlyViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// MemberDocumentation: Function and struct member adapters
-// -----------------------------------------------------------------------------
-
-/// Checks documentation on a builder function parameter.
-fn member_documentation_parameter_violation(
-    cx: &EarlyContext<'_>,
-    parameter: &Param,
-) -> Option<Violation> {
-    let member = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
-        Ok(member) => member,
-        Err(_error) => return None,
-    };
-    Violation::member_violation(cx, &parameter.attrs, parameter.ty.span, &member)
-}
-
-/// Checks documentation on a derived builder field.
-fn member_documentation_field_violation(
-    cx: &EarlyContext<'_>,
-    field: &FieldDef,
-) -> Option<Violation> {
-    Violation::member_violation(
-        cx,
-        &field.attrs,
-        field.ty.span,
-        &field.ident?.name.to_string(),
-    )
-}
-
-// -----------------------------------------------------------------------------
 // BonUndocumentedBuilderMembers: Public setter documentation policy
 // -----------------------------------------------------------------------------
 
@@ -152,6 +123,26 @@ dylint_linting::impl_pre_expansion_lint! {
     BonUndocumentedBuilderMembers
 }
 
+impl BonUndocumentedBuilderMembers {
+    /// Checks documentation on a builder function parameter.
+    fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
+        let member = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
+            Ok(member) => member,
+            Err(_error) => return None,
+        };
+        Violation::member_violation(cx, &parameter.attrs, parameter.ty.span, &member)
+    }
+
+    /// Checks documentation on a derived builder field.
+    fn field_violation(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Violation> {
+        Violation::member_violation(
+            cx,
+            &field.attrs,
+            field.ty.span,
+            &field.ident?.name.to_string(),
+        )
+    }
+}
 impl EarlyLintPass for BonUndocumentedBuilderMembers {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         if !matches!(item.vis.kind, VisibilityKind::Public) {
@@ -160,8 +151,7 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
         match &item.kind {
             ItemKind::Fn(function) if BonAttributeAnalysis::builder(&item.attrs).is_some() => {
                 for parameter in &function.sig.decl.inputs {
-                    let Some(violation) = member_documentation_parameter_violation(cx, parameter)
-                    else {
+                    let Some(violation) = Self::parameter_violation(cx, parameter) else {
                         continue;
                     };
                     violation.emit(cx);
@@ -171,7 +161,7 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
                 if BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
             {
                 for field in data.fields() {
-                    let Some(violation) = member_documentation_field_violation(cx, field) else {
+                    let Some(violation) = Self::field_violation(cx, field) else {
                         continue;
                     };
                     violation.emit(cx);
