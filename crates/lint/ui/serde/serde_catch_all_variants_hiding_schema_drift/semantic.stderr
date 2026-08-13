@@ -1,0 +1,17 @@
+warning: public Serde deserialization hides unknown variants
+  --> $DIR/semantic.rs:5:1
+   |
+LL | / pub enum Permission {
+LL | |     Read,
+LL | |     Write,
+LL | |     #[serde(other)]
+LL | |     Unknown,
+LL | | }
+   | |_^ this public contract silently absorbs schema drift
+   |
+   = note: `Unknown` discards the unknown wire spelling, making new or misspelled values indistinguishable
+   = help: reject unknown variants at this boundary, or preserve their original value in an explicit representation
+   = note: `#[warn(serde_catch_all_variants_hiding_schema_drift)]` on by default
+
+warning: 1 warning emitted
+

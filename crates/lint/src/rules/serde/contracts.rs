@@ -42,6 +42,7 @@ pub(super) struct SerdeAttributes {
     pub(super) untagged: bool,
     pub(super) flatten: bool,
     pub(super) deny_unknown_fields: bool,
+    pub(super) other: bool,
 }
 
 pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes {
@@ -99,6 +100,8 @@ pub(super) fn serde_attributes(attributes: &[syn::Attribute]) -> SerdeAttributes
                 result.flatten = true;
             } else if meta.path.is_ident("deny_unknown_fields") {
                 result.deny_unknown_fields = true;
+            } else if meta.path.is_ident("other") {
+                result.other = true;
             }
             Ok(())
         });

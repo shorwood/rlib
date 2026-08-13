@@ -2,6 +2,7 @@ mod contracts;
 
 pub mod serde_ambiguous_untagged_enums;
 pub mod serde_asymmetric_serde_contracts;
+pub mod serde_catch_all_variants_hiding_schema_drift;
 pub mod serde_deserialization_bypassing_invariants;
 pub mod serde_defaults_hiding_missing_data;
 pub mod serde_duplicate_serialized_names;

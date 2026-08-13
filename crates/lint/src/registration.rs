@@ -114,6 +114,8 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "serde")]
     rules::serde::serde_asymmetric_serde_contracts::register_lints(sess, lint_store);
     #[cfg(feature = "serde")]
+    rules::serde::serde_catch_all_variants_hiding_schema_drift::register_lints(sess, lint_store);
+    #[cfg(feature = "serde")]
     rules::serde::serde_deserialization_bypassing_invariants::register_lints(sess, lint_store);
     #[cfg(feature = "serde")]
     rules::serde::serde_defaults_hiding_missing_data::register_lints(sess, lint_store);

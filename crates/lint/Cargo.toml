@@ -236,6 +236,11 @@ path = "ui/serde/serde_ambiguous_untagged_enums/semantic.rs"
 required-features = ["serde"]
 
 [[example]]
+name = "serde_catch_all_variants_hiding_schema_drift"
+path = "ui/serde/serde_catch_all_variants_hiding_schema_drift/semantic.rs"
+required-features = ["serde"]
+
+[[example]]
 name = "serde_lossy_conditional_serialization"
 path = "ui/serde/serde_lossy_conditional_serialization/semantic.rs"
 required-features = ["serde"]

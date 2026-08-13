@@ -351,6 +351,7 @@ fn run_serde_fixtures() {
     for example in [
         "serde_ambiguous_untagged_enums",
         "serde_asymmetric_serde_contracts",
+        "serde_catch_all_variants_hiding_schema_drift",
         "serde_deserialization_bypassing_invariants",
         "serde_defaults_hiding_missing_data",
         "serde_duplicate_serialized_names",
