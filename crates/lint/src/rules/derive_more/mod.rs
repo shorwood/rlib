@@ -4,6 +4,7 @@ pub mod derive_more_ambiguous_derived_error_sources;
 pub mod derive_more_derived_constructors_bypassing_invariants;
 pub mod derive_more_derived_conversions_bypassing_invariants;
 pub mod derive_more_inconsistent_derived_equality;
+pub mod derive_more_manual_aggregation_impls;
 pub mod derive_more_manual_conversion_impls;
 pub mod derive_more_manual_constructors;
 pub mod derive_more_manual_equality_impls;

@@ -292,6 +292,7 @@ fn run_derive_more_fixtures() {
         "derive_more_derived_constructors_bypassing_invariants",
         "derive_more_derived_conversions_bypassing_invariants",
         "derive_more_inconsistent_derived_equality",
+        "derive_more_manual_aggregation_impls",
         "derive_more_manual_conversion_impls",
         "derive_more_manual_constructors",
         "derive_more_manual_equality_impls",

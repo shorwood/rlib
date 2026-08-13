@@ -1,0 +1,29 @@
+warning: manual `Sum` implementation for `Total` is derivable
+  --> $DIR/semantic.rs:7:1
+   |
+LL | / impl Sum for Total {
+LL | |     fn sum<I: Iterator<Item = Self>>(values: I) -> Self {
+LL | |         Self(values.map(|value| value.0).sum())
+LL | |     }
+LL | | }
+   | |_^ this aggregation is exact newtype forwarding
+   |
+   = note: the implementation maps the sole field and delegates directly to the same aggregation without changing identity or failure behavior
+   = help: replace this implementation with `#[derive(derive_more::Sum)]`
+   = note: `#[warn(derive_more_manual_aggregation_impls)]` on by default
+
+warning: manual `Product` implementation for `Scale` is derivable
+  --> $DIR/semantic.rs:15:1
+   |
+LL | / impl Product for Scale {
+LL | |     fn product<I: Iterator<Item = Self>>(values: I) -> Self {
+LL | |         Self(values.map(|value| value.0).product())
+LL | |     }
+LL | | }
+   | |_^ this aggregation is exact newtype forwarding
+   |
+   = note: the implementation maps the sole field and delegates directly to the same aggregation without changing identity or failure behavior
+   = help: replace this implementation with `#[derive(derive_more::Product)]`
+
+warning: 2 warnings emitted
+

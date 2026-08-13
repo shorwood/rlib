@@ -135,6 +135,11 @@ path = "ui/derive_more/derive_more_manual_constructors/semantic.rs"
 required-features = ["derive_more"]
 
 [[example]]
+name = "derive_more_manual_aggregation_impls"
+path = "ui/derive_more/derive_more_manual_aggregation_impls/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
 name = "derive_more_manual_equality_impls"
 path = "ui/derive_more/derive_more_manual_equality_impls/semantic.rs"
 required-features = ["derive_more"]
