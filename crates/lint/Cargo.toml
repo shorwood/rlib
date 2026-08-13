@@ -39,6 +39,11 @@ path = "ui/bon/bon_implicit_optional_builder_members/semantic.rs"
 required-features = ["bon"]
 
 [[example]]
+name = "bon_incoherent_builder_vocabulary"
+path = "ui/bon/bon_incoherent_builder_vocabulary/semantic.rs"
+required-features = ["bon"]
+
+[[example]]
 name = "bon_incoherent_conditional_builder_members"
 path = "ui/bon/bon_incoherent_conditional_builder_members/semantic.rs"
 required-features = ["bon"]

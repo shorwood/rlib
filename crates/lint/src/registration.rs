@@ -23,6 +23,8 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "bon")]
     rules::bon::bon_incoherent_conditional_builder_members::register_lints(sess, lint_store);
     #[cfg(feature = "bon")]
+    rules::bon::bon_incoherent_builder_vocabulary::register_lints(sess, lint_store);
+    #[cfg(feature = "bon")]
     rules::bon::bon_inconsistent_builder_conversions::register_lints(sess, lint_store);
     #[cfg(feature = "bon")]
     rules::bon::bon_needless_builders_for_small_apis::register_lints(sess, lint_store);

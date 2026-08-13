@@ -68,3 +68,14 @@ pub(super) fn is_option_type(ty: &str) -> bool {
         || compact.starts_with("std::option::Option<")
         || compact.starts_with("core::option::Option<")
 }
+
+pub(super) fn configured_identifier(source: &str, key: &str) -> Option<String> {
+    let tail = source.get(source.find(key)? + key.len()..)?.trim_start();
+    let tail = tail.strip_prefix('=')?.trim_start();
+    let tail = tail.strip_prefix('"').unwrap_or(tail);
+    let value: String = tail
+        .chars()
+        .take_while(|character| character.is_alphanumeric() || *character == '_')
+        .collect();
+    (!value.is_empty()).then_some(value)
+}

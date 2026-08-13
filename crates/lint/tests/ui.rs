@@ -223,6 +223,7 @@ fn run_bon_fixtures() {
     let selected = selected_framework_fixture();
     for example in [
         "bon_implicit_optional_builder_members",
+        "bon_incoherent_builder_vocabulary",
         "bon_incoherent_conditional_builder_members",
         "bon_inconsistent_builder_conversions",
         "bon_needless_builders_for_small_apis",
