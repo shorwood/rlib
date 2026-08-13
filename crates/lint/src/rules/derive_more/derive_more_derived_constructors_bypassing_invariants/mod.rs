@@ -71,8 +71,8 @@ impl LateViolation for Violation {
 // DeriveMoreDerivedConstructorsBypassingInvariants: Safe construction policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Rejects generated constructors that expose types with restricted fields.
+#[derive(Default)]
 struct DeriveMoreDerivedConstructorsBypassingInvariants {
     /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,

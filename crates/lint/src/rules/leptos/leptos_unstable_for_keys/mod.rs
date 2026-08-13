@@ -93,8 +93,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // LeptosUnstableForKeys: Key identity policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Late lint pass that rejects constant and position-based keyed iteration.
+#[derive(Default)]
 struct LeptosUnstableForKeys {
     /// Absolute source ranges already diagnosed while visiting one expanded view.
     reported: HashSet<KeySourceRange>,

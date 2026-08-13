@@ -169,8 +169,8 @@ fn equality_skip_count(cx: &LateContext<'_>, item: &Item<'_>) -> usize {
 // DeriveMoreInconsistentDerivedEquality: Coherent equality policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Correlates `derive_more` equality selections with generated hash and order laws.
+#[derive(Default)]
 struct DeriveMoreInconsistentDerivedEquality {
     /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,

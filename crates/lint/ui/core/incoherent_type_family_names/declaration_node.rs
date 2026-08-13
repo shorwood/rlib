@@ -2,7 +2,7 @@
 #![warn(incoherent_type_family_names)]
 
 // -----------------------------------------------------------------------------
-// DeclarationNode
+// DeclarationNode: Family naming fixture
 // -----------------------------------------------------------------------------
 
 struct DeclarationNode;

@@ -2,7 +2,7 @@ warning: type names in the `SectionDivider` section repeat organizational contex
   --> $DIR/section_dividers.rs:4:1
    |
 LL | / // -----------------------------------------------------------------------------
-LL | | // SectionDivider
+LL | | // SectionDivider: Family naming fixture
 LL | | // -----------------------------------------------------------------------------
    | |________________________________________________________________________________^
 ...

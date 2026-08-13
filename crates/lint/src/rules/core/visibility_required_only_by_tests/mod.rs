@@ -153,8 +153,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // VisibilityRequiredOnlyByTests: Test topology policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Crate-wide collector comparing production and test-inclusive reach.
+#[derive(Default)]
 struct VisibilityRequiredOnlyByTests {
     /// Shared analysis used to derive both canonical boundaries.
     analyzer: VisibilityUsageAnalyzer,

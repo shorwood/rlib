@@ -81,8 +81,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // AdHocStringParsers: Canonical textual conversion policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects structural parsing evidence before selecting unique canonical parsers.
+#[derive(Default)]
 struct AdHocStringParsers {
     /// Shared semantic analyzer used to group parsers by their constructed type.
     constructions: ConstructionAnalysis,

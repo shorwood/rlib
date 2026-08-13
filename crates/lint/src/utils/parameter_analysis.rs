@@ -25,8 +25,8 @@ const MIN_AMBIGUOUS_PARAMETER_COUNT: usize = 2;
 // -----------------------------------------------------------------------------
 // Parameter: Semantic function parameter analysis
 // -----------------------------------------------------------------------------
-#[derive(Clone)]
 /// One simple authored parameter from a function-like declaration.
+#[derive(Clone)]
 pub struct Parameter {
     /// HIR identity used to recognize binding references.
     pub(super) hir_id: HirId,
@@ -47,8 +47,8 @@ pub struct ParameterGroup<'signature> {
     /// Parameters carrying distinct roles through names alone.
     pub(crate) parameters: Vec<&'signature Parameter>,
 }
-#[derive(Clone)]
 /// One authored function or method signature with simple named parameters.
+#[derive(Clone)]
 pub struct ParameterSignature {
     /// Definition identity used for semantic type queries.
     pub(crate) def_id: LocalDefId,

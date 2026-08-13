@@ -53,16 +53,16 @@ struct CallableGenericDeclaration {
     /// Own authored type parameters evaluated independently.
     parameters: Vec<CallableGenericParameter>,
 }
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 /// Stable evidence key for one callable parameter.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 struct CallableGenericParameterId {
     /// Owning callable.
     declaration: LocalDefId,
     /// Absolute compiler generic-argument index.
     argument_index: usize,
 }
-#[derive(Default)]
 /// Complete resolved call evidence for one callable parameter.
+#[derive(Default)]
 struct CallableGenericEvidence {
     /// Concrete substitutions and representative call spans.
     concrete: HashMap<String, Vec<Span>>,
@@ -83,8 +83,8 @@ struct CallableGenericFreeFunction<'hir> {
 // -----------------------------------------------------------------------------
 // ResolvedCallBoundary: Conservative call evidence
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Whether authored call syntax preserves a conservative open boundary.
+#[derive(Clone, Copy)]
 enum ResolvedCallBoundary {
     /// Compiler-resolved arguments may supply concrete evidence.
     Concrete,
@@ -120,8 +120,8 @@ const RESOLVED_CALL_MAX_REPRESENTATIVE_SPANS: usize = 4;
 // -----------------------------------------------------------------------------
 // CallableVisibilityContext: Publication context
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Publication context retained for callable diagnostics.
+#[derive(Clone, Copy)]
 enum CallableVisibilityContext {
     /// Private callable or callable in an executable target.
     Ordinary,
@@ -226,8 +226,8 @@ impl<'tcx> Visitor<'tcx> for ExplicitOpenTypeVisitor<'_, 'tcx> {
 // -----------------------------------------------------------------------------
 // CallableGenericAnalyzer: Crate wide resolved calls
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects eligible callables, direct resolved calls, and callable escapes.
+#[derive(Default)]
 pub struct CallableGenericAnalyzer {
     /// Eligible declarations indexed independently from traversal order.
     declarations: HashMap<LocalDefId, CallableGenericDeclaration>,

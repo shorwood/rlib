@@ -10,8 +10,8 @@ use rustc_span::Span;
 // -----------------------------------------------------------------------------
 // ExplicitTuple: Tuple classification for authored type annotations
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy, Eq, PartialEq)]
 /// Relationship between a reported tuple and its explicit root type.
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub enum ExplicitTupleKind {
     /// The explicit root annotation is itself a non-unit tuple.
     Bare,
@@ -88,8 +88,8 @@ impl ExplicitTupleType {
 // -----------------------------------------------------------------------------
 // NestedTupleFinder: First tuple beneath an explicit root type
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// HIR visitor that records the first tuple beneath an explicit root type.
+#[derive(Default)]
 struct NestedTupleFinder {
     /// Exact span of the first nested non-unit tuple.
     tuple_span: Option<Span>,

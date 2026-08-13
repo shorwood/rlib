@@ -32,8 +32,8 @@ use crate::utils::variant_methods::PredicateProvider;
 // -----------------------------------------------------------------------------
 // DeriveResolutionConfig: Explicit framework provider policy
 // -----------------------------------------------------------------------------
-#[derive(Clone, Default, Deserialize)]
 /// Workspace-wide provider choices for overlapping framework remediations.
+#[derive(Clone, Default, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct DeriveResolutionConfig {
     /// Provider selected for complete error implementations.
@@ -57,14 +57,14 @@ pub struct DeriveResolutionConfig {
 }
 
 impl DeriveResolutionConfig {
-    #[cfg(feature = "thiserror")]
     /// Returns the configured provider for complete error implementations.
+    #[cfg(feature = "thiserror")]
     pub(crate) const fn error_implementation(&self) -> Option<ErrorImplementationProvider> {
         self.error_implementation
     }
 
-    #[cfg(feature = "thiserror")]
     /// Returns the configured provider for source-bearing variant conversions.
+    #[cfg(feature = "thiserror")]
     pub(crate) const fn error_variant_conversion(&self) -> Option<ErrorVariantConversionProvider> {
         self.error_variant_conversion
     }

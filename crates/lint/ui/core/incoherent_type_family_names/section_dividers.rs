@@ -2,7 +2,7 @@
 #![warn(incoherent_type_family_names)]
 
 // -----------------------------------------------------------------------------
-// SectionDivider
+// SectionDivider: Family naming fixture
 // -----------------------------------------------------------------------------
 
 struct SectionDividerConfig;

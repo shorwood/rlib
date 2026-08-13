@@ -62,8 +62,8 @@ impl LateViolation for Violation {
     }
 }
 
-#[derive(Clone, Copy)]
 /// Direction in which a value crosses a Leptos context boundary.
+#[derive(Clone, Copy)]
 enum ContextOperation {
     /// Makes a value available to descendants.
     Provide,

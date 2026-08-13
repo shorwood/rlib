@@ -2,7 +2,7 @@
 #![warn(overloaded_declaration_sections)]
 
 // -----------------------------------------------------------------------------
-// Accepted
+// Accepted: Boundary-sized family
 // -----------------------------------------------------------------------------
 
 struct Accepted;
@@ -12,7 +12,7 @@ struct AcceptedError;
 struct AcceptedInput;
 
 // -----------------------------------------------------------------------------
-// Transport
+// Transport: Mixed transport concepts
 // -----------------------------------------------------------------------------
 
 struct Request;
@@ -23,7 +23,7 @@ struct ResponseBuilder;
 struct TransportError;
 
 // -----------------------------------------------------------------------------
-// Cohesive
+// Cohesive: Single naming family
 // -----------------------------------------------------------------------------
 
 struct Cohesive;
@@ -35,7 +35,7 @@ struct CohesiveOutput;
 
 mod module_namespace {
     // -----------------------------------------------------------------------------
-    // ModuleNamespace
+    // ModuleNamespace: Module-owned operations
     // -----------------------------------------------------------------------------
 
     fn first() {}
@@ -47,7 +47,7 @@ mod module_namespace {
 }
 
 // -----------------------------------------------------------------------------
-// Collapsed
+// Collapsed: One declaration with several implementations
 // -----------------------------------------------------------------------------
 
 struct Collapsed;

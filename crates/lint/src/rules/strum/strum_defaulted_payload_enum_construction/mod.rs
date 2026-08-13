@@ -64,8 +64,8 @@ impl LateViolation for Violation {
 // StrumDefaultedPayloadEnumConstruction: Explicit payload policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Rejects generated construction that silently fills domain payloads with defaults.
+#[derive(Default)]
 struct StrumDefaultedPayloadEnumConstruction {
     /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,

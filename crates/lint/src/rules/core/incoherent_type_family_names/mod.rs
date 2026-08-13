@@ -71,7 +71,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// IncoherentTypeFamilyNames
+// IncoherentTypeFamilyNames: Domain-oriented declaration naming policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that detects organizational context embedded in type names.

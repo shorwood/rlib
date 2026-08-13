@@ -90,8 +90,8 @@ fn is_metadata_name(name: &str) -> bool {
 // StrumManualEnumMetadata: Declarative variant metadata policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Finds complete authored metadata tables that `EnumProperty` can generate.
+#[derive(Default)]
 struct StrumManualEnumMetadata {
     /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,

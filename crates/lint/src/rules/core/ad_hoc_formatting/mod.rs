@@ -130,8 +130,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // AdHocFormatting: Crate wide lint pass
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects text-producing APIs, standard implementations, and error-specific ownership.
+#[derive(Default)]
 struct AdHocFormatting {
     /// Shared crate-wide standard-interface evidence.
     interfaces: StandardInterfaceAnalysis,

@@ -15,16 +15,16 @@ use super::function_structure_config::FunctionStructureConfig;
 // -----------------------------------------------------------------------------
 // FunctionLayout: Analyze direct code phases
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Phase-comment findings separated by public lint identity.
+#[derive(Default)]
 pub struct FunctionLayoutAnalysis {
     /// Oversized direct phases lacking sufficient semantic decomposition.
     pub(crate) missing: Vec<FunctionLayoutFinding>,
     /// Authored phase comments that violate syntax or placement rules.
     pub(crate) malformed: Vec<FunctionLayoutFinding>,
 }
-#[derive(Clone, Copy)]
 /// Whether a measured code phase already has an explanatory header.
+#[derive(Clone, Copy)]
 enum FunctionLayoutPhaseHeader {
     /// A canonical phase comment precedes the code.
     Present,

@@ -173,8 +173,8 @@ impl PolicyApiIdentity {
 // -----------------------------------------------------------------------------
 // PolicyApi: Curated policy sink
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Category and positions supplied by one catalogue family.
+#[derive(Clone, Copy)]
 struct PolicyApiShape {
     /// Operational policy category.
     category: PolicyCategory,

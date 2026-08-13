@@ -13,8 +13,8 @@ use rustc_span::symbol::sym;
 // -----------------------------------------------------------------------------
 // ResultContract: Resolved success and failure types
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Exact standard `Result<Success, Error>` contract carried by an expression.
+#[derive(Clone, Copy)]
 pub struct ResultContract<'tcx> {
     /// Value preserved by the successful branch.
     success: Ty<'tcx>,
@@ -60,8 +60,8 @@ impl<'tcx> ResultContract<'tcx> {
 // -----------------------------------------------------------------------------
 // ResultOperation: Standard failure consuming operation
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Supported inherent operation on standard Result.
+#[derive(Clone, Copy)]
 pub enum ResultOperation {
     /// Maps success while replacing failure with an eager fallback.
     MapOr,

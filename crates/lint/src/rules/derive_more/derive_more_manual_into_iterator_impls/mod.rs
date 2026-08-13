@@ -16,8 +16,8 @@ use rustc_span::def_id::LocalDefId;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Receiver forms supported by `derive_more`'s `IntoIterator` derive.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Receiver {
     /// Consumes the wrapper and yields owned items.
     Owned,
@@ -186,8 +186,8 @@ impl ExactDelegation {
 // DeriveMoreManualIntoIteratorImpls: Declarative iteration policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Groups transparent `IntoIterator` implementations by their wrapper type.
+#[derive(Default)]
 struct DeriveMoreManualIntoIteratorImpls {
     /// Iterator families accumulated until every receiver form is known.
     families: HashMap<LocalDefId, Family>,

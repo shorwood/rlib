@@ -14,8 +14,8 @@ use crate::utils::diagnostic::EarlyViolation;
 // -----------------------------------------------------------------------------
 // CanonicalRemediation: Restricted syntax classification
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Semantics-preserving canonical replacement, or architectural guidance for a path restriction.
+#[derive(Clone, Copy)]
 enum CanonicalRemediation {
     /// Exact source replacement safe to apply without usage analysis.
     Replacement(

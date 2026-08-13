@@ -57,7 +57,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// NeedlesslyNestedControlFlow
+// NeedlesslyNestedControlFlow: Guard-clause policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that replaces avoidable nesting with guard clauses.

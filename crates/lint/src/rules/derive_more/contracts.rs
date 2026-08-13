@@ -13,8 +13,8 @@ use rustc_span::{Span, Symbol};
 // DeriveMoreTypeContract: Authored invariants and generated derive identity
 // -----------------------------------------------------------------------------
 
-#[derive(Clone)]
 /// Authored type shape and `derive_more` macros that govern one local declaration.
+#[derive(Clone)]
 pub(super) struct DeriveMoreTypeContract {
     /// Authored declaration or expression range used as the diagnostic anchor.
     pub(super) span: Span,
@@ -76,8 +76,8 @@ fn derive_more_expansion(cx: &LateContext<'_>, span: Span) -> Option<&'static st
 // DeriveMoreContractCatalog: Authored and generated contract correlation
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Correlates authored type declarations with their `derive_more` expansions.
+#[derive(Default)]
 pub(super) struct DeriveMoreContractCatalog {
     /// Authored type contracts keyed by their compiler identity.
     types: HashMap<LocalDefId, DeriveMoreTypeContract>,

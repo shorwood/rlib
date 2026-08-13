@@ -60,8 +60,8 @@ impl LateViolation for Violation {
 // MietteMissingDiagnosticCodes: Complete diagnostic-family code policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Collects Miette contracts before comparing codes across each family.
+#[derive(Default)]
 struct MietteMissingDiagnosticCodes {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,

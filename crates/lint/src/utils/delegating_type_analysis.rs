@@ -48,8 +48,8 @@ struct DelegatingTypeCandidate {
     /// Resolved stored type rendered in guidance.
     inner_type: String,
 }
-#[derive(Default)]
 /// Complete crate evidence retained for one wrapper `candidate`.
+#[derive(Default)]
 struct DelegatingTypeEvidence {
     /// Authored direct construction sites.
     constructions: Vec<Span>,
@@ -106,8 +106,8 @@ pub struct DelegatingTypeFinding {
 // -----------------------------------------------------------------------------
 // DelegatingTypeAnalyzer: Crate wide wrapper policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects wrapper declarations, complete inherent behavior, traits, and constructions.
+#[derive(Default)]
 pub struct DelegatingTypeAnalyzer {
     /// Eligible declarations indexed independently from traversal order.
     candidates: HashMap<LocalDefId, DelegatingTypeCandidate>,

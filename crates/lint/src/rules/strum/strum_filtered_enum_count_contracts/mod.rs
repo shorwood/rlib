@@ -98,8 +98,8 @@ fn is_subset_name(name: Symbol) -> bool {
 // StrumFilteredEnumCountContracts: Matching count and iteration policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Distinguishes full enum counts from deliberately filtered domain subsets.
+#[derive(Default)]
 struct StrumFilteredEnumCountContracts {
     /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,

@@ -56,16 +56,16 @@ pub struct DomainFindingRevalidation {
 // -----------------------------------------------------------------------------
 // DomainEvidence: Module local string domain evidence
 // -----------------------------------------------------------------------------
-#[derive(Clone, Eq, Hash, PartialEq)]
 /// Stable key for evidence belonging to one module-local domain.
+#[derive(Clone, Eq, Hash, PartialEq)]
 struct DomainEvidenceKey {
     /// Module containing the evidence.
     module: LocalDefId,
     /// Inferred `PascalCase` domain concept.
     domain: String,
 }
-#[derive(Clone)]
 /// Free function contributing behavior to an inferred string domain.
+#[derive(Clone)]
 struct DomainEvidenceFunction {
     /// Function definition identity.
     def_id: LocalDefId,
@@ -78,8 +78,8 @@ struct DomainEvidenceFunction {
     /// Inferred domain concept.
     domain: String,
 }
-#[derive(Clone)]
 /// Raw textual field reinforcing an inferred string domain.
+#[derive(Clone)]
 struct DomainEvidenceField {
     /// Containing source module.
     module: LocalDefId,
@@ -104,8 +104,8 @@ struct DomainEvidenceType {
 // -----------------------------------------------------------------------------
 // DomainEvidenceRevalidation: Raw string invariant checks
 // -----------------------------------------------------------------------------
-#[derive(Clone)]
 /// Identity and module placement of one raw-string consumer.
+#[derive(Clone)]
 struct DomainEvidenceRevalidationConsumer {
     /// Consumer definition identity.
     def_id: LocalDefId,
@@ -114,8 +114,8 @@ struct DomainEvidenceRevalidationConsumer {
     /// Authored consumer name.
     name: Symbol,
 }
-#[derive(Clone)]
 /// Consumer that establishes an invariant on a raw string parameter.
+#[derive(Clone)]
 struct DomainEvidenceRevalidation {
     /// Identity and placement of the consuming function.
     consumer: DomainEvidenceRevalidationConsumer,
@@ -155,8 +155,8 @@ impl DomainEvidenceRevalidation {
 // -----------------------------------------------------------------------------
 // DomainAnalyzer: Evidence aggregation and diagnostic precedence
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Complete crate-local evidence used by the string-domain lints.
+#[derive(Default)]
 pub struct DomainAnalyzer {
     /// Free-function behavior grouped later by module and domain.
     functions: Vec<DomainEvidenceFunction>,

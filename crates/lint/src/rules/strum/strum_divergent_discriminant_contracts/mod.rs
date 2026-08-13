@@ -64,8 +64,8 @@ impl LateViolation for Violation {
 // StrumDivergentDiscriminantContracts: Single discriminant policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Compares authored discriminants with the values exposed by Strum conversions.
+#[derive(Default)]
 struct StrumDivergentDiscriminantContracts {
     /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,

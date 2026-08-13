@@ -27,7 +27,7 @@ For example, Response does not belong to the declared Request family:
 
 ```rust
 // -----------------------------------------------------------------------------
-// Request
+// Request: Request and response models
 // -----------------------------------------------------------------------------
 struct Request;
 struct Response;
@@ -39,7 +39,7 @@ Rename a related declaration so the family is visible:
 
 ```rust
 // -----------------------------------------------------------------------------
-// Request
+// Request: Request model family
 // -----------------------------------------------------------------------------
 struct Request;
 struct RequestResponse;
@@ -50,7 +50,7 @@ A module-owned namespace is also valid even when its declarations have different
 ```rust
 mod identifier_case {
     // -----------------------------------------------------------------------------
-    // IdentifierCase
+    // IdentifierCase: Identifier spelling operations
     // -----------------------------------------------------------------------------
     pub fn words(value: &str) -> Vec<String> {
         todo!()

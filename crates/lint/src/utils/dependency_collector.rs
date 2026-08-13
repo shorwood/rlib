@@ -8,7 +8,7 @@ use rustc_hir::{BodyId, intravisit};
 use rustc_middle::ty::TyCtxt;
 
 // -----------------------------------------------------------------------------
-// DependencyCollector
+// DependencyCollector: Local declaration reference discovery
 // -----------------------------------------------------------------------------
 
 /// HIR visitor that records local definitions referenced by one declaration.

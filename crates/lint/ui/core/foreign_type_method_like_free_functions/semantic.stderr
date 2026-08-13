@@ -31,7 +31,7 @@ LL | pub fn register_document(registry: &Registry, document: &Document) {}
    |                          |
    |                          `Registry` remains a plausible owner
    |
-   = note: foreign parameter candidates `Registry`, `Document` compete for ownership, so the API does not reveal which concept owns the operation
+   = note: foreign parameter types `Registry`, `Document` compete for ownership, so the API does not reveal which concept owns the operation
    = help: choose one semantic subject and define a focused extension trait, or introduce a domain object that owns the operation
 
 warning: visible free function `inspect` behaves like an extension method on `ExternalItem`

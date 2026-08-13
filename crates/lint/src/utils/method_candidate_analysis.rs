@@ -20,8 +20,8 @@ pub mod migration;
 // -----------------------------------------------------------------------------
 // Receiver: Receiver analysis
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// The form of `self` that preserves how the first parameter is passed.
+#[derive(Clone, Copy)]
 enum ReceiverKind {
     /// Receiver owns the original first-parameter value.
     Value,
@@ -45,8 +45,8 @@ impl ReceiverKind {
         }
     }
 }
-#[derive(Clone, Copy)]
 /// Semantic first-parameter type resolved independently of its source spelling.
+#[derive(Clone, Copy)]
 struct ReceiverSemantics {
     /// Method receiver form preserving ownership and mutability.
     kind: ReceiverKind,
@@ -531,8 +531,8 @@ impl MethodCandidate {
         format!("{struct_path}::{}", self.function.name)
     }
 }
-#[derive(Clone, Copy)]
 /// One place where the first parameter's name is used inside the function body.
+#[derive(Clone, Copy)]
 pub struct MethodCandidateBindingUse {
     /// Source span occupied by this reference to the parameter binding.
     span: Span,

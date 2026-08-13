@@ -76,8 +76,8 @@ impl LateViolation for Violation {
 // DeriveMoreAmbiguousDerivedErrorSources: Unambiguous source policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Rejects generated error sources when several fields plausibly own the causal chain.
+#[derive(Default)]
 struct DeriveMoreAmbiguousDerivedErrorSources {
     /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,

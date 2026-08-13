@@ -25,8 +25,8 @@ use crate::utils::standard_interface_analysis::StandardInterfaceAnalysis;
 // -----------------------------------------------------------------------------
 // Violation: Method relocation diagnostic
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Whether a `candidate` can reuse its authored function name as a method.
+#[derive(Clone, Copy)]
 enum ViolationMigrationAvailability {
     /// The destination method name is free.
     Available,
@@ -143,8 +143,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // MethodLikeFreeFunctions: Receiver ownership policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects the information needed to find misplaced functions and safely move them.
+#[derive(Default)]
 struct MethodLikeFreeFunctions {
     /// Free functions whose first parameter identifies a same-module struct.
     candidates: Vec<MethodCandidate>,

@@ -7,14 +7,14 @@ use serde::Deserialize;
 // -----------------------------------------------------------------------------
 // Cargo: Publication metadata
 // -----------------------------------------------------------------------------
-#[derive(Deserialize)]
 /// Package publication setting interpreted conservatively.
+#[derive(Deserialize)]
 struct CargoPackage {
     /// Boolean or registry-list form accepted by Cargo.
     publish: Option<toml::Value>,
 }
-#[derive(Deserialize)]
 /// Cargo fields needed to distinguish publishable and closed packages.
+#[derive(Deserialize)]
 struct CargoManifest {
     /// Package table omitted only by virtual workspace manifests.
     package: Option<CargoPackage>,
@@ -23,8 +23,8 @@ struct CargoManifest {
 // -----------------------------------------------------------------------------
 // VisibilityPackagePolicy: External api intent
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 /// Publication policy inferred from the target package manifest.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum VisibilityPackagePolicy {
     /// Package explicitly refuses publication and is treated as locally closed.
     Closed,

@@ -2,7 +2,7 @@ warning: section `Transport` mixes 6 declarations from several naming families, 
   --> $DIR/semantic.rs:14:1
    |
 LL | / // -----------------------------------------------------------------------------
-LL | | // Transport
+LL | | // Transport: Mixed transport concepts
 LL | | // -----------------------------------------------------------------------------
    | |________________________________________________________________________________^
    |
@@ -18,7 +18,7 @@ warning: section `ModuleNamespace` mixes 6 declarations from several naming fami
   --> $DIR/semantic.rs:37:5
    |
 LL | /     // -----------------------------------------------------------------------------
-LL | |     // ModuleNamespace
+LL | |     // ModuleNamespace: Module-owned operations
 LL | |     // -----------------------------------------------------------------------------
    | |____________________________________________________________________________________^
    |

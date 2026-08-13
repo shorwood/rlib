@@ -74,7 +74,7 @@ impl LateViolation for Violation {
             Self::AmbiguousOwner { finding } => {
                 let candidates = Self::type_names(&finding.candidates);
                 Cow::Owned(format!(
-                    "foreign parameter candidates {candidates} compete for ownership, so the API does not reveal which concept owns the operation"
+                    "foreign parameter types {candidates} compete for ownership, so the API does not reveal which concept owns the operation"
                 ))
             }
         }
@@ -135,8 +135,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // ForeignTypeMethodLikeFreeFunctions: Extension trait ownership policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects visible free functions whose behavior may belong on a foreign type extension trait.
+#[derive(Default)]
 struct ForeignTypeMethodLikeFreeFunctions {
     /// Cross-function analysis used to distinguish subjects from ambient infrastructure.
     analyzer: ForeignTypeAnalyzer,

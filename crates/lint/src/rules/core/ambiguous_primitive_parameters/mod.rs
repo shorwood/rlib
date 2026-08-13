@@ -125,10 +125,11 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// AmbiguousPrimitiveParameters
+// AmbiguousPrimitiveParameters: Type-safe parameter role policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
+
 /// Collects authored signatures before applying string-domain diagnostic precedence.
+#[derive(Default)]
 struct AmbiguousPrimitiveParameters {
     /// Function and method signatures awaiting crate-wide evidence.
     signatures: Vec<ParameterSignature>,

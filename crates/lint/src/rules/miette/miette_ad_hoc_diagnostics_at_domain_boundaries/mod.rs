@@ -114,8 +114,8 @@ fn static_string(expression: &syn::Expr) -> Option<String> {
     (!value.contains('{') && !value.contains('}')).then_some(value)
 }
 
-#[derive(Default)]
 /// Finds uncoded literal messages in Miette macros and wrapping calls.
+#[derive(Default)]
 struct StaticMessageVisitor {
     /// Distinct static messages found in one function.
     messages: BTreeSet<String>,
@@ -183,8 +183,8 @@ fn contains_miette_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
 // MietteAdHocDiagnosticsAtDomainBoundaries: Typed domain failure policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Correlates repeated anonymous messages across report-returning functions.
+#[derive(Default)]
 struct MietteAdHocDiagnosticsAtDomainBoundaries {
     /// Construction sites grouped by static message text.
     messages: BTreeMap<String, Vec<ViolationUse>>,

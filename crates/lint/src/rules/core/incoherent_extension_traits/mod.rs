@@ -17,8 +17,8 @@ use crate::utils::extension_trait_analysis::{ExtensionTraitAnalyzer, ExtensionTr
 // -----------------------------------------------------------------------------
 // ExtensionTraitConfig: Focused extension trait limits
 // -----------------------------------------------------------------------------
-#[derive(Clone, Deserialize)]
 /// Limits that prevent extension traits from becoming catch-all APIs.
+#[derive(Clone, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct ExtensionTraitConfig {
     /// Maximum methods permitted in one focused extension trait.
@@ -32,8 +32,8 @@ impl Default for ExtensionTraitConfig {
 }
 
 impl ExtensionTraitConfig {
-    #[cfg(test)]
     /// Returns the configured method limit for configuration tests.
+    #[cfg(test)]
     pub(crate) const fn max_methods(&self) -> usize {
         self.max_methods
     }

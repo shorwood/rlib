@@ -104,8 +104,8 @@ struct ForeignTypeFunction {
     /// Distinct nominal parameter identities in declaration order.
     nominal_parameters: Vec<ForeignTypeParameter>,
 }
-#[derive(Default)]
 /// Finds visible free functions that expose behavior through foreign nominal parameters.
+#[derive(Default)]
 pub struct ForeignTypeAnalyzer {
     /// Candidate signatures collected before ambient dependencies are known.
     functions: Vec<ForeignTypeFunction>,

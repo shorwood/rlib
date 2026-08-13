@@ -109,8 +109,8 @@ fn has_numeric_field(cx: &LateContext<'_>, definition: LocalDefId) -> bool {
 // DeriveMoreNonRoundtrippingDerivedTextContracts: Round-trip text policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Correlates generated display grammars with transparent parsing behavior.
+#[derive(Default)]
 struct DeriveMoreNonRoundtrippingDerivedTextContracts {
     /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,

@@ -86,8 +86,8 @@ fn check_url(cx: &LateContext<'_>, span: Span, url: Option<&str>) {
 // MietteUnstableDiagnosticUrls: Durable documentation links
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Collects derived diagnostic URLs before validating their stability.
+#[derive(Default)]
 struct MietteUnstableDiagnosticUrls {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,

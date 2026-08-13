@@ -35,8 +35,8 @@ impl MigrationEdit {
         self.replacement
     }
 }
-#[derive(Default)]
 /// A group of replacements made inside one larger source range.
+#[derive(Default)]
 struct MigrationEdits(
     /// Source replacements accumulated before offset-stable application.
     Vec<MigrationEdit>,

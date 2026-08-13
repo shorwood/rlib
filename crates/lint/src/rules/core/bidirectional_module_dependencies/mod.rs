@@ -72,8 +72,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // Module: Dependency graph records
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// One resolved import from a module to one of its siblings.
+#[derive(Clone, Copy)]
 struct ModuleDependency {
     /// Sibling module containing the import.
     source: LocalDefId,
@@ -82,8 +82,8 @@ struct ModuleDependency {
     /// Import span used to relate both directions of a cycle.
     span: Span,
 }
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 /// One directed module pair that has already produced a diagnostic.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 struct ModulePair {
     /// Origin of the directed dependency.
     source: LocalDefId,
@@ -101,8 +101,8 @@ impl ModulePair {
 // -----------------------------------------------------------------------------
 // BidirectionalModuleDependencies: Module dependency direction policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects sibling imports and reports each two-way module pair once.
+#[derive(Default)]
 struct BidirectionalModuleDependencies {
     /// Sibling dependency edges collected from resolved imports.
     dependencies: Vec<ModuleDependency>,

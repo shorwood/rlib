@@ -75,8 +75,8 @@ impl ManualErrorCatalog {
         candidates
     }
 
-    #[cfg(feature = "derive_more")]
     /// Returns whether a type manually implements both presentation and error behavior.
+    #[cfg(feature = "derive_more")]
     pub(crate) fn contains(&self, definition: LocalDefId) -> bool {
         self.displays.contains_key(&definition) && self.errors.contains_key(&definition)
     }

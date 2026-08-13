@@ -43,6 +43,7 @@ mod string_domain_vocabulary;
 mod string_domain_revalidation;
 pub mod string_domain_analysis;
 pub mod tuple_types;
+#[cfg(any(feature = "derive_more", feature = "strum"))]
 pub mod variant_methods;
 pub mod visibility_boundary;
 mod visibility_package_policy;

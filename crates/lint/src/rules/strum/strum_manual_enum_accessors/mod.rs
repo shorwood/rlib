@@ -72,8 +72,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // StrumManualEnumAccessors: Accessor family analysis
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Finds complete manual tuple-variant accessor families reproducible by `EnumTryAs`.
+#[derive(Default)]
 struct StrumManualEnumAccessors {
     /// Shared collector that proves an accessor exists for every eligible variant.
     analyzer: AccessorFamilyAnalyzer,

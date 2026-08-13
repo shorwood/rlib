@@ -21,7 +21,7 @@ For example, a broad transport section can hide unrelated request and response c
 
 ```rust
 // -----------------------------------------------------------------------------
-// Transport
+// Transport: Request and response transport
 // -----------------------------------------------------------------------------
 struct Request;
 struct RequestBuilder;
@@ -37,7 +37,7 @@ Make the conceptual families visible in both names and sections:
 
 ```rust
 // -----------------------------------------------------------------------------
-// Request
+// Request: Request model family
 // -----------------------------------------------------------------------------
 struct Request;
 struct RequestBuilder;
@@ -45,7 +45,7 @@ struct RequestHeaders;
 struct RequestBody;
 
 // -----------------------------------------------------------------------------
-// Response
+// Response: Response model family
 // -----------------------------------------------------------------------------
 struct Response;
 struct ResponseBuilder;

@@ -40,8 +40,8 @@ pub struct ControlFlowDeepFinding {
     /// Refactoring guidance for reducing nesting.
     pub(crate) help: String,
 }
-#[derive(Default)]
 /// Findings split by public lint identity.
+#[derive(Default)]
 pub struct ControlFlowAnalysis {
     /// Branches that can be inverted into early exits.
     pub(crate) needless_nesting: Vec<ControlFlowFinding>,
@@ -56,8 +56,8 @@ pub struct ControlFlowAnalysis {
 // -----------------------------------------------------------------------------
 // ControlFlowAnalyzer: Traversal state and semantic analysis
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Early-exit form available when flattening a trailing conditional.
+#[derive(Clone, Copy)]
 enum ControlFlowAnalyzerGuardExit {
     /// The surrounding block cannot be flattened with a direct early exit.
     None,
@@ -66,8 +66,8 @@ enum ControlFlowAnalyzerGuardExit {
     /// A direct loop body can invert the condition and continue early.
     Continue,
 }
-#[derive(Clone, Copy)]
 /// Return behavior of the outer function under analysis.
+#[derive(Clone, Copy)]
 pub(super) enum ControlFlowAnalyzerFunctionReturn {
     /// A bare return can exit the outer function.
     Unit,
@@ -85,8 +85,8 @@ impl ControlFlowAnalyzerFunctionReturn {
         }
     }
 }
-#[derive(Default)]
 /// Mutable traversal state shared by the control-flow readability analyses.
+#[derive(Default)]
 struct ControlFlowAnalyzerState {
     /// Current semantic nesting depth.
     depth: usize,
@@ -104,8 +104,8 @@ impl ControlFlowAnalyzerState {
             .any(|guardable| guardable.lo() == span.lo() && guardable.hi() == span.hi())
     }
 }
-#[derive(Clone, Copy)]
 /// More specific remediation available for an excessive-depth finding.
+#[derive(Clone, Copy)]
 enum ControlFlowAnalyzerDepthRemedy {
     /// Guard-clause guidance supersedes generic depth guidance.
     GuardClause,

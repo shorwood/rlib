@@ -19,8 +19,8 @@ use super::identifier_case;
 // -----------------------------------------------------------------------------
 // IteratorCandidate: Complete diagnostic context
 // -----------------------------------------------------------------------------
-#[derive(Clone)]
 /// One unique stateful traversal that should use Rust's iterator protocol.
+#[derive(Clone)]
 pub struct IteratorCandidateSource {
     /// HIR node used for lint-level configuration.
     pub hir_id: HirId,
@@ -33,16 +33,16 @@ pub struct IteratorCandidateSource {
     /// State advance or delegated `next` operation.
     pub evidence_span: Span,
 }
-#[derive(Clone)]
 /// Inferred iterator contract shown in diagnostics.
+#[derive(Clone)]
 pub struct IteratorCandidateProtocol {
     /// Receiver type that should own `Iterator`.
     pub type_name: String,
     /// Concrete yielded item spelling.
     pub item_name: String,
 }
-#[derive(Clone)]
 /// One unique stateful traversal that should use Rust's iterator protocol.
+#[derive(Clone)]
 pub struct IteratorCandidate {
     /// Authored method identity and structural evidence.
     pub source: IteratorCandidateSource,
@@ -55,8 +55,8 @@ pub struct IteratorCandidate {
 // -----------------------------------------------------------------------------
 // IteratorAnalysis: Stateful traversal family selection
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Finds unique cursor-like methods that reproduce `Iterator::next`.
+#[derive(Default)]
 pub struct IteratorAnalysis {
     /// Proven cursor-like methods in traversal order.
     candidates: Vec<IteratorCandidate>,
@@ -312,8 +312,8 @@ fn iterator_classification_has_neutral_name(
 // -----------------------------------------------------------------------------
 // IteratorEvidence: Persistent state advance proof
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Mutable facts accumulated while traversing one iterator-like body.
+#[derive(Default)]
 struct IteratorEvidenceState {
     /// First explicit assignment to receiver-owned state.
     mutation: Option<Span>,

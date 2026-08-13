@@ -61,8 +61,8 @@ impl PolicyLiteralFinding {
 // -----------------------------------------------------------------------------
 // PolicyLiteral: Authored numeric policy material
 // -----------------------------------------------------------------------------
-#[derive(Clone)]
 /// Span and optional authored name of one literal-derived value.
+#[derive(Clone)]
 struct PolicyLiteralOrigin {
     /// Maximal source span that can be extracted into a constant.
     span: Span,
@@ -303,8 +303,8 @@ impl<'tcx> Visitor<'tcx> for LocalLiteralCollector<'_, 'tcx> {
 // -----------------------------------------------------------------------------
 // ControlFlowEvidence: Fallibility and exits
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Semantic proof retained while examining one controlled body.
+#[derive(Default)]
 struct ControlFlowEvidence {
     /// Body contains `?` or an expression producing the standard `Result` type.
     has_fallible_operation: bool,
@@ -654,8 +654,8 @@ struct PolicyComparison<'tcx> {
     /// Simple opposite-side identifier available for constant-name inference.
     subject_name: Option<String>,
 }
-#[derive(Default)]
 /// Finds numeric comparison expressions without entering nested closures.
+#[derive(Default)]
 struct PolicyComparisonCollector<'tcx> {
     /// Comparisons retained from a compound condition.
     comparisons: Vec<PolicyComparison<'tcx>>,
@@ -775,7 +775,7 @@ impl<'tcx> Visitor<'tcx> for RangeOriginCollector<'_, 'tcx> {
 // PolicyLiteralAnalyzer: Body level orchestration
 // -----------------------------------------------------------------------------
 
-/// Performs alias resolution and policy classification for one executable body.
+/// Resolves aliases and classifies policy-bearing literals in one executable body.
 pub struct PolicyLiteralAnalyzer;
 
 impl PolicyLiteralAnalyzer {

@@ -110,8 +110,8 @@ impl LateViolation for Violation {
 // StrumNonRoundtrippingEnumStrings: Round-tripping text policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Compares each generated Strum output spelling with its parsing contract.
+#[derive(Default)]
 struct StrumNonRoundtrippingEnumStrings {
     /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,

@@ -97,8 +97,8 @@ fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
 // MietteSensitiveDiagnosticSource: Confidential source-rendering policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Collects diagnostic field roles before checking sensitive source exposure.
+#[derive(Default)]
 struct MietteSensitiveDiagnosticSource {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,

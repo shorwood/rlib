@@ -17,7 +17,7 @@ pub(super) struct ParsedContent {
 impl From<&str> for ParsedContent {
     /// Parses divider content and computes its canonical representation.
     fn from(content: &str) -> Self {
-        // Split and trim the authored prefix and optional description.
+        // Split and trim the authored abstraction and required responsibility.
         let trimmed = content.trim();
         let (raw_prefix, raw_description) = trimmed
             .split_once(':')
@@ -50,13 +50,12 @@ impl From<&str> for ParsedContent {
 }
 
 impl ParsedContent {
-    /// Joins a valid prefix and optional description using canonical spacing.
+    /// Joins a valid prefix and responsibility using canonical spacing.
     fn normalized_content(prefix: Option<&str>, description: Option<&str>) -> Option<String> {
         match (prefix, description) {
             (Some(prefix), Some(description)) if !description.is_empty() => {
                 Some(format!("{prefix}: {description}"))
             }
-            (Some(prefix), None) => Some(prefix.to_owned()),
             _ => None,
         }
     }
@@ -71,6 +70,8 @@ impl ParsedContent {
     ) -> Option<String> {
         if prefix.is_none() {
             Some("section divider prefix is not PascalCase".to_owned())
+        } else if raw_description.is_none() {
+            Some("section divider must describe the abstraction's responsibility".to_owned())
         } else if raw_description.is_some_and(str::is_empty) {
             Some("section divider description is empty".to_owned())
         } else if raw_description != normalized_description {
@@ -360,5 +361,15 @@ mod tests {
             parsed.normalized.as_deref(),
             Some("Candidate: Collected state")
         );
+    }
+
+    #[test]
+    fn requires_a_responsibility_description() {
+        let parsed = ParsedContent::from("Candidate");
+        assert_eq!(
+            parsed.error.as_deref(),
+            Some("section divider must describe the abstraction's responsibility")
+        );
+        assert!(parsed.normalized.is_none());
     }
 }

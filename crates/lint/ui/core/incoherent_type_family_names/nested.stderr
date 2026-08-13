@@ -2,7 +2,7 @@ warning: type names in the `NestedContext` section repeat organizational context
   --> $DIR/nested.rs:5:5
    |
 LL | /     // -----------------------------------------------------------------------------
-LL | |     // NestedContext
+LL | |     // NestedContext: Family naming fixture
 LL | |     // -----------------------------------------------------------------------------
    | |____________________________________________________________________________________^
 ...

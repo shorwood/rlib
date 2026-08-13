@@ -16,8 +16,8 @@ use crate::rules::miette::config::MietteHelpConfig;
 // -----------------------------------------------------------------------------
 // LibraryConfig: Complete lint library configuration
 // -----------------------------------------------------------------------------
-#[derive(Clone, Default, Deserialize)]
 /// Every configurable policy exposed through the `rlib-lint` Dylint table.
+#[derive(Clone, Default, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct LibraryConfig {
     /// Historical public Bon member snapshot used for compatibility checks.

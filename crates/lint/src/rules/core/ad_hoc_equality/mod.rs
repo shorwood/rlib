@@ -141,8 +141,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // AdHocEquality: Standard equality ownership policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects equality families and existing trait ownership before reporting.
+#[derive(Default)]
 struct AdHocEquality {
     /// Shared relation analyzer used to select canonical equality families.
     comparisons: ComparisonAnalysis,

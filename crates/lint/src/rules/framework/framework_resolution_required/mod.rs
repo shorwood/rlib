@@ -44,39 +44,40 @@ use crate::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer};
 // -----------------------------------------------------------------------------
 
 /// Derivable contract with multiple eligible providers and no configured owner.
+#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 enum Violation {
-    #[cfg(feature = "strum")]
     /// Exhaustive enum collection supported by two different Strum APIs.
+    #[cfg(feature = "strum")]
     Collection {
         /// Exhaustive collection contract needing an explicit API choice.
         span: Span,
     },
-    #[cfg(feature = "strum")]
     /// Complete enum predicate family supported by Strum and `derive_more`.
+    #[cfg(feature = "strum")]
     Predicate {
         /// Predicate family supported by both enabled derive libraries.
         span: Span,
     },
-    #[cfg(feature = "strum")]
     /// Static enum display contract supported by Strum and `derive_more`.
+    #[cfg(feature = "strum")]
     Display {
         /// Static display implementation supported by both enabled libraries.
         span: Span,
     },
-    #[cfg(feature = "strum")]
     /// Flat unit-enum parser supported by Strum and `derive_more`.
+    #[cfg(feature = "strum")]
     Parser {
         /// Unit-enum parser supported by both enabled libraries.
         span: Span,
     },
-    #[cfg(all(feature = "thiserror", feature = "derive_more"))]
     /// Exact error-variant conversion supported by thiserror and `derive_more`.
+    #[cfg(all(feature = "thiserror", feature = "derive_more"))]
     ErrorConversion {
         /// Source-bearing variant conversion needing an explicit provider.
         span: Span,
     },
-    #[cfg(all(feature = "thiserror", feature = "derive_more"))]
     /// Complete error contract supported by thiserror and `derive_more`.
+    #[cfg(all(feature = "thiserror", feature = "derive_more"))]
     ErrorImplementation {
         /// Complete manual error contract needing an explicit provider.
         span: Span,
@@ -85,6 +86,7 @@ enum Violation {
     },
 }
 
+#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 impl Violation {
     /// Returns the authored contract receiving the provider-choice diagnostic.
     const fn span(&self) -> Span {
@@ -100,6 +102,7 @@ impl Violation {
     }
 }
 
+#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         match self {
@@ -207,29 +210,29 @@ impl LateViolation for Violation {
 
 /// Reports unresolved framework choices without selecting a provider.
 struct FrameworkResolutionRequired {
-    #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
     /// Explicit provider choices for overlapping derive contracts.
+    #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
     config: DeriveResolutionConfig,
-    #[cfg(feature = "strum")]
     /// Authored predicate families eligible for more than one provider.
+    #[cfg(feature = "strum")]
     predicates: PredicateFamilyAnalyzer,
-    #[cfg(feature = "strum")]
     /// Authored enum naming contracts used to validate text behavior.
+    #[cfg(feature = "strum")]
     catalog: ContractCatalog,
-    #[cfg(feature = "strum")]
     /// Manual display contracts awaiting provider resolution.
-    displays: Vec<DisplayCandidate>,
     #[cfg(feature = "strum")]
+    displays: Vec<DisplayCandidate>,
     /// Manual string parsers awaiting provider resolution.
+    #[cfg(feature = "strum")]
     parsers: Vec<StringParserCandidate>,
-    #[cfg(all(feature = "thiserror", feature = "derive_more"))]
     /// Local thiserror contracts used to confirm error targets.
+    #[cfg(all(feature = "thiserror", feature = "derive_more"))]
     thiserror_catalog: ThiserrorContractCatalog,
-    #[cfg(all(feature = "thiserror", feature = "derive_more"))]
     /// Exact manual error conversions eligible for competing derives.
-    error_conversions: Vec<ManualFromCandidate>,
     #[cfg(all(feature = "thiserror", feature = "derive_more"))]
+    error_conversions: Vec<ManualFromCandidate>,
     /// Complete manual error contracts eligible for competing derives.
+    #[cfg(all(feature = "thiserror", feature = "derive_more"))]
     manual_errors: ManualErrorCatalog,
 }
 
@@ -256,8 +259,8 @@ impl FrameworkResolutionRequired {
         }
     }
 
-    #[cfg(feature = "strum")]
     /// Reports an enum collection contract when multiple APIs remain unselected.
+    #[cfg(feature = "strum")]
     fn check_candidate(&self, cx: &LateContext<'_>, candidate: Option<CollectionCandidate>) {
         let Some(candidate) = candidate else {
             return;
@@ -271,8 +274,8 @@ impl FrameworkResolutionRequired {
         .emit(cx);
     }
 
-    #[cfg(feature = "strum")]
     /// Reports complete predicate families with no configured provider.
+    #[cfg(feature = "strum")]
     fn emit_unresolved_predicates(&self, cx: &LateContext<'_>) {
         for family in self.predicates.complete_families(cx) {
             if !(PredicateFamily::providers(cx).len() > 1
@@ -284,8 +287,8 @@ impl FrameworkResolutionRequired {
         }
     }
 
-    #[cfg(feature = "strum")]
     /// Reports display and parser contracts with no configured provider.
+    #[cfg(feature = "strum")]
     fn emit_unresolved_text_contracts(&self, cx: &LateContext<'_>) {
         let contracts = self.catalog.contracts();
         if DisplayProvider::providers(cx).len() > 1 && self.config.enum_display().is_none() {
@@ -357,10 +360,12 @@ impl LateLintPass<'_> for FrameworkResolutionRequired {
             }
         }
         #[cfg(all(feature = "thiserror", feature = "derive_more"))]
-        let Some(candidate) = ManualFromCandidate::from_impl_item(cx, item) else {
-            return;
-        };
-        self.error_conversions.push(candidate);
+        {
+            let Some(candidate) = ManualFromCandidate::from_impl_item(cx, item) else {
+                return;
+            };
+            self.error_conversions.push(candidate);
+        }
 
         #[cfg(not(any(feature = "strum", all(feature = "thiserror", feature = "derive_more"))))]
         let _ = (cx, item);
@@ -390,23 +395,25 @@ impl LateLintPass<'_> for FrameworkResolutionRequired {
             }
         }
         #[cfg(all(feature = "thiserror", feature = "derive_more"))]
-        if self.config.error_implementation().is_some() {
-            return;
-        }
-        for candidate in self.manual_errors.candidates() {
-            if candidate
-                .source_field
-                .as_deref()
-                .is_some_and(|field| field != "source")
-            {
-                continue;
+        {
+            if self.config.error_implementation().is_some() {
+                return;
             }
+            for candidate in self.manual_errors.candidates() {
+                if candidate
+                    .source_field
+                    .as_deref()
+                    .is_some_and(|field| field != "source")
+                {
+                    continue;
+                }
 
-            Violation::ErrorImplementation {
-                span: candidate.span,
-                name: candidate.name,
+                Violation::ErrorImplementation {
+                    span: candidate.span,
+                    name: candidate.name,
+                }
+                .emit(cx);
             }
-            .emit(cx);
         }
 
         #[cfg(not(any(feature = "strum", all(feature = "thiserror", feature = "derive_more"))))]

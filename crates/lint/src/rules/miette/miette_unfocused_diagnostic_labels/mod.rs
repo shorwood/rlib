@@ -89,8 +89,8 @@ fn check_fields(cx: &LateContext<'_>, span: Span, fields: &[DiagnosticField]) {
 // MietteUnfocusedDiagnosticLabels: Explicit label focus policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Collects diagnostic field roles before checking label focus.
+#[derive(Default)]
 struct MietteUnfocusedDiagnosticLabels {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,

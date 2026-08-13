@@ -114,8 +114,8 @@ struct ExtensionTraitAnalyzerImpl {
     /// Complete impl span.
     span: Span,
 }
-#[derive(Default)]
 /// Collects the shared semantic model used by extension-trait policy lints.
+#[derive(Default)]
 pub struct ExtensionTraitAnalyzer {
     /// Local trait declarations indexed by definition identity.
     traits: HashMap<LocalDefId, ExtensionTraitAnalyzerDefinition>,

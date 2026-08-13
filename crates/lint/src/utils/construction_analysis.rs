@@ -21,8 +21,8 @@ use super::identifier_case;
 // -----------------------------------------------------------------------------
 // Construction: Candidate semantic record
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy, PartialEq, Eq)]
 /// Container path from a function return type to the local value it constructs.
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ConstructionReturn {
     /// The function returns the constructed type directly.
     Direct,
@@ -31,16 +31,16 @@ pub enum ConstructionReturn {
     /// The function returns exactly `Result<T, E>` for the constructed `T`.
     FallibleDirect,
 }
-#[derive(Clone, Copy, PartialEq, Eq)]
 /// Whether a constructor-like function is free or already associated with a type.
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ConstructionOrigin {
     /// A module-level free function.
     Free,
     /// A receiver-free function in an inherent implementation.
     Inherent,
 }
-#[derive(Clone, Copy)]
 /// Structural facts needed to recognize a canonical owned string parser.
+#[derive(Clone, Copy)]
 pub struct ConstructionParserFacts {
     /// Whether the function takes exactly one immutable string slice.
     has_single_str_input: bool,
@@ -49,8 +49,8 @@ pub struct ConstructionParserFacts {
     /// Whether the target declares a lifetime that `FromStr` cannot return.
     has_target_lifetime: bool,
 }
-#[derive(Clone, Copy)]
 /// Authored source properties used by conservative constructor relocation.
+#[derive(Clone, Copy)]
 pub struct ConstructionMigrationFacts {
     /// Whether source visibility is private.
     pub(crate) is_private: bool,
@@ -61,8 +61,8 @@ pub struct ConstructionMigrationFacts {
 // -----------------------------------------------------------------------------
 // ConstructionCandidate: Function and target identity
 // -----------------------------------------------------------------------------
-#[derive(Clone)]
 /// Authored function identity retained by one construction `candidate`.
+#[derive(Clone)]
 pub struct ConstructionCandidateFunction {
     /// Function definition used to index resolved references.
     pub(crate) def_id: LocalDefId,
@@ -75,8 +75,8 @@ pub struct ConstructionCandidateFunction {
     /// Module containing the function and its construction target.
     pub(crate) module: LocalDefId,
 }
-#[derive(Clone)]
 /// Constructed local type and the return contract that reaches it.
+#[derive(Clone)]
 pub struct ConstructionCandidateTarget {
     /// Local nominal type constructed by the body.
     pub(crate) def_id: LocalDefId,
@@ -85,8 +85,8 @@ pub struct ConstructionCandidateTarget {
     /// Standard-container shape around the constructed value.
     pub(super) return_shape: ConstructionReturn,
 }
-#[derive(Clone, Copy)]
 /// Function ownership facts used to select the responsible lint policy.
+#[derive(Clone, Copy)]
 pub struct ConstructionCandidateOwnership {
     /// Whether the function is module-level or already associated.
     pub(crate) origin: ConstructionOrigin,
@@ -95,8 +95,8 @@ pub struct ConstructionCandidateOwnership {
     /// Whether the function and constructed type are defined in the same module.
     pub(crate) is_target_same_module: bool,
 }
-#[derive(Clone)]
 /// One authored function proven to construct a local nominal type.
+#[derive(Clone)]
 pub struct ConstructionCandidate {
     /// Function identity and source ownership.
     pub(crate) function: ConstructionCandidateFunction,
@@ -181,8 +181,8 @@ struct ConstructionInputSource {
     /// Whether attributes decorate the declaration.
     has_attributes: bool,
 }
-#[derive(Clone, Copy)]
 /// Outermost container used to distinguish exact `Result<T, E>` returns.
+#[derive(Clone, Copy)]
 enum ConstructionInputContainerRoot {
     /// No standard container has been traversed.
     Direct,
@@ -195,16 +195,16 @@ enum ConstructionInputContainerRoot {
 // -----------------------------------------------------------------------------
 // ConstructionAnalysis: Crate wide discovery
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// One direct module item retained for guarded adjacency analysis.
+#[derive(Clone, Copy)]
 pub struct ConstructionAnalysisModuleItem {
     /// Definition identity of the item.
     pub(crate) def_id: LocalDefId,
     /// Authored source range of the item.
     pub(crate) span: Span,
 }
-#[derive(Default)]
 /// Crate-wide construction discovery shared by ownership and parser lints.
+#[derive(Default)]
 pub struct ConstructionAnalysis {
     /// Proven constructor-like functions in traversal order.
     pub(crate) candidates: Vec<ConstructionCandidate>,
@@ -264,7 +264,7 @@ impl ConstructionAnalysis {
         Self::constructed_target_inner(cx, output, 0, ConstructionInputContainerRoot::Direct)
     }
 
-    /// Carries container depth and outer shape through recursive success-value unwrapping.
+    /// Preserves container depth and outer shape while unwrapping nested success values.
     fn constructed_target_inner(
         cx: &LateContext<'_>,
         output: Ty<'_>,

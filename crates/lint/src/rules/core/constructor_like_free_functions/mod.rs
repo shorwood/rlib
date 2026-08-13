@@ -130,8 +130,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // ConstructorLikeFreeFunctions: Construction ownership policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects proven construction functions and the references needed for safe relocation.
+#[derive(Default)]
 struct ConstructorLikeFreeFunctions {
     /// Shared semantic and source analyzer.
     constructions: ConstructionAnalysis,

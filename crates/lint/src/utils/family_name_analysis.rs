@@ -215,8 +215,8 @@ impl FamilyInference<'_> {
 // -----------------------------------------------------------------------------
 // Confidence: Fixed inference evidence weights
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Fixed evidence categories used by family-name confidence scoring.
+#[derive(Clone, Copy)]
 enum ConfidenceSignal {
     /// The section prefix repeats the containing module's words.
     ContextMatch,
@@ -237,8 +237,8 @@ enum ConfidenceSignal {
     /// Multiple dependency owners imply incompatible family stems.
     CompetingStem,
 }
-#[derive(Clone, Copy)]
 /// Namespace availability of an inferred exact replacement.
+#[derive(Clone, Copy)]
 enum ConfidenceNameAvailability {
     /// Every inferred replacement is available.
     Available,
@@ -263,8 +263,8 @@ impl ConfidenceNameAvailability {
         }
     }
 }
-#[derive(Default)]
 /// Ordered confidence signals collected while evaluating one family.
+#[derive(Default)]
 struct ConfidenceEvidence(
     /// Signals retained individually so repeated penalties remain meaningful.
     Vec<ConfidenceSignal>,
@@ -318,8 +318,8 @@ struct FamilyCandidate<'section> {
     /// Role-bearing name tokens left after removing the section prefix.
     name: NameTokens,
 }
-#[derive(Clone, Copy)]
 /// Directed dependency relationship between two affected candidates.
+#[derive(Clone, Copy)]
 struct FamilyCandidateRelationship {
     /// Index of the declaration that owns or refers to the child.
     owner_index: usize,
@@ -636,8 +636,8 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
 // -----------------------------------------------------------------------------
 // NameTokens: Rust identifier word structure
 // -----------------------------------------------------------------------------
-#[derive(Clone, Debug, Eq, PartialEq)]
 /// Identifier split into normalized `PascalCase` word tokens.
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct NameTokens {
     /// Ordered semantic words extracted from the identifier.
     words: Vec<String>,

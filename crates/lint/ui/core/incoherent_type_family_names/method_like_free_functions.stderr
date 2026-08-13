@@ -2,7 +2,7 @@ warning: type names in the `MethodLikeFreeFunctions` section repeat organization
   --> $DIR/method_like_free_functions.rs:4:1
    |
 LL | / // -----------------------------------------------------------------------------
-LL | | // MethodLikeFreeFunctions
+LL | | // MethodLikeFreeFunctions: Family naming fixture
 LL | | // -----------------------------------------------------------------------------
    | |________________________________________________________________________________^
 ...

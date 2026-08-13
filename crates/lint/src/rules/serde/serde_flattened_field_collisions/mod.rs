@@ -42,8 +42,8 @@ impl FieldContract {
     }
 }
 
-#[derive(Clone)]
 /// Direct and flattened wire fields contributed by one struct.
+#[derive(Clone)]
 struct StructContract {
     /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,

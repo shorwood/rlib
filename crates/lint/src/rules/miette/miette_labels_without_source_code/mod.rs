@@ -133,8 +133,8 @@ fn check_fields(
 // MietteLabelsWithoutSourceCode: Renderable label policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Collects diagnostic field roles before checking label-source pairing.
+#[derive(Default)]
 struct MietteLabelsWithoutSourceCode {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,

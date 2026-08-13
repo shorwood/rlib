@@ -153,8 +153,8 @@ impl LateViolation for Violation {
 // AdHocCollectionConstruction: Standard sequence ingestion policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Collects collection storage, trait occupancy, and sequence-flow evidence.
+#[derive(Default)]
 struct AdHocCollectionConstruction {
     /// Shared analyzer for storage flow and existing collection traits.
     collections: CollectionConstructionAnalysis,

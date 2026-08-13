@@ -22,16 +22,16 @@ use crate::utils::source_provenance::ItemProvenanceExt;
 // -----------------------------------------------------------------------------
 // ModuleAnalysis: Complete section analysis
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Authored and inferred names involved in one section-prefix mismatch.
+#[derive(Clone, Copy)]
 struct ModulePrefixMismatch<'name> {
     /// Prefix written in the divider.
     authored: &'name str,
     /// Shared prefix inferred from the declarations.
     expected: &'name str,
 }
-#[derive(Clone, Copy)]
 /// Validated section prefix passed through module-level checks.
+#[derive(Clone, Copy)]
 struct ModuleSectionPrefix<'name> {
     /// Authored `PascalCase` prefix.
     text: &'name str,
@@ -250,8 +250,7 @@ impl ModuleAnalysis {
             analysis.malformed.push(SectionFinding {
                 span: section.divider.span,
                 message: message.clone(),
-                help: "use `PascalCasePrefix` or `PascalCasePrefix: Sentence case description`"
-                    .to_owned(),
+                help: "use `PascalCaseAbstraction: Sentence case responsibility`".to_owned(),
                 replacement,
             });
         } else if !analyzer.rendered_lines_fit(&section.divider.raw_content) {
@@ -260,8 +259,8 @@ impl ModuleAnalysis {
                 "section divider exceeds the configured {}-character line limit",
                 analyzer.max_line_length
             );
-            let help =
-                "shorten the optional description or choose a more compact template".to_owned();
+            let help = "shorten the responsibility description or choose a more compact template"
+                .to_owned();
 
             // Record the width failure without proposing an unsafe content rewrite.
             analysis.malformed.push(SectionFinding {
@@ -460,6 +459,12 @@ impl ModuleAnalysis {
         // Parse the divider content to validate its syntax and extract the authored prefix.
         let parsed = ParsedContent::from(section.divider.raw_content.as_str());
         Self::record_malformed_section(analyzer, section, &parsed, analysis);
+        if parsed.error.is_some()
+            || !analyzer.rendered_lines_fit(&section.divider.raw_content)
+            || section.participants.is_empty()
+        {
+            return;
+        }
         let Some(prefix) = parsed.prefix.as_deref() else {
             return;
         };

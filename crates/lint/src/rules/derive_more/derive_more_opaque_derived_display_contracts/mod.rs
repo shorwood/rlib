@@ -71,8 +71,8 @@ impl LateViolation for Violation {
 // DeriveMoreOpaqueDerivedDisplayContracts: Transparent display policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Rejects public derived display formats whose authored grammar is not explicit.
+#[derive(Default)]
 struct DeriveMoreOpaqueDerivedDisplayContracts {
     /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,

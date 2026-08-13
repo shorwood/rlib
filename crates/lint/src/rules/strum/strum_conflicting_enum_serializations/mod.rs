@@ -123,8 +123,8 @@ impl LateViolation for Violation {
 // StrumConflictingEnumSerializations: Unambiguous enum text policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Collects enum contracts and rejects ambiguous Strum text representations.
+#[derive(Default)]
 struct StrumConflictingEnumSerializations {
     /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,

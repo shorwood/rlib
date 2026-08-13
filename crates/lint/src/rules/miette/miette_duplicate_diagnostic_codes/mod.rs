@@ -113,8 +113,8 @@ fn record_contract(codes: &mut BTreeMap<String, Vec<ViolationUse>>, contract: &D
 // MietteDuplicateDiagnosticCodes: Unique machine identity policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Collects diagnostic contracts before comparing their effective codes.
+#[derive(Default)]
 struct MietteDuplicateDiagnosticCodes {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,

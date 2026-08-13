@@ -82,10 +82,11 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// StringlyTypedDomainFunctionFamilies
+// StringlyTypedDomainFunctionFamilies: String domain ownership policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
+
 /// Collects free functions and raw textual fields into module-local domain families.
+#[derive(Default)]
 struct StringlyTypedDomainFunctionFamilies {
     /// Shared module-local domain analysis.
     analyzer: DomainAnalyzer,

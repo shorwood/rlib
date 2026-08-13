@@ -64,8 +64,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // NonAdjacentExtensionTraitImpls: Trait implementation colocation policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects extension declarations and their authored implementation groups.
+#[derive(Default)]
 struct NonAdjacentExtensionTraitImpls {
     /// Shared semantic extension-trait analysis.
     analyzer: ExtensionTraitAnalyzer,

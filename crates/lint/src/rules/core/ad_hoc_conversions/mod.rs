@@ -168,8 +168,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // AdHocConversions: Canonical conversion policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects construction and trait evidence before selecting unique conversion families.
+#[derive(Default)]
 struct AdHocConversions {
     /// Construction discovery supplying local target and parser evidence.
     constructions: ConstructionAnalysis,

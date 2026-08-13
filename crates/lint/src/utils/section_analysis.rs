@@ -66,8 +66,8 @@ pub struct SectionGroup {
     /// Distinct declarations governed by the divider.
     pub(super) participants: Vec<SectionParticipant>,
 }
-#[derive(Default)]
 /// Findings split by lint identity so each rule remains independently configurable.
+#[derive(Default)]
 pub struct SectionAnalysis {
     /// Declaration groups that have no preceding divider.
     pub(crate) missing: Vec<SectionFinding>,
@@ -98,8 +98,8 @@ impl SectionAnalysis {
 // -----------------------------------------------------------------------------
 // SectionAnalyzer: Source analysis
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Authored content and indentation used to render one divider replacement.
+#[derive(Clone, Copy)]
 struct SectionAnalyzerRenderRequest<'source> {
     /// Canonical placeholder content.
     content: &'source str,

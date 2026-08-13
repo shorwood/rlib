@@ -111,8 +111,8 @@ fn check_code(cx: &LateContext<'_>, span: Span, code: Option<&str>) {
 // MietteMalformedDiagnosticCodes: Stable code spelling policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Collects derived diagnostic codes before validating their spelling.
+#[derive(Default)]
 struct MietteMalformedDiagnosticCodes {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,

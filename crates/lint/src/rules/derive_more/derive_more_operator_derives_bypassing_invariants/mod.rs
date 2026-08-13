@@ -104,8 +104,8 @@ const OPERATIONS: &[&str] = &[
 // DeriveMoreOperatorDerivesBypassingInvariants: Safe operator policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Rejects generated operators that can construct values outside wrapper invariants.
+#[derive(Default)]
 struct DeriveMoreOperatorDerivesBypassingInvariants {
     /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,

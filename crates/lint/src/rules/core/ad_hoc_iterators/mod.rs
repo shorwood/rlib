@@ -83,8 +83,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // AdHocIterators: Standard stateful traversal policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects iterator occupancy and stateful traversal candidates crate-wide.
+#[derive(Default)]
 struct AdHocIterators {
     /// Stateful traversal analyzer and existing iterator occupancy.
     iterators: IteratorAnalysis,

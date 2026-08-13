@@ -25,8 +25,8 @@ mod text_body_evidence;
 // -----------------------------------------------------------------------------
 // FormattingProblem: Canonical ownership problem
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Why one formatting family is reportable.
+#[derive(Clone, Copy)]
 pub enum FormattingProblem {
     /// One canonical-looking family has no `Display` owner.
     MissingDisplay,
@@ -39,8 +39,8 @@ pub enum FormattingProblem {
 // -----------------------------------------------------------------------------
 // FormattingCandidate: Authored textual helper evidence
 // -----------------------------------------------------------------------------
-#[derive(Clone)]
 /// One authored textual helper retained for diagnostic evidence.
+#[derive(Clone)]
 pub struct FormattingCandidateSource {
     /// HIR node used for lint-level attributes.
     pub hir_id: HirId,
@@ -49,8 +49,8 @@ pub struct FormattingCandidateSource {
     /// Identifier span used by diagnostics.
     pub span: Span,
 }
-#[derive(Clone)]
 /// One authored textual helper retained for diagnostic evidence.
+#[derive(Clone)]
 pub struct FormattingCandidate {
     /// Function definition used for cross-lint precedence.
     def_id: LocalDefId,
@@ -127,8 +127,8 @@ const SECRET_TYPE_MARKERS: &[&str] = &[
 // -----------------------------------------------------------------------------
 // ErrorInterface: Standard error diagnostic evidence
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy, Eq, PartialEq)]
 /// One standard error contract that structural evidence requires.
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub enum ErrorInterfaceContract {
     /// `Debug`, required by `Error`.
     Debug,
@@ -381,8 +381,8 @@ fn standard_interface_vocabulary_is_secret_type(name: &str) -> bool {
 // -----------------------------------------------------------------------------
 // StandardInterfaceAnalysis: Crate wide protocol evidence
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Crate-wide evidence for canonical formatting and error interfaces.
+#[derive(Default)]
 pub struct StandardInterfaceAnalysis {
     /// Eligible authored local types.
     types: HashMap<LocalDefId, InterfaceType>,

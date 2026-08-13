@@ -269,8 +269,8 @@ impl ExactFormatting {
 // DeriveMoreManualFormattingImpls: Declarative formatting policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Groups transparent formatting implementations by their wrapper type.
+#[derive(Default)]
 struct DeriveMoreManualFormattingImpls {
     /// Formatting families accumulated until all implementations have been visited.
     families: HashMap<LocalDefId, Family>,

@@ -20,13 +20,13 @@ use crate::utils::direct_forwarding::DirectForwarding;
 // Violation: Derivable forwarding interface
 // -----------------------------------------------------------------------------
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// One `derive_more` forwarding contract proven by an authored implementation.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Contract {
     /// `derive_more` macro capable of replacing the implementation.
     derive: &'static str,
     /// Whether the implementation delegates behavior rather than exposing a field directly.
-    is_forwarding: bool,
+    is_direct_delegation: bool,
 }
 
 /// Standard interfaces exposing the same wrapper field without additional policy.
@@ -72,7 +72,7 @@ impl LateViolation for Violation {
             .0
             .contracts
             .iter()
-            .any(|contract| contract.is_forwarding);
+            .any(|contract| contract.is_direct_delegation);
 
         let qualifier = if forwarding {
             "; preserve pass-through targets with the corresponding `forward` attribute"
@@ -214,7 +214,7 @@ impl ContractTarget {
             definition,
             contract: Contract {
                 derive,
-                is_forwarding: true,
+                is_direct_delegation: true,
             },
         })
     }
@@ -283,7 +283,7 @@ impl ContractTarget {
                 definition,
                 contract: Contract {
                     derive,
-                    is_forwarding: field_type != *target,
+                    is_direct_delegation: field_type != *target,
                 },
             });
         }
@@ -304,8 +304,8 @@ impl ContractTarget {
 // DeriveMoreManualForwardingInterfaces: Declarative forwarding policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Groups transparent forwarding implementations by their wrapper type.
+#[derive(Default)]
 struct DeriveMoreManualForwardingInterfaces {
     /// Forwarding families accumulated until every implementation is known.
     families: HashMap<LocalDefId, Family>,

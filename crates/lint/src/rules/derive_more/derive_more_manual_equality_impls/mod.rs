@@ -254,8 +254,8 @@ impl StructuralEquality {
 // DeriveMoreManualEqualityImpls: Declarative equality policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Groups structural `PartialEq` and `Eq` implementations by their wrapper type.
+#[derive(Default)]
 struct DeriveMoreManualEqualityImpls {
     /// Authored declarations awaiting association with `derive_more` expansions.
     candidates: HashMap<LocalDefId, Candidate>,

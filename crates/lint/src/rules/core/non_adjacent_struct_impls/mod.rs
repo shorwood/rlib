@@ -17,8 +17,8 @@ use crate::utils::impl_target::ImplTargetExt;
 // -----------------------------------------------------------------------------
 // ImplGroup: Collected implementation groups
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// An item paired with its position after uneditable external macro output has been removed.
+#[derive(Clone, Copy)]
 struct ImplGroupItem<'hir> {
     /// Position in the filtered module-item sequence.
     index: usize,
@@ -71,8 +71,8 @@ struct MigrationEdit {
     /// Replacement text, empty for deletion edits.
     replacement: String,
 }
-#[derive(Clone, Copy)]
 /// Source condition that prevents a trustworthy automatic implementation-group move.
+#[derive(Clone, Copy)]
 enum MigrationBarrier {
     /// Expanded source cannot be owned by one authored edit.
     ExpandedSource,

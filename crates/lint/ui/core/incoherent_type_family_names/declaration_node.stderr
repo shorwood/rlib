@@ -2,7 +2,7 @@ warning: type names in the `DeclarationNode` section repeat organizational conte
   --> $DIR/declaration_node.rs:4:1
    |
 LL | / // -----------------------------------------------------------------------------
-LL | | // DeclarationNode
+LL | | // DeclarationNode: Family naming fixture
 LL | | // -----------------------------------------------------------------------------
    | |________________________________________________________________________________^
 ...

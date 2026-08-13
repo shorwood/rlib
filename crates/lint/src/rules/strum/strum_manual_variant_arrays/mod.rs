@@ -1,12 +1,74 @@
 extern crate rustc_errors;
 extern crate rustc_hir;
+extern crate rustc_span;
+
+use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::{ImplItem, Item};
 use rustc_lint::{LateContext, LateLintPass};
+use rustc_span::Symbol;
 
 use super::utils::enumeration::{CollectionCandidate, CollectionProvider};
 use crate::utils::config::LibraryConfig;
+use crate::utils::diagnostic::LateViolation;
+
+// -----------------------------------------------------------------------------
+// Violation: Manual exhaustive variant collection diagnostic
+// -----------------------------------------------------------------------------
+
+/// Exhaustive enum collection that `VariantArray` can derive without changing order.
+struct Violation {
+    /// Authored collection contract and compatibility evidence.
+    candidate: CollectionCandidate,
+    /// Owning enum name resolved while compiler context is available.
+    enum_name: Symbol,
+}
+
+impl LateViolation for Violation {
+    fn primary_message(&self) -> Cow<'_, str> {
+        Cow::Owned(format!(
+            "`{}` variants are repeated in a manual array",
+            self.enum_name
+        ))
+    }
+
+    fn rationale_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "the exhaustive declaration-order array duplicates the enum definition and can become stale",
+        )
+    }
+
+    fn remediation_message(&self) -> Cow<'_, str> {
+        Cow::Borrowed(
+            "derive `strum::VariantArray`, import its trait, and migrate callers to `Type::VARIANTS`",
+        )
+    }
+
+    fn emit(self, cx: &LateContext<'_>) {
+        let primary_message = self.primary_message().into_owned();
+        let rationale_message = self.rationale_message().into_owned();
+        let remediation_message = self.remediation_message().into_owned();
+
+        cx.tcx.emit_node_span_lint(
+            STRUM_MANUAL_VARIANT_ARRAYS,
+            self.candidate.owner,
+            self.candidate.span,
+            DiagDecorator(|diag| {
+                diag.primary_message(primary_message);
+                diag.note(rationale_message);
+                if self.candidate.is_public_api() {
+                    diag.note("this API is public; `VariantArray::VARIANTS` is a shared slice, so migration requires a compatibility review");
+                }
+                diag.help(remediation_message);
+            }),
+        );
+    }
+}
+
+// -----------------------------------------------------------------------------
+// StrumManualVariantArrays: Selected VariantArray adoption policy
+// -----------------------------------------------------------------------------
 
 /// Finds authored variant arrays that `VariantArray` can generate without changing order.
 struct StrumManualVariantArrays {
@@ -32,21 +94,12 @@ impl StrumManualVariantArrays {
         if candidate.selected(self.provider) != Some(CollectionProvider::StrumVariantArray) {
             return;
         }
-        let name = candidate.enum_name(cx);
-
-        cx.tcx.emit_node_span_lint(
-            STRUM_MANUAL_VARIANT_ARRAYS,
-            candidate.owner,
-            candidate.span,
-            DiagDecorator(|diag| {
-                diag.primary_message(format!("`{name}` variants are repeated in a manual array"));
-                diag.note("the exhaustive declaration-order array duplicates the enum definition and can become stale");
-                if candidate.is_public_api() {
-                    diag.note("this API is public; `VariantArray::VARIANTS` is a shared slice, so migration requires a compatibility review");
-                }
-                diag.help("derive `strum::VariantArray`, import its trait, and migrate callers to `Type::VARIANTS`");
-            }),
-        );
+        let enum_name = candidate.enum_name(cx);
+        Violation {
+            candidate,
+            enum_name,
+        }
+        .emit(cx);
     }
 }
 

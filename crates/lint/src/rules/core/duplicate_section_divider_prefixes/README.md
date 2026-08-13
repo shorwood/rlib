@@ -16,12 +16,12 @@ For example, this module splits the Request family:
 
 ```rust
 // -----------------------------------------------------------------------------
-// Request
+// Request: Request model
 // -----------------------------------------------------------------------------
 struct Request;
 
 // -----------------------------------------------------------------------------
-// Request
+// Request: Request construction
 // -----------------------------------------------------------------------------
 struct RequestBuilder;
 ```
@@ -32,7 +32,7 @@ Keep the family under one divider:
 
 ```rust
 // -----------------------------------------------------------------------------
-// Request
+// Request: Request model and construction
 // -----------------------------------------------------------------------------
 struct Request;
 struct RequestBuilder;

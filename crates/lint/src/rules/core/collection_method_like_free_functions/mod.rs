@@ -18,8 +18,8 @@ use crate::utils::free_function_analysis::FreeFunctionExt;
 // -----------------------------------------------------------------------------
 // Collection: Collection receiver forms
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// The method receiver that preserves how the original collection was passed.
+#[derive(Clone, Copy)]
 enum CollectionReceiver {
     /// Collection is passed by value through an immutable binding.
     Owned,
@@ -30,8 +30,8 @@ enum CollectionReceiver {
     /// Collection is borrowed through a mutable reference.
     Mutable,
 }
-#[derive(Clone, Copy)]
 /// Mutability of an owned collection's parameter binding.
+#[derive(Clone, Copy)]
 enum CollectionBindingMutability {
     /// The binding is immutable.
     Immutable,

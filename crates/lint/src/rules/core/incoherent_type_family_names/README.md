@@ -19,7 +19,7 @@ For example, these helpers repeat the enclosing lint name:
 
 ```rust
 // -----------------------------------------------------------------------------
-// MethodLikeFreeFunctions
+// MethodLikeFreeFunctions: Migration support
 // -----------------------------------------------------------------------------
 
 struct MethodLikeFreeFunctions;
@@ -35,7 +35,7 @@ Naming the smaller concept first produces a followable family:
 
 ```rust
 // -----------------------------------------------------------------------------
-// Migration
+// Migration: Source migration support
 // -----------------------------------------------------------------------------
 
 struct MigrationEdits;

@@ -76,8 +76,8 @@ impl LateViolation for Violation {
 // DeriveMoreMutableForwardingBypassingInvariants: Safe mutation policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Rejects generated mutable forwarding that exposes invariant-bearing inner state.
+#[derive(Default)]
 struct DeriveMoreMutableForwardingBypassingInvariants {
     /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,

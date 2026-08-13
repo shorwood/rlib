@@ -80,8 +80,8 @@ fn check_fields(cx: &LateContext<'_>, catalog: &DiagnosticCatalog, fields: &[Dia
 // MiettePlainErrorDiagnosticSources: Structured source forwarding
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Collects diagnostic contracts before resolving nested source types.
+#[derive(Default)]
 struct MiettePlainErrorDiagnosticSources {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,

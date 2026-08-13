@@ -15,8 +15,8 @@ use crate::utils::source_provenance::AuthoredItemSource;
 // DiagnosticField: Presentation roles and referenced types
 // -----------------------------------------------------------------------------
 
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 /// Miette presentation behavior assigned to a diagnostic field.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub enum DiagnosticFieldRole {
     /// Forwards another diagnostic's structured metadata.
     DiagnosticSource,
@@ -32,8 +32,8 @@ pub enum DiagnosticFieldRole {
     SourceCode,
 }
 
-#[derive(Clone, Default)]
 /// Set of Miette roles authored on one field.
+#[derive(Clone, Default)]
 pub struct DiagnosticFieldRoles {
     /// Distinct roles recognized from field attributes and conventions.
     values: HashSet<DiagnosticFieldRole>,
@@ -79,8 +79,8 @@ impl DiagnosticFieldRoles {
     }
 }
 
-#[derive(Clone)]
 /// Field-level evidence shared by the Miette policy lints.
+#[derive(Clone)]
 pub struct DiagnosticField {
     /// Authored field declaration.
     pub(super) span: Span,
@@ -96,8 +96,8 @@ pub struct DiagnosticField {
 // DiagnosticMetadata: Static derive metadata
 // -----------------------------------------------------------------------------
 
-#[derive(Clone, Default)]
 /// Static metadata declared through `#[diagnostic(...)]`.
+#[derive(Clone, Default)]
 pub struct DiagnosticMetadata {
     /// Stable machine identifier, when declared.
     pub(super) code: Option<String>,
@@ -159,8 +159,8 @@ impl DiagnosticMetadata {
 // DiagnosticMember: Variant-level diagnostic contract
 // -----------------------------------------------------------------------------
 
-#[derive(Clone)]
 /// Effective diagnostic contract for one enum variant.
+#[derive(Clone)]
 pub struct DiagnosticMember {
     /// Authored variant declaration.
     pub(super) span: Span,
@@ -210,8 +210,8 @@ fn diagnostic_fields(
 // DiagnosticContract: Complete type-level diagnostic contract
 // -----------------------------------------------------------------------------
 
-#[derive(Clone)]
 /// Authored Miette diagnostic type and its variant-level contracts.
+#[derive(Clone)]
 pub struct DiagnosticContract {
     /// Authored type declaration.
     pub(super) span: Span,
@@ -264,8 +264,8 @@ impl DiagnosticContract {
 // DiagnosticCatalog: Crate-wide derived diagnostic index
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Index of authored contracts confirmed to derive `miette::Diagnostic`.
+#[derive(Default)]
 pub struct DiagnosticCatalog {
     /// Parsed contracts keyed by their local type definition.
     contracts: HashMap<LocalDefId, DiagnosticContract>,

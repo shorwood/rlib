@@ -18,8 +18,8 @@ use super::identifier_case;
 // -----------------------------------------------------------------------------
 // Collection: Standard sequence ingestion model
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 /// Standard collection trait represented by an authored API.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum CollectionContract {
     /// Complete construction from an item sequence.
     FromIterator,
@@ -47,8 +47,8 @@ impl CollectionContract {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 /// Why an otherwise valid collection protocol remains reportable.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CollectionProblem {
     /// One implementation exists without the standard trait.
     MissingTrait,
@@ -80,8 +80,8 @@ impl CollectionProblem {
 // -----------------------------------------------------------------------------
 // CollectionFamilyCandidate: Complete diagnostic context
 // -----------------------------------------------------------------------------
-#[derive(Clone)]
 /// One proven sequence-to-storage protocol.
+#[derive(Clone)]
 pub struct CollectionFamilyCandidateSource {
     /// Function definition used for lint levels and cross-policy precedence.
     pub hir_id: HirId,
@@ -94,8 +94,8 @@ pub struct CollectionFamilyCandidateSource {
     /// Storage operation proving complete item ingestion.
     pub evidence_span: Span,
 }
-#[derive(Clone)]
 /// Inferred standard collection contract shown in diagnostics.
+#[derive(Clone)]
 pub struct CollectionFamilyCandidateProtocol {
     /// Local collection wrapper.
     pub target_name: String,
@@ -108,8 +108,8 @@ pub struct CollectionFamilyCandidateProtocol {
 // -----------------------------------------------------------------------------
 // CollectionFamily: Crate wide collection family
 // -----------------------------------------------------------------------------
-#[derive(Clone)]
 /// One proven sequence-to-storage protocol.
+#[derive(Clone)]
 pub struct CollectionFamilyCandidate {
     /// Function definition used for cross-policy precedence.
     def_id: LocalDefId,
@@ -130,16 +130,16 @@ pub struct CollectionFamilyFinding<'candidate> {
     /// Missing, ambiguous, or competing protocol ownership.
     pub problem: CollectionProblem,
 }
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 /// Local target and standard trait used for occupancy checks.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 struct CollectionFamilyOccupancyKey {
     /// Local collection wrapper.
     target_def_id: LocalDefId,
     /// Construction or extension contract.
     contract: CollectionContract,
 }
-#[derive(Eq, Hash, PartialEq)]
 /// Exact target, trait, and item family used for ambiguity analysis.
+#[derive(Eq, Hash, PartialEq)]
 struct CollectionFamilyKey {
     /// Local collection wrapper.
     target_def_id: LocalDefId,
@@ -148,8 +148,8 @@ struct CollectionFamilyKey {
     /// Stored item family.
     item_name: String,
 }
-#[derive(Clone, Copy)]
 /// Whether a standard trait already owns one collection family.
+#[derive(Clone, Copy)]
 enum CollectionFamilyOccupancy {
     /// No standard trait implementation owns this family.
     Available,
@@ -172,8 +172,8 @@ impl CollectionFamilyOccupancy {
 // -----------------------------------------------------------------------------
 // CollectionConstructionAnalysis: Crate wide family selection
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Finds constructors and mutators that reproduce standard collection traits.
+#[derive(Default)]
 pub struct CollectionConstructionAnalysis {
     /// Structurally proven sequence-ingestion APIs.
     candidates: Vec<CollectionFamilyCandidate>,
@@ -533,8 +533,8 @@ struct CollectionEvidenceResult {
     /// Whether storage delegates through a standard `extend` operation.
     has_standard_trait_delegation: bool,
 }
-#[derive(Default)]
 /// Mutable facts accumulated while traversing one collection-like body.
+#[derive(Default)]
 struct CollectionEvidenceState {
     /// Whether traversal reached the iterable source.
     has_seen_source: bool,

@@ -3,7 +3,7 @@
 
 mod nested_context {
     // -----------------------------------------------------------------------------
-    // NestedContext
+    // NestedContext: Family naming fixture
     // -----------------------------------------------------------------------------
 
     struct NestedContext;

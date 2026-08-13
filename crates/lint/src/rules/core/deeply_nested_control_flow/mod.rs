@@ -58,7 +58,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// DeeplyNestedControlFlow
+// DeeplyNestedControlFlow: Comprehensible branch-depth policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that reports the first control-flow construct crossing the depth limit.

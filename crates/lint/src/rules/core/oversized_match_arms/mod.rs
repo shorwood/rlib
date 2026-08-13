@@ -57,7 +57,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// OversizedMatchArms
+// OversizedMatchArms: Readable match alternative policy
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that limits authored code lines in one match arm.

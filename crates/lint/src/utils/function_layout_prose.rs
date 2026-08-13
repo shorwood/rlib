@@ -5,8 +5,8 @@ use super::prose_case;
 // -----------------------------------------------------------------------------
 // FunctionLayoutProse: Phase comment prose normalization
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Grammatical position used when normalizing one prose word.
+#[derive(Clone, Copy)]
 enum FunctionLayoutProsePosition {
     /// The word starts a sentence and receives sentence casing.
     SentenceStart,

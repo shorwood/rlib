@@ -71,10 +71,11 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// RevalidatedStringParameters
+// RevalidatedStringParameters: Domain invariant ownership policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
+
 /// Collects consumer-side string validation across one crate.
+#[derive(Default)]
 struct RevalidatedStringParameters {
     /// Shared module-local domain and dataflow analysis.
     analyzer: DomainAnalyzer,

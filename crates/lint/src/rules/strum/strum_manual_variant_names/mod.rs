@@ -66,8 +66,8 @@ impl LateViolation for Violation {
 // StrumManualVariantNames: Generated variant-name policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Finds authored variant-name tables equivalent to Strum's generated names.
+#[derive(Default)]
 struct StrumManualVariantNames {
     /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,

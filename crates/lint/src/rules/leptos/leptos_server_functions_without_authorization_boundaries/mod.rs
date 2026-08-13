@@ -17,9 +17,9 @@ use crate::utils::diagnostic::EarlyViolation;
 // LeptosServerAuthorizationConfig: Explicit endpoint-security vocabulary
 // -----------------------------------------------------------------------------
 
+/// Project vocabulary used to recognize sensitive work and authorization boundaries.
 #[derive(Clone, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
-/// Project vocabulary used to recognize sensitive work and authorization boundaries.
 pub struct LeptosServerAuthorizationConfig {
     /// Call-name fragments that identify protected domain operations.
     sensitive_call_terms: Vec<String>,

@@ -2,7 +2,7 @@
 #![warn(incoherent_type_family_names)]
 
 // -----------------------------------------------------------------------------
-// Candidate
+// Candidate: Family naming fixture
 // -----------------------------------------------------------------------------
 
 struct Candidate;

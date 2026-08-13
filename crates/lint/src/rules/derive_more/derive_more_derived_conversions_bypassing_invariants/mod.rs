@@ -79,8 +79,8 @@ impl LateViolation for Violation {
 // DeriveMoreDerivedConversionsBypassingInvariants: Safe conversion policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Rejects generated conversions that bypass restricted-field construction policy.
+#[derive(Default)]
 struct DeriveMoreDerivedConversionsBypassingInvariants {
     /// Authored type contracts and `derive_more` expansions consulted by this rule.
     catalog: DeriveMoreContractCatalog,

@@ -25,8 +25,8 @@ use super::visibility_package_policy::VisibilityPackagePolicy;
 // -----------------------------------------------------------------------------
 // AuthoredVisibility: Source visibility vocabulary
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 /// Authored canonical visibility retained independently from rustc's semantic reach.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum AuthoredVisibility {
     /// Unrestricted `pub` syntax.
     Public,
@@ -71,8 +71,8 @@ impl AuthoredVisibility {
 // -----------------------------------------------------------------------------
 // Visibility: Resolved local reference
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy, Eq, PartialEq)]
 /// Compilation topology owning one resolved local reference.
+#[derive(Clone, Copy, Eq, PartialEq)]
 enum VisibilityUseKind {
     /// Reference compiled as part of ordinary production code.
     Production,
@@ -90,8 +90,8 @@ impl VisibilityUseKind {
         }
     }
 }
-#[derive(Clone, Copy)]
 /// One resolved local use carrying the module and test topology that require visibility.
+#[derive(Clone, Copy)]
 pub struct VisibilityUse {
     /// Module containing the reference.
     pub(crate) module: LocalDefId,
@@ -196,8 +196,8 @@ struct VisibilityCandidate {
 // -----------------------------------------------------------------------------
 // VisibilityUsageAnalyzer: Crate local reach
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects authored declarations and resolved references before deriving visibility findings.
+#[derive(Default)]
 pub struct VisibilityUsageAnalyzer {
     /// Visibility-bearing authored declarations indexed by definition.
     candidates: HashMap<LocalDefId, VisibilityCandidate>,

@@ -22,8 +22,8 @@ use super::identifier_case;
 // -----------------------------------------------------------------------------
 // ConversionType: Lifetime erased semantic identity
 // -----------------------------------------------------------------------------
-#[derive(Clone, PartialEq, Eq, Hash)]
 /// Concrete source or target identity used to group equivalent conversion APIs.
+#[derive(Clone, PartialEq, Eq, Hash)]
 enum ConversionType {
     /// Nominal type with every concrete type and constant argument retained.
     Adt {
@@ -62,8 +62,8 @@ enum ConversionType {
         elements: Vec<Self>,
     },
 }
-#[derive(Clone, PartialEq, Eq, Hash)]
 /// Concrete generic argument retained in a nominal conversion type.
+#[derive(Clone, PartialEq, Eq, Hash)]
 enum ConversionTypeArgument {
     /// One concrete type argument.
     Type {
@@ -193,16 +193,16 @@ impl ConversionType {
 // -----------------------------------------------------------------------------
 // Conversion: Report and ownership context
 // -----------------------------------------------------------------------------
-#[derive(Clone, PartialEq, Eq, Hash)]
 /// Exact semantic source and target pair used for ambiguity and trait checks.
+#[derive(Clone, PartialEq, Eq, Hash)]
 struct ConversionPair {
     /// Concrete input family offered by the conversion API.
     source: ConversionType,
     /// Concrete result family owned by the conversion API.
     target: ConversionType,
 }
-#[derive(Clone)]
 /// Standard conversion contract implied by a `candidate`'s exact return shape.
+#[derive(Clone)]
 pub enum ConversionContract {
     /// Direct result suitable for `From` and reciprocal `Into`.
     Infallible,
@@ -255,8 +255,8 @@ impl<'tcx> ConversionReturn<'tcx> {
             })
     }
 }
-#[derive(Clone, Copy)]
 /// How directly the authored name claims to be a general conversion.
+#[derive(Clone, Copy)]
 pub enum ConversionConfidence {
     /// Authored name explicitly claims a general source-to-target conversion.
     Conventional,
@@ -299,8 +299,8 @@ impl ConversionConfidence {
 // -----------------------------------------------------------------------------
 // ConversionCandidate: Diagnostic record
 // -----------------------------------------------------------------------------
-#[derive(Clone)]
 /// Authored function identity and source ranges for one conversion `candidate`.
+#[derive(Clone)]
 pub struct ConversionCandidateIdentity {
     /// Function definition used for cross-lint precedence.
     pub(crate) def_id: LocalDefId,
@@ -330,8 +330,8 @@ impl ConversionCandidateIdentity {
         }
     }
 }
-#[derive(Clone)]
 /// Concrete type and trait context retained for one conversion diagnostic.
+#[derive(Clone)]
 pub struct ConversionCandidateSemantics {
     /// Concrete source type shown in diagnostics.
     pub(crate) source: String,
@@ -359,8 +359,8 @@ impl ConversionCandidateSemantics {
         }
     }
 }
-#[derive(Clone)]
 /// One unique, effect-free conversion that should use a standard trait.
+#[derive(Clone)]
 pub struct ConversionCandidate {
     /// Function identity and authored source ranges.
     pub(crate) identity: ConversionCandidateIdentity,
@@ -375,8 +375,8 @@ pub struct ConversionCandidate {
 // -----------------------------------------------------------------------------
 // ConversionAnalysis: Crate wide family selection
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Discovers conversion ownership independently from individual lint passes.
+#[derive(Default)]
 pub struct ConversionAnalysis {
     /// Structurally proven one-source conversions in traversal order.
     candidates: Vec<ConversionCandidate>,

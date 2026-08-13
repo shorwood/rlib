@@ -14,7 +14,7 @@ bon = []
 derive_more = ["framework", "dep:syn"]
 leptos = ["dep:proc-macro2", "dep:quote", "dep:rstml", "dep:syn"]
 miette = ["dep:syn"]
-serde = ["dep:syn"]
+serde = ["dep:strum", "dep:syn"]
 strum = ["framework", "dep:strum", "dep:syn"]
 thiserror = ["framework", "dep:syn"]
 

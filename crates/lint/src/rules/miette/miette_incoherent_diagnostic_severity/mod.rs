@@ -88,8 +88,8 @@ impl LateViolation for Violation {
 // MietteIncoherentDiagnosticSeverity: Propagation and severity agreement
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Correlates derived severity metadata with function result types.
+#[derive(Default)]
 struct MietteIncoherentDiagnosticSeverity {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,

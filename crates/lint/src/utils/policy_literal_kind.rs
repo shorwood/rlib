@@ -59,8 +59,8 @@ const POLICY_OUTPUT_VOCABULARY_TRUNCATION: &[&str] = &["truncate", "truncation",
 // -----------------------------------------------------------------------------
 // PolicyCategory: Operational policy dimensions
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 /// Behavioral dimension controlled by a literal-backed value.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(usize)]
 pub enum PolicyCategory {
     /// Retry count or repeated fallible execution bound.

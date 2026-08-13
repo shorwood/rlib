@@ -75,8 +75,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // SingleImplementationTraits: Crate wide abstraction policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Late pass collecting declarations, implementations, and polymorphic type boundaries.
+#[derive(Default)]
 struct SingleImplementationTraits {
     /// Shared crate-wide semantic evidence collector.
     analyzer: SingleImplementationTraitAnalyzer,

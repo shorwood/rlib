@@ -24,8 +24,8 @@ use syn::spanned::Spanned;
 use crate::utils::config::LibraryConfig;
 use crate::utils::function_layout_prose::FunctionLayoutProse;
 
-#[derive(Clone, Deserialize)]
 /// Complexity and comment syntax shared by the Leptos view-section lint family.
+#[derive(Clone, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct LeptosViewStructureConfig {
     /// Ordinary line-comment prefix introducing a view section.
@@ -92,8 +92,8 @@ impl LeptosViewStructureConfig {
 // View: Authored structure, attributes, and source locations
 // -----------------------------------------------------------------------------
 
-#[derive(Clone)]
 /// One direct child in an authored sibling scope.
+#[derive(Clone)]
 pub struct ViewNode {
     /// Exact authored source range of the construct.
     pub(crate) span: Span,
@@ -121,8 +121,8 @@ impl ViewNode {
     }
 }
 
-#[derive(Clone)]
 /// One ordinary comment positioned at a direct-child boundary.
+#[derive(Clone)]
 pub struct ViewHeading {
     /// Exact source range of the comment.
     pub(crate) span: Span,
@@ -163,8 +163,8 @@ impl ViewHeading {
 // ViewScope: Direct sibling-scope organization
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// One independently analyzed direct sibling list.
+#[derive(Default)]
 pub struct ViewScope {
     /// Direct children in authored order.
     pub(crate) nodes: Vec<ViewNode>,
@@ -260,8 +260,8 @@ impl ViewStructureAnalysis {
 // ViewAttribute: Attribute categories and source evidence
 // -----------------------------------------------------------------------------
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 /// Stable semantic category for an authored attribute or component prop.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ViewAttributeCategory {
     /// Element identity and naming attributes.
     Identity,
@@ -331,8 +331,8 @@ impl ViewAttributeCategory {
     }
 }
 
-#[derive(Clone)]
 /// One direct attribute in an authored opening tag.
+#[derive(Clone)]
 pub struct ViewAttribute {
     /// Element or attribute name involved in the view-structure finding.
     pub(crate) name: String,
@@ -456,8 +456,8 @@ struct ViewSourceRange {
 // ViewCallSites: Per-pass view-call deduplication
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Stateful deduplication shared by individual view lint passes.
+#[derive(Default)]
 pub struct ViewCallSites {
     /// Source positions already analyzed for this pass.
     seen: HashSet<ViewSourceRange>,

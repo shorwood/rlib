@@ -77,8 +77,8 @@ pub struct SingleImplementationTraitFinding {
     /// Whether a public trait was analyzed under an explicitly closed package policy.
     pub(crate) is_closed_package_public: bool,
 }
-#[derive(Default)]
 /// Crate-wide collector for trait declarations, implementations, and abstract type boundaries.
+#[derive(Default)]
 pub struct SingleImplementationTraitAnalyzer {
     /// Eligible authored trait declarations indexed by definition.
     traits: HashMap<LocalDefId, SingleImplementationTraitCandidate>,

@@ -69,8 +69,8 @@ impl LateViolation for Violation {
 // StrumManualEnumStringConversions: Declarative display policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Correlates manual string conversions with complete enum value families.
+#[derive(Default)]
 struct StrumManualEnumStringConversions {
     /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,

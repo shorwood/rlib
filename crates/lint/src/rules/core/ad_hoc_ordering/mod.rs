@@ -145,8 +145,8 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 // AdHocOrdering: Standard ordering ownership policy
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Collects ordering families and existing trait ownership before reporting.
+#[derive(Default)]
 struct AdHocOrdering {
     /// Shared relation analyzer used to select canonical ordering families.
     comparisons: ComparisonAnalysis,

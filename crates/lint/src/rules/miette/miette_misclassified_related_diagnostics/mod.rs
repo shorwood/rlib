@@ -123,8 +123,8 @@ fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
 // MietteMisclassifiedRelatedDiagnostics: Causal-tree relationship policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Collects diagnostic field roles before checking relationship intent.
+#[derive(Default)]
 struct MietteMisclassifiedRelatedDiagnostics {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,

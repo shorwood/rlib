@@ -2,7 +2,7 @@
 #![warn(incoherent_type_family_names)]
 
 // -----------------------------------------------------------------------------
-// MethodLikeFreeFunctions
+// MethodLikeFreeFunctions: Family naming fixture
 // -----------------------------------------------------------------------------
 
 struct MethodLikeFreeFunctions;

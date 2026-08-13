@@ -2,7 +2,7 @@
 #![warn(incoherent_type_family_names)]
 
 // -----------------------------------------------------------------------------
-// SingleContext
+// SingleContext: Family naming fixture
 // -----------------------------------------------------------------------------
 
 struct SingleContext;

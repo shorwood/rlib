@@ -15,14 +15,14 @@ use strum::EnumProperty as _;
 // SerdeAttributes: Authored wire policy recovery
 // -----------------------------------------------------------------------------
 
-#[derive(Clone, Copy, strum::EnumProperty)]
 /// Direction in which a value crosses its Serde wire boundary.
+#[derive(Clone, Copy, strum::EnumProperty)]
 pub(super) enum SerdeDirection {
-    #[strum(props(label = "serialization"))]
     /// Converts an in-memory value to its wire representation.
+    #[strum(props(label = "serialization"))]
     Serialize,
-    #[strum(props(label = "deserialization"))]
     /// Constructs an in-memory value from its wire representation.
+    #[strum(props(label = "deserialization"))]
     Deserialize,
 }
 
@@ -34,8 +34,8 @@ impl SerdeDirection {
     }
 }
 
-#[derive(Clone, Copy)]
 /// Distinguishes a member rename from a container-wide rename rule.
+#[derive(Clone, Copy)]
 enum SerdeNameScope {
     /// Renames one field or variant.
     Member,
@@ -54,8 +54,8 @@ impl SerdeNameScope {
     }
 }
 
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 /// Independent Serde behaviors relevant to cross-rule contract analysis.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub(super) enum SerdeFlag {
     /// Rejects object fields not declared by the target type.
     DenyUnknownFields,
@@ -75,8 +75,8 @@ pub(super) enum SerdeFlag {
     Untagged,
 }
 
-#[derive(Default)]
 /// Effective Serde naming, omission, adaptation, and representation policy.
+#[derive(Default)]
 pub(super) struct SerdeAttributes {
     /// Explicit wire name used while serializing this declaration.
     pub(super) rename_serialize: Option<String>,
@@ -240,8 +240,8 @@ impl SerdeCase {
 // SerdeContractCatalog: Authored and generated contract correlation
 // -----------------------------------------------------------------------------
 
-#[derive(Clone)]
 /// Authored type shape and Serde policy for one local declaration.
+#[derive(Clone)]
 pub(super) struct SerdeTypeContract {
     /// Authored declaration or expression range used as the diagnostic anchor.
     pub(super) span: Span,
@@ -251,8 +251,8 @@ pub(super) struct SerdeTypeContract {
     pub(super) has_restricted_fields: bool,
 }
 
-#[derive(Default)]
 /// Crate-wide Serde contracts keyed by their compiler identities.
+#[derive(Default)]
 pub(super) struct SerdeContractCatalog {
     /// Authored type contracts available to cross-item Serde rules.
     types: HashMap<LocalDefId, SerdeTypeContract>,

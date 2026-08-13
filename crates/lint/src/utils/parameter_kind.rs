@@ -9,8 +9,8 @@ use rustc_span::def_id::DefId;
 // -----------------------------------------------------------------------------
 // Parameter: Interchangeable primitive representations
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 /// Primitive families whose values remain interchangeable at a call site.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ParameterKind {
     /// One signed integer representation.
     SignedInteger {

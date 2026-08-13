@@ -62,8 +62,8 @@ impl LateViolation for Violation {
 // StrumDivergentVariantNameContracts: Coherent variant identity policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Compares generated variant names with the enum's parsing and display spellings.
+#[derive(Default)]
 struct StrumDivergentVariantNameContracts {
     /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,

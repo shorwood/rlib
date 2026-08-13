@@ -24,8 +24,8 @@ const COMPARISON_PARAMETER_COUNT: usize = 2;
 // -----------------------------------------------------------------------------
 // Comparison: Standard relation model
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 /// Standard comparison contract structurally represented by a `candidate`.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ComparisonContract {
     /// Boolean equality suitable for `PartialEq`.
     Equality,
@@ -79,8 +79,8 @@ impl ComparisonContract {
         matches!(self, Self::Equality)
     }
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 /// Why a canonical-looking comparison remains reportable.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ComparisonProblem {
     /// One relation exists and the corresponding trait is absent.
     MissingTrait,
@@ -112,8 +112,8 @@ impl ComparisonProblem {
 // -----------------------------------------------------------------------------
 // ComparisonFamilyCandidate: Complete relation context
 // -----------------------------------------------------------------------------
-#[derive(Clone)]
 /// One structurally proven canonical-looking comparison operation.
+#[derive(Clone)]
 pub struct ComparisonFamilyCandidateSource {
     /// HIR node used for lint-level configuration.
     pub hir_id: HirId,
@@ -122,8 +122,8 @@ pub struct ComparisonFamilyCandidateSource {
     /// Function identifier source range.
     pub name_span: Span,
 }
-#[derive(Clone)]
 /// Authored operand and relation evidence ranges.
+#[derive(Clone)]
 pub struct ComparisonFamilyCandidateEvidence {
     /// First compared operand.
     pub left: Span,
@@ -132,16 +132,16 @@ pub struct ComparisonFamilyCandidateEvidence {
     /// Expression proving that both operands participate in the relation.
     pub relation: Span,
 }
-#[derive(Clone)]
 /// Inferred standard comparison contract shown in diagnostics.
+#[derive(Clone)]
 pub struct ComparisonFamilyCandidateProtocol {
     /// Human-readable compared type.
     pub type_name: String,
     /// Standard comparison contract selected by the return type.
     pub contract: ComparisonContract,
 }
-#[derive(Clone, Copy)]
 /// Private family-selection context for one comparison `candidate`.
+#[derive(Clone, Copy)]
 struct ComparisonFamilyCandidateSelection {
     /// Local nominal type being compared.
     type_def_id: LocalDefId,
@@ -152,8 +152,8 @@ struct ComparisonFamilyCandidateSelection {
 // -----------------------------------------------------------------------------
 // ComparisonFamily: Crate wide relation family
 // -----------------------------------------------------------------------------
-#[derive(Clone)]
 /// One structurally proven canonical-looking comparison operation.
+#[derive(Clone)]
 pub struct ComparisonFamilyCandidate {
     /// Function definition used for cross-lint precedence.
     def_id: LocalDefId,
@@ -174,24 +174,24 @@ pub struct ComparisonFamilyFinding<'candidate> {
     /// Missing, ambiguous, or competing canonical ownership.
     pub problem: ComparisonProblem,
 }
-#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 /// Exact type and return contract used to group comparison families.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 struct ComparisonFamilyKey {
     /// Local type whose values are compared.
     type_def_id: LocalDefId,
     /// Equality, partial ordering, or total ordering contract.
     contract: ComparisonContract,
 }
-#[derive(Clone, Copy)]
 /// Public lint policy selecting equality or ordering findings.
+#[derive(Clone, Copy)]
 pub enum ComparisonFamilySelection {
     /// Boolean equality relations.
     Equality,
     /// Partial and total ordering relations.
     Ordering,
 }
-#[derive(Clone, Copy)]
 /// Whether a standard trait already owns one comparison family.
+#[derive(Clone, Copy)]
 enum ComparisonFamilyOccupancy {
     /// No standard trait implementation owns this family.
     Available,
@@ -214,8 +214,8 @@ impl ComparisonFamilyOccupancy {
 // -----------------------------------------------------------------------------
 // ComparisonAnalysis: Crate wide relation selection
 // -----------------------------------------------------------------------------
-#[derive(Default)]
 /// Finds canonical-looking local equality and ordering APIs.
+#[derive(Default)]
 pub struct ComparisonAnalysis {
     /// Structurally proven authored relations in traversal order.
     candidates: Vec<ComparisonFamilyCandidate>,

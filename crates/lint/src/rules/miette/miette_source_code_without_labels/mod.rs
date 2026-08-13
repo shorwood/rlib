@@ -133,8 +133,8 @@ fn check_fields(
 // MietteSourceCodeWithoutLabels: Focused source-retention policy
 // -----------------------------------------------------------------------------
 
-#[derive(Default)]
 /// Collects diagnostic field roles before checking source focus.
+#[derive(Default)]
 struct MietteSourceCodeWithoutLabels {
     /// Derived diagnostic declarations in the crate.
     catalog: DiagnosticCatalog,

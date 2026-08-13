@@ -186,11 +186,11 @@ fn is_derivable_error_impl(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
 struct DeriveMoreManualErrorImpls {
     /// Authored declarations awaiting association with `derive_more` expansions.
     candidates: Vec<Candidate>,
-    #[cfg(feature = "thiserror")]
     /// Validated project policy applied by this lint pass.
-    config: DeriveResolutionConfig,
     #[cfg(feature = "thiserror")]
+    config: DeriveResolutionConfig,
     /// Types that thiserror already owns under the configured framework resolution.
+    #[cfg(feature = "thiserror")]
     overlaps: ManualErrorCatalog,
 }
 

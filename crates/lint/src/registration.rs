@@ -8,212 +8,139 @@ use crate::rules;
 // Registers this library as a dylint plugin with the compiler process that loaded it.
 dylint_linting::dylint_library!();
 
-#[cfg(feature = "bon")]
 /// Registers the Bon-aware lint layer.
+#[cfg(feature = "bon")]
 fn register_bon_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint::LintStore) {
-    #[cfg(feature = "bon")]
     rules::bon::bon_builders_bypassing_construction_invariants::register_lints(sess, lint_store);
-    #[cfg(feature = "bon")]
     rules::bon::bon_escaping_incomplete_builders::register_lints(sess, lint_store);
-    #[cfg(feature = "bon")]
     rules::bon::bon_implicit_optional_builder_members::register_lints(sess, lint_store);
-    #[cfg(feature = "bon")]
     rules::bon::bon_incoherent_conditional_builder_members::register_lints(sess, lint_store);
-    #[cfg(feature = "bon")]
     rules::bon::bon_incoherent_builder_vocabulary::register_lints(sess, lint_store);
-    #[cfg(feature = "bon")]
     rules::bon::bon_inconsistent_builder_conversions::register_lints(sess, lint_store);
-    #[cfg(feature = "bon")]
     rules::bon::bon_manual_builder_implementations::register_lints(sess, lint_store);
-    #[cfg(feature = "bon")]
     rules::bon::bon_needless_builders_for_small_apis::register_lints(sess, lint_store);
-    #[cfg(feature = "bon")]
     rules::bon::bon_parameter_heavy_apis_without_builders::register_lints(sess, lint_store);
-    #[cfg(feature = "bon")]
     rules::bon::bon_public_builder_implementation_types::register_lints(sess, lint_store);
-    #[cfg(feature = "bon")]
     rules::bon::bon_redundant_positional_and_builder_apis::register_lints(sess, lint_store);
-    #[cfg(feature = "bon")]
     rules::bon::bon_required_builder_members_breaking_compatibility::register_lints(
         sess, lint_store,
     );
-    #[cfg(feature = "bon")]
     rules::bon::bon_skipped_builder_members_without_policy::register_lints(sess, lint_store);
-    #[cfg(feature = "bon")]
     rules::bon::bon_undocumented_builder_members::register_lints(sess, lint_store);
 }
 
-#[cfg(feature = "derive_more")]
 /// Registers the `derive_more`-aware lint layer.
+#[cfg(feature = "derive_more")]
 fn register_derive_more_lints(
     sess: &rustc_session::Session,
     lint_store: &mut rustc_lint::LintStore,
 ) {
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_ambiguous_derived_error_sources::register_lints(
         sess, lint_store,
     );
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_derived_constructors_bypassing_invariants::register_lints(
         sess, lint_store,
     );
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_derived_conversions_bypassing_invariants::register_lints(
         sess, lint_store,
     );
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_inconsistent_derived_equality::register_lints(sess, lint_store);
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_aggregation_impls::register_lints(sess, lint_store);
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_conversion_impls::register_lints(sess, lint_store);
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_constructors::register_lints(sess, lint_store);
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_equality_impls::register_lints(sess, lint_store);
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_error_impls::register_lints(sess, lint_store);
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_forwarding_interfaces::register_lints(sess, lint_store);
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_formatting_impls::register_lints(sess, lint_store);
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_from_str_impls::register_lints(sess, lint_store);
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_into_iterator_impls::register_lints(sess, lint_store);
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_operator_impls::register_lints(sess, lint_store);
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_variant_accessors::register_lints(sess, lint_store);
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_mutable_forwarding_bypassing_invariants::register_lints(
         sess, lint_store,
     );
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_non_roundtripping_derived_text_contracts::register_lints(
         sess, lint_store,
     );
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_opaque_derived_display_contracts::register_lints(
         sess, lint_store,
     );
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_operator_derives_bypassing_invariants::register_lints(
         sess, lint_store,
     );
-    #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_panic_prone_derived_variant_accessors::register_lints(
         sess, lint_store,
     );
 }
 
-#[cfg(feature = "framework")]
 /// Registers cross-framework resolution policies.
+#[cfg(feature = "framework")]
 fn register_framework_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint::LintStore) {
     rules::framework::framework_resolution_required::register_lints(sess, lint_store);
 }
 
-#[cfg(feature = "miette")]
 /// Registers the Miette-aware lint layer.
+#[cfg(feature = "miette")]
 fn register_miette_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint::LintStore) {
     rules::miette::miette_ad_hoc_diagnostics_at_domain_boundaries::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_duplicate_diagnostic_codes::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_generic_diagnostic_help::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_incoherent_diagnostic_severity::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_labels_without_source_code::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_malformed_diagnostic_codes::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_manual_diagnostic_impls::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_misclassified_related_diagnostics::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_missing_diagnostic_codes::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_plain_error_diagnostic_sources::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_reports_in_library_interfaces::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_sensitive_diagnostic_source::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_source_code_without_labels::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_unstable_diagnostic_urls::register_lints(sess, lint_store);
-    #[cfg(feature = "miette")]
     rules::miette::miette_unfocused_diagnostic_labels::register_lints(sess, lint_store);
 }
 
-#[cfg(feature = "serde")]
 /// Registers the Serde-aware lint layer.
+#[cfg(feature = "serde")]
 fn register_serde_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint::LintStore) {
     rules::serde::serde_ambiguous_untagged_enums::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_asymmetric_serde_contracts::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_catch_all_variants_hiding_schema_drift::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_deserialization_bypassing_invariants::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_defaults_hiding_missing_data::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_duplicate_serialized_names::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_flattened_field_collisions::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_flattened_unknown_field_policies::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_format_specific_serde_impls::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_lossy_conditional_serialization::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_non_roundtripping_serde_adapters::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_remote_representations_drifting_from_sources::register_lints(
         sess, lint_store,
     );
-    #[cfg(feature = "serde")]
     rules::serde::serde_sensitive_fields_serialized_by_default::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_unstable_implicit_wire_names::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_manual_deserialize_impls::register_lints(sess, lint_store);
-    #[cfg(feature = "serde")]
     rules::serde::serde_manual_serialize_impls::register_lints(sess, lint_store);
 }
 
-#[cfg(feature = "thiserror")]
 /// Registers the thiserror-aware lint layer.
+#[cfg(feature = "thiserror")]
 fn register_thiserror_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint::LintStore) {
     rules::thiserror::thiserror_ambiguous_error_sources::register_lints(sess, lint_store);
-    #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_duplicate_error_messages::register_lints(sess, lint_store);
-    #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_dynamic_errors_in_library_interfaces::register_lints(
         sess, lint_store,
     );
-    #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_error_messages_used_as_identifiers::register_lints(
         sess, lint_store,
     );
-    #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_from_sources_without_context::register_lints(sess, lint_store);
-    #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_manual_error_impls::register_lints(sess, lint_store);
-    #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_manual_from_error_variants::register_lints(sess, lint_store);
-    #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_non_send_sync_public_errors::register_lints(sess, lint_store);
-    #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_opaque_errors_exposing_representations::register_lints(
         sess, lint_store,
     );
-    #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_unpropagated_error_backtraces::register_lints(sess, lint_store);
-    #[cfg(feature = "thiserror")]
     rules::thiserror::thiserror_unreported_error_sources::register_lints(sess, lint_store);
 }
 
@@ -292,8 +219,8 @@ fn register_core_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lin
     lint_store.register_group(true, "rlib_core", None, core_lints);
 }
 
-#[cfg(feature = "leptos")]
 /// Registers the Leptos-aware lint layer.
+#[cfg(feature = "leptos")]
 fn register_leptos_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint::LintStore) {
     rules::leptos::leptos_attribute_bound_controlled_inputs::register_lints(sess, lint_store);
     rules::leptos::leptos_boolean_component_props::register_lints(sess, lint_store);
@@ -361,8 +288,8 @@ pub extern "Rust" fn register_lints(
     register_all_lints(sess, lint_store);
 }
 
-#[cfg(feature = "strum")]
 /// Registers every enabled Strum-aware lint pass.
+#[cfg(feature = "strum")]
 fn register_strum_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint::LintStore) {
     rules::strum::strum_conflicting_enum_serializations::register_lints(sess, lint_store);
     rules::strum::strum_declaration_order_domain_contracts::register_lints(sess, lint_store);

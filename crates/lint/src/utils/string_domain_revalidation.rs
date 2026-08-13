@@ -31,8 +31,8 @@ impl<'tcx> Visitor<'tcx> for RevalidationBindingCollector<'_, 'tcx> {
     }
 }
 
-#[derive(Default)]
 /// Finds returns without descending into nested closures.
+#[derive(Default)]
 struct RevalidationReturnFinder {
     /// Whether a return expression was encountered.
     has_return: bool,

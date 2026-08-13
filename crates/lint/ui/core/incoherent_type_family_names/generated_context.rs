@@ -9,7 +9,7 @@ macro_rules! generated_types {
 }
 
 // -----------------------------------------------------------------------------
-// GeneratedContext
+// GeneratedContext: Family naming fixture
 // -----------------------------------------------------------------------------
 
 generated_types!();

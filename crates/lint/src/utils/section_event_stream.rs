@@ -24,8 +24,8 @@ const MINIMUM_MULTIPLE_FAMILY_SIZE: usize = 2;
 // -----------------------------------------------------------------------------
 // SectionEventCandidate: Section events and participants
 // -----------------------------------------------------------------------------
-#[derive(Clone, Copy)]
 /// Semantic role of a named declaration within a source section.
+#[derive(Clone, Copy)]
 enum SectionEventCandidateKind {
     /// A type-like declaration that establishes a nominal concept.
     Nominal,
@@ -168,8 +168,8 @@ impl SectionEventStreamEntry {
         }
     }
 }
-#[derive(Default)]
 /// Declarations accumulated before the next divider boundary.
+#[derive(Default)]
 pub(super) struct SectionEventStreamCandidates(
     /// Authored candidates retained in source order.
     Vec<SectionEventCandidate>,
@@ -353,8 +353,8 @@ pub(super) struct SectionEventStreamGroup {
     /// Declarations governed by the divider.
     pub(super) participants: SectionEventStreamCandidates,
 }
-#[derive(Default)]
 /// Mutable reducer state for a module's section event stream.
+#[derive(Default)]
 pub(super) struct SectionEventStreamState {
     /// Findings and valid sections accumulated so far.
     pub(super) analysis: SectionAnalysis,
