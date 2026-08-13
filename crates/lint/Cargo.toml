@@ -290,6 +290,11 @@ path = "ui/miette/miette_unstable_diagnostic_urls/semantic.rs"
 required-features = ["miette"]
 
 [[example]]
+name = "miette_generic_diagnostic_help"
+path = "ui/miette/miette_generic_diagnostic_help/semantic.rs"
+required-features = ["miette"]
+
+[[example]]
 name = "thiserror_dynamic_errors_in_library_interfaces"
 path = "ui/thiserror/thiserror_dynamic_errors_in_library_interfaces/semantic.rs"
 required-features = ["thiserror"]

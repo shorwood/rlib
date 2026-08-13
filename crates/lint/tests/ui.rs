@@ -417,6 +417,7 @@ fn run_miette_fixtures() {
     let selected = selected_framework_fixture();
     for example in [
         "miette_duplicate_diagnostic_codes",
+        "miette_generic_diagnostic_help",
         "miette_malformed_diagnostic_codes",
         "miette_missing_diagnostic_codes",
         "miette_unstable_diagnostic_urls",

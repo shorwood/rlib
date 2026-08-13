@@ -10,6 +10,8 @@ use crate::rules::framework::config::DeriveResolutionConfig;
 use crate::rules::leptos::leptos_server_functions_without_authorization_boundaries::LeptosServerAuthorizationConfig;
 #[cfg(feature = "leptos")]
 use crate::rules::leptos::utils::view_structure::LeptosViewStructureConfig;
+#[cfg(feature = "miette")]
+use crate::rules::miette::config::MietteHelpConfig;
 
 // -----------------------------------------------------------------------------
 // LibraryConfig: Complete lint library configuration
@@ -34,6 +36,9 @@ pub struct LibraryConfig {
     /// Explicit application vocabulary used to audit Leptos server endpoints.
     #[cfg(feature = "leptos")]
     pub(crate) leptos_server_authorization: LeptosServerAuthorizationConfig,
+    /// Vocabulary used to identify non-actionable Miette help text.
+    #[cfg(feature = "miette")]
+    pub(crate) miette_help: MietteHelpConfig,
     /// Rendering and width policy used by section-divider lints.
     pub(super) section_dividers: SectionDividerConfig,
 }

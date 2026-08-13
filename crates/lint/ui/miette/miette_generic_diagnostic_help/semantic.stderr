@@ -1,0 +1,12 @@
+warning: diagnostic help `try again` is not actionable
+  --> $DIR/semantic.rs:6:1
+   |
+LL | struct Generic;
+   | ^^^^^^^^^^^^^^^ this help text lacks a concrete remediation
+   |
+   = note: generic advice does not tell the reader which concrete action can resolve this diagnostic
+   = help: replace the generic phrase with a specific action, expected value, path, or alternative
+   = note: `#[warn(miette_generic_diagnostic_help)]` on by default
+
+warning: 1 warning emitted
+
