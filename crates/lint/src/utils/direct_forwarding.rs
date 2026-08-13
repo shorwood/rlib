@@ -102,7 +102,7 @@ impl DirectForwarding {
     }
 
     /// Removes syntax that does not alter the returned value.
-    pub(super) fn single_body_expression<'hir>(
+    pub(crate) fn single_body_expression<'hir>(
         mut expression: &'hir Expr<'hir>,
     ) -> Option<&'hir Expr<'hir>> {
         loop {

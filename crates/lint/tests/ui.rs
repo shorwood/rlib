@@ -287,7 +287,10 @@ fn run_bon_fixtures() {
 #[cfg(feature = "derive_more")]
 fn run_derive_more_fixtures() {
     let selected = selected_framework_fixture();
-    for example in ["derive_more_manual_conversion_impls"] {
+    for example in [
+        "derive_more_manual_conversion_impls",
+        "derive_more_manual_constructors",
+    ] {
         if selected
             .as_deref()
             .is_some_and(|selected| selected != example)

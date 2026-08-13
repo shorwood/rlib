@@ -1,0 +1,25 @@
+warning: manual structural constructor for `Point` is derivable
+  --> $DIR/semantic.rs:9:5
+   |
+LL | /     pub const fn new(x: i32, y: i32) -> Self {
+LL | |         Self { x, y }
+LL | |     }
+   | |_____^ this `new` method is exact field assembly
+   |
+   = note: this public constant constructor only assigns its parameters to the corresponding fields
+   = help: replace this implementation with `#[derive(derive_more::Constructor)]` on the struct
+   = note: `#[warn(derive_more_manual_constructors)]` on by default
+
+warning: manual structural constructor for `Coordinate` is derivable
+  --> $DIR/semantic.rs:17:5
+   |
+LL | /     pub const fn new(x: i32, y: i32) -> Self {
+LL | |         Self(x, y)
+LL | |     }
+   | |_____^ this `new` method is exact field assembly
+   |
+   = note: this public constant constructor only assigns its parameters to the corresponding fields
+   = help: replace this implementation with `#[derive(derive_more::Constructor)]` on the struct
+
+warning: 2 warnings emitted
+

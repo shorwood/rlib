@@ -1,1 +1,2 @@
 pub mod derive_more_manual_conversion_impls;
+pub mod derive_more_manual_constructors;

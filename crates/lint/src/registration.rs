@@ -49,6 +49,8 @@ pub extern "Rust" fn register_lints(
 
     #[cfg(feature = "derive_more")]
     rules::derive_more::derive_more_manual_conversion_impls::register_lints(sess, lint_store);
+    #[cfg(feature = "derive_more")]
+    rules::derive_more::derive_more_manual_constructors::register_lints(sess, lint_store);
 
     #[cfg(feature = "framework")]
     rules::framework::framework_resolution_required::register_lints(sess, lint_store);
