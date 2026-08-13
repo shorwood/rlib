@@ -11,8 +11,8 @@ use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty;
 use rustc_span::Span;
 
-use super::contracts::authored_item_source;
 use crate::utils::diagnostic::LateViolation;
+use crate::utils::source_provenance::authored_item_source;
 
 struct Violation {
     owner: rustc_hir::HirId,

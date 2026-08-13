@@ -10,8 +10,9 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::def_id::LocalDefId;
 use rustc_span::Span;
 
-use super::contracts::{DeriveMoreContractCatalog, authored_item_source};
+use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::diagnostic::LateViolation;
+use crate::utils::source_provenance::authored_item_source;
 
 struct Candidate {
     definition: LocalDefId,

@@ -107,6 +107,9 @@ pub extern "Rust" fn register_lints(
     #[cfg(feature = "framework")]
     rules::framework::framework_resolution_required::register_lints(sess, lint_store);
 
+    #[cfg(feature = "serde")]
+    rules::serde::serde_duplicate_serialized_names::register_lints(sess, lint_store);
+
     #[cfg(feature = "strum")]
     register_strum_lints(sess, lint_store);
 

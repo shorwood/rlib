@@ -1,0 +1,53 @@
+warning: Serde serialization name `id` is duplicated
+  --> $DIR/semantic.rs:4:1
+   |
+LL | / struct OutputCollision {
+LL | |     #[serde(rename = "id")]
+LL | |     internal_id: u64,
+LL | |     id: String,
+LL | | }
+   | |_^ these declarations share an effective wire name
+   |
+   = note: the effective name is shared by internal_id, id; the wire representation cannot identify one member unambiguously
+   = help: assign distinct Serde names or aliases for this direction
+   = note: `#[warn(serde_duplicate_serialized_names)]` on by default
+
+warning: Serde deserialization name `name` is duplicated
+  --> $DIR/semantic.rs:11:1
+   |
+LL | / struct InputCollision {
+LL | |     #[serde(alias = "name")]
+LL | |     display_name: String,
+LL | |     name: String,
+LL | | }
+   | |_^ these declarations share an effective wire name
+   |
+   = note: the effective name is shared by display_name, name; the wire representation cannot identify one member unambiguously
+   = help: assign distinct Serde names or aliases for this direction
+
+warning: Serde serialization name `http_server` is duplicated
+  --> $DIR/semantic.rs:19:1
+   |
+LL | / enum CaseCollision {
+LL | |     HttpServer,
+LL | |     HTTPServer,
+LL | | }
+   | |_^ these declarations share an effective wire name
+   |
+   = note: the effective name is shared by HttpServer, HTTPServer; the wire representation cannot identify one member unambiguously
+   = help: assign distinct Serde names or aliases for this direction
+
+warning: Serde deserialization name `http_server` is duplicated
+  --> $DIR/semantic.rs:19:1
+   |
+LL | / enum CaseCollision {
+LL | |     HttpServer,
+LL | |     HTTPServer,
+LL | | }
+   | |_^ these declarations share an effective wire name
+   |
+   = note: the effective name is shared by HttpServer, HTTPServer; the wire representation cannot identify one member unambiguously
+   = help: assign distinct Serde names or aliases for this direction
+
+warning: 4 warnings emitted
+

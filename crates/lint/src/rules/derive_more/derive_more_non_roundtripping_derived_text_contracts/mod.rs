@@ -13,8 +13,9 @@ use rustc_middle::ty;
 use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 
-use super::contracts::{authored_item_source, DeriveMoreContractCatalog};
+use super::contracts::DeriveMoreContractCatalog;
 use crate::utils::diagnostic::LateViolation;
+use crate::utils::source_provenance::authored_item_source;
 
 struct Candidate {
     span: Span,
