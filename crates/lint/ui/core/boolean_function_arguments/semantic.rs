@@ -15,7 +15,19 @@ fn export(pretty: bool, include_metadata: Flag) {}
 
 fn set_enabled(enabled: bool) {}
 
+mod deceptive_setter {
+    fn set_enabled(context: u32, enabled: bool) {}
+}
+
 fn set_enabled_indirectly(value: bool) {}
+
+struct Settings;
+
+impl Settings {
+    fn set_visible(&mut self, visible: bool) {}
+
+    fn set_enabled(&mut self, context: u32, enabled: bool) {}
+}
 
 fn choose(predicate: impl Fn(&str) -> bool) {}
 

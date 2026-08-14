@@ -22,6 +22,34 @@ fn maybe_session(token: Option<String>) -> Result<Option<MaybeSession>, ()> {
     Ok(token.map(|token| MaybeSession::Present(Session { token })))
 }
 
+struct AliasedConstruction;
+
+fn aliased_construction() -> AliasedConstruction {
+    let value = AliasedConstruction;
+    value
+}
+
+struct ExplicitConstruction;
+
+fn explicit_construction() -> ExplicitConstruction {
+    return ExplicitConstruction;
+}
+
+#[derive(Clone, Copy)]
+struct DormantConstruction;
+
+static DORMANT_CONSTRUCTION: DormantConstruction = DormantConstruction;
+
+fn discarded_construction() -> DormantConstruction {
+    let _ = DormantConstruction;
+    DORMANT_CONSTRUCTION
+}
+
+fn dormant_closure() -> DormantConstruction {
+    let _build_later = || DormantConstruction;
+    DORMANT_CONSTRUCTION
+}
+
 struct Snapshot;
 
 fn snapshot_of(snapshot: &Snapshot) -> Snapshot {

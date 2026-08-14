@@ -80,8 +80,24 @@ LL |     let _lazy = fail_optional().unwrap_or_else(|_| None);
    = note: the resulting `std::option::Option<std::string::String>` cannot distinguish an absent value from a failed operation or explain the lost `Failure`
    = help: preserve the Result, or match both variants explicitly where failure is intentionally translated into absence
 
+warning: this `unwrap_or_else` absence fallback turns `Failure` failures into an indistinguishable absence
+  --> $DIR/semantic.rs:48:27
+   |
+LL |       let _discarded_lazy = fail_optional().unwrap_or_else(|error| {
+   |                             ^--------------
+   |                             |
+   |  ___________________________this Result still carries failure context
+   | |
+LL | |         drop(error);
+LL | |         None
+LL | |     });
+   | |______^
+   |
+   = note: the resulting `std::option::Option<std::string::String>` cannot distinguish an absent value from a failed operation or explain the lost `Failure`
+   = help: preserve the Result, or match both variants explicitly where failure is intentionally translated into absence
+
 warning: this `unwrap_or_default` Option fallback turns `Failure` failures into an indistinguishable absence
-  --> $DIR/semantic.rs:48:22
+  --> $DIR/semantic.rs:52:22
    |
 LL |     let _defaulted = fail_optional().unwrap_or_default();
    |                      ---------------^^^^^^^^^^^^^^^^^^^^
@@ -92,7 +108,7 @@ LL |     let _defaulted = fail_optional().unwrap_or_default();
    = help: preserve the Result, or match both variants explicitly where failure is intentionally translated into absence
 
 warning: this `map_or` absence fallback turns `Failure` failures into an indistinguishable absence
-  --> $DIR/semantic.rs:50:24
+  --> $DIR/semantic.rs:54:24
    |
 LL |     let _ufcs_mapped = Result::map_or(fail(), None, Some);
    |                        ^^^^^^^^^^^^^^^------^^^^^^^^^^^^^
@@ -103,7 +119,7 @@ LL |     let _ufcs_mapped = Result::map_or(fail(), None, Some);
    = help: preserve the Result, or match both variants explicitly where failure is intentionally translated into absence
 
 warning: this `unwrap_or_else` absence fallback turns `Failure` failures into an indistinguishable absence
-  --> $DIR/semantic.rs:51:22
+  --> $DIR/semantic.rs:55:22
    |
 LL |     let _ufcs_lazy = Result::unwrap_or_else(fail_optional(), |_| None);
    |                      ^^^^^^^^^^^^^^^^^^^^^^^---------------^^^^^^^^^^^
@@ -113,8 +129,25 @@ LL |     let _ufcs_lazy = Result::unwrap_or_else(fail_optional(), |_| None);
    = note: the resulting `std::option::Option<std::string::String>` cannot distinguish an absent value from a failed operation or explain the lost `Failure`
    = help: preserve the Result, or match both variants explicitly where failure is intentionally translated into absence
 
+warning: this `map_or_else` absence fallback turns `Failure` failures into an indistinguishable absence
+  --> $DIR/semantic.rs:56:27
+   |
+LL |       let _ufcs_discarded = Result::map_or_else(
+   |  ___________________________^
+LL | |         fail(),
+   | |         ------ this Result still carries failure context
+LL | |         |error| {
+LL | |             let _ = error;
+...  |
+LL | |         Some,
+LL | |     );
+   | |_____^
+   |
+   = note: the resulting `std::option::Option<std::string::String>` cannot distinguish an absent value from a failed operation or explain the lost `Failure`
+   = help: preserve the Result, or match both variants explicitly where failure is intentionally translated into absence
+
 warning: this `unwrap_or` absence fallback turns `Failure` failures into an indistinguishable absence
-  --> $DIR/semantic.rs:52:29
+  --> $DIR/semantic.rs:64:29
    |
 LL |     let _explicit_default = fail_optional().unwrap_or(Option::default());
    |                             ---------------^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -124,5 +157,5 @@ LL |     let _explicit_default = fail_optional().unwrap_or(Option::default());
    = note: the resulting `std::option::Option<std::string::String>` cannot distinguish an absent value from a failed operation or explain the lost `Failure`
    = help: preserve the Result, or match both variants explicitly where failure is intentionally translated into absence
 
-warning: 11 warnings emitted
+warning: 13 warnings emitted
 

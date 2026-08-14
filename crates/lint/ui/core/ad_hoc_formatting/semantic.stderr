@@ -51,5 +51,23 @@ LL | fn render_free_value(value: &FreeValue) -> String {
    = note: one ordinary representation belongs in `Display`, where formatting, logging, interpolation, generic bounds, and allocation-aware writers can discover it consistently for `FreeValue`
    = help: implement `std::fmt::Display` for `FreeValue` and retain a named helper only when it adds a distinct format or policy
 
-warning: 5 warnings emitted
+warning: `AliasedText` has an ad hoc canonical text representation but no `Display` implementation
+  --> $DIR/semantic.rs:119:5
+   |
+LL |     fn render_text(&self) -> String {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `render_text` contributes this representation
+   |
+   = note: one ordinary representation belongs in `Display`, where formatting, logging, interpolation, generic bounds, and allocation-aware writers can discover it consistently for `AliasedText`
+   = help: implement `std::fmt::Display` for `AliasedText` and retain a named helper only when it adds a distinct format or policy
+
+warning: `EarlyText` has an ad hoc canonical text representation but no `Display` implementation
+  --> $DIR/semantic.rs:139:5
+   |
+LL |     fn render_text(&self) -> String {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `render_text` contributes this representation
+   |
+   = note: one ordinary representation belongs in `Display`, where formatting, logging, interpolation, generic bounds, and allocation-aware writers can discover it consistently for `EarlyText`
+   = help: implement `std::fmt::Display` for `EarlyText` and retain a named helper only when it adds a distinct format or policy
+
+warning: 7 warnings emitted
 

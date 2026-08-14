@@ -1,6 +1,12 @@
 #![allow(dead_code)]
 #![warn(mismatched_section_divider_prefixes)]
 
+macro_rules! emit_generated_catalog {
+    () => {
+        const GENERATED_ENTRY: usize = 1;
+    };
+}
+
 fn main() {}
 
 // -----------------------------------------------------------------------------
@@ -59,3 +65,16 @@ mod identifier_case {
     }
     pub fn is_pascal() {}
 }
+
+// -----------------------------------------------------------------------------
+// Request: Request limits
+// -----------------------------------------------------------------------------
+
+const REQUEST_LIMIT: usize = 1;
+static REQUEST_TOTAL: usize = 2;
+
+// -----------------------------------------------------------------------------
+// GeneratedCatalog: Generated declarations
+// -----------------------------------------------------------------------------
+
+emit_generated_catalog!();

@@ -50,6 +50,18 @@ fn closure_is_independent() {
     };
 }
 
+fn doc_comment_is_not_a_phase() {
+    /// Documents a block-local helper.
+    fn helper() {}
+    helper();
+}
+
+fn trailing_header() {
+    let _value = 1;
+
+    // Prepare work that never follows.
+}
+
 macro_rules! generated_phase_comment {
     () => {
         fn generated_phase_comment() {

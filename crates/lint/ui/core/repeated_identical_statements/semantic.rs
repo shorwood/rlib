@@ -8,6 +8,12 @@ fn accidental() {
     record("ready");
 }
 
+fn explained_repetition() {
+    record("retry");
+    // The repeated operation is deliberate because the receiver requires two pulses.
+    record("retry");
+}
+
 fn explicit_repetition() {
     for _ in 0..2 {
         record("ready");

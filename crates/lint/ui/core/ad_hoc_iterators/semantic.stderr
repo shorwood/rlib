@@ -26,5 +26,16 @@ LL |         self.inner.next()
    = note: the mutable receiver, persistent state advance, and `Option<Token>` exhaustion contract form Rust's standard `Iterator::next` protocol; keeping it named hides adapters, `for`, collection, and generic consumption
    = help: implement `Iterator<Item = Token>` for `DelegatingStream` and move this state transition into `next`; if `DelegatingStream` must remain reusable, move the cursor into a dedicated iterator type instead
 
-warning: 2 warnings emitted
+warning: `take_token` advances `EarlyDelegatingStream` as an ad hoc iterator over `Token`
+  --> $DIR/semantic.rs:35:8
+   |
+LL |     fn take_token(&mut self) -> Option<Token> {
+   |        ^^^^^^^^^^ --------- persistent traversal state is mutated here
+LL |         return self.inner.next();
+   |                ----------------- this operation advances that state
+   |
+   = note: the mutable receiver, persistent state advance, and `Option<Token>` exhaustion contract form Rust's standard `Iterator::next` protocol; keeping it named hides adapters, `for`, collection, and generic consumption
+   = help: implement `Iterator<Item = Token>` for `EarlyDelegatingStream` and move this state transition into `next`; if `EarlyDelegatingStream` must remain reusable, move the cursor into a dedicated iterator type instead
+
+warning: 3 warnings emitted
 

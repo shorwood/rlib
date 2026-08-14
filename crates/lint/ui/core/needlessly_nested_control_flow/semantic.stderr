@@ -29,8 +29,21 @@ LL | |     }
    = note: the exceptional path keeps the main operation indented and makes both paths appear equally important
    = help: use the diverging branch as a guard and move the useful work into the surrounding block
 
+warning: this conditional keeps useful work inside a needless branch
+  --> $DIR/semantic.rs:27:5
+   |
+LL | /     if !valid {
+LL | |         fail();
+LL | |     } else {
+LL | |         work();
+LL | |     }
+   | |_____^
+   |
+   = note: the exceptional path keeps the main operation indented and makes both paths appear equally important
+   = help: use the diverging branch as a guard and move the useful work into the surrounding block
+
 warning: this trailing condition needlessly wraps the remaining work
-  --> $DIR/semantic.rs:23:5
+  --> $DIR/semantic.rs:35:5
    |
 LL | /     if valid {
 LL | |         work();
@@ -41,7 +54,7 @@ LL | |     }
    = help: invert the condition and use an early `return` before the unwrapped body
 
 warning: this trailing condition needlessly wraps the remaining work
-  --> $DIR/semantic.rs:29:5
+  --> $DIR/semantic.rs:41:5
    |
 LL | /     if let Some(_value) = value {
 LL | |         work();
@@ -52,7 +65,7 @@ LL | |     }
    = help: invert the condition and use an early `return` before the unwrapped body
 
 warning: this trailing condition needlessly wraps the remaining work
-  --> $DIR/semantic.rs:36:9
+  --> $DIR/semantic.rs:48:9
    |
 LL | /         if *value {
 LL | |             work();
@@ -62,5 +75,5 @@ LL | |         }
    = note: the exceptional path keeps the main operation indented and makes both paths appear equally important
    = help: invert the condition and use an early `continue` before the unwrapped body
 
-warning: 5 warnings emitted
+warning: 6 warnings emitted
 

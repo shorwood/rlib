@@ -32,6 +32,19 @@ fn explicit_policy() -> Result<(), Failure> {
     Ok(())
 }
 
+fn underscore_name_but_handled() {
+    let _result = fail();
+    match _result {
+        Ok(value) => println!("{value}"),
+        Err(error) => println!("{}", error.0),
+    }
+}
+
+fn underscore_name_then_drop() {
+    let _result = fail();
+    drop(_result);
+}
+
 fn main() {
     discarded();
     let _handled = explicit_policy();

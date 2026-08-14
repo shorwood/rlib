@@ -29,6 +29,20 @@ fn archive(slug: &str) -> Result<(), ()> {
     Ok(())
 }
 
+fn cached_route(route: &str) -> Result<(), ()> {
+    if route == "cached" {
+        return Ok(());
+    }
+    Ok(())
+}
+
+fn local_route(route: &str) -> Result<(), ()> {
+    if route == "local" {
+        return Ok(());
+    }
+    Ok(())
+}
+
 fn validate_token(_token: &str) -> Result<(), ()> {
     Ok(())
 }

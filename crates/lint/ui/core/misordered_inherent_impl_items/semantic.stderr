@@ -29,5 +29,21 @@ LL +         self.prepare();
 LL +     }
    |
 
-warning: 1 warning emitted
+warning: inherent impl items are not in dependency-first order
+  --> $DIR/semantic.rs:33:5
+   |
+LL |     fn helper() {}
+   |     ^^^^^^^^^^^^^^ first item out of order
+   |
+   = note: the first misplaced item forces readers to search forward; the resolved dependency-first order is `new`, `helper`
+help: move associated items into this order: `new`, `helper`
+   |
+LL ~     fn new() -> NamedWidget {
+LL +         NamedWidget
+LL +     }
+LL |
+LL ~     fn helper() {}
+   |
+
+warning: 2 warnings emitted
 

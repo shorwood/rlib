@@ -73,5 +73,62 @@ LL |         self.0 % 10 == other.0 % 10
    = note: canonical equality determines generic comparisons, deduplication, sets, and map keys for `Existing`; detached implementations can disagree with `Hash` or with each other
    = help: delegate to `Existing`'s `PartialEq` implementation or make the different relation explicit in the API or a wrapper; ensure every existing `Hash` implementation follows the canonical equality fields
 
-warning: 5 warnings emitted
+warning: `is_equal` is one of 2 APIs competing to define equality for `Conventional`
+  --> $DIR/semantic.rs:94:5
+   |
+LL |     fn is_equal(&self, other: &Self) -> bool {
+   |     ^^^^^^^^^^^^-----^^------------^^^^^^^^^
+   |                 |      |
+   |                 |      second value in the same relation
+   |                 first value in the inferred equality relation
+LL |         self.0 == other.0
+   |         ----------------- both values determine this boolean result
+   |
+   = note: canonical equality determines generic comparisons, deduplication, sets, and map keys for `Conventional`; detached implementations can disagree with `Hash` or with each other
+   = help: choose one lawful `PartialEq` relation for `Conventional`; name every contextual relation by its key or policy, or encode it in a wrapper type
+
+warning: `not_equal` is one of 2 APIs competing to define equality for `Conventional`
+  --> $DIR/semantic.rs:99:5
+   |
+LL |     fn not_equal(&self, other: &Self) -> bool {
+   |     ^^^^^^^^^^^^^-----^^------------^^^^^^^^^
+   |                  |      |
+   |                  |      second value in the same relation
+   |                  first value in the inferred equality relation
+LL |         self.0 != other.0
+   |         ----------------- both values determine this boolean result
+   |
+   = note: canonical equality determines generic comparisons, deduplication, sets, and map keys for `Conventional`; detached implementations can disagree with `Hash` or with each other
+   = help: choose one lawful `PartialEq` relation for `Conventional`; name every contextual relation by its key or policy, or encode it in a wrapper type
+
+warning: `equal` defines canonical-looking equality for `Early` outside `PartialEq`
+  --> $DIR/semantic.rs:108:5
+   |
+LL |     fn equal(&self, other: &Self) -> bool {
+   |     ^^^^^^^^^-----^^------------^^^^^^^^^
+   |              |      |
+   |              |      second value in the same relation
+   |              first value in the inferred equality relation
+LL |         if self.0 == 0 {
+LL |             return self.0 == other.0;
+   |                    ----------------- both values determine this boolean result
+   |
+   = note: canonical equality determines generic comparisons, deduplication, sets, and map keys for `Early`; detached implementations can disagree with `Hash` or with each other
+   = help: if this is `Early`'s canonical equivalence relation, implement `PartialEq` there and add `Eq` only after confirming reflexivity; otherwise give the operation a contextual name or introduce a comparison wrapper
+
+warning: `equal` defines canonical-looking equality for `Aliased` outside `PartialEq`
+  --> $DIR/semantic.rs:120:5
+   |
+LL |     fn equal(&self, other: &Self) -> bool {
+   |     ^^^^^^^^^-----^^------------^^^^^^^^^
+   |              |      |
+   |              |      second value in the same relation
+   |              first value in the inferred equality relation
+LL |         let equal = self.0 == other.0;
+   |                     ----------------- both values determine this boolean result
+   |
+   = note: canonical equality determines generic comparisons, deduplication, sets, and map keys for `Aliased`; detached implementations can disagree with `Hash` or with each other
+   = help: if this is `Aliased`'s canonical equivalence relation, implement `PartialEq` there and add `Eq` only after confirming reflexivity; otherwise give the operation a contextual name or introduce a comparison wrapper
+
+warning: 9 warnings emitted
 

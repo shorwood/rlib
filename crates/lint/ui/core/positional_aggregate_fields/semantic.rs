@@ -4,6 +4,8 @@
 struct Span;
 
 struct Rename(Span, String);
+struct Coordinates(i32, i32, i32);
+struct EmptyTuple();
 
 enum Finding {
     Replacement(Span, String),
@@ -11,6 +13,7 @@ enum Finding {
     ExplicitlyAllowed(Span, String),
     Newtype(String),
     Unit,
+    EmptyTuple(),
     Record { span: Span, replacement: String },
 }
 

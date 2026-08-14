@@ -35,5 +35,55 @@ LL +     }
 LL + }
    |
 
-warning: 2 warnings emitted
+warning: constructor-like free function `aliased_construction` creates `AliasedConstruction` outside its inherent impl
+  --> $DIR/semantic.rs:27:4
+   |
+LL | fn aliased_construction() -> AliasedConstruction {
+   |    ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `aliased_construction`'s construction contract is hidden in the module namespace instead of being discoverable through `AliasedConstruction`
+help: move `aliased_construction` into an inherent `impl AliasedConstruction`; reconsider whether its name describes the invariant or source concept instead of merely saying `new`, `build`, or `create`
+   |
+LL + impl AliasedConstruction {
+LL +     fn aliased_construction() -> AliasedConstruction {
+LL +         let value = AliasedConstruction;
+LL +         value
+LL +     }
+LL + }
+   |
+
+warning: constructor-like free function `explicit_construction` creates `ExplicitConstruction` outside its inherent impl
+  --> $DIR/semantic.rs:34:4
+   |
+LL | fn explicit_construction() -> ExplicitConstruction {
+   |    ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `explicit_construction`'s construction contract is hidden in the module namespace instead of being discoverable through `ExplicitConstruction`
+help: move `explicit_construction` into an inherent `impl ExplicitConstruction`; reconsider whether its name describes the invariant or source concept instead of merely saying `new`, `build`, or `create`
+   |
+LL + impl ExplicitConstruction {
+LL +     fn explicit_construction() -> ExplicitConstruction {
+LL +         return ExplicitConstruction;
+LL +     }
+LL + }
+   |
+
+warning: constructor-like free function `parse_json_value` creates `JsonValue` outside its inherent impl
+  --> $DIR/semantic.rs:61:4
+   |
+LL | fn parse_json_value(source: &str) -> Result<JsonValue, ()> {
+   |    ^^^^^^^^^^^^^^^^
+   |
+   = note: `parse_json_value`'s construction contract is hidden in the module namespace instead of being discoverable through `JsonValue`
+help: move `parse_json_value` into an inherent `impl JsonValue`; reconsider whether its name describes the invariant or source concept instead of merely saying `new`, `build`, or `create`
+   |
+LL + impl JsonValue {
+LL +     fn parse_json_value(source: &str) -> Result<JsonValue, ()> {
+LL +         let _ = source;
+LL +         Ok(JsonValue)
+LL +     }
+LL + }
+   |
+
+warning: 5 warnings emitted
 

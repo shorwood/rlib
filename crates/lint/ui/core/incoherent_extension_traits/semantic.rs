@@ -45,12 +45,14 @@ impl LargeExt for ExternalTarget {
 trait FocusedExt {
     fn inspect(&self, item: &ExternalItem);
     fn label(&self, label: &str);
+    fn owned_label(&self, label: String);
     fn transform<T>(&self, transform: T);
 }
 
 impl FocusedExt for ExternalTarget {
     fn inspect(&self, item: &ExternalItem) {}
     fn label(&self, label: &str) {}
+    fn owned_label(&self, label: String) {}
     fn transform<T>(&self, transform: T) {}
 }
 

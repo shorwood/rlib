@@ -193,7 +193,7 @@ LL |     if payload.len() > 1024 {
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `15` encodes an unnamed timing policy
-  --> $DIR/semantic.rs:121:42
+  --> $DIR/semantic.rs:129:42
    |
 LL |     let _timeout = Duration::from_millis(15);
    |                                          ^^

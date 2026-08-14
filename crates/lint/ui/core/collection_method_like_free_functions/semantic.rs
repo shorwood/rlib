@@ -51,6 +51,29 @@ impl ExistingList {}
 
 fn use_existing(items: &[Existing]) {}
 
+// A compatible wrapper remains usable even when it does not have an impl block yet.
+struct NoImpl;
+struct NoImplList {
+    items: Vec<NoImpl>,
+}
+
+fn use_existing_without_impl(items: &[NoImpl]) {}
+
+// Sharing only the generic element definition does not make an instantiation compatible.
+struct FixedGeneric<T>(T);
+struct FixedGenericList {
+    items: Vec<FixedGeneric<u8>>,
+}
+
+fn mismatched_generic_wrapper<T>(items: Vec<FixedGeneric<T>>) {}
+
+struct GenericExisting<T>(T);
+struct GenericExistingList<U> {
+    items: Vec<GenericExisting<U>>,
+}
+
+fn use_generic_existing<T>(items: Vec<GenericExisting<T>>) {}
+
 // An occupied canonical name needs a manual naming decision.
 struct Conflict;
 struct ConflictList {

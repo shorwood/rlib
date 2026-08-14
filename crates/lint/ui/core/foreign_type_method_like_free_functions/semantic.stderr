@@ -24,7 +24,7 @@ LL | pub(crate) fn inspect_type(ambient: &Ambient, ty: &ExternalType) {}
    = help: define a focused local extension trait for `ExternalType` and colocate this operation with its impl
 
 warning: visible free function `register_document` exposes foreign behavior without a clear owner
-  --> $DIR/semantic.rs:25:8
+  --> $DIR/semantic.rs:26:8
    |
 LL | pub fn register_document(registry: &Registry, document: &Document) {}
    |        ^^^^^^^^^^^^^^^^^ -------------------  ------------------- `Document` remains a plausible owner
@@ -35,7 +35,7 @@ LL | pub fn register_document(registry: &Registry, document: &Document) {}
    = help: choose one semantic subject and define a focused extension trait, or introduce a domain object that owns the operation
 
 warning: visible free function `inspect` behaves like an extension method on `ExternalItem`
-  --> $DIR/semantic.rs:28:8
+  --> $DIR/semantic.rs:29:8
    |
 LL | pub fn inspect(item: &ExternalItem) {}
    |        ^^^^^^^ ------------------- `ExternalItem` is the inferred semantic owner
@@ -44,7 +44,7 @@ LL | pub fn inspect(item: &ExternalItem) {}
    = help: define a focused local extension trait for `ExternalItem` and colocate this operation with its impl
 
 warning: visible free function `inspect_alias` behaves like an extension method on `ExternalItem`
-  --> $DIR/semantic.rs:29:8
+  --> $DIR/semantic.rs:30:8
    |
 LL | pub fn inspect_alias(item: &ItemAlias) {}
    |        ^^^^^^^^^^^^^ ---------------- `ExternalItem` is the inferred semantic owner
@@ -53,7 +53,7 @@ LL | pub fn inspect_alias(item: &ItemAlias) {}
    = help: define a focused local extension trait for `ExternalItem` and colocate this operation with its impl
 
 warning: visible free function `inspect_repeated` behaves like an extension method on `ExternalItem`
-  --> $DIR/semantic.rs:30:8
+  --> $DIR/semantic.rs:31:8
    |
 LL | pub fn inspect_repeated(item: &ExternalItem, duplicate: &ExternalItem) {}
    |        ^^^^^^^^^^^^^^^^ ------------------- `ExternalItem` is the inferred semantic owner
@@ -62,7 +62,7 @@ LL | pub fn inspect_repeated(item: &ExternalItem, duplicate: &ExternalItem) {}
    = help: define a focused local extension trait for `ExternalItem` and colocate this operation with its impl
 
 warning: visible free function `generated_locally` behaves like an extension method on `ExternalType`
-  --> $DIR/semantic.rs:38:16
+  --> $DIR/semantic.rs:39:16
    |
 LL |         pub fn generated_locally(item: &ExternalType) {}
    |                ^^^^^^^^^^^^^^^^^ ------------------- `ExternalType` is the inferred semantic owner
@@ -75,7 +75,7 @@ LL | local_helper!();
    = note: this warning originates in the macro `local_helper` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 warning: visible free function `super_visible` behaves like an extension method on `ExternalType`
-  --> $DIR/semantic.rs:58:19
+  --> $DIR/semantic.rs:59:19
    |
 LL |     pub(super) fn super_visible(ty: &ExternalType) {}
    |                   ^^^^^^^^^^^^^ ----------------- `ExternalType` is the inferred semantic owner
@@ -84,7 +84,7 @@ LL |     pub(super) fn super_visible(ty: &ExternalType) {}
    = help: define a focused local extension trait for `ExternalType` and colocate this operation with its impl
 
 warning: visible free function `crate_visible` behaves like an extension method on `Document`
-  --> $DIR/semantic.rs:59:22
+  --> $DIR/semantic.rs:60:22
    |
 LL |     pub(in crate) fn crate_visible(document: &Document) {}
    |                      ^^^^^^^^^^^^^ ------------------- `Document` is the inferred semantic owner

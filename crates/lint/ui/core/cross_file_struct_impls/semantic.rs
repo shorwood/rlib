@@ -14,6 +14,11 @@ mod implementations;
 #[path = "support/owner.inc"]
 mod owner;
 
+#[path = "support/left/model.inc"]
+mod left_model;
+#[path = "support/right/model.inc"]
+mod right_model;
+
 trait Behavior {}
 trait ReferenceBehavior {}
 

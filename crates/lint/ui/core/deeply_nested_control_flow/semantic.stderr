@@ -1,13 +1,10 @@
-warning: this loop reaches control-flow depth 3, exceeding the configured maximum of 2
-  --> $DIR/semantic.rs:7:21
+warning: this conditional reaches control-flow depth 5, exceeding the configured maximum of 4
+  --> $DIR/semantic.rs:9:21
    |
-LL |               true => loop {
-   |  _____________________^
-LL | |                 if third {
-LL | |                     break;
-...  |
-LL | |             },
-   | |_____________^
+LL | /                     if fourth {
+LL | |                         break;
+LL | |                     }
+   | |_____________________^
    |
    = note: each additional nesting level increases the branch state a reader must retain before reaching this operation
    = help: extract a named helper or flatten guardable branches before adding more nesting
@@ -17,14 +14,42 @@ note: the lint level is defined here
 LL | #![warn(deeply_nested_control_flow)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-warning: this conditional reaches control-flow depth 3, exceeding the configured maximum of 2
-  --> $DIR/semantic.rs:29:13
+warning: this conditional reaches control-flow depth 5, exceeding the configured maximum of 4
+  --> $DIR/semantic.rs:38:21
    |
-LL |             if third {}
-   |             ^^^^^^^^^^^
+LL |                     if fourth {}
+   |                     ^^^^^^^^^^^^
    |
    = note: each additional nesting level increases the branch state a reader must retain before reaching this operation
    = help: extract a named helper or flatten guardable branches before adding more nesting
 
-warning: 2 warnings emitted
+warning: this trailing condition needlessly wraps the remaining work
+  --> $DIR/semantic.rs:48:5
+   |
+LL | /     if first {
+LL | |         while second {
+LL | |             match third {
+LL | |                 true => loop {
+...  |
+LL | |     }
+   | |_____^
+   |
+   = note: the exceptional path keeps the main operation indented and makes both paths appear equally important
+   = help: invert the condition and use an early `return` before the unwrapped body
+note: the lint level is defined here
+  --> $DIR/semantic.rs:46:8
+   |
+LL | #[warn(needlessly_nested_control_flow)]
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: this trailing condition needlessly wraps the remaining work
+  --> $DIR/semantic.rs:52:21
+   |
+LL |                     if fourth {}
+   |                     ^^^^^^^^^^^^
+   |
+   = note: the exceptional path keeps the main operation indented and makes both paths appear equally important
+   = help: invert the condition and use an early `continue` before the unwrapped body
+
+warning: 4 warnings emitted
 

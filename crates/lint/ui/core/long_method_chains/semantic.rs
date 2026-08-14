@@ -6,11 +6,18 @@ fn too_long(values: &[String]) -> Vec<String> {
         .iter()
         .filter(|value| !value.is_empty())
         .cloned()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
         .collect()
 }
 
 fn exact_limit(values: &[String]) -> Vec<String> {
-    values.iter().cloned().collect()
+    values
+        .iter()
+        .filter(|value| !value.is_empty())
+        .cloned()
+        .map(|value| value.trim().to_owned())
+        .collect()
 }
 
 fn intermediary(values: &[String]) -> Vec<String> {
@@ -54,6 +61,20 @@ fn explicitly_allowed(values: &[String]) -> Vec<String> {
         .filter(|value| !value.is_empty())
         .cloned()
         .collect()
+}
+
+fn consume(_: Vec<String>) {}
+
+fn nested_as_argument(values: &[String]) {
+    consume(
+        values
+            .iter()
+            .filter(|value| !value.is_empty())
+            .cloned()
+            .map(|value| value.trim().to_owned())
+            .filter(|value| !value.is_empty())
+            .collect(),
+    );
 }
 
 fn main() {}

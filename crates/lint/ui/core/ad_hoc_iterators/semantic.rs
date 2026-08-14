@@ -27,6 +27,65 @@ impl DelegatingStream {
     }
 }
 
+struct EarlyDelegatingStream {
+    inner: std::vec::IntoIter<Token>,
+}
+
+impl EarlyDelegatingStream {
+    fn take_token(&mut self) -> Option<Token> {
+        return self.inner.next();
+    }
+}
+
+struct DiscardedDelegation {
+    inner: std::vec::IntoIter<Token>,
+}
+
+impl DiscardedDelegation {
+    // False-positive boundary: discarded traversal does not supply this method's result.
+    fn next_token(&mut self) -> Option<Token> {
+        let _ = self.inner.next();
+        None
+    }
+}
+
+struct DormantDelegation {
+    inner: std::vec::IntoIter<Token>,
+}
+
+impl DormantDelegation {
+    // False-positive boundary: a closure body is not executed by the enclosing method.
+    fn next_token(&mut self) -> Option<Token> {
+        let _later = || self.inner.next();
+        None
+    }
+}
+
+struct UnrelatedMutation {
+    advances: usize,
+}
+
+impl UnrelatedMutation {
+    // False-positive boundary: incidental receiver mutation does not make a constant an item.
+    fn next_token(&mut self) -> Option<Token> {
+        self.advances += 1;
+        Some(Token)
+    }
+}
+
+struct TelemetryMutation {
+    tokens: Vec<Token>,
+    observations: usize,
+}
+
+impl TelemetryMutation {
+    // False-positive boundary: telemetry mutation does not advance the returned sequence.
+    fn next_token(&mut self) -> Option<Token> {
+        self.observations += 1;
+        self.tokens.first().cloned()
+    }
+}
+
 struct Queue {
     values: std::collections::VecDeque<Token>,
 }

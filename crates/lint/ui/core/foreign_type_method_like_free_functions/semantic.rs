@@ -20,6 +20,7 @@ pub struct LocalSubject;
 // `Ambient` recurs beside distinct subjects and must not become the proposed owner.
 pub fn inspect_item(ambient: &Ambient, item: &ExternalItem) {}
 pub(crate) fn inspect_type(ambient: &Ambient, ty: &ExternalType) {}
+pub fn reset_ambient(ambient: &Ambient) {}
 
 // Both foreign types remain plausible, so the lint must report without guessing.
 pub fn register_document(registry: &Registry, document: &Document) {}

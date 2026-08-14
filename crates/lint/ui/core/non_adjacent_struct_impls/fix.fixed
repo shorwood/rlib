@@ -8,6 +8,10 @@
 
 trait Behavior {}
 
+struct EarlyMovable;
+
+impl EarlyMovable {}
+
 struct Movable;
 
 impl Movable {

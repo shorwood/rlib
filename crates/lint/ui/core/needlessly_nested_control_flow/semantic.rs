@@ -19,6 +19,18 @@ fn diverging_else(valid: bool) {
     }
 }
 
+fn fail() -> ! {
+    panic!("failed")
+}
+
+fn indirect_divergence(valid: bool) {
+    if !valid {
+        fail();
+    } else {
+        work();
+    }
+}
+
 fn trailing_condition(valid: bool) {
     if valid {
         work();
@@ -71,5 +83,13 @@ fn main() {}
 fn terminal_error(result: Result<(), ()>) {
     if let Err(()) = result {
         panic!("failed");
+    }
+}
+
+fn terminal_continue(values: &[bool]) {
+    for value in values {
+        if !*value {
+            continue;
+        }
     }
 }

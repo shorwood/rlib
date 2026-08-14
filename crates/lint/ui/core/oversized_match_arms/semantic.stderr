@@ -1,4 +1,4 @@
-warning: this match arm contains 8 lines, exceeding the configured maximum of 7
+warning: this match arm contains 16 lines, exceeding the configured maximum of 15
   --> $DIR/semantic.rs:6:24
    |
 LL |           Some(value) => {
@@ -7,7 +7,7 @@ LL | |             let _one = value + 1;
 LL | |             let _two = value + 2;
 LL | |             let _three = value + 3;
 ...  |
-LL | |             let _eight = value + 8;
+LL | |             let _sixteen = value + 16;
 LL | |         }
    | |_________^
    |

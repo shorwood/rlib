@@ -12,8 +12,17 @@ note: the lint level is defined here
 LL | #![warn(positional_aggregate_fields)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+warning: this tuple struct has multiple positional fields
+  --> $DIR/semantic.rs:7:1
+   |
+LL | struct Coordinates(i32, i32, i32);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: constructors and patterns rely on ordering, so component roles remain implicit at every use site
+   = help: use record fields whose names explain each component's semantic role
+
 warning: this tuple-like enum variant has multiple positional fields
-  --> $DIR/semantic.rs:9:5
+  --> $DIR/semantic.rs:11:5
    |
 LL |     Replacement(Span, String),
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -21,5 +30,5 @@ LL |     Replacement(Span, String),
    = note: constructors and patterns rely on ordering, so component roles remain implicit at every use site
    = help: use record fields whose names explain each component's semantic role
 
-warning: 2 warnings emitted
+warning: 3 warnings emitted
 

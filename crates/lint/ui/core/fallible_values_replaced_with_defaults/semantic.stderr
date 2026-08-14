@@ -36,8 +36,40 @@ LL |     let _lazy = fail().unwrap_or_else(|_| String::default());
    = note: callers receive an ordinary `std::string::String` and cannot tell whether it was produced successfully or substituted after `Failure` failed
    = help: propagate or handle the error; when a default is deliberate, expose that policy in an explicit match that can inspect the failure
 
+warning: this `unwrap_or_else` with an error-ignoring default closure replaces `Failure` failures with `std::string::String`'s default value
+  --> $DIR/semantic.rs:25:28
+   |
+LL |       let _discarded_error = fail().unwrap_or_else(|error| {
+   |                              ^-----
+   |                              |
+   |  ____________________________this Result carries the failure being hidden
+   | |
+LL | |         let _ = error;
+LL | |         String::default()
+LL | |     });
+   | |______^
+   |
+   = note: callers receive an ordinary `std::string::String` and cannot tell whether it was produced successfully or substituted after `Failure` failed
+   = help: propagate or handle the error; when a default is deliberate, expose that policy in an explicit match that can inspect the failure
+
+warning: this `unwrap_or_else` with an error-ignoring default closure replaces `Failure` failures with `std::string::String`'s default value
+  --> $DIR/semantic.rs:29:26
+   |
+LL |       let _dropped_error = fail().unwrap_or_else(|error| {
+   |                            ^-----
+   |                            |
+   |  __________________________this Result carries the failure being hidden
+   | |
+LL | |         drop(error);
+LL | |         String::default()
+LL | |     });
+   | |______^
+   |
+   = note: callers receive an ordinary `std::string::String` and cannot tell whether it was produced successfully or substituted after `Failure` failed
+   = help: propagate or handle the error; when a default is deliberate, expose that policy in an explicit match that can inspect the failure
+
 warning: this `unwrap_or_default` replaces `Failure` failures with `std::string::String`'s default value
-  --> $DIR/semantic.rs:26:27
+  --> $DIR/semantic.rs:34:27
    |
 LL |     let _ufcs_dedicated = Result::unwrap_or_default(fail());
    |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^------^
@@ -48,7 +80,7 @@ LL |     let _ufcs_dedicated = Result::unwrap_or_default(fail());
    = help: propagate or handle the error; when a default is deliberate, expose that policy in an explicit match that can inspect the failure
 
 warning: this `unwrap_or` with a default value replaces `Failure` failures with `std::string::String`'s default value
-  --> $DIR/semantic.rs:27:23
+  --> $DIR/semantic.rs:35:23
    |
 LL |     let _ufcs_eager = Result::unwrap_or(fail(), String::default());
    |                       ^^^^^^^^^^^^^^^^^^------^^^^^^^^^^^^^^^^^^^^
@@ -59,7 +91,7 @@ LL |     let _ufcs_eager = Result::unwrap_or(fail(), String::default());
    = help: propagate or handle the error; when a default is deliberate, expose that policy in an explicit match that can inspect the failure
 
 warning: this `unwrap_or_else` with an error-ignoring default closure replaces `Failure` failures with `std::string::String`'s default value
-  --> $DIR/semantic.rs:28:22
+  --> $DIR/semantic.rs:36:22
    |
 LL |     let _ufcs_lazy = Result::unwrap_or_else(fail(), |_| String::default());
    |                      ^^^^^^^^^^^^^^^^^^^^^^^------^^^^^^^^^^^^^^^^^^^^^^^^
@@ -69,5 +101,5 @@ LL |     let _ufcs_lazy = Result::unwrap_or_else(fail(), |_| String::default());
    = note: callers receive an ordinary `std::string::String` and cannot tell whether it was produced successfully or substituted after `Failure` failed
    = help: propagate or handle the error; when a default is deliberate, expose that policy in an explicit match that can inspect the failure
 
-warning: 6 warnings emitted
+warning: 8 warnings emitted
 

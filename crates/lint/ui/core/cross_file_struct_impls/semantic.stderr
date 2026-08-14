@@ -55,5 +55,19 @@ LL | pub(crate) struct Generic<T>(pub(crate) T);
    = note: understanding `Generic` currently requires searching both `owner.inc` and `implementations.inc` for its behavior
    = help: move this complete impl block into `owner.inc` beside `Generic`
 
-warning: 4 warnings emitted
+warning: impl block for `DuplicateName` is not colocated with its definition
+  --> $DIR/support/right/model.inc:1:1
+   |
+LL | impl super::left_model::DuplicateName {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this impl is defined in `right/model.inc`
+   |
+  ::: $DIR/support/left/model.inc:1:1
+   |
+LL | pub(crate) struct DuplicateName;
+   | ------------------------------- `DuplicateName` is defined in `left/model.inc`
+   |
+   = note: understanding `DuplicateName` currently requires searching both `left/model.inc` and `right/model.inc` for its behavior
+   = help: move this complete impl block into `left/model.inc` beside `DuplicateName`
+
+warning: 5 warnings emitted
 

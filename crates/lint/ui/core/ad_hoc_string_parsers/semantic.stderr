@@ -21,5 +21,23 @@ LL |     fn decode(source: &str) -> Result<Self, std::num::ParseIntError> {
    = note: a unique `&str -> Result<AccountId, _>` conversion is a type-level parsing contract; leaving it as an ad hoc function hides it from `.parse()`, generic bounds, and standard tooling
    = help: implement `std::str::FromStr` for `AccountId` and move the parsing body into `from_str`; keep a wrapper only when its name adds a distinct policy or format
 
-warning: 2 warnings emitted
+warning: `parse_aliased_id` is the canonical string parser for `AliasedId` but does not implement `FromStr`
+  --> $DIR/semantic.rs:26:4
+   |
+LL | fn parse_aliased_id(source: &str) -> Result<AliasedId, std::num::ParseIntError> {
+   |    ^^^^^^^^^^^^^^^^
+   |
+   = note: a unique `&str -> Result<AliasedId, _>` conversion is a type-level parsing contract; leaving it as an ad hoc function hides it from `.parse()`, generic bounds, and standard tooling
+   = help: implement `std::str::FromStr` for `AliasedId` and move the parsing body into `from_str`; keep a wrapper only when its name adds a distinct policy or format
+
+warning: `parse_early_id` is the canonical string parser for `EarlyId` but does not implement `FromStr`
+  --> $DIR/semantic.rs:34:4
+   |
+LL | fn parse_early_id(source: &str) -> Result<EarlyId, std::num::ParseIntError> {
+   |    ^^^^^^^^^^^^^^
+   |
+   = note: a unique `&str -> Result<EarlyId, _>` conversion is a type-level parsing contract; leaving it as an ad hoc function hides it from `.parse()`, generic bounds, and standard tooling
+   = help: implement `std::str::FromStr` for `EarlyId` and move the parsing body into `from_str`; keep a wrapper only when its name adds a distinct policy or format
+
+warning: 4 warnings emitted
 

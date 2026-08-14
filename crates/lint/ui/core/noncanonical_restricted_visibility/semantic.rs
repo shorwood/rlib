@@ -2,6 +2,15 @@
 #![allow(dead_code)]
 
 pub(self) struct SelfVisible;
+pub(in crate) type CrateAlias = usize;
+
+pub(in crate) mod restricted_module {}
+
+struct TupleField(pub(in crate) usize);
+
+union RestrictedUnion {
+    pub(in crate) value: usize,
+}
 
 mod parent {
     mod child {
@@ -22,6 +31,8 @@ mod canonical {
     }
 
     impl Canonical {
+        pub(in crate) const NONCANONICAL_CONSTANT: usize = 1;
+
         pub(in crate) fn noncanonical_method(&self) {}
 
         pub(crate) fn canonical_method(&self) {}
@@ -29,5 +40,13 @@ mod canonical {
 }
 
 pub(in self) fn in_self() {}
+
+macro_rules! generated_visibility {
+    () => {
+        pub(in crate) struct GeneratedVisibility;
+    };
+}
+
+generated_visibility!();
 
 fn main() {}

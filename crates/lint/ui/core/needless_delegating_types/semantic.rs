@@ -97,6 +97,32 @@ impl std::fmt::Debug for Contract {
 
 struct Generic<T>(T);
 
+#[derive(Clone, Copy)]
+struct ConsumedInner;
+
+impl ConsumedInner {
+    fn first(self, value: u8) -> u8 {
+        value
+    }
+
+    fn second(self, value: u16) -> u16 {
+        value
+    }
+}
+
+// Borrowing the wrapper while consuming a copied inner value changes receiver semantics.
+struct BorrowingWrapper(ConsumedInner);
+
+impl BorrowingWrapper {
+    fn first(&self, value: u8) -> u8 {
+        self.0.first(value)
+    }
+
+    fn second(&self, value: u16) -> u16 {
+        self.0.second(value)
+    }
+}
+
 fn main() {
     let wrapper = Wrapper(make_inner());
     let _ = wrapper.read(1);
@@ -114,6 +140,9 @@ fn main() {
     let _ = contract.read(1);
     let _ = contract.write(2);
     let _ = Generic(Inner);
+    let borrowing = BorrowingWrapper(ConsumedInner);
+    let _ = borrowing.first(1);
+    let _ = borrowing.second(2);
     let representation = Representation(Inner);
     let _ = representation.read(1);
     let _ = representation.write(2);

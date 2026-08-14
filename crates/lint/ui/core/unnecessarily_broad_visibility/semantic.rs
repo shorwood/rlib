@@ -88,6 +88,18 @@ mod parse_consumer {
     }
 }
 
+pub mod tuple_owner {
+    pub(super) struct TupleValue(pub(crate) usize, pub(super) usize);
+}
+
+mod tuple_consumer {
+    fn exercise() {
+        let value = super::tuple_owner::TupleValue(1, 2);
+        let super::tuple_owner::TupleValue(first, second) = value;
+        let _ = (first, second);
+    }
+}
+
 pub fn unused_public_function() {}
 
 fn main() {

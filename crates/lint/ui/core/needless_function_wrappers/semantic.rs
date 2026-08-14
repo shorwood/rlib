@@ -197,6 +197,15 @@ fn external_target(value: u32) -> u32 {
     std::hint::black_box(value)
 }
 
+unsafe fn unsafe_target(value: u32) -> u32 {
+    value
+}
+
+fn safe_boundary(value: u32) -> u32 {
+    // The wrapper owns the proof that makes this unsafe call valid.
+    unsafe { unsafe_target(value) }
+}
+
 fn function_pointer(target: fn(u32) -> u32, value: u32) -> u32 {
     target(value)
 }

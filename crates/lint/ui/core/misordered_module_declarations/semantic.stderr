@@ -1,5 +1,5 @@
 warning: module declarations are not in dependency-first order
-  --> $DIR/semantic.rs:37:1
+  --> $DIR/semantic.rs:55:1
    |
 LL | / fn run(callback: fn(Anchor) -> usize) -> usize {
 LL | |     (unsafe { foreign_value() }) + callback(Anchor) + child::VALUE + LIMIT

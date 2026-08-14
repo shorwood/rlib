@@ -21,6 +21,56 @@ impl AccountId {
     }
 }
 
+struct AliasedId(u64);
+
+fn parse_aliased_id(source: &str) -> Result<AliasedId, std::num::ParseIntError> {
+    // False-negative boundary: a returned local preserves construction provenance.
+    let parsed = AliasedId(source.parse()?);
+    Ok(parsed)
+}
+
+struct EarlyId(u64);
+
+fn parse_early_id(source: &str) -> Result<EarlyId, std::num::ParseIntError> {
+    return Ok(EarlyId(source.parse()?));
+}
+
+struct DiscardedTarget;
+
+fn parse_discarded_target(source: &str) -> Result<DiscardedTarget, ()> {
+    // False-positive boundary: a discarded construction cannot supply the success value.
+    let _ = source.len();
+    let _ = DiscardedTarget;
+    Err(())
+}
+
+struct DormantTarget;
+
+fn parse_dormant_target(source: &str) -> Result<DormantTarget, ()> {
+    // False-positive boundary: closure-local construction and input use are dormant.
+    let _later = || {
+        let _ = source.len();
+        DormantTarget
+    };
+    Err(())
+}
+
+struct DormantSource;
+
+fn parse_dormant_source(source: &str) -> Result<DormantSource, ()> {
+    // False-positive boundary: an uncalled closure does not consume parser input.
+    let _later = || source.len();
+    Ok(DormantSource)
+}
+
+struct NoOpSource;
+
+fn parse_no_op_source(source: &str) -> Result<NoOpSource, ()> {
+    // False-positive boundary: explicitly discarding the binding is not parser input use.
+    let _ = source;
+    Ok(NoOpSource)
+}
+
 struct Timestamp(u64);
 
 fn parse_timestamp_rfc3339(source: &str) -> Result<Timestamp, ()> {

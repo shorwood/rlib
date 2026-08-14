@@ -24,7 +24,7 @@ LL | trait LargeExt {
    = help: split the API into extension traits named for one semantic subject or capability
 
 warning: extension trait `BroadBlanketExt` does not describe one focused capability
-  --> $DIR/semantic.rs:57:7
+  --> $DIR/semantic.rs:59:7
    |
 LL | trait BroadBlanketExt {
    |       ^^^^^^^^^^^^^^^

@@ -132,4 +132,80 @@ fn generic_error() -> Result<(), GenericError<String>> {
     Err(GenericError { message: "generic".to_owned() })
 }
 
+static SHARED_INNER_ERROR: InnerError = InnerError;
+
+#[derive(Debug)]
+struct UnrelatedCauseError {
+    is_marked: bool,
+}
+
+impl Display for UnrelatedCauseError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str("unrelated")
+    }
+}
+
+impl Error for UnrelatedCauseError {}
+
+impl UnrelatedCauseError {
+    // False-positive boundary: touching `self` does not make a global error its predecessor.
+    fn cause(&self) -> &InnerError {
+        let _marker = self.is_marked;
+        &SHARED_INNER_ERROR
+    }
+}
+
+fn unrelated_cause() -> Result<(), UnrelatedCauseError> {
+    Err(UnrelatedCauseError { is_marked: false })
+}
+
+#[derive(Debug)]
+struct AliasedCauseError {
+    cause: InnerError,
+}
+
+impl Display for AliasedCauseError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str("aliased")
+    }
+}
+
+impl Error for AliasedCauseError {}
+
+impl AliasedCauseError {
+    // False-negative boundary: a receiver-rooted alias still exposes one predecessor.
+    fn cause(&self) -> &InnerError {
+        let cause = &self.cause;
+        cause
+    }
+}
+
+fn aliased_cause() -> Result<(), AliasedCauseError> {
+    Err(AliasedCauseError { cause: InnerError })
+}
+
+#[derive(Debug)]
+struct OptionalCauseError {
+    cause: InnerError,
+}
+
+impl Display for OptionalCauseError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str("optional")
+    }
+}
+
+impl Error for OptionalCauseError {}
+
+impl OptionalCauseError {
+    // False-negative boundary: an optional direct cause is the standard source shape.
+    fn inner(&self) -> Option<&InnerError> {
+        Some(&self.cause)
+    }
+}
+
+fn optional_cause() -> Result<(), OptionalCauseError> {
+    Err(OptionalCauseError { cause: InnerError })
+}
+
 fn main() {}

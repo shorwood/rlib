@@ -14,5 +14,16 @@ note: the lint level is defined here
 LL | #![warn(duplicate_section_divider_prefixes)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-warning: 1 warning emitted
+warning: section prefix `Request` is used more than once in this module
+  --> $DIR/semantic.rs:16:1
+   |
+LL | / // -----------------------------------------------------------------------------
+LL | | // Request: Request failures
+LL | | // -----------------------------------------------------------------------------
+   | |________________________________________________________________________________^
+   |
+   = note: reusing one prefix fragments a naming family and leaves new declarations without an unambiguous owning section
+   = help: combine this family with the earlier `Request` section
+
+warning: 2 warnings emitted
 

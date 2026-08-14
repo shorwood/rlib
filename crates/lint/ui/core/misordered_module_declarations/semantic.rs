@@ -30,6 +30,24 @@ mod deferred_impl_regression {
     }
 }
 
+mod local_macro_output {
+    macro_rules! generated_declarations {
+        () => {
+            fn generated() -> Generated {
+                Generated
+            }
+
+            struct Generated;
+        };
+    }
+
+    // -----------------------------------------------------------------------------
+    // GeneratedDeclarations: Generated declaration catalog
+    // -----------------------------------------------------------------------------
+
+    generated_declarations!();
+}
+
 // -----------------------------------------------------------------------------
 // Fixture: Declaration ordering fixture
 // -----------------------------------------------------------------------------

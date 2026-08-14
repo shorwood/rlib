@@ -76,5 +76,35 @@ LL | fn existing_no_source() -> Result<(), ExistingNoSource> {
    = note: standard error interfaces make presentation, reporting, generic bounds, and causal traversal available without project-specific conventions
    = help: implement the missing standard contracts for `ExistingNoSource` and expose only the proven causal predecessor through `Error::source`
 
-warning: 5 warnings emitted
+warning: error type `AliasedCauseError` exposes an ad hoc interface but is missing `Error::source`
+  --> $DIR/semantic.rs:163:8
+   |
+LL | struct AliasedCauseError {
+   |        ^^^^^^^^^^^^^^^^^
+...
+LL |     fn cause(&self) -> &InnerError {
+   |     ------------------------------ ad hoc causal accessor
+...
+LL | fn aliased_cause() -> Result<(), AliasedCauseError> {
+   | --------------------------------------------------- this active `Result` uses the type as its error
+   |
+   = note: standard error interfaces make presentation, reporting, generic bounds, and causal traversal available without project-specific conventions
+   = help: implement the missing standard contracts for `AliasedCauseError` and expose only the proven causal predecessor through `Error::source`
+
+warning: error type `OptionalCauseError` exposes an ad hoc interface but is missing `Error::source`
+  --> $DIR/semantic.rs:188:8
+   |
+LL | struct OptionalCauseError {
+   |        ^^^^^^^^^^^^^^^^^^
+...
+LL |     fn inner(&self) -> Option<&InnerError> {
+   |     -------------------------------------- ad hoc causal accessor
+...
+LL | fn optional_cause() -> Result<(), OptionalCauseError> {
+   | ----------------------------------------------------- this active `Result` uses the type as its error
+   |
+   = note: standard error interfaces make presentation, reporting, generic bounds, and causal traversal available without project-specific conventions
+   = help: implement the missing standard contracts for `OptionalCauseError` and expose only the proven causal predecessor through `Error::source`
+
+warning: 7 warnings emitted
 

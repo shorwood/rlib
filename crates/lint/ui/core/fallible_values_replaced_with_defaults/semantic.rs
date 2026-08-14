@@ -22,6 +22,14 @@ fn default_operations() {
     let _dedicated = fail().unwrap_or_default();
     let _eager = fail().unwrap_or(String::default());
     let _lazy = fail().unwrap_or_else(|_| String::default());
+    let _discarded_error = fail().unwrap_or_else(|error| {
+        let _ = error;
+        String::default()
+    });
+    let _dropped_error = fail().unwrap_or_else(|error| {
+        drop(error);
+        String::default()
+    });
 
     let _ufcs_dedicated = Result::unwrap_or_default(fail());
     let _ufcs_eager = Result::unwrap_or(fail(), String::default());

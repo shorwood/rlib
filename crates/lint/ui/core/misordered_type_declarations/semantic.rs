@@ -23,6 +23,9 @@ trait UsesBound<T: Bound> {
 
 trait Bound {}
 
+type Generic<T = GenericDependency> = T;
+struct GenericDependency;
+
 struct Left(Option<Box<Right>>);
 struct Right(Option<Box<Left>>);
 

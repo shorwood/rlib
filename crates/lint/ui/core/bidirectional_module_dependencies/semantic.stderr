@@ -1,5 +1,5 @@
 warning: modules `syntax` and `parser` depend on each other in both directions
-  --> $DIR/semantic.rs:11:5
+  --> $DIR/semantic.rs:15:5
    |
 LL |     use super::syntax::Syntax;
    |     -------------------------- the reverse dependency is introduced here
@@ -10,10 +10,34 @@ LL |     use super::parser::Parser;
    = note: neither `syntax` nor `parser` has a clear ownership direction, so changes to either module can require understanding both
    = help: extract the shared concepts or choose one dependency direction between `syntax` and `parser`
 note: the lint level is defined here
-  --> $DIR/semantic.rs:1:9
+  --> $DIR/semantic.rs:3:9
    |
 LL | #![warn(bidirectional_module_dependencies)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-warning: 1 warning emitted
+warning: modules `domain::response` and `domain::request` depend on each other in both directions
+  --> $DIR/semantic.rs:54:9
+   |
+LL |         use super::response::Response;
+   |         ------------------------------ the reverse dependency is introduced here
+...
+LL |         use super::request::Request;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: neither `domain::response` nor `domain::request` has a clear ownership direction, so changes to either module can require understanding both
+   = help: extract the shared concepts or choose one dependency direction between `domain::response` and `domain::request`
+
+warning: modules `local_right` and `local_left` depend on each other in both directions
+  --> $DIR/semantic.rs:79:5
+   |
+LL |         use super::local_right::LocalRight;
+   |         ----------------------------------- the reverse dependency is introduced here
+...
+LL |     use super::local_left::LocalLeft;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: neither `local_right` nor `local_left` has a clear ownership direction, so changes to either module can require understanding both
+   = help: extract the shared concepts or choose one dependency direction between `local_right` and `local_left`
+
+warning: 3 warnings emitted
 

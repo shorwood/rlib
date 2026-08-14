@@ -8,6 +8,9 @@
 
 trait Behavior {}
 
+impl EarlyMovable {}
+struct EarlyMovable;
+
 struct Movable;
 fn movable_separator() {}
 impl Movable {

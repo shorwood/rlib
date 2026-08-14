@@ -23,8 +23,17 @@ LL | fn export(pretty: bool, include_metadata: Flag) {}
    = note: positional boolean arguments can be swapped without a type error and do not reveal which choice each literal controls
    = help: collect these choices in a named options type, using enums for choices that are not true predicates
 
+warning: boolean parameter `enabled` hides its alternatives at call sites
+  --> $DIR/semantic.rs:19:34
+   |
+LL |     fn set_enabled(context: u32, enabled: bool) {}
+   |                                  ^^^^^^^
+   |
+   = note: callers otherwise see only `true` or `false` instead of the behavior selected by `enabled`
+   = help: replace `enabled: bool` with an enum whose type and variants name the policy choices
+
 warning: boolean parameter `value` hides its alternatives at call sites
-  --> $DIR/semantic.rs:18:27
+  --> $DIR/semantic.rs:22:27
    |
 LL | fn set_enabled_indirectly(value: bool) {}
    |                           ^^^^^
@@ -32,8 +41,17 @@ LL | fn set_enabled_indirectly(value: bool) {}
    = note: callers otherwise see only `true` or `false` instead of the behavior selected by `value`
    = help: replace `value: bool` with an enum whose type and variants name the policy choices
 
+warning: boolean parameter `enabled` hides its alternatives at call sites
+  --> $DIR/semantic.rs:29:45
+   |
+LL |     fn set_enabled(&mut self, context: u32, enabled: bool) {}
+   |                                             ^^^^^^^
+   |
+   = note: callers otherwise see only `true` or `false` instead of the behavior selected by `enabled`
+   = help: replace `enabled: bool` with an enum whose type and variants name the policy choices
+
 warning: boolean parameter `pretty` hides its alternatives at call sites
-  --> $DIR/semantic.rs:26:25
+  --> $DIR/semantic.rs:38:25
    |
 LL |         fn local_render(pretty: bool) {}
    |                         ^^^^^^
@@ -46,7 +64,7 @@ LL | local_boolean_signature!();
    = note: this warning originates in the macro `local_boolean_signature` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 warning: boolean parameter `minify` hides its alternatives at call sites
-  --> $DIR/semantic.rs:34:18
+  --> $DIR/semantic.rs:46:18
    |
 LL |     fn configure(minify: bool);
    |                  ^^^^^^
@@ -54,5 +72,5 @@ LL |     fn configure(minify: bool);
    = note: callers otherwise see only `true` or `false` instead of the behavior selected by `minify`
    = help: replace `minify: bool` with an enum whose type and variants name the policy choices
 
-warning: 5 warnings emitted
+warning: 7 warnings emitted
 

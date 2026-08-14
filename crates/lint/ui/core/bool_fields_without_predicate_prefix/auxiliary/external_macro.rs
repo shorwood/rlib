@@ -7,7 +7,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 
-// Generate a deliberately invalid field name to verify that external expansions are ignored.
+// Generate a deliberately invalid field name to verify that external expansions remain ignored.
 #[proc_macro]
 pub fn external_struct(_: TokenStream) -> TokenStream {
     "struct FromExternalMacro { active: bool }"

@@ -120,8 +120,38 @@ LL -     pub(crate) fn use_crate_boundary() {
 LL +      fn use_crate_boundary() {
    |
 
-warning: function `unused_public_function` has unnecessarily broad `pub` visibility
+warning: module `tuple_owner` has unnecessarily broad `pub` visibility
   --> $DIR/semantic.rs:91:1
+   |
+LL | pub mod tuple_owner {
+   | ^^^
+   |
+   = note: all observed uses are reachable with `private` from defining module `crate`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
+   = note: unrestricted `pub` is analyzed because this package declares `publish = false`
+help: narrow `tuple_owner` to `private` after confirming cfg-disabled and external consumers do not require the broader boundary
+   |
+LL - pub mod tuple_owner {
+LL +  mod tuple_owner {
+   |
+
+warning: field `0` has unnecessarily broad `pub(crate)` visibility
+  --> $DIR/semantic.rs:92:34
+   |
+LL |     pub(super) struct TupleValue(pub(crate) usize, pub(super) usize);
+   |                                  ^^^^^^^^^^
+...
+LL |         let value = super::tuple_owner::TupleValue(1, 2);
+   |                     ------------------------------ boundary-setting use from `tuple_consumer`
+   |
+   = note: all observed uses are reachable with `pub(super)` from defining module `tuple_owner`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
+help: narrow `0` to `pub(super)` after confirming cfg-disabled and external consumers do not require the broader boundary
+   |
+LL -     pub(super) struct TupleValue(pub(crate) usize, pub(super) usize);
+LL +     pub(super) struct TupleValue(pub(super) usize, pub(super) usize);
+   |
+
+warning: function `unused_public_function` has unnecessarily broad `pub` visibility
+  --> $DIR/semantic.rs:103:1
    |
 LL | pub fn unused_public_function() {}
    | ^^^
@@ -134,5 +164,5 @@ LL - pub fn unused_public_function() {}
 LL +  fn unused_public_function() {}
    |
 
-warning: 9 warnings emitted
+warning: 11 warnings emitted
 

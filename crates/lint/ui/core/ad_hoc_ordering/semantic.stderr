@@ -73,5 +73,47 @@ LL |         self.0.total_cmp(&other.0)
    = note: canonical ordering controls sorting, ordered collections, min/max operations, and equality coherence for `TotalFloat`; detached comparators can silently disagree
    = help: if this is the canonical relation, implement `Ord` for `TotalFloat` and keep its equality stack consistent; otherwise name the ordering context or introduce a wrapper type
 
-warning: 5 warnings emitted
+warning: `compare` defines canonical-looking ordering for `AliasedTotalFloat` outside `Ord`
+  --> $DIR/semantic.rs:60:5
+   |
+LL |     fn compare(&self, other: &Self) -> Ordering {
+   |     ^^^^^^^^^^^-----^^------------^^^^^^^^^^^^^
+   |                |      |
+   |                |      second value in the same relation
+   |                first value in the inferred ordering relation
+LL |         let ordering = self.0.total_cmp(&other.0);
+   |                        -------------------------- both values determine this ordering result
+   |
+   = note: canonical ordering controls sorting, ordered collections, min/max operations, and equality coherence for `AliasedTotalFloat`; detached comparators can silently disagree
+   = help: if this is the canonical relation, implement `Ord` for `AliasedTotalFloat` and keep its equality stack consistent; otherwise name the ordering context or introduce a wrapper type
+
+warning: `compare` defines canonical-looking ordering for `EarlyOrdering` outside `Ord`
+  --> $DIR/semantic.rs:69:5
+   |
+LL |     fn compare(&self, other: &Self) -> Ordering {
+   |     ^^^^^^^^^^^-----^^------------^^^^^^^^^^^^^
+   |                |      |
+   |                |      second value in the same relation
+   |                first value in the inferred ordering relation
+LL |         return self.0.cmp(&other.0);
+   |                -------------------- both values determine this ordering result
+   |
+   = note: canonical ordering controls sorting, ordered collections, min/max operations, and equality coherence for `EarlyOrdering`; detached comparators can silently disagree
+   = help: if this is the canonical relation, implement `Ord` for `EarlyOrdering` and keep its equality stack consistent; otherwise name the ordering context or introduce a wrapper type
+
+warning: `compare` implements ordering for `CompetingOwned` separately from its `Ord` contract
+  --> $DIR/semantic.rs:119:5
+   |
+LL |     fn compare(&self, other: &Self) -> Ordering {
+   |     ^^^^^^^^^^^-----^^------------^^^^^^^^^^^^^
+   |                |      |
+   |                |      second value in the same relation
+   |                first value in the inferred ordering relation
+LL |         self.0.cmp(&other.0)
+   |         -------------------- both values determine this ordering result
+   |
+   = note: canonical ordering controls sorting, ordered collections, min/max operations, and equality coherence for `CompetingOwned`; detached comparators can silently disagree
+   = help: delegate to `CompetingOwned`'s `Ord` implementation or make this distinct ordering explicit; do not let `cmp == Equal` disagree with canonical equality
+
+warning: 8 warnings emitted
 

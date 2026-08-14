@@ -1,13 +1,13 @@
-// aux-build: external_macro.rs
+// aux-build: non_adjacent_struct_macro.rs
 // edition:2024
 
 #![feature(register_tool)]
 #![allow(dead_code, misordered_inherent_impl_items, misordered_module_declarations, misordered_type_declarations)]
 #![register_tool(rlib_lint)]
 
-extern crate external_macro;
+extern crate non_adjacent_struct_macro;
 
-use external_macro::external_layout;
+use non_adjacent_struct_macro::external_layout;
 
 trait Behavior {}
 

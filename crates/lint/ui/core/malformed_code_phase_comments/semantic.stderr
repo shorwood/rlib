@@ -46,5 +46,14 @@ LL |     // Prepare the second value.
    = note: inconsistent phase markers make workflow boundaries harder for readers and tools to recognize reliably
    = help: use `//` followed by concise sentence-style prose immediately before the phase
 
-warning: 5 warnings emitted
+warning: this code phase comment must immediately precede its phase
+  --> $DIR/semantic.rs:62:5
+   |
+LL |     // Prepare work that never follows.
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: inconsistent phase markers make workflow boundaries harder for readers and tools to recognize reliably
+   = help: use `//` followed by concise sentence-style prose immediately before the phase
+
+warning: 6 warnings emitted
 

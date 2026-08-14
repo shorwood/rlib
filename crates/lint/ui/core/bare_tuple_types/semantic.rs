@@ -11,10 +11,33 @@ struct Stored {
 }
 
 type Unit = ();
+type Singleton = (Accepted,);
+type NestedOnly = Option<(Accepted, Rejected)>;
+type Callable = dyn Fn(Accepted, Rejected) -> Accepted;
+
+trait PartitionContract {
+    type Output;
+
+    fn partition() -> (Accepted, Rejected);
+}
+
+struct Contract;
+
+impl PartitionContract for Contract {
+    type Output = (Accepted, Rejected);
+
+    fn partition() -> (Accepted, Rejected) {
+        (Accepted, Rejected)
+    }
+}
+
+static STORED_PARTITION: (Accepted, Rejected) = (Accepted, Rejected);
 
 fn partition(input: (Accepted, Rejected)) -> (Accepted, Rejected) {
     let annotated: (Accepted, Rejected) = input;
     let closure = |value: (Accepted, Rejected)| value;
+    let producing = || -> (Accepted, Rejected) { (Accepted, Rejected) };
+    let _ = producing();
     closure(annotated)
 }
 

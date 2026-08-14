@@ -67,4 +67,60 @@ impl Contextual {
     }
 }
 
+struct Discarded(u64);
+
+impl Discarded {
+    // False-positive boundary: a discarded comparison does not determine the returned boolean.
+    fn equal(&self, other: &Self) -> bool {
+        let _discarded = self.0 == other.0;
+        true
+    }
+}
+
+struct Dormant(u64);
+
+impl Dormant {
+    // False-positive boundary: an uncalled closure does not determine the returned boolean.
+    fn equal(&self, other: &Self) -> bool {
+        let _comparison = || self.0 == other.0;
+        false
+    }
+}
+
+struct Conventional(u64);
+
+impl Conventional {
+    // False-negative boundary: predicate-style equality is still an unqualified relation.
+    fn is_equal(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    // False-negative boundary: canonical inequality is also owned by `PartialEq`.
+    fn not_equal(&self, other: &Self) -> bool {
+        self.0 != other.0
+    }
+}
+
+struct Early(u64);
+
+impl Early {
+    // False-negative boundary: an explicit return can carry the canonical relation.
+    fn equal(&self, other: &Self) -> bool {
+        if self.0 == 0 {
+            return self.0 == other.0;
+        }
+        false
+    }
+}
+
+struct Aliased(u64);
+
+impl Aliased {
+    // False-negative boundary: a returned local preserves its comparison provenance.
+    fn equal(&self, other: &Self) -> bool {
+        let equal = self.0 == other.0;
+        equal
+    }
+}
+
 fn main() {}

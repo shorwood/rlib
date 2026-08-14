@@ -49,6 +49,20 @@ fn weak(a: u16, b: u16) {}
 
 fn mixed(user: u64, project: u32) {}
 
+// False-positive boundary: owned and borrowed scalars are not call-site interchangeable.
+fn mixed_ownership(user: u64, project: &u64) {}
+
+// False-positive boundary: shared and mutable borrows are not mutually interchangeable.
+fn mixed_borrowing(user: &u64, project: &mut u64) {}
+
+fn assign_references(user: &u64, project: &u64) {}
+
+trait DefaultRouter {
+    fn assign(user: u32, project: u32) {
+        let _ = (user, project);
+    }
+}
+
 macro_rules! local_ambiguous_signature {
     () => {
         fn local_assign(account: u32, project: u32) {}

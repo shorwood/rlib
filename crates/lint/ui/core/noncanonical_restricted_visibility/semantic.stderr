@@ -16,8 +16,40 @@ LL - pub(self) struct SelfVisible;
 LL + struct SelfVisible;
    |
 
+warning: type alias `CrateAlias` uses noncanonical restricted visibility `pub(in crate)`
+  --> $DIR/semantic.rs:5:1
+   |
+LL | pub(in crate) type CrateAlias = usize;
+   | ^^^^^^^^^^^^^ help: write the equivalent canonical `pub(crate)` visibility: `pub(crate)`
+   |
+   = note: a small visibility vocabulary makes module boundaries immediately comparable and prevents arbitrary ancestor paths from encoding fragile file topology
+
+warning: module `restricted_module` uses noncanonical restricted visibility `pub(in crate)`
+  --> $DIR/semantic.rs:7:1
+   |
+LL | pub(in crate) mod restricted_module {}
+   | ^^^^^^^^^^^^^ help: write the equivalent canonical `pub(crate)` visibility: `pub(crate)`
+   |
+   = note: a small visibility vocabulary makes module boundaries immediately comparable and prevents arbitrary ancestor paths from encoding fragile file topology
+
+warning: field `TupleField.0` uses noncanonical restricted visibility `pub(in crate)`
+  --> $DIR/semantic.rs:9:19
+   |
+LL | struct TupleField(pub(in crate) usize);
+   |                   ^^^^^^^^^^^^^ help: write the equivalent canonical `pub(crate)` visibility: `pub(crate)`
+   |
+   = note: a small visibility vocabulary makes module boundaries immediately comparable and prevents arbitrary ancestor paths from encoding fragile file topology
+
+warning: field `RestrictedUnion.value` uses noncanonical restricted visibility `pub(in crate)`
+  --> $DIR/semantic.rs:12:5
+   |
+LL |     pub(in crate) value: usize,
+   |     ^^^^^^^^^^^^^ help: write the equivalent canonical `pub(crate)` visibility: `pub(crate)`
+   |
+   = note: a small visibility vocabulary makes module boundaries immediately comparable and prevents arbitrary ancestor paths from encoding fragile file topology
+
 warning: struct `PathRestricted` uses noncanonical restricted visibility `pub(in crate::parent)`
-  --> $DIR/semantic.rs:8:9
+  --> $DIR/semantic.rs:17:9
    |
 LL |         pub(in crate::parent) struct PathRestricted {
    |         ^^^^^^^^^^^^^^^^^^^^^
@@ -26,7 +58,7 @@ LL |         pub(in crate::parent) struct PathRestricted {
    = help: move the declaration to the module that owns its consumers, or deliberately use `pub(crate)` when the capability belongs to the whole crate
 
 warning: field `PathRestricted.value` uses noncanonical restricted visibility `pub(in crate::parent)`
-  --> $DIR/semantic.rs:9:13
+  --> $DIR/semantic.rs:18:13
    |
 LL |             pub(in crate::parent) value: usize,
    |             ^^^^^^^^^^^^^^^^^^^^^
@@ -35,7 +67,7 @@ LL |             pub(in crate::parent) value: usize,
    = help: move the declaration to the module that owns its consumers, or deliberately use `pub(crate)` when the capability belongs to the whole crate
 
 warning: constant item `PARENT_VALUE` uses noncanonical restricted visibility `pub(in super)`
-  --> $DIR/semantic.rs:13:5
+  --> $DIR/semantic.rs:22:5
    |
 LL |     pub(in super) const PARENT_VALUE: usize = 1;
    |     ^^^^^^^^^^^^^ help: write the equivalent canonical `pub(super)` visibility: `pub(super)`
@@ -43,15 +75,23 @@ LL |     pub(in super) const PARENT_VALUE: usize = 1;
    = note: a small visibility vocabulary makes module boundaries immediately comparable and prevents arbitrary ancestor paths from encoding fragile file topology
 
 warning: static item `CRATE_VALUE` uses noncanonical restricted visibility `pub(in crate)`
-  --> $DIR/semantic.rs:14:5
+  --> $DIR/semantic.rs:23:5
    |
 LL |     pub(in crate) static CRATE_VALUE: usize = 2;
    |     ^^^^^^^^^^^^^ help: write the equivalent canonical `pub(crate)` visibility: `pub(crate)`
    |
    = note: a small visibility vocabulary makes module boundaries immediately comparable and prevents arbitrary ancestor paths from encoding fragile file topology
 
+warning: associated item `NONCANONICAL_CONSTANT` uses noncanonical restricted visibility `pub(in crate)`
+  --> $DIR/semantic.rs:34:9
+   |
+LL |         pub(in crate) const NONCANONICAL_CONSTANT: usize = 1;
+   |         ^^^^^^^^^^^^^ help: write the equivalent canonical `pub(crate)` visibility: `pub(crate)`
+   |
+   = note: a small visibility vocabulary makes module boundaries immediately comparable and prevents arbitrary ancestor paths from encoding fragile file topology
+
 warning: associated item `noncanonical_method` uses noncanonical restricted visibility `pub(in crate)`
-  --> $DIR/semantic.rs:25:9
+  --> $DIR/semantic.rs:36:9
    |
 LL |         pub(in crate) fn noncanonical_method(&self) {}
    |         ^^^^^^^^^^^^^ help: write the equivalent canonical `pub(crate)` visibility: `pub(crate)`
@@ -59,7 +99,7 @@ LL |         pub(in crate) fn noncanonical_method(&self) {}
    = note: a small visibility vocabulary makes module boundaries immediately comparable and prevents arbitrary ancestor paths from encoding fragile file topology
 
 warning: function `in_self` uses noncanonical restricted visibility `pub(in self)`
-  --> $DIR/semantic.rs:31:1
+  --> $DIR/semantic.rs:42:1
    |
 LL | pub(in self) fn in_self() {}
    | ^^^^^^^^^^^^
@@ -71,5 +111,5 @@ LL - pub(in self) fn in_self() {}
 LL + fn in_self() {}
    |
 
-warning: 7 warnings emitted
+warning: 12 warnings emitted
 

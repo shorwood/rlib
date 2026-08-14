@@ -15,7 +15,32 @@ LL | #![warn(nested_tuple_types)]
    |         ^^^^^^^^^^^^^^^^^^
 
 warning: this explicit type contains an unnamed tuple shape
-  --> $DIR/semantic.rs:10:15
+  --> $DIR/semantic.rs:8:22
+   |
+LL |   type MixedCallable = Result<
+   |  ______________________^
+LL | |     Vec<(Participant, NameTokens)>,
+   | |         ------------------------- the nested tuple hides its component roles
+LL | |     Box<dyn Fn(Participant, NameTokens) -> Participant>,
+LL | | >;
+   | |_^
+   |
+   = note: the surrounding container explains storage but cannot communicate what each tuple position represents
+   = help: replace the tuple with a concept-specific record struct and named fields
+
+warning: this explicit type contains an unnamed tuple shape
+  --> $DIR/semantic.rs:13:24
+   |
+LL | type AssociatedTuple = Box<dyn Iterator<Item = (Participant, NameTokens)>>;
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^-------------------------^^
+   |                                                |
+   |                                                the nested tuple hides its component roles
+   |
+   = note: the surrounding container explains storage but cannot communicate what each tuple position represents
+   = help: replace the tuple with a concept-specific record struct and named fields
+
+warning: this explicit type contains an unnamed tuple shape
+  --> $DIR/semantic.rs:16:15
    |
 LL |     affected: Vec<(&'static Participant, NameTokens)>,
    |               ^^^^----------------------------------^
@@ -26,7 +51,7 @@ LL |     affected: Vec<(&'static Participant, NameTokens)>,
    = help: replace the tuple with a concept-specific record struct and named fields
 
 warning: this explicit type contains an unnamed tuple shape
-  --> $DIR/semantic.rs:14:12
+  --> $DIR/semantic.rs:20:12
    |
 LL |     input: Option<(&Participant, NameTokens)>,
    |            ^^^^^^^--------------------------^
@@ -37,7 +62,7 @@ LL |     input: Option<(&Participant, NameTokens)>,
    = help: replace the tuple with a concept-specific record struct and named fields
 
 warning: this explicit type contains an unnamed tuple shape
-  --> $DIR/semantic.rs:15:6
+  --> $DIR/semantic.rs:21:6
    |
 LL | ) -> Result<Vec<(&Participant, NameTokens)>, ()> {
    |      ^^^^^^^^^^^--------------------------^^^^^^
@@ -47,5 +72,5 @@ LL | ) -> Result<Vec<(&Participant, NameTokens)>, ()> {
    = note: the surrounding container explains storage but cannot communicate what each tuple position represents
    = help: replace the tuple with a concept-specific record struct and named fields
 
-warning: 4 warnings emitted
+warning: 6 warnings emitted
 

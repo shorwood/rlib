@@ -48,8 +48,30 @@ LL |     fn assign(&self, user: u64, project: u64) {}
    = note: the compiler cannot prevent callers from swapping `user`, `project` because their domain roles exist only in parameter names
    = help: introduce role-specific newtypes, or group values belonging to one operation in a named struct
 
+warning: `u64` parameters `user`, `project` carry distinct roles but remain interchangeable
+  --> $DIR/semantic.rs:58:22
+   |
+LL | fn assign_references(user: &u64, project: &u64) {}
+   |                      ^^^^        ------- role `project`
+   |                      |
+   |                      role `user`
+   |
+   = note: the compiler cannot prevent callers from swapping `user`, `project` because their domain roles exist only in parameter names
+   = help: introduce role-specific newtypes, or group values belonging to one operation in a named struct
+
+warning: `u32` parameters `user`, `project` carry distinct roles but remain interchangeable
+  --> $DIR/semantic.rs:61:15
+   |
+LL |     fn assign(user: u32, project: u32) {
+   |               ^^^^       ------- role `project`
+   |               |
+   |               role `user`
+   |
+   = note: the compiler cannot prevent callers from swapping `user`, `project` because their domain roles exist only in parameter names
+   = help: introduce role-specific newtypes, or group values belonging to one operation in a named struct
+
 warning: `u32` parameters `account`, `project` carry distinct roles but remain interchangeable
-  --> $DIR/semantic.rs:54:25
+  --> $DIR/semantic.rs:68:25
    |
 LL |         fn local_assign(account: u32, project: u32) {}
    |                         ^^^^^^^       ------- role `project`
@@ -63,5 +85,5 @@ LL | local_ambiguous_signature!();
    = help: introduce role-specific newtypes, or group values belonging to one operation in a named struct
    = note: this warning originates in the macro `local_ambiguous_signature` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-warning: 5 warnings emitted
+warning: 7 warnings emitted
 

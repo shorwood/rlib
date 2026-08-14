@@ -87,10 +87,37 @@ LL | fn use_existing(items: &[Existing]) {}
    |    ^^^^^^^^^^^^ ------------------ this collection of `Existing` needs a named wrapper
    |
    = note: the collection of `Existing` has domain behavior but no named type through which callers can discover or constrain that behavior
-   = help: move `use_existing` into the existing `impl ExistingList` block beside `Existing` in `semantic.rs` and use `&self`
+   = help: implement `use_existing` on the existing `ExistingList` wrapper beside `Existing` in `semantic.rs` and use `&self`
 
-warning: free function `conflicting_wrapper` should be a method on `ConflictList`
+warning: free function `use_existing_without_impl` should be a method on `NoImplList`
   --> $DIR/semantic.rs:60:4
+   |
+LL | fn use_existing_without_impl(items: &[NoImpl]) {}
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^^ ---------------- this collection of `NoImpl` needs a named wrapper
+   |
+   = note: the collection of `NoImpl` has domain behavior but no named type through which callers can discover or constrain that behavior
+   = help: implement `use_existing_without_impl` on the existing `NoImplList` wrapper beside `NoImpl` in `semantic.rs` and use `&self`
+
+warning: free function `mismatched_generic_wrapper` needs a dedicated collection wrapper for `FixedGeneric`
+  --> $DIR/semantic.rs:68:4
+   |
+LL | fn mismatched_generic_wrapper<T>(items: Vec<FixedGeneric<T>>) {}
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^^^    --------------------------- this collection of `FixedGeneric` needs a named wrapper
+   |
+   = note: the collection of `FixedGeneric` has domain behavior but no named type through which callers can discover or constrain that behavior
+   = help: `FixedGenericList` already names another type beside `FixedGeneric` in `semantic.rs`; choose a dedicated wrapper there with an `items: Vec<FixedGeneric<T>>` field and implement `mismatched_generic_wrapper` with `self`
+
+warning: free function `use_generic_existing` should be a method on `GenericExistingList`
+  --> $DIR/semantic.rs:75:4
+   |
+LL | fn use_generic_existing<T>(items: Vec<GenericExisting<T>>) {}
+   |    ^^^^^^^^^^^^^^^^^^^^    ------------------------------ this collection of `GenericExisting` needs a named wrapper
+   |
+   = note: the collection of `GenericExisting` has domain behavior but no named type through which callers can discover or constrain that behavior
+   = help: implement `use_generic_existing` on the existing `GenericExistingList` wrapper beside `GenericExisting` in `semantic.rs` and use `self`
+
+warning: free function `conflicting_wrapper` needs a dedicated collection wrapper for `Conflict`
+  --> $DIR/semantic.rs:83:4
    |
 LL | fn conflicting_wrapper(items: Vec<Conflict>) {}
    |    ^^^^^^^^^^^^^^^^^^^ -------------------- this collection of `Conflict` needs a named wrapper
@@ -99,7 +126,7 @@ LL | fn conflicting_wrapper(items: Vec<Conflict>) {}
    = help: `ConflictList` already names another type beside `Conflict` in `semantic.rs`; choose a dedicated wrapper there with an `items: Vec<Conflict>` field and implement `conflicting_wrapper` with `self`
 
 warning: free function `from_local_macro` should be a method on `ItemList`
-  --> $DIR/semantic.rs:65:12
+  --> $DIR/semantic.rs:88:12
    |
 LL |         fn from_local_macro(items: Vec<Item>) {
    |            ^^^^^^^^^^^^^^^^ ---------------- this collection of `Item` needs a named wrapper
@@ -112,7 +139,7 @@ LL | local_vector_function!();
    = note: this warning originates in the macro `local_vector_function` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 warning: free function `different_module` should be a method on `OtherList`
-  --> $DIR/semantic.rs:122:4
+  --> $DIR/semantic.rs:145:4
    |
 LL | fn different_module(items: Vec<elsewhere::Other>) {}
    |    ^^^^^^^^^^^^^^^^ ---------------------------- this collection of `Other` needs a named wrapper
@@ -121,34 +148,34 @@ LL | fn different_module(items: Vec<elsewhere::Other>) {}
    = help: beside `Other` in `semantic.rs`, define `struct OtherList { items: Vec<elsewhere::Other> }` and implement `different_module` there with `self`
 
 warning: free function `reuse_different_module` should be a method on `ReusableList`
-  --> $DIR/semantic.rs:123:4
+  --> $DIR/semantic.rs:146:4
    |
 LL | fn reuse_different_module(items: &[elsewhere::Reusable]) {}
    |    ^^^^^^^^^^^^^^^^^^^^^^ ----------------------------- this collection of `Reusable` needs a named wrapper
    |
    = note: the collection of `Reusable` has domain behavior but no named type through which callers can discover or constrain that behavior
-   = help: move `reuse_different_module` into the existing `impl ReusableList` block beside `Reusable` in `semantic.rs` and use `&self`
+   = help: implement `reuse_different_module` on the existing `ReusableList` wrapper beside `Reusable` in `semantic.rs` and use `&self`
 
-warning: free function `conflict_different_module` should be a method on `OccupiedList`
-  --> $DIR/semantic.rs:124:4
+warning: free function `conflict_different_module` needs a dedicated collection wrapper for `Occupied`
+  --> $DIR/semantic.rs:147:4
    |
 LL | fn conflict_different_module(items: Vec<elsewhere::Occupied>) {}
    |    ^^^^^^^^^^^^^^^^^^^^^^^^^ ------------------------------- this collection of `Occupied` needs a named wrapper
    |
    = note: the collection of `Occupied` has domain behavior but no named type through which callers can discover or constrain that behavior
-   = help: `OccupiedList` already names another type beside `Occupied` in `semantic.rs`; choose a dedicated wrapper there with an `items: Vec<Occupied>` field and implement `conflict_different_module` with `self`
+   = help: `OccupiedList` already names another type beside `Occupied` in `semantic.rs`; choose a dedicated wrapper there with an `items: Vec<elsewhere::Occupied>` field and implement `conflict_different_module` with `self`
 
 warning: free function `different_file` should be a method on `RemoteList`
-  --> $DIR/semantic.rs:125:4
+  --> $DIR/semantic.rs:148:4
    |
 LL | fn different_file(items: &[remote::Remote]) {}
    |    ^^^^^^^^^^^^^^ ------------------------ this collection of `Remote` needs a named wrapper
    |
    = note: the collection of `Remote` has domain behavior but no named type through which callers can discover or constrain that behavior
-   = help: move `different_file` into the existing `impl RemoteList` block beside `Remote` in `remote.inc` and use `&self`
+   = help: implement `different_file` on the existing `RemoteList` wrapper beside `Remote` in `remote.inc` and use `&self`
 
 warning: free function `different_module` should be a method on `ItemList`
-  --> $DIR/semantic.rs:128:8
+  --> $DIR/semantic.rs:151:8
    |
 LL |     fn different_module(items: Vec<super::Item>) {}
    |        ^^^^^^^^^^^^^^^^ ----------------------- this collection of `Item` needs a named wrapper
@@ -156,5 +183,5 @@ LL |     fn different_module(items: Vec<super::Item>) {}
    = note: the collection of `Item` has domain behavior but no named type through which callers can discover or constrain that behavior
    = help: beside `Item` in `semantic.rs`, define `struct ItemList { items: Vec<Item> }` and implement `different_module` there with `self`
 
-warning: 17 warnings emitted
+warning: 20 warnings emitted
 

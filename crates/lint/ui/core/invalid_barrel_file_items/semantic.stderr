@@ -33,6 +33,7 @@ LL | / mod inline_child {
 LL | |     // The inline module receives one warning as a whole. Its children must not receive duplicates.
 LL | |     fn nested_implementation() {}
 LL | |     struct NestedType;
+...  |
 LL | | }
    | |_^
    |
@@ -40,7 +41,16 @@ LL | | }
    = help: move the module body to child.rs or child/mod.rs and leave only `mod child;` here
 
 warning: implementation code does not belong in a barrel file
-  --> $DIR/auxiliary/bad/mod.rs:11:1
+  --> $DIR/auxiliary/bad/mod.rs:14:1
+   |
+LL | extern crate core;
+   | ^^^^^^^^^^^^^^^^^^
+   |
+   = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
+   = help: move this code into a dedicated module and leave only its module declaration here
+
+warning: implementation code does not belong in a barrel file
+  --> $DIR/auxiliary/bad/mod.rs:16:1
    |
 LL | fn implementation() {}
    | ^^^^^^^^^^^^^^^^^^^^^^
@@ -49,7 +59,7 @@ LL | fn implementation() {}
    = help: move this code into a dedicated module and leave only its module declaration here
 
 warning: implementation code does not belong in a barrel file
-  --> $DIR/auxiliary/bad/mod.rs:12:1
+  --> $DIR/auxiliary/bad/mod.rs:17:1
    |
 LL | struct ImplementedHere;
    | ^^^^^^^^^^^^^^^^^^^^^^^
@@ -58,7 +68,7 @@ LL | struct ImplementedHere;
    = help: move this code into a dedicated module and leave only its module declaration here
 
 warning: macro definitions and calls do not belong in a barrel file
-  --> $DIR/auxiliary/bad/mod.rs:14:1
+  --> $DIR/auxiliary/bad/mod.rs:19:1
    |
 LL | / macro_rules! make_item {
 LL | |     () => {
@@ -71,7 +81,7 @@ LL | | }
    = help: move the macro elsewhere and spell this barrel's module declarations explicitly
 
 warning: macro definitions and calls do not belong in a barrel file
-  --> $DIR/auxiliary/bad/mod.rs:20:1
+  --> $DIR/auxiliary/bad/mod.rs:25:1
    |
 LL | make_item!();
    | ^^^^^^^^^^^^^
@@ -80,7 +90,7 @@ LL | make_item!();
    = help: move the macro elsewhere and spell this barrel's module declarations explicitly
 
 warning: macro definitions and calls do not belong in a barrel file
-  --> $DIR/auxiliary/bad/mod.rs:21:1
+  --> $DIR/auxiliary/bad/mod.rs:26:1
    |
 LL | include!("included.rs");
    | ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -115,5 +125,5 @@ LL | fn crate_root_implementation() {}
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: move this code into a dedicated module and leave only its module declaration here
 
-warning: 12 warnings emitted
+warning: 13 warnings emitted
 

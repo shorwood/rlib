@@ -10,6 +10,8 @@ mod directory_parent;
 mod explicit_parent;
 #[path = "auxiliary/mixed_parent.rs"]
 mod mixed_parent;
+#[path = "auxiliary/conventional/mod.rs"]
+mod conventional;
 #[path = "auxiliary/standalone_parent.rs"]
 mod standalone_parent;
 #[path = "auxiliary/support_parent.rs"]

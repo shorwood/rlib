@@ -94,6 +94,14 @@ fn unnamed_failure_threshold(payload: &[u8]) -> Result<(), ()> {
     Ok(())
 }
 
+fn accepted_success_only_result_branch(payload: &[u8]) -> Result<(), ()> {
+    if payload.len() > 2048 {
+        Ok(())
+    } else {
+        Ok(())
+    }
+}
+
 fn accepted_incidental_literals(values: &[u8]) {
     for _index in 0..6 {
         let _sum = 2 + 3;

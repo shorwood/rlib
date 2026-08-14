@@ -14,5 +14,27 @@ note: the lint level is defined here
 LL | #![warn(unparenthesized_mixed_boolean_operators)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-warning: 1 warning emitted
+warning: this boolean expression mixes `||` and `&&` without explicit grouping
+  --> $DIR/semantic.rs:9:5
+   |
+LL |     first || second && alternative
+   |     ^^^^^^^^^---------------------
+   |              |
+   |              make this nested group explicit
+   |
+   = note: Rust precedence determines how `&&` binds inside `||`, but the authored syntax does not make that intention visually explicit
+   = help: parenthesize the `&&` operand to state the intended boolean group
+
+warning: this boolean expression mixes `||` and `&&` without explicit grouping
+  --> $DIR/semantic.rs:13:5
+   |
+LL |     first || second && third || fourth
+   |     ^^^^^^^^^---------------
+   |              |
+   |              make this nested group explicit
+   |
+   = note: Rust precedence determines how `&&` binds inside `||`, but the authored syntax does not make that intention visually explicit
+   = help: parenthesize the `&&` operand to state the intended boolean group
+
+warning: 3 warnings emitted
 

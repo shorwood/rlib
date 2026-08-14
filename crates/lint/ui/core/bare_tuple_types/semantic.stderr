@@ -22,7 +22,52 @@ LL |     partition: (Accepted, Rejected),
    = help: introduce a concept-specific record struct with a meaningful name and named fields
 
 warning: this explicit tuple type leaves component roles unnamed
-  --> $DIR/semantic.rs:15:21
+  --> $DIR/semantic.rs:14:18
+   |
+LL | type Singleton = (Accepted,);
+   |                  ^^^^^^^^^^^
+   |
+   = note: callers must repeatedly infer each position, and reordered components remain type-compatible
+   = help: introduce a concept-specific record struct with a meaningful name and named fields
+
+warning: this explicit tuple type leaves component roles unnamed
+  --> $DIR/semantic.rs:21:23
+   |
+LL |     fn partition() -> (Accepted, Rejected);
+   |                       ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: callers must repeatedly infer each position, and reordered components remain type-compatible
+   = help: introduce a concept-specific record struct with a meaningful name and named fields
+
+warning: this explicit tuple type leaves component roles unnamed
+  --> $DIR/semantic.rs:27:19
+   |
+LL |     type Output = (Accepted, Rejected);
+   |                   ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: callers must repeatedly infer each position, and reordered components remain type-compatible
+   = help: introduce a concept-specific record struct with a meaningful name and named fields
+
+warning: this explicit tuple type leaves component roles unnamed
+  --> $DIR/semantic.rs:29:23
+   |
+LL |     fn partition() -> (Accepted, Rejected) {
+   |                       ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: callers must repeatedly infer each position, and reordered components remain type-compatible
+   = help: introduce a concept-specific record struct with a meaningful name and named fields
+
+warning: this explicit tuple type leaves component roles unnamed
+  --> $DIR/semantic.rs:34:26
+   |
+LL | static STORED_PARTITION: (Accepted, Rejected) = (Accepted, Rejected);
+   |                          ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: callers must repeatedly infer each position, and reordered components remain type-compatible
+   = help: introduce a concept-specific record struct with a meaningful name and named fields
+
+warning: this explicit tuple type leaves component roles unnamed
+  --> $DIR/semantic.rs:36:21
    |
 LL | fn partition(input: (Accepted, Rejected)) -> (Accepted, Rejected) {
    |                     ^^^^^^^^^^^^^^^^^^^^
@@ -31,7 +76,7 @@ LL | fn partition(input: (Accepted, Rejected)) -> (Accepted, Rejected) {
    = help: introduce a concept-specific record struct with a meaningful name and named fields
 
 warning: this explicit tuple type leaves component roles unnamed
-  --> $DIR/semantic.rs:15:46
+  --> $DIR/semantic.rs:36:46
    |
 LL | fn partition(input: (Accepted, Rejected)) -> (Accepted, Rejected) {
    |                                              ^^^^^^^^^^^^^^^^^^^^
@@ -40,7 +85,7 @@ LL | fn partition(input: (Accepted, Rejected)) -> (Accepted, Rejected) {
    = help: introduce a concept-specific record struct with a meaningful name and named fields
 
 warning: this explicit tuple type leaves component roles unnamed
-  --> $DIR/semantic.rs:16:20
+  --> $DIR/semantic.rs:37:20
    |
 LL |     let annotated: (Accepted, Rejected) = input;
    |                    ^^^^^^^^^^^^^^^^^^^^
@@ -49,7 +94,7 @@ LL |     let annotated: (Accepted, Rejected) = input;
    = help: introduce a concept-specific record struct with a meaningful name and named fields
 
 warning: this explicit tuple type leaves component roles unnamed
-  --> $DIR/semantic.rs:17:27
+  --> $DIR/semantic.rs:38:27
    |
 LL |     let closure = |value: (Accepted, Rejected)| value;
    |                           ^^^^^^^^^^^^^^^^^^^^
@@ -57,5 +102,14 @@ LL |     let closure = |value: (Accepted, Rejected)| value;
    = note: callers must repeatedly infer each position, and reordered components remain type-compatible
    = help: introduce a concept-specific record struct with a meaningful name and named fields
 
-warning: 6 warnings emitted
+warning: this explicit tuple type leaves component roles unnamed
+  --> $DIR/semantic.rs:39:27
+   |
+LL |     let producing = || -> (Accepted, Rejected) { (Accepted, Rejected) };
+   |                           ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: callers must repeatedly infer each position, and reordered components remain type-compatible
+   = help: introduce a concept-specific record struct with a meaningful name and named fields
+
+warning: 12 warnings emitted
 

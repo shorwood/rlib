@@ -27,6 +27,16 @@ impl Widget {
     fn prepare(&self) {}
 }
 
+struct NamedWidget;
+
+impl NamedWidget {
+    fn helper() {}
+
+    fn new() -> NamedWidget {
+        NamedWidget
+    }
+}
+
 trait External {
     fn later(&self);
     fn earlier(&self);

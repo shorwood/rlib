@@ -57,5 +57,14 @@ LL | fn borrowed_from_str(source: &str) -> Result<Borrowed<'_>, ()> {
    = note: the `TryFrom` contract makes this conversion discoverable, usable through generic bounds, and available through its reciprocal standard conversion trait
    = help: implement `TryFrom<&str> for Borrowed<'_>` with `Error = ()`; callers also receive `TryInto<Borrowed<'_>> for &str`
 
-warning: 6 warnings emitted
+warning: `early_target_from_source` is a canonical-looking conversion from `EarlySource` to `EarlyTarget` outside `From`
+  --> $DIR/semantic.rs:134:4
+   |
+LL | fn early_target_from_source(source: EarlySource) -> EarlyTarget {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^ ------------------- the sole `EarlySource` source reaches `EarlyTarget` construction
+   |
+   = note: the `From` contract makes this conversion discoverable, usable through generic bounds, and available through its reciprocal standard conversion trait
+   = help: implement `From<EarlySource> for EarlyTarget`; callers also receive `Into<EarlyTarget> for EarlySource`
+
+warning: 7 warnings emitted
 

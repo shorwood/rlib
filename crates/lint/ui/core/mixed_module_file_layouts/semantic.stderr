@@ -8,5 +8,14 @@ LL | mod split;
    = help: move `split.rs` to `split/mod.rs` so the module and its companion files share one directory
    = note: `#[warn(mixed_module_file_layouts)]` on by default
 
-warning: 1 warning emitted
+warning: module `inner` splits its files across two source roots
+  --> $DIR/auxiliary/conventional/flat_parent.rs:1:1
+   |
+LL | mod inner;
+   | ^^^^^^^^^^
+   |
+   = note: `inner.rs` and `inner/` make readers check two locations for one module
+   = help: move `inner.rs` to `inner/mod.rs` so the module and its companion files share one directory
+
+warning: 2 warnings emitted
 

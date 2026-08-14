@@ -6,7 +6,12 @@ mod inline_child {
     // The inline module receives one warning as a whole. Its children must not receive duplicates.
     fn nested_implementation() {}
     struct NestedType;
+    mod deeper {
+        fn still_part_of_the_parent_violation() {}
+    }
 }
+
+extern crate core;
 
 fn implementation() {}
 struct ImplementedHere;

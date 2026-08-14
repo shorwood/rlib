@@ -75,8 +75,17 @@ LL | fn missing_function() {}
    = note: without documentation, readers and agents must infer this function's purpose, invariants, and contract from implementation details
    = help: document its purpose, contract, or semantic role
 
+warning: this struct is missing documentation
+  --> $DIR/semantic.rs:21:8
+   |
+LL | struct HiddenMetadataIsNotDocumentation;
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: without documentation, readers and agents must infer this struct's purpose, invariants, and contract from implementation details
+   = help: document its purpose, contract, or semantic role
+
 warning: this inherent impl item is missing documentation
-  --> $DIR/semantic.rs:24:8
+  --> $DIR/semantic.rs:30:8
    |
 LL |     fn missing_method(&self) {}
    |        ^^^^^^^^^^^^^^
@@ -84,5 +93,18 @@ LL |     fn missing_method(&self) {}
    = note: without documentation, readers and agents must infer this inherent impl item's purpose, invariants, and contract from implementation details
    = help: document its purpose, contract, or semantic role
 
-warning: 9 warnings emitted
+warning: this struct is missing documentation
+  --> $DIR/semantic.rs:52:16
+   |
+LL |         struct LocalMacroItem;
+   |                ^^^^^^^^^^^^^^
+...
+LL | local_undocumented_item!();
+   | -------------------------- in this macro invocation
+   |
+   = note: without documentation, readers and agents must infer this struct's purpose, invariants, and contract from implementation details
+   = help: document its purpose, contract, or semantic role
+   = note: this warning originates in the macro `local_undocumented_item` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: 11 warnings emitted
 

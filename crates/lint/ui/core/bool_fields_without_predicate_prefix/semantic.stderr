@@ -1,5 +1,5 @@
-warning: boolean struct field `active` should start with `is_` or `has_`
-  --> $DIR/semantic.rs:16:5
+warning: boolean struct field `active` should use `is_<predicate>` or `has_<predicate>`
+  --> $DIR/semantic.rs:22:5
    |
 LL |     active: bool,
    |     ^^^^^^
@@ -8,8 +8,8 @@ LL |     active: bool,
    = help: choose a predicate-style name that describes what the boolean means
    = note: `#[warn(bool_fields_without_predicate_prefix)]` on by default
 
-warning: boolean struct field `visible` should start with `is_` or `has_`
-  --> $DIR/semantic.rs:17:5
+warning: boolean struct field `visible` should use `is_<predicate>` or `has_<predicate>`
+  --> $DIR/semantic.rs:23:5
    |
 LL |     visible: Flag,
    |     ^^^^^^^
@@ -17,8 +17,35 @@ LL |     visible: Flag,
    = note: `visible` otherwise reads like a value or command instead of a yes-or-no property
    = help: choose a predicate-style name that describes what the boolean means
 
-warning: boolean struct field `enabled` should start with `is_` or `has_`
-  --> $DIR/semantic.rs:38:13
+warning: boolean struct field `is_` should use `is_<predicate>` or `has_<predicate>`
+  --> $DIR/semantic.rs:36:5
+   |
+LL |     is_: bool,
+   |     ^^^
+   |
+   = note: `is_` otherwise reads like a value or command instead of a yes-or-no property
+   = help: choose a predicate-style name that describes what the boolean means
+
+warning: boolean struct field `has_` should use `is_<predicate>` or `has_<predicate>`
+  --> $DIR/semantic.rs:37:5
+   |
+LL |     has_: bool,
+   |     ^^^^
+   |
+   = note: `has_` otherwise reads like a value or command instead of a yes-or-no property
+   = help: choose a predicate-style name that describes what the boolean means
+
+warning: boolean struct field `is__active` should use `is_<predicate>` or `has_<predicate>`
+  --> $DIR/semantic.rs:38:5
+   |
+LL |     is__active: bool,
+   |     ^^^^^^^^^^
+   |
+   = note: `is__active` otherwise reads like a value or command instead of a yes-or-no property
+   = help: choose a predicate-style name that describes what the boolean means
+
+warning: boolean struct field `enabled` should use `is_<predicate>` or `has_<predicate>`
+  --> $DIR/semantic.rs:57:13
    |
 LL |             enabled: bool,
    |             ^^^^^^^
@@ -30,5 +57,5 @@ LL | local_struct!();
    = help: choose a predicate-style name that describes what the boolean means
    = note: this warning originates in the macro `local_struct` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-warning: 3 warnings emitted
+warning: 6 warnings emitted
 

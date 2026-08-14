@@ -58,5 +58,16 @@ LL | | // ----------------------------------------------------------------------
    = note: well-formed, nonempty, consistently sized dividers give readers and tools predictable navigation landmarks
    = help: remove this divider or place it before the declarations it describes
 
-warning: 5 warnings emitted
+warning: section divider prefix is not PascalCase
+  --> $DIR/semantic.rs:67:5
+   |
+LL | /     // -----------------------------------------------------------------------------
+LL | |     // nestedItem: Nested responsibility
+LL | |     // -----------------------------------------------------------------------------
+   | |____________________________________________________________________________________^
+   |
+   = note: well-formed, nonempty, consistently sized dividers give readers and tools predictable navigation landmarks
+   = help: use `PascalCaseAbstraction: Sentence case responsibility`
+
+warning: 6 warnings emitted
 

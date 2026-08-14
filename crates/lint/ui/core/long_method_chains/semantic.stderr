@@ -1,10 +1,12 @@
-warning: this expression chains 4 method calls, exceeding the configured maximum of 3
+warning: this expression chains 6 method calls, exceeding the configured maximum of 5
   --> $DIR/semantic.rs:5:5
    |
 LL | /     values
 LL | |         .iter()
 LL | |         .filter(|value| !value.is_empty())
 LL | |         .cloned()
+LL | |         .map(|value| value.trim().to_owned())
+LL | |         .filter(|value| !value.is_empty())
 LL | |         .collect()
    | |__________________^
    |
@@ -16,5 +18,20 @@ note: the lint level is defined here
 LL | #![warn(long_method_chains)]
    |         ^^^^^^^^^^^^^^^^^^
 
-warning: 1 warning emitted
+warning: this expression chains 6 method calls, exceeding the configured maximum of 5
+  --> $DIR/semantic.rs:70:9
+   |
+LL | /         values
+LL | |             .iter()
+LL | |             .filter(|value| !value.is_empty())
+LL | |             .cloned()
+LL | |             .map(|value| value.trim().to_owned())
+LL | |             .filter(|value| !value.is_empty())
+LL | |             .collect(),
+   | |______________________^
+   |
+   = note: the chain hides intermediate domain states and failure boundaries inside one dense expression
+   = help: introduce meaningful intermediary bindings or extract a named operation
+
+warning: 2 warnings emitted
 

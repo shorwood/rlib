@@ -11,6 +11,8 @@ impl Unit {
     fn duplicate(&self) {}
 }
 
+struct Token;
+
 // Public API and attributes may carry contracts that an automatic move cannot preserve.
 pub fn public(item: Unit) {}
 
@@ -22,6 +24,9 @@ fn destructured(Item(value): Item<u8>) {}
 
 // Bounds need deliberate placement on either the impl or the method.
 fn constrained<T: Clone>(item: Item<T>) {}
+
+// A generic name appearing only as a substring of the receiver type must not move to the impl.
+fn unrelated_generic<T>(item: Token) {}
 
 // An alias can hide the reference shape and its lifetime contract.
 type UnitRef<'a> = &'a Unit;

@@ -1,13 +1,13 @@
-// aux-build: external_macro.rs
+// aux-build: string_domain_external_macro.rs
 
 #![warn(stringly_typed_domain_function_families)]
 #![allow(dead_code, misordered_module_declarations)]
 
-extern crate external_macro;
+extern crate string_domain_external_macro;
 
 use std::path::PathBuf;
 
-use external_macro::external_domain_family;
+use string_domain_external_macro::external_domain_family;
 
 fn validate_slug(_slug: &str) -> Result<(), ()> {
     Ok(())

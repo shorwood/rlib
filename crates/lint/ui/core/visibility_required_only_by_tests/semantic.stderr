@@ -5,7 +5,7 @@ LL |     pub(crate) fn normalize(input: &str) -> String {
    |     ^^^^^^^^^^
 ...
 LL |         assert_eq!(super::parser::normalize(" value "), "value");
-   |                    ------------------------ test-only boundary use from `tests`
+   |                    ------------------------ test-only boundary use from `test`
    |
    = note: production uses require only `private`, but in-source tests force `pub(super)` beyond defining module `parser`; test layout is therefore expanding the production dependency boundary
    = help: move the tests under `parser` or exercise `normalize` through its owning public behavior, then narrow the declaration to `private`

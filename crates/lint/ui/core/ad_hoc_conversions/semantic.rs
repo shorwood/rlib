@@ -99,4 +99,43 @@ fn generic_from_array<const LENGTH: usize>(source: [u8; LENGTH]) -> GenericTarge
     GenericTarget(source)
 }
 
+struct DiscardedSource(String);
+struct DiscardedTarget(String);
+
+// False-positive boundary: constructing and discarding a target is not a conversion result.
+fn discarded_target_from_source(source: DiscardedSource) -> DiscardedTarget {
+    let _discarded = DiscardedTarget(source.0);
+    DiscardedTarget(String::new())
+}
+
+struct ReassignedSource(String);
+struct ReassignedTarget(String);
+
+// False-positive boundary: assignment from unrelated data kills source provenance.
+fn reassigned_target_from_source(source: ReassignedSource) -> ReassignedTarget {
+    let mut text = source.0;
+    text = String::new();
+    ReassignedTarget(text)
+}
+
+struct DormantSource(String);
+struct DormantTarget(String);
+
+// False-positive boundary: an uncalled closure cannot establish the function's result flow.
+fn dormant_target_from_source(source: DormantSource) -> DormantTarget {
+    let _conversion = || DormantTarget(source.0);
+    DormantTarget(String::new())
+}
+
+struct EarlySource(String);
+struct EarlyTarget(String);
+
+// False-negative boundary: an explicit return still owns a source-to-target conversion path.
+fn early_target_from_source(source: EarlySource) -> EarlyTarget {
+    if source.0.is_empty() {
+        return EarlyTarget(source.0);
+    }
+    EarlyTarget(String::new())
+}
+
 fn main() {}

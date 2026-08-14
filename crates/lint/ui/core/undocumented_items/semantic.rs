@@ -17,6 +17,12 @@ trait MissingTrait {
 
 fn missing_function() {}
 
+#[doc(hidden)]
+struct HiddenMetadataIsNotDocumentation;
+
+#[doc = "An attribute-provided documentation contract."]
+struct AttributeDocumented;
+
 /// Type whose inherent item is checked independently.
 struct DocumentedType;
 
@@ -40,3 +46,11 @@ mod documented_module {
 fn main() {
     let _ = Documented;
 }
+
+macro_rules! local_undocumented_item {
+    () => {
+        struct LocalMacroItem;
+    };
+}
+
+local_undocumented_item!();

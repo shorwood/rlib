@@ -63,4 +63,12 @@ macro_rules! macro_fixture {
 
 macro_fixture!();
 
+mod nested {
+    // -----------------------------------------------------------------------------
+    // nestedItem: Nested responsibility
+    // -----------------------------------------------------------------------------
+
+    struct NestedItem;
+}
+
 fn main() {}

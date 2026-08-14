@@ -102,4 +102,46 @@ impl<T: ToString> Generic<T> {
     }
 }
 
+struct UnrelatedText(u64);
+
+impl UnrelatedText {
+    // False-positive boundary: reading the receiver does not make constant output its display.
+    fn render_text(&self) -> String {
+        let _value = self.0;
+        "constant".to_owned()
+    }
+}
+
+struct AliasedText(u64);
+
+impl AliasedText {
+    // False-negative boundary: receiver-derived aliases preserve presentation provenance.
+    fn render_text(&self) -> String {
+        let value = &self.0;
+        value.to_string()
+    }
+}
+
+struct DormantText(u64);
+
+impl DormantText {
+    // False-positive boundary: an uncalled closure does not supply the helper's text result.
+    fn render_text(&self) -> String {
+        let _render = || self.0.to_string();
+        "constant".to_owned()
+    }
+}
+
+struct EarlyText(u64);
+
+impl EarlyText {
+    // False-negative boundary: explicit returns participate in presentation ownership.
+    fn render_text(&self) -> String {
+        if self.0 == 0 {
+            return self.0.to_string();
+        }
+        "nonzero".to_owned()
+    }
+}
+
 fn main() {}

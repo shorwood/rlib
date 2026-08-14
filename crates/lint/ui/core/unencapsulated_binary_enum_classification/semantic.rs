@@ -24,6 +24,50 @@ fn classify_externally(returns_unit: bool) -> FunctionReturn {
     }
 }
 
+fn classify_with_explicit_returns(returns_unit: bool) -> FunctionReturn {
+    if returns_unit {
+        return FunctionReturn::Unit;
+    } else {
+        return FunctionReturn::Value;
+    }
+}
+
+fn classify_with_reversed_polarity(returns_value: bool) -> FunctionReturn {
+    if returns_value {
+        FunctionReturn::Value
+    } else {
+        FunctionReturn::Unit
+    }
+}
+
+trait ClassifyExternally {
+    fn classify(returns_unit: bool) -> Self;
+}
+
+impl ClassifyExternally for FunctionReturn {
+    fn classify(returns_unit: bool) -> Self {
+        if returns_unit {
+            Self::Unit
+        } else {
+            Self::Value
+        }
+    }
+}
+
+#[repr(u8)]
+enum DiscriminatedBinary {
+    Disabled = 0,
+    Enabled = 1,
+}
+
+fn classify_discriminated(enabled: bool) -> DiscriminatedBinary {
+    if enabled {
+        DiscriminatedBinary::Enabled
+    } else {
+        DiscriminatedBinary::Disabled
+    }
+}
+
 enum TernaryState {
     Ready,
     Waiting,

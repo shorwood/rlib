@@ -11,6 +11,14 @@ fn missing() {
     let _six = 6;
     let _seven = 7;
     let _eight = 8;
+    let _nine = 9;
+    let _ten = 10;
+    let _eleven = 11;
+    let _twelve = 12;
+    let _thirteen = 13;
+    let _fourteen = 14;
+    let _fifteen = 15;
+    let _sixteen = 16;
 }
 
 async fn missing_async() {
@@ -32,6 +40,14 @@ fn exact_limit() {
     let _five = 5;
     let _six = 6;
     let _seven = 7;
+    let _eight = 8;
+    let _nine = 9;
+    let _ten = 10;
+    let _eleven = 11;
+    let _twelve = 12;
+    let _thirteen = 13;
+    let _fourteen = 14;
+    let _fifteen = 15;
 }
 
 #[allow(missing_code_phase_comments)]
@@ -69,6 +85,14 @@ fn blank_lines_do_not_name_phases() {
     let _six = 6;
     let _seven = 7;
     let _eight = 8;
+    let _nine = 9;
+    let _ten = 10;
+    let _eleven = 11;
+    let _twelve = 12;
+    let _thirteen = 13;
+    let _fourteen = 14;
+    let _fifteen = 15;
+    let _sixteen = 16;
 
     let _after_boundary = 9;
 }
@@ -120,6 +144,14 @@ fn named_but_oversized() {
     let _six = 6;
     let _seven = 7;
     let _eight = 8;
+    let _nine = 9;
+    let _ten = 10;
+    let _eleven = 11;
+    let _twelve = 12;
+    let _thirteen = 13;
+    let _fourteen = 14;
+    let _fifteen = 15;
+    let _sixteen = 16;
 }
 
 fn named_mixed_control_flow(enabled: bool) {

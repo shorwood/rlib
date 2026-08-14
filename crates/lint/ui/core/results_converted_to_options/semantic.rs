@@ -45,10 +45,22 @@ fn fallback_conversions() {
     let _mapped_lazy = fail().map_or_else(|_| None, Some);
     let _eager = fail_optional().unwrap_or(None);
     let _lazy = fail_optional().unwrap_or_else(|_| None);
+    let _discarded_lazy = fail_optional().unwrap_or_else(|error| {
+        drop(error);
+        None
+    });
     let _defaulted = fail_optional().unwrap_or_default();
 
     let _ufcs_mapped = Result::map_or(fail(), None, Some);
     let _ufcs_lazy = Result::unwrap_or_else(fail_optional(), |_| None);
+    let _ufcs_discarded = Result::map_or_else(
+        fail(),
+        |error| {
+            let _ = error;
+            None
+        },
+        Some,
+    );
     let _explicit_default = fail_optional().unwrap_or(Option::default());
 }
 
