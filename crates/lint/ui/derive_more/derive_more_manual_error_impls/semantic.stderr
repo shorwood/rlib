@@ -9,7 +9,7 @@ LL | impl Error for Marker {}
    = note: `#[warn(derive_more_manual_error_impls)]` on by default
 
 warning: manual error implementation for `LoadError` is derivable
-  --> $DIR/semantic.rs:28:1
+  --> $DIR/semantic.rs:54:1
    |
 LL | / impl Error for LoadError {
 LL | |     fn source(&self) -> Option<&(dyn Error + 'static)> {

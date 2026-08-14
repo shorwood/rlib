@@ -13,6 +13,54 @@ impl FromStr for Port {
     }
 }
 
+struct NamedPort {
+    value: u16,
+}
+
+impl FromStr for NamedPort {
+    type Err = ParseIntError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        value.parse().map(|value| Self { value })
+    }
+}
+
+struct Generic<T>(T);
+
+impl<T: FromStr> FromStr for Generic<T> {
+    type Err = T::Err;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        T::from_str(value).map(Self)
+    }
+}
+
+struct Documented(u16);
+
+/// This parser is an authored compatibility contract.
+impl FromStr for Documented {
+    type Err = ParseIntError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        value.parse().map(Self)
+    }
+}
+
+fn from_str(value: &str) -> Result<u16, ParseIntError> {
+    value.trim().parse()
+}
+
+struct CustomFunction(u16);
+
+impl FromStr for CustomFunction {
+    type Err = ParseIntError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        // False-positive boundary: terminal spelling does not make this the standard trait call.
+        from_str(value).map(Self)
+    }
+}
+
 struct Trimmed(u16);
 
 impl FromStr for Trimmed {

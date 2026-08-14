@@ -5,8 +5,17 @@ LL | struct SystemList(Vec<u32>);
    | ^^^^^^^^^^^^^^^^^ this wrapper owns direct field iteration
    |
    = note: each implementation delegates unchanged to the wrapper's sole field
-   = help: replace this family with `#[derive(derive_more::IntoIterator)]` and `#[into_iterator(owned, ref)]`
+   = help: replace this family with `#[derive(derive_more::IntoIterator)]` and `#[into_iterator(owned, ref, ref_mut)]`
    = note: `#[warn(derive_more_manual_into_iterator_impls)]` on by default
 
-warning: 1 warning emitted
+warning: manual transparent iteration for `NamedGeneric` is derivable
+  --> $DIR/semantic.rs:32:1
+   |
+LL | struct NamedGeneric<T> {
+   | ^^^^^^^^^^^^^^^^^^^^^^ this wrapper owns direct field iteration
+   |
+   = note: each implementation delegates unchanged to the wrapper's sole field
+   = help: replace this family with `#[derive(derive_more::IntoIterator)]` and `#[into_iterator(owned)]`
+
+warning: 2 warnings emitted
 

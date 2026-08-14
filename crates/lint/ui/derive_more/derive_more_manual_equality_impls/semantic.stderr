@@ -8,5 +8,23 @@ LL | struct Record {
    = help: replace the authored implementations with `#[derive(derive_more::PartialEq, derive_more::Eq)]` and explicit field skips when required
    = note: `#[warn(derive_more_manual_equality_impls)]` on by default
 
-warning: 1 warning emitted
+warning: manual structural equality for `GenericRecord` is derivable
+  --> $DIR/semantic.rs:17:1
+   |
+LL | struct GenericRecord<T> {
+   | ^^^^^^^^^^^^^^^^^^^^^^^ this equality is pure component comparison
+   |
+   = note: the implementation compares 1 corresponding field without normalization, adaptation, or external state
+   = help: replace the authored implementation with `#[derive(derive_more::PartialEq)]` and explicit field skips when required
+
+warning: manual structural equality for `Empty` is derivable
+  --> $DIR/semantic.rs:27:1
+   |
+LL | struct Empty;
+   | ^^^^^^^^^^^^ this equality is pure component comparison
+   |
+   = note: the implementation compares 0 corresponding fields without normalization, adaptation, or external state
+   = help: replace the authored implementation with `#[derive(derive_more::PartialEq)]` and explicit field skips when required
+
+warning: 3 warnings emitted
 

@@ -11,5 +11,29 @@ LL | struct Key {
    = help: use the same selected fields for equality, hashing, and ordering, or move the alternative identity into a dedicated wrapper type
    = note: `#[warn(derive_more_inconsistent_derived_equality)]` on by default
 
-warning: 1 warning emitted
+warning: derived equality for `OrderedKey` conflicts with its derived Hash and Ord contracts
+  --> $DIR/semantic.rs:32:8
+   |
+LL | struct OrderedKey {
+   |        ^^^^^^^^^^
+   |        |
+   |        derive_more equality is configured here
+   |        1 field is omitted only from equality
+   |
+   = note: equality skips fields that the structural hash or total-order implementation still observes, violating their required agreement
+   = help: use the same selected fields for equality, hashing, and ordering, or move the alternative identity into a dedicated wrapper type
+
+warning: derived equality for `EventKey` conflicts with its derived Hash contract
+  --> $DIR/semantic.rs:39:6
+   |
+LL | enum EventKey {
+   |      ^^^^^^^^
+   |      |
+   |      derive_more equality is configured here
+   |      1 field is omitted only from equality
+   |
+   = note: equality skips fields that the structural hash or total-order implementation still observes, violating their required agreement
+   = help: use the same selected fields for equality, hashing, and ordering, or move the alternative identity into a dedicated wrapper type
+
+warning: 3 warnings emitted
 

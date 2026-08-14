@@ -26,4 +26,41 @@ impl Sum for CheckedTotal {
     }
 }
 
+struct NamedTotal {
+    value: u64,
+}
+
+impl Sum for NamedTotal {
+    fn sum<I: Iterator<Item = Self>>(values: I) -> Self {
+        Self {
+            value: values.map(|value| value.value).sum(),
+        }
+    }
+}
+
+struct GenericTotal<T>(T);
+
+impl<T: Sum<T>> Sum for GenericTotal<T> {
+    fn sum<I: Iterator<Item = Self>>(values: I) -> Self {
+        Self(values.map(|value| value.0).sum())
+    }
+}
+
+struct DocumentedTotal(u64);
+
+/// The implementation intentionally uses the ordinary additive identity.
+impl Sum for DocumentedTotal {
+    fn sum<I: Iterator<Item = Self>>(values: I) -> Self {
+        DocumentedTotal(values.map(|value| value.0).sum())
+    }
+}
+
+struct BorrowedTotal(u64);
+
+impl<'value> Sum<&'value BorrowedTotal> for BorrowedTotal {
+    fn sum<I: Iterator<Item = &'value BorrowedTotal>>(values: I) -> Self {
+        Self(values.map(|value| value.0).sum())
+    }
+}
+
 fn main() {}

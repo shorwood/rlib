@@ -1,7 +1,7 @@
 #![allow(dead_code, misordered_module_declarations, unknown_lints)]
 
 #[derive(derive_more::Deref, derive_more::DerefMut)]
-struct SortedValues(Vec<u32>);
+pub struct SortedValues(Vec<u32>);
 
 impl SortedValues {
     fn checked(values: Vec<u32>) -> Result<Self, &'static str> {
@@ -14,7 +14,7 @@ impl SortedValues {
 }
 
 #[derive(derive_more::AsMut)]
-struct Bounded(Vec<u32>);
+pub struct Bounded(Vec<u32>);
 
 impl Bounded {
     fn checked(values: Vec<u32>) -> Result<Self, &'static str> {
@@ -26,5 +26,21 @@ impl Bounded {
 
 #[derive(derive_more::Deref, derive_more::DerefMut)]
 struct Plain(Vec<u32>);
+
+#[derive(derive_more::AsMut)]
+pub struct PublicStorage {
+    #[as_mut]
+    pub values: Vec<u32>,
+    limit: usize,
+}
+
+impl PublicStorage {
+    fn checked(values: Vec<u32>, limit: usize) -> Result<Self, &'static str> {
+        if values.len() > limit {
+            return Err("too many values");
+        }
+        Ok(Self { values, limit })
+    }
+}
 
 fn main() {}

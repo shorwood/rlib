@@ -14,6 +14,42 @@ impl PartialEq for Record {
 
 impl Eq for Record {}
 
+struct GenericRecord<T> {
+    value: T,
+}
+
+impl<T: PartialEq> PartialEq for GenericRecord<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+struct Empty;
+
+impl PartialEq for Empty {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+struct DocumentedEquality(u32);
+
+/// Equality here is an authored compatibility contract.
+impl PartialEq for DocumentedEquality {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+struct DocumentedMethod(u32);
+
+impl PartialEq for DocumentedMethod {
+    /// Equality here is an authored compatibility contract.
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
 struct Approximate(f64);
 
 impl PartialEq for Approximate {

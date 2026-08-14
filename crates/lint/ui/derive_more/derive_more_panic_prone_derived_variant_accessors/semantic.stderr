@@ -1,5 +1,5 @@
 warning: derive_more-generated `unwrap_ok` is called without an established variant
-  --> $DIR/semantic.rs:10:5
+  --> $DIR/semantic.rs:12:5
    |
 LL |     response.unwrap_ok()
    |     ^^^^^^^^^^^^^^^^^^^^ this call can panic on another variant
@@ -8,5 +8,32 @@ LL |     response.unwrap_ok()
    = help: pattern-match the receiver or use a derive_more `TryUnwrap` accessor for a fallible extraction
    = note: `#[warn(derive_more_panic_prone_derived_variant_accessors)]` on by default
 
-warning: 1 warning emitted
+warning: derive_more-generated `unwrap_ok` is called without an established variant
+  --> $DIR/semantic.rs:28:5
+   |
+LL |     Response::Error(String::new()).unwrap_ok()
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this call can panic on another variant
+   |
+   = note: the generated accessor panics whenever the receiver has another variant
+   = help: pattern-match the receiver or use a derive_more `TryUnwrap` accessor for a fallible extraction
+
+warning: derive_more-generated `unwrap_ok_ref` is called without an established variant
+  --> $DIR/semantic.rs:32:5
+   |
+LL |     response.unwrap_ok_ref()
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^ this call can panic on another variant
+   |
+   = note: the generated accessor panics whenever the receiver has another variant
+   = help: pattern-match the receiver or use a derive_more `TryUnwrap` accessor for a fallible extraction
+
+warning: derive_more-generated `unwrap_ok_mut` is called without an established variant
+  --> $DIR/semantic.rs:36:5
+   |
+LL |     response.unwrap_ok_mut()
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^ this call can panic on another variant
+   |
+   = note: the generated accessor panics whenever the receiver has another variant
+   = help: pattern-match the receiver or use a derive_more `TryUnwrap` accessor for a fallible extraction
+
+warning: 4 warnings emitted
 

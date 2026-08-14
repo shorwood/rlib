@@ -1,8 +1,8 @@
 warning: derive_more exposes mutable storage for invariant-bearing `SortedValues`
-  --> $DIR/semantic.rs:4:8
+  --> $DIR/semantic.rs:4:12
    |
-LL | struct SortedValues(Vec<u32>);
-   |        ^^^^^^^^^^^^ mutable forwarding is generated here
+LL | pub struct SortedValues(Vec<u32>);
+   |            ^^^^^^^^^^^^ mutable forwarding is generated here
 ...
 LL |     fn checked(values: Vec<u32>) -> Result<Self, &'static str> {
    |        ------- this constructor establishes a fallible invariant boundary
@@ -12,10 +12,10 @@ LL |     fn checked(values: Vec<u32>) -> Result<Self, &'static str> {
    = note: `#[warn(derive_more_mutable_forwarding_bypassing_invariants)]` on by default
 
 warning: derive_more exposes mutable storage for invariant-bearing `Bounded`
-  --> $DIR/semantic.rs:17:8
+  --> $DIR/semantic.rs:17:12
    |
-LL | struct Bounded(Vec<u32>);
-   |        ^^^^^^^ mutable forwarding is generated here
+LL | pub struct Bounded(Vec<u32>);
+   |            ^^^^^^^ mutable forwarding is generated here
 ...
 LL |     fn checked(values: Vec<u32>) -> Result<Self, &'static str> {
    |        ------- this constructor establishes a fallible invariant boundary

@@ -28,4 +28,21 @@ impl Hash for CustomHash {
     }
 }
 
+#[derive(Hash, Eq, Ord, PartialOrd, derive_more::PartialEq)]
+struct OrderedKey {
+    id: u64,
+    #[partial_eq(skip)]
+    revision: u64,
+}
+
+#[derive(Hash, derive_more::PartialEq)]
+enum EventKey {
+    Unit,
+    Revision {
+        id: u64,
+        #[partial_eq(skip)]
+        revision: u64,
+    },
+}
+
 fn main() {}

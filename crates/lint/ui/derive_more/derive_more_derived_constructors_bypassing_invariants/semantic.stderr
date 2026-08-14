@@ -1,8 +1,8 @@
 warning: derive_more generates raw construction for `Percentage` despite its checked constructor
-  --> $DIR/semantic.rs:4:8
+  --> $DIR/semantic.rs:4:12
    |
-LL | struct Percentage(u8);
-   |        ^^^^^^^^^^ this derive exposes raw field assembly
+LL | pub struct Percentage(u8);
+   |            ^^^^^^^^^^ this derive exposes raw field assembly
 ...
 LL |     fn checked(value: u8) -> Result<Self, &'static str> {
    |        ------- this constructor owns fallible validation

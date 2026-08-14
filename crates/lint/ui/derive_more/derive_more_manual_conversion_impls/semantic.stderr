@@ -25,5 +25,44 @@ LL | | }
    = note: the implementation only constructs or extracts the wrapper's sole field without validation, normalization, or adaptation
    = help: replace this implementation with `#[derive(derive_more::Into)]` on `SystemList`
 
-warning: 2 warnings emitted
+warning: manual transparent conversion for `NamedSystemList` is derivable
+  --> $DIR/semantic.rs:21:1
+   |
+LL | / impl From<Vec<u32>> for NamedSystemList {
+LL | |     fn from(systems: Vec<u32>) -> Self {
+LL | |         Self { systems }
+LL | |     }
+LL | | }
+   | |_^ this conversion is exact newtype plumbing
+   |
+   = note: the implementation only constructs or extracts the wrapper's sole field without validation, normalization, or adaptation
+   = help: replace this implementation with `#[derive(derive_more::From)]` on `NamedSystemList`
+
+warning: manual transparent conversion for `NamedSystemList` is derivable
+  --> $DIR/semantic.rs:27:1
+   |
+LL | / impl From<NamedSystemList> for Vec<u32> {
+LL | |     fn from(list: NamedSystemList) -> Self {
+LL | |         list.systems
+LL | |     }
+LL | | }
+   | |_^ this conversion is exact newtype plumbing
+   |
+   = note: the implementation only constructs or extracts the wrapper's sole field without validation, normalization, or adaptation
+   = help: replace this implementation with `#[derive(derive_more::Into)]` on `NamedSystemList`
+
+warning: manual transparent conversion for `Generic` is derivable
+  --> $DIR/semantic.rs:35:1
+   |
+LL | / impl<T> From<T> for Generic<T> {
+LL | |     fn from(value: T) -> Self {
+LL | |         Generic(value)
+LL | |     }
+LL | | }
+   | |_^ this conversion is exact newtype plumbing
+   |
+   = note: the implementation only constructs or extracts the wrapper's sole field without validation, normalization, or adaptation
+   = help: replace this implementation with `#[derive(derive_more::From)]` on `Generic`
+
+warning: 5 warnings emitted
 

@@ -1,7 +1,7 @@
 #![allow(dead_code, misordered_module_declarations, unknown_lints)]
 
 #[derive(derive_more::Constructor)]
-struct Percentage(u8);
+pub struct Percentage(u8);
 
 impl Percentage {
     fn checked(value: u8) -> Result<Self, &'static str> {
@@ -20,6 +20,15 @@ struct Plain(u8);
 struct Open(pub u8);
 
 impl Open {
+    fn checked(value: u8) -> Result<Self, &'static str> {
+        Ok(Self(value))
+    }
+}
+
+#[derive(derive_more::Constructor)]
+struct InfallibleResult(u8);
+
+impl InfallibleResult {
     fn checked(value: u8) -> Result<Self, &'static str> {
         Ok(Self(value))
     }

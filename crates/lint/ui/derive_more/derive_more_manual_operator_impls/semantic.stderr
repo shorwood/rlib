@@ -40,5 +40,33 @@ LL | | }
    = note: the implementation applies the corresponding operator to the sole field and reconstructs the wrapper without additional policy
    = help: replace this implementation with `#[derive(derive_more::AddAssign)]`
 
-warning: 3 warnings emitted
+warning: manual `Add` implementation for `Generic` is derivable
+  --> $DIR/semantic.rs:35:1
+   |
+LL | / impl<T: Add<Output = T>> Add for Generic<T> {
+LL | |     type Output = Self;
+LL | |
+LL | |     fn add(self, rhs: Self) -> Self {
+...  |
+LL | | }
+   | |_^ this operator is exact newtype forwarding
+   |
+   = note: the implementation applies the corresponding operator to the sole field and reconstructs the wrapper without additional policy
+   = help: replace this implementation with `#[derive(derive_more::Add)]`
+
+warning: manual `Neg` implementation for `Named` is derivable
+  --> $DIR/semantic.rs:47:1
+   |
+LL | / impl Neg for Named {
+LL | |     type Output = Self;
+LL | |
+LL | |     fn neg(self) -> Self {
+...  |
+LL | | }
+   | |_^ this operator is exact newtype forwarding
+   |
+   = note: the implementation applies the corresponding operator to the sole field and reconstructs the wrapper without additional policy
+   = help: replace this implementation with `#[derive(derive_more::Neg)]`
+
+warning: 5 warnings emitted
 

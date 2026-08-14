@@ -11,4 +11,18 @@ struct Transparent(u16);
 #[display("key:{_0}")]
 struct StringKey(String);
 
+#[derive(derive_more::Display, derive_more::FromStr)]
+#[display("{value}")]
+struct NamedTransparent {
+    value: u16,
+}
+
+#[derive(derive_more::Display, derive_more::FromStr)]
+#[display("{_0:+}")]
+struct ExplicitSign(i16);
+
+#[derive(derive_more::Display, derive_more::FromStr)]
+#[display("{_0:x}")]
+struct Hexadecimal(u16);
+
 fn main() {}

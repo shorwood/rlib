@@ -44,6 +44,44 @@ impl IndexMut<usize> for SystemList {
     }
 }
 
+struct DirectIndex(Vec<u32>);
+
+impl Index<usize> for DirectIndex {
+    type Output = u32;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl IndexMut<usize> for DirectIndex {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
+    }
+}
+
+struct Documented(Vec<u32>);
+
+/// This dereference is an authored compatibility contract.
+impl Deref for Documented {
+    type Target = [u32];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+struct MethodDocumented(Vec<u32>);
+
+impl Deref for MethodDocumented {
+    type Target = [u32];
+
+    /// This dereference is an authored compatibility contract.
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 struct Checked(Vec<u32>);
 
 impl Deref for Checked {

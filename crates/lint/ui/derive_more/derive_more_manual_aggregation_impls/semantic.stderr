@@ -25,5 +25,45 @@ LL | | }
    = note: the implementation maps the sole field and delegates directly to the same aggregation without changing identity or failure behavior
    = help: replace this implementation with `#[derive(derive_more::Product)]`
 
-warning: 2 warnings emitted
+warning: manual `Sum` implementation for `NamedTotal` is derivable
+  --> $DIR/semantic.rs:33:1
+   |
+LL | / impl Sum for NamedTotal {
+LL | |     fn sum<I: Iterator<Item = Self>>(values: I) -> Self {
+LL | |         Self {
+LL | |             value: values.map(|value| value.value).sum(),
+...  |
+LL | | }
+   | |_^ this aggregation is exact newtype forwarding
+   |
+   = note: the implementation maps the sole field and delegates directly to the same aggregation without changing identity or failure behavior
+   = help: replace this implementation with `#[derive(derive_more::Sum)]`
+
+warning: manual `Sum` implementation for `GenericTotal` is derivable
+  --> $DIR/semantic.rs:43:1
+   |
+LL | / impl<T: Sum<T>> Sum for GenericTotal<T> {
+LL | |     fn sum<I: Iterator<Item = Self>>(values: I) -> Self {
+LL | |         Self(values.map(|value| value.0).sum())
+LL | |     }
+LL | | }
+   | |_^ this aggregation is exact newtype forwarding
+   |
+   = note: the implementation maps the sole field and delegates directly to the same aggregation without changing identity or failure behavior
+   = help: replace this implementation with `#[derive(derive_more::Sum)]`
+
+warning: manual `Sum` implementation for `DocumentedTotal` is derivable
+  --> $DIR/semantic.rs:52:1
+   |
+LL | / impl Sum for DocumentedTotal {
+LL | |     fn sum<I: Iterator<Item = Self>>(values: I) -> Self {
+LL | |         DocumentedTotal(values.map(|value| value.0).sum())
+LL | |     }
+LL | | }
+   | |_^ this aggregation is exact newtype forwarding
+   |
+   = note: the implementation maps the sole field and delegates directly to the same aggregation without changing identity or failure behavior
+   = help: replace this implementation with `#[derive(derive_more::Sum)]`
+
+warning: 5 warnings emitted
 
