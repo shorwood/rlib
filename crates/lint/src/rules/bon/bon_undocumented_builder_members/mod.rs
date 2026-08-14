@@ -3,8 +3,9 @@ extern crate rustc_errors;
 extern crate rustc_span;
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 
-use rustc_ast::ast::{FieldDef, Item, ItemKind, Param, VisibilityKind};
+use rustc_ast::ast::{AssocItemKind, FieldDef, Item, ItemKind, Param, VisibilityKind};
 use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
@@ -34,12 +35,12 @@ impl Violation {
         ty_span: Span,
         member: &str,
     ) -> Option<Self> {
-        let builder_documents =
-            BonAttributeAnalysis::builder(attributes).is_some_and(|attribute| {
-                BonAttributeAnalysis::source(cx, attribute)
-                    .is_ok_and(|source| source.contains("doc"))
-            });
-        if BonAttributeAnalysis::has(attributes, "doc") || builder_documents {
+        let authored_documents = attributes.iter().any(|attribute| {
+            attribute
+                .doc_str()
+                .is_some_and(|documentation| !documentation.as_str().trim().is_empty())
+        });
+        if authored_documents || Self::has_substantive_builder_docs(cx, attributes) {
             return None;
         }
 
@@ -48,18 +49,18 @@ impl Violation {
             Err(_error) => return None,
         };
         let behavior = if OptionType::is_option(&ty)
-            && !BonAttributeAnalysis::builder_contains(cx, attributes, "required")
+            && !BonAttributeAnalysis::builder_has_option(cx, attributes, "required")
         {
             "optional"
-        } else if BonAttributeAnalysis::builder_contains(cx, attributes, "default") {
+        } else if BonAttributeAnalysis::builder_has_option(cx, attributes, "default") {
             "default"
-        } else if BonAttributeAnalysis::builder_contains(cx, attributes, "into")
-            || BonAttributeAnalysis::builder_contains(cx, attributes, "with")
+        } else if BonAttributeAnalysis::builder_has_option(cx, attributes, "into")
+            || BonAttributeAnalysis::builder_has_option(cx, attributes, "with")
         {
             "conversion"
         } else {
-            if !BonAttributeAnalysis::builder_contains(cx, attributes, "skip")
-                && !BonAttributeAnalysis::builder_contains(cx, attributes, "field")
+            if !BonAttributeAnalysis::builder_has_option(cx, attributes, "skip")
+                && !BonAttributeAnalysis::builder_has_option(cx, attributes, "field")
             {
                 return None;
             }
@@ -71,6 +72,41 @@ impl Violation {
             member: member.trim().to_owned(),
             behavior,
         })
+    }
+
+    /// Recognizes an explicit nonempty `doc { ... }` payload in nested Bon setter policy.
+    fn has_substantive_builder_docs(
+        cx: &EarlyContext<'_>,
+        attributes: &[rustc_ast::Attribute],
+    ) -> bool {
+        let Some(attribute) = BonAttributeAnalysis::builder(attributes) else {
+            return false;
+        };
+        let Ok(source) = BonAttributeAnalysis::source(cx, attribute) else {
+            return false;
+        };
+        let bytes = source.as_bytes();
+        let mut search = 0_usize;
+        while let Some(relative) = source[search..].find("doc") {
+            let start = search + relative;
+            let end = start + 3;
+            let left_boundary =
+                start == 0 || !bytes[start - 1].is_ascii_alphanumeric() && bytes[start - 1] != b'_';
+            let right_boundary =
+                end == bytes.len() || !bytes[end].is_ascii_alphanumeric() && bytes[end] != b'_';
+            if left_boundary && right_boundary {
+                let tail = source[end..].trim_start();
+                if let Some(payload) = tail.strip_prefix('{') {
+                    if let Some(close) = payload.find('}') {
+                        if !payload[..close].trim().is_empty() {
+                            return true;
+                        }
+                    }
+                }
+            }
+            search = end;
+        }
+        false
     }
 }
 
@@ -113,14 +149,22 @@ impl EarlyViolation for Violation {
 // -----------------------------------------------------------------------------
 
 /// Requires public generated setters to explain non-obvious behavior.
-struct BonUndocumentedBuilderMembers;
+#[derive(Default)]
+struct BonUndocumentedBuilderMembers {
+    /// Depth below a non-public enclosing module.
+    private_module_depth: usize,
+    /// Public nominal types that can expose associated builder setters.
+    public_types: HashSet<String>,
+    /// Associated member findings deferred until all type declarations are known.
+    associated: Vec<(String, Violation)>,
+}
 
 dylint_linting::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub BON_UNDOCUMENTED_BUILDER_MEMBERS,
     Warn,
     "requires documentation for non-obvious public Bon member policy",
-    BonUndocumentedBuilderMembers
+    BonUndocumentedBuilderMembers::default()
 }
 
 impl BonUndocumentedBuilderMembers {
@@ -145,11 +189,29 @@ impl BonUndocumentedBuilderMembers {
 }
 impl EarlyLintPass for BonUndocumentedBuilderMembers {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
-        if !matches!(item.vis.kind, VisibilityKind::Public) {
+        if matches!(item.kind, ItemKind::Mod(..)) {
+            if !matches!(item.vis.kind, VisibilityKind::Public) {
+                self.private_module_depth += 1;
+            }
             return;
         }
+        if self.private_module_depth > 0 {
+            return;
+        }
+        if matches!(
+            item.kind,
+            ItemKind::Struct(..) | ItemKind::Enum(..) | ItemKind::Union(..)
+        ) && matches!(item.vis.kind, VisibilityKind::Public)
+        {
+            if let Some(identifier) = item.kind.ident() {
+                self.public_types.insert(identifier.name.to_string());
+            }
+        }
         match &item.kind {
-            ItemKind::Fn(function) if BonAttributeAnalysis::builder(&item.attrs).is_some() => {
+            ItemKind::Fn(function)
+                if matches!(item.vis.kind, VisibilityKind::Public)
+                    && BonAttributeAnalysis::builder(&item.attrs).is_some() =>
+            {
                 for parameter in &function.sig.decl.inputs {
                     let Some(violation) = Self::parameter_violation(cx, parameter) else {
                         continue;
@@ -158,7 +220,8 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
                 }
             }
             ItemKind::Struct(_, _, data)
-                if BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
+                if matches!(item.vis.kind, VisibilityKind::Public)
+                    && BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
             {
                 for field in data.fields() {
                     let Some(violation) = Self::field_violation(cx, field) else {
@@ -167,7 +230,57 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
                     violation.emit(cx);
                 }
             }
+            ItemKind::Impl(implementation) => {
+                let Ok(owner) = cx
+                    .sess()
+                    .source_map()
+                    .span_to_snippet(implementation.self_ty.span)
+                else {
+                    return;
+                };
+                let owner = owner
+                    .split('<')
+                    .next()
+                    .unwrap_or(&owner)
+                    .trim()
+                    .rsplit("::")
+                    .next()
+                    .unwrap_or_default()
+                    .to_owned();
+                for associated in &implementation.items {
+                    let AssocItemKind::Fn(function) = &associated.kind else {
+                        continue;
+                    };
+                    if !matches!(associated.vis.kind, VisibilityKind::Public)
+                        || BonAttributeAnalysis::builder(&associated.attrs).is_none()
+                    {
+                        continue;
+                    }
+                    for parameter in &function.sig.decl.inputs {
+                        let Some(violation) = Self::parameter_violation(cx, parameter) else {
+                            continue;
+                        };
+                        self.associated.push((owner.clone(), violation));
+                    }
+                }
+            }
             _ => {}
+        }
+    }
+
+    fn check_item_post(&mut self, _: &EarlyContext<'_>, item: &Item) {
+        if matches!(item.kind, ItemKind::Mod(..))
+            && !matches!(item.vis.kind, VisibilityKind::Public)
+        {
+            self.private_module_depth -= 1;
+        }
+    }
+
+    fn check_crate_post(&mut self, cx: &EarlyContext<'_>, _: &rustc_ast::Crate) {
+        for (owner, violation) in self.associated.drain(..) {
+            if self.public_types.contains(&owner) {
+                violation.emit(cx);
+            }
         }
     }
 }

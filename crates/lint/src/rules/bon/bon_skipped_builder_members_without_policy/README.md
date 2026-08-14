@@ -2,7 +2,8 @@
 
 ## What it does
 
-Finds undocumented, bare `#[builder(skip)]` fields on Bon-derived structs.
+Finds fields with bare `#[builder(skip)]` policy and no substantive documentation on Bon-derived
+structs. Standard `PhantomData` marker fields are excluded.
 
 ## Why is this bad?
 

@@ -28,19 +28,19 @@ impl Violation {
     /// Builds a violation for a skipped field without an explicit policy.
     fn from_field(cx: &EarlyContext<'_>, field: &FieldDef) -> Option<Self> {
         let attribute = BonAttributeAnalysis::builder(&field.attrs)?;
-        let source = match BonAttributeAnalysis::source(cx, attribute) {
-            Ok(source) => source,
-            Err(_error) => return None,
-        };
 
         // Documentation and marker fields make the implicit default intentional.
-        if source.split_whitespace().collect::<String>() != "#[builder(skip)]"
-            || BonAttributeAnalysis::has(&field.attrs, "doc")
+        if !BonAttributeAnalysis::builder_has_bare_option(cx, &field.attrs, "skip")
+            || field.attrs.iter().any(|attribute| {
+                attribute
+                    .doc_str()
+                    .is_some_and(|documentation| !documentation.as_str().trim().is_empty())
+            })
             || cx
                 .sess()
                 .source_map()
                 .span_to_snippet(field.ty.span)
-                .is_ok_and(|ty| ty.contains("PhantomData"))
+                .is_ok_and(|ty| Self::is_phantom_data(&ty))
         {
             return None;
         }
@@ -48,6 +48,17 @@ impl Violation {
             span: attribute.span,
             member: field.ident?.name.to_string(),
         })
+    }
+
+    /// Recognizes common source spellings of the standard marker type.
+    fn is_phantom_data(ty: &str) -> bool {
+        let compact: String = ty
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect();
+        compact.starts_with("PhantomData<")
+            || compact.starts_with("std::marker::PhantomData<")
+            || compact.starts_with("core::marker::PhantomData<")
     }
 }
 

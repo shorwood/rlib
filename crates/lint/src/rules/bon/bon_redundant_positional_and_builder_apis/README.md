@@ -2,8 +2,8 @@
 
 ## What it does
 
-Finds complex public Bon function builders that keep most inputs positional through member-level
-`start_fn` or `finish_fn` configuration.
+Finds complex externally reachable Bon function builders that keep most inputs positional through
+exact member-level `start_fn` or `finish_fn` configuration.
 
 ## Why is this bad?
 

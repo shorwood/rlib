@@ -2,8 +2,9 @@
 
 ## What it does
 
-Finds generated Bon builders returned from private functions or stored in hand-written fields instead of
-being completed within a focused construction expression.
+Finds generated Bon builders returned from private functions or stored in hand-written fields
+instead of being completed within a focused construction expression. Nested containers,
+tuples, aliases, references, and pointers do not hide the generated builder state.
 
 ## Why is this bad?
 

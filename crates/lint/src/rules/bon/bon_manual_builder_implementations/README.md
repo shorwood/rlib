@@ -2,8 +2,9 @@
 
 ## What it does
 
-Finds dedicated `*Builder` structs with a start method, complete consuming-setter coverage, and an
-infallible terminal method that Bon can generate.
+Finds dedicated `*Builder` structs with a start method, distinct field-named consuming setters
+covering their state, and an infallible terminal method producing a nominal value that Bon can
+generate. Unrelated consuming fluent methods and scalar-computing terminal methods do not count.
 
 ## Why is this bad?
 

@@ -2,7 +2,8 @@
 
 ## What it does
 
-Finds uncustomized private Bon function builders with only one or two required parameters.
+Finds uncustomized private Bon free-function and associated-function builders with only one or two
+required parameters. Method receivers are not counted as builder members.
 
 ## Why is this bad?
 

@@ -2,8 +2,9 @@
 
 ## What it does
 
-Finds same-typed members of one Bon function builder that arbitrarily mix `#[builder(into)]` with
-strict input types.
+Finds same-typed members of one Bon free-function, associated-function, or derived-struct
+builder that arbitrarily mix `#[builder(into)]` with strict input types. Members with an
+explicit `with` converter are incomparable and excluded.
 
 ## Why is this bad?
 

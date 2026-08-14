@@ -2,8 +2,9 @@
 
 ## What it does
 
-Finds Bon-derived structs with restricted fields and an inherent fallible constructor that builds the
-same type.
+Finds Bon-derived structs with fields less visible than the struct itself and an inherent
+fallible constructor that builds the same type. A builder on a private type whose fields have
+the same effective reach does not expand the construction surface and remains valid.
 
 ## Why is this bad?
 

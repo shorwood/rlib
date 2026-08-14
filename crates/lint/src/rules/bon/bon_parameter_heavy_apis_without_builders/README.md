@@ -2,8 +2,9 @@
 
 ## What it does
 
-Finds public Rust APIs with enough positional parameters and ambiguity that a Bon named builder
-would materially improve calls.
+Finds exported free functions and inherent methods with enough positional parameters and ambiguity
+that a Bon named builder would materially improve calls. Trait methods are excluded because Bon's
+function-builder attribute does not define trait contracts.
 
 ## Why is this bad?
 

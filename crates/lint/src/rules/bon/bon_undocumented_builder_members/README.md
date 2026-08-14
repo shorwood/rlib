@@ -3,7 +3,9 @@
 ## What it does
 
 Finds non-obvious optionality, default, conversion, or hidden-initialization behavior on undocumented
-members of public Bon builders.
+members of externally reachable Bon struct, free-function, and associated-function builders.
+Documentation must contain substantive authored text; empty `doc` attributes and unrelated `doc`
+identifiers in converter expressions do not suppress the lint.
 
 ## Why is this bad?
 

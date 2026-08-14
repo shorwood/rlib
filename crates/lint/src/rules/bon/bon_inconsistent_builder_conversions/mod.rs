@@ -5,7 +5,7 @@ extern crate rustc_span;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use rustc_ast::ast::{Item, ItemKind};
+use rustc_ast::ast::{AssocItemKind, Fn, Item, ItemKind, VariantData};
 use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
@@ -92,33 +92,24 @@ dylint_linting::impl_pre_expansion_lint! {
 impl BonInconsistentBuilderConversions {
     /// Minimum same-typed members needed to compare conversion policy.
     const MINIMUM_COMPARABLE_MEMBERS: usize = 2;
-}
-impl EarlyLintPass for BonInconsistentBuilderConversions {
-    fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
-        let ItemKind::Fn(function) = &item.kind else {
-            return;
-        };
-        if BonAttributeAnalysis::builder(&item.attrs).is_none()
-            || BonAttributeAnalysis::builder_contains(cx, &item.attrs, "on(")
-        {
-            return;
-        }
+
+    /// Compares conversion policy for one collection of builder members.
+    fn check_members<'member>(
+        cx: &EarlyContext<'_>,
+        members: impl IntoIterator<Item = (&'member [rustc_ast::Attribute], Span)>,
+    ) {
         let source_map = cx.sess().source_map();
         let mut groups = HashMap::<String, Vec<ConversionMember>>::new();
-        for parameter in &function.sig.decl.inputs {
-            let Ok(ty) = source_map.span_to_snippet(parameter.ty.span) else {
+        for (attributes, span) in members {
+            let Ok(ty) = source_map.span_to_snippet(span) else {
                 continue;
             };
-            let has_custom_conversion = BonAttributeAnalysis::builder(&parameter.attrs).is_some()
-                && !BonAttributeAnalysis::builder_contains(cx, &parameter.attrs, "into");
-
-            // Custom conversion closures are intentionally incomparable with `into`.
-            if has_custom_conversion {
+            if BonAttributeAnalysis::builder_has_option(cx, attributes, "with") {
                 continue;
             }
             groups.entry(ty).or_default().push(ConversionMember {
-                has_into: BonAttributeAnalysis::builder_contains(cx, &parameter.attrs, "into"),
-                span: parameter.ty.span,
+                has_into: BonAttributeAnalysis::builder_has_option(cx, attributes, "into"),
+                span,
             });
         }
         for (ty, members) in groups {
@@ -133,6 +124,60 @@ impl EarlyLintPass for BonInconsistentBuilderConversions {
                 ty,
             }
             .emit(cx);
+        }
+    }
+
+    /// Checks parameters on one function builder unless an item-wide conversion policy applies.
+    fn check_function(cx: &EarlyContext<'_>, attributes: &[rustc_ast::Attribute], function: &Fn) {
+        if BonAttributeAnalysis::builder(attributes).is_none()
+            || BonAttributeAnalysis::builder_contains(cx, attributes, "on(")
+        {
+            return;
+        }
+        Self::check_members(
+            cx,
+            function
+                .sig
+                .decl
+                .inputs
+                .iter()
+                .map(|parameter| (parameter.attrs.as_slice(), parameter.ty.span)),
+        );
+    }
+
+    /// Checks fields on one derived struct builder.
+    fn check_struct(
+        cx: &EarlyContext<'_>,
+        attributes: &[rustc_ast::Attribute],
+        data: &VariantData,
+    ) {
+        if !BonAttributeAnalysis::derives_builder(cx, attributes)
+            || BonAttributeAnalysis::builder_contains(cx, attributes, "on(")
+        {
+            return;
+        }
+        Self::check_members(
+            cx,
+            data.fields()
+                .iter()
+                .map(|field| (field.attrs.as_slice(), field.ty.span)),
+        );
+    }
+}
+impl EarlyLintPass for BonInconsistentBuilderConversions {
+    fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
+        match &item.kind {
+            ItemKind::Fn(function) => Self::check_function(cx, &item.attrs, function),
+            ItemKind::Impl(implementation) => {
+                for associated in &implementation.items {
+                    let AssocItemKind::Fn(function) = &associated.kind else {
+                        continue;
+                    };
+                    Self::check_function(cx, &associated.attrs, function);
+                }
+            }
+            ItemKind::Struct(_, _, data) => Self::check_struct(cx, &item.attrs, data),
+            _ => {}
         }
     }
 }

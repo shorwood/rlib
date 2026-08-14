@@ -2,8 +2,9 @@
 
 ## What it does
 
-Finds explicit Bon start, finish, or member names that replace established domain terms with generic
-vocabulary.
+Finds explicit Bon start, finish, or member names that replace established domain terms with
+generic vocabulary on free-function builders, associated-function builders, and derived
+struct builders.
 
 ## Why is this bad?
 

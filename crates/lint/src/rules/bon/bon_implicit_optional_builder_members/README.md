@@ -2,7 +2,8 @@
 
 ## What it does
 
-Finds policy-bearing `Option<T>` arguments that Bon makes omittable without an explicit policy.
+Finds policy-bearing `Option<T>` arguments on Bon-generated free-function and inherent-method
+builders that Bon makes omittable without an explicit policy.
 
 ## Why is this bad?
 

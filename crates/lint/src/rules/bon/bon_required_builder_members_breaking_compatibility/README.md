@@ -2,8 +2,9 @@
 
 ## What it does
 
-Compares public Bon builders with the explicitly configured `bon_api_baseline` member snapshot and
-finds newly added required members.
+Compares public Bon struct, free-function, and associated-function builders with the explicitly
+configured `bon_api_baseline` member snapshot and finds newly added required members. Associated
+builders use `Type::method` baseline keys.
 
 ## Why is this bad?
 

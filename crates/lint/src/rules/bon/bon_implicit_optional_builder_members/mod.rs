@@ -4,7 +4,7 @@ extern crate rustc_span;
 
 use std::borrow::Cow;
 
-use rustc_ast::ast::{Item, ItemKind, Param};
+use rustc_ast::ast::{AssocItemKind, Fn, Item, ItemKind, Param};
 use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
@@ -108,6 +108,24 @@ impl EarlyViolation for Violation {
 /// Requires policy-bearing optional members to declare how omission is handled.
 struct BonImplicitOptionalBuilderMembers;
 
+impl BonImplicitOptionalBuilderMembers {
+    /// Checks one free or associated function carrying Bon's builder attribute.
+    fn check_function(cx: &EarlyContext<'_>, attributes: &[rustc_ast::Attribute], function: &Fn) {
+        if BonAttributeAnalysis::builder(attributes).is_none()
+            || (BonAttributeAnalysis::builder_contains(cx, attributes, "on(")
+                && BonAttributeAnalysis::builder_contains(cx, attributes, "required"))
+        {
+            return;
+        }
+        for parameter in &function.sig.decl.inputs {
+            let Some(violation) = Violation::from_parameter(cx, parameter) else {
+                continue;
+            };
+            violation.emit(cx);
+        }
+    }
+}
+
 dylint_linting::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub BON_IMPLICIT_OPTIONAL_BUILDER_MEMBERS,
@@ -118,20 +136,17 @@ dylint_linting::impl_pre_expansion_lint! {
 
 impl EarlyLintPass for BonImplicitOptionalBuilderMembers {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
-        let ItemKind::Fn(function) = &item.kind else {
-            return;
-        };
-        if BonAttributeAnalysis::builder(&item.attrs).is_none()
-            || (BonAttributeAnalysis::builder_contains(cx, &item.attrs, "on(")
-                && BonAttributeAnalysis::builder_contains(cx, &item.attrs, "required"))
-        {
-            return;
-        }
-        for parameter in &function.sig.decl.inputs {
-            let Some(violation) = Violation::from_parameter(cx, parameter) else {
-                continue;
-            };
-            violation.emit(cx);
+        match &item.kind {
+            ItemKind::Fn(function) => Self::check_function(cx, &item.attrs, function),
+            ItemKind::Impl(implementation) => {
+                for associated in &implementation.items {
+                    let AssocItemKind::Fn(function) = &associated.kind else {
+                        continue;
+                    };
+                    Self::check_function(cx, &associated.attrs, function);
+                }
+            }
+            _ => {}
         }
     }
 }

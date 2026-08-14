@@ -134,7 +134,7 @@ impl BonPublicBuilderImplementationTypes {
     ) {
         match ty.kind() {
             ty::Adt(..) => Self::collect_aggregate(cx, ty, span, exposures),
-            ty::Ref(_, nested, _) | ty::Slice(nested) => {
+            ty::Ref(_, nested, _) | ty::RawPtr(nested, _) | ty::Slice(nested) => {
                 Self::collect_definitions(cx, *nested, span, exposures);
             }
             ty::Array(nested, _) => Self::collect_definitions(cx, *nested, span, exposures),
@@ -150,7 +150,12 @@ impl BonPublicBuilderImplementationTypes {
 impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.catalog.check_item(cx, item);
-        if item.span.from_expansion() || !cx.tcx.visibility(item.owner_id.def_id).is_public() {
+        if item.span.from_expansion()
+            || !cx
+                .tcx
+                .effective_visibilities(())
+                .is_exported(item.owner_id.def_id)
+        {
             return;
         }
         let ItemKind::Fn { sig, .. } = item.kind else {
@@ -160,7 +165,12 @@ impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
-        if item.span.from_expansion() || !cx.tcx.visibility(item.owner_id.def_id).is_public() {
+        if item.span.from_expansion()
+            || !cx
+                .tcx
+                .effective_visibilities(())
+                .is_exported(item.owner_id.def_id)
+        {
             return;
         }
         let ImplItemKind::Fn(signature, _) = item.kind else {
@@ -170,7 +180,9 @@ impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
     }
 
     fn check_field_def(&mut self, cx: &LateContext<'tcx>, field: &'tcx FieldDef<'tcx>) {
-        if field.span.from_expansion() || !cx.tcx.visibility(field.def_id).is_public() {
+        if field.span.from_expansion()
+            || !cx.tcx.effective_visibilities(()).is_exported(field.def_id)
+        {
             return;
         }
         let ty = cx.tcx.type_of(field.def_id).instantiate_identity();

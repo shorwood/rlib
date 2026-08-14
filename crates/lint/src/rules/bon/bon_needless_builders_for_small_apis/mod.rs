@@ -4,12 +4,12 @@ extern crate rustc_span;
 
 use std::borrow::Cow;
 
-use rustc_ast::ast::{Item, ItemKind, VisibilityKind};
+use rustc_ast::ast::{AssocItemKind, Fn, Item, ItemKind, Param, VisibilityKind};
 use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::attributes::BonAttributeAnalysis;
+use super::utils::attributes::{BonAttributeAnalysis, OptionType};
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -76,11 +76,7 @@ impl BonNeedlessBuildersForSmallApis {
     const MAXIMUM_SIMPLE_PARAMETERS: usize = 2;
 
     /// Counts required parameters when their direct call remains unambiguous.
-    fn required_distinct_parameters(cx: &EarlyContext<'_>, item: &Item) -> Option<usize> {
-        let ItemKind::Fn(function) = &item.kind else {
-            return None;
-        };
-        let inputs = &function.sig.decl.inputs;
+    fn required_distinct_parameters(cx: &EarlyContext<'_>, inputs: &[Param]) -> Option<usize> {
         if inputs.is_empty() || inputs.len() > Self::MAXIMUM_SIMPLE_PARAMETERS {
             return None;
         }
@@ -96,26 +92,62 @@ impl BonNeedlessBuildersForSmallApis {
         }
 
         // Optional, repeated, or configured parameters still benefit from named setters.
-        if types
-            .iter()
-            .any(|ty| ty.trim_start().starts_with("Option<"))
-            || (types.len() == Self::MAXIMUM_SIMPLE_PARAMETERS && types[0] == types[1])
-            || inputs.iter().any(|parameter| !parameter.attrs.is_empty())
+        if types.iter().any(|ty| OptionType::is_option(ty))
+            || (types.len() == Self::MAXIMUM_SIMPLE_PARAMETERS
+                && Self::normalized_type(&types[0]) == Self::normalized_type(&types[1]))
+            || inputs
+                .iter()
+                .any(|parameter| BonAttributeAnalysis::builder(&parameter.attrs).is_some())
         {
             return None;
         }
         Some(inputs.len())
     }
-}
-impl EarlyLintPass for BonNeedlessBuildersForSmallApis {
-    fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
-        if !matches!(item.vis.kind, VisibilityKind::Inherited) {
+
+    /// Removes insignificant whitespace before comparing authored type spellings.
+    fn normalized_type(ty: &str) -> String {
+        ty.chars()
+            .filter(|character| !character.is_whitespace())
+            .collect()
+    }
+
+    /// Returns whether the first associated-function parameter is a receiver.
+    fn is_receiver(cx: &EarlyContext<'_>, parameter: &Param) -> bool {
+        cx.sess()
+            .source_map()
+            .span_to_snippet(parameter.pat.span)
+            .is_ok_and(|pattern| {
+                pattern
+                    .split(|character: char| character != '_' && !character.is_alphanumeric())
+                    .any(|token| token == "self")
+            })
+    }
+
+    /// Checks one private free or associated function.
+    fn check_function(
+        cx: &EarlyContext<'_>,
+        visibility: &rustc_ast::Visibility,
+        attributes: &[rustc_ast::Attribute],
+        function: &Fn,
+        associated: bool,
+    ) {
+        if !matches!(visibility.kind, VisibilityKind::Inherited) {
             return;
         }
-        let Some(span) = BonAttributeAnalysis::plain_builder(cx, &item.attrs) else {
+        let Some(span) = BonAttributeAnalysis::plain_builder(cx, attributes) else {
             return;
         };
-        let Some(parameter_count) = Self::required_distinct_parameters(cx, item) else {
+        let inputs = &function.sig.decl.inputs;
+        let inputs = if associated
+            && inputs
+                .first()
+                .is_some_and(|input| Self::is_receiver(cx, input))
+        {
+            &inputs[1..]
+        } else {
+            inputs
+        };
+        let Some(parameter_count) = Self::required_distinct_parameters(cx, inputs) else {
             return;
         };
         Violation {
@@ -123,5 +155,23 @@ impl EarlyLintPass for BonNeedlessBuildersForSmallApis {
             parameter_count,
         }
         .emit(cx);
+    }
+}
+impl EarlyLintPass for BonNeedlessBuildersForSmallApis {
+    fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
+        match &item.kind {
+            ItemKind::Fn(function) => {
+                Self::check_function(cx, &item.vis, &item.attrs, function, false);
+            }
+            ItemKind::Impl(implementation) => {
+                for associated in &implementation.items {
+                    let AssocItemKind::Fn(function) = &associated.kind else {
+                        continue;
+                    };
+                    Self::check_function(cx, &associated.vis, &associated.attrs, function, true);
+                }
+            }
+            _ => {}
+        }
     }
 }

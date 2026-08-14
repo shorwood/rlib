@@ -2,8 +2,8 @@
 
 ## What it does
 
-Finds generated Bon builder or generated builder state definitions named in hand-written public function, method, or
-field types.
+Finds generated Bon builder or generated builder state definitions named in hand-written exported
+function, inherent-method, or field types, including through nested containers and pointer types.
 
 ## Why is this bad?
 

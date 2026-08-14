@@ -68,14 +68,18 @@ impl EarlyViolation for Violation {
 // -----------------------------------------------------------------------------
 
 /// Ensures large public builders retain the readability benefit of named setters.
-struct BonRedundantPositionalAndBuilderApis;
+#[derive(Default)]
+struct BonRedundantPositionalAndBuilderApis {
+    /// Number of enclosing modules that prevent external reachability.
+    private_module_depth: usize,
+}
 
 dylint_linting::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub BON_REDUNDANT_POSITIONAL_AND_BUILDER_APIS,
     Warn,
     "rejects positional-heavy public Bon builders",
-    BonRedundantPositionalAndBuilderApis
+    BonRedundantPositionalAndBuilderApis::default()
 }
 
 impl BonRedundantPositionalAndBuilderApis {
@@ -90,6 +94,12 @@ impl BonRedundantPositionalAndBuilderApis {
 }
 impl EarlyLintPass for BonRedundantPositionalAndBuilderApis {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
+        if matches!(item.kind, ItemKind::Mod(..)) {
+            if !matches!(item.vis.kind, VisibilityKind::Public) {
+                self.private_module_depth += 1;
+            }
+            return;
+        }
         let ItemKind::Fn(function) = &item.kind else {
             return;
         };
@@ -97,7 +107,7 @@ impl EarlyLintPass for BonRedundantPositionalAndBuilderApis {
             return;
         };
 
-        if !matches!(item.vis.kind, VisibilityKind::Public) {
+        if self.private_module_depth > 0 || !matches!(item.vis.kind, VisibilityKind::Public) {
             return;
         }
         let total = function.sig.decl.inputs.len();
@@ -108,8 +118,8 @@ impl EarlyLintPass for BonRedundantPositionalAndBuilderApis {
             .inputs
             .iter()
             .filter(|parameter| {
-                BonAttributeAnalysis::builder_contains(cx, &parameter.attrs, "start_fn")
-                    || BonAttributeAnalysis::builder_contains(cx, &parameter.attrs, "finish_fn")
+                BonAttributeAnalysis::builder_has_option(cx, &parameter.attrs, "start_fn")
+                    || BonAttributeAnalysis::builder_has_option(cx, &parameter.attrs, "finish_fn")
             })
             .count();
 
@@ -126,5 +136,13 @@ impl EarlyLintPass for BonRedundantPositionalAndBuilderApis {
             total,
         }
         .emit(cx);
+    }
+
+    fn check_item_post(&mut self, _: &EarlyContext<'_>, item: &Item) {
+        if matches!(item.kind, ItemKind::Mod(..))
+            && !matches!(item.vis.kind, VisibilityKind::Public)
+        {
+            self.private_module_depth -= 1;
+        }
     }
 }

@@ -4,7 +4,7 @@ extern crate rustc_span;
 
 use std::borrow::Cow;
 
-use rustc_ast::ast::{FieldDef, Item, ItemKind, Param};
+use rustc_ast::ast::{AssocItemKind, FieldDef, Fn, Item, ItemKind, Param};
 use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
@@ -61,11 +61,23 @@ impl Violation {
                 Ok(source) => source,
                 Err(_error) => return None,
             };
-            (source.contains("builder(")
-                && ["default", "required", "skip", "start_fn", "finish_fn"]
-                    .iter()
-                    .any(|policy| source.contains(policy)))
-            .then_some(attribute.span)
+            Self::builder_payload_changes_contract(&source).then_some(attribute.span)
+        })
+    }
+
+    /// Returns whether a `builder(...)` payload contains a contract-changing policy token.
+    fn builder_payload_changes_contract(source: &str) -> bool {
+        source.match_indices("builder(").any(|(start, marker)| {
+            let payload = &source[start + marker.len()..];
+            let payload = payload.split(')').next().unwrap_or(payload);
+            payload
+                .split(|character: char| !character.is_alphanumeric() && character != '_')
+                .any(|token| {
+                    matches!(
+                        token,
+                        "default" | "required" | "skip" | "start_fn" | "finish_fn"
+                    )
+                })
         })
     }
 }
@@ -111,6 +123,21 @@ impl EarlyViolation for Violation {
 /// Rejects Bon member contracts that vary between build configurations.
 struct BonIncoherentConditionalBuilderMembers;
 
+impl BonIncoherentConditionalBuilderMembers {
+    /// Checks every parameter on one free or associated builder function.
+    fn check_function(cx: &EarlyContext<'_>, attributes: &[rustc_ast::Attribute], function: &Fn) {
+        if BonAttributeAnalysis::builder(attributes).is_none() {
+            return;
+        }
+        for parameter in &function.sig.decl.inputs {
+            let Some(violation) = Violation::parameter_violation(cx, parameter) else {
+                continue;
+            };
+            violation.emit(cx);
+        }
+    }
+}
+
 dylint_linting::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub BON_INCOHERENT_CONDITIONAL_BUILDER_MEMBERS,
@@ -122,12 +149,13 @@ dylint_linting::impl_pre_expansion_lint! {
 impl EarlyLintPass for BonIncoherentConditionalBuilderMembers {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         match &item.kind {
-            ItemKind::Fn(function) if BonAttributeAnalysis::builder(&item.attrs).is_some() => {
-                for parameter in &function.sig.decl.inputs {
-                    let Some(violation) = Violation::parameter_violation(cx, parameter) else {
+            ItemKind::Fn(function) => Self::check_function(cx, &item.attrs, function),
+            ItemKind::Impl(implementation) => {
+                for associated in &implementation.items {
+                    let AssocItemKind::Fn(function) = &associated.kind else {
                         continue;
                     };
-                    violation.emit(cx);
+                    Self::check_function(cx, &associated.attrs, function);
                 }
             }
             ItemKind::Struct(_, _, data)

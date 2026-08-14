@@ -5,6 +5,7 @@ extern crate rustc_span;
 use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
+use rustc_hir::def::DefKind;
 use rustc_hir::intravisit::FnKind;
 use rustc_hir::{Body, FnDecl};
 use rustc_lint::{LateContext, LateLintPass};
@@ -91,6 +92,17 @@ impl BonParameterHeavyApisWithoutBuilders {
 
     /// Boolean choices sufficient to make a medium-sized signature ambiguous.
     const BOOLEAN_CHOICE_THRESHOLD: usize = 2;
+
+    /// Returns whether this declaration is an exported API that Bon can decorate.
+    fn is_eligible(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
+        cx.tcx.effective_visibilities(()).is_exported(def_id)
+            && !cx.tcx.opt_local_parent(def_id).is_some_and(|parent| {
+                matches!(
+                    cx.tcx.def_kind(parent),
+                    DefKind::Trait | DefKind::TraitAlias
+                )
+            })
+    }
 }
 impl LateLintPass<'_> for BonParameterHeavyApisWithoutBuilders {
     fn check_fn(
@@ -102,7 +114,7 @@ impl LateLintPass<'_> for BonParameterHeavyApisWithoutBuilders {
         _: Span,
         def_id: LocalDefId,
     ) {
-        if !cx.tcx.visibility(def_id).is_public() {
+        if !Self::is_eligible(cx, def_id) {
             return;
         }
         let Some(signature) = ParameterSignature::from_body(cx, kind, body, def_id) else {

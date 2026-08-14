@@ -2,8 +2,10 @@
 
 ## What it does
 
-Finds Bon members whose requiredness, default, hidden initialization, or positional placement is
-changed with `cfg_attr` while the member itself remains present.
+Finds Bon members on derived structs, free functions, and associated functions whose
+requiredness, default, hidden initialization, or positional placement is changed with
+`cfg_attr` while the member itself remains present. Policy words in the cfg predicate do not
+count unless the `builder(...)` payload changes the contract.
 
 ## Why is this bad?
 

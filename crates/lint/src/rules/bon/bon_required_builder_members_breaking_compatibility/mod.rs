@@ -4,7 +4,7 @@ extern crate rustc_span;
 
 use std::borrow::Cow;
 
-use rustc_ast::ast::{FieldDef, Item, ItemKind, Param, VisibilityKind};
+use rustc_ast::ast::{AssocItemKind, FieldDef, Item, ItemKind, Param, VisibilityKind};
 use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
@@ -40,9 +40,9 @@ impl Violation {
         // Existing, defaulted, skipped, and privately initialized members remain compatible.
         if !baseline.contains_builder(member_path.builder)
             || baseline.contains_member(member_path)
-            || BonAttributeAnalysis::builder_contains(cx, attributes, "default")
-            || BonAttributeAnalysis::builder_contains(cx, attributes, "skip")
-            || BonAttributeAnalysis::builder_contains(cx, attributes, "field")
+            || BonAttributeAnalysis::builder_has_option(cx, attributes, "default")
+            || BonAttributeAnalysis::builder_has_option(cx, attributes, "skip")
+            || BonAttributeAnalysis::builder_has_option(cx, attributes, "field")
         {
             return None;
         }
@@ -52,7 +52,7 @@ impl Violation {
         };
 
         let required = !OptionType::is_option(&ty)
-            || BonAttributeAnalysis::builder_contains(cx, attributes, "required");
+            || BonAttributeAnalysis::builder_has_option(cx, attributes, "required");
         required.then_some(Self {
             span: ty_span,
             builder: member_path.builder.to_owned(),
@@ -141,7 +141,10 @@ impl BonRequiredBuilderMembersBreakingCompatibility {
             baseline,
             BonMemberPath {
                 builder,
-                member: member.trim(),
+                member: member
+                    .trim()
+                    .trim_start_matches("mut ")
+                    .trim_start_matches("ref "),
             },
             parameter.ty.span,
             &parameter.attrs,
@@ -168,11 +171,7 @@ impl BonRequiredBuilderMembersBreakingCompatibility {
     }
 
     /// Checks required parameters on one public builder function.
-    fn check_function(&self, cx: &EarlyContext<'_>, item: &Item, function: &rustc_ast::Fn) {
-        let Some(identifier) = item.kind.ident() else {
-            return;
-        };
-        let builder = identifier.name.to_string();
+    fn check_function(&self, cx: &EarlyContext<'_>, builder: &str, function: &rustc_ast::Fn) {
         for parameter in &function.sig.decl.inputs {
             let Some(violation) =
                 Self::parameter_violation(cx, &self.baseline, &builder, parameter)
@@ -185,15 +184,19 @@ impl BonRequiredBuilderMembersBreakingCompatibility {
 }
 impl EarlyLintPass for BonRequiredBuilderMembersBreakingCompatibility {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
-        if !matches!(item.vis.kind, VisibilityKind::Public) {
-            return;
-        }
         match &item.kind {
-            ItemKind::Fn(function) if BonAttributeAnalysis::builder(&item.attrs).is_some() => {
-                self.check_function(cx, item, function);
+            ItemKind::Fn(function)
+                if matches!(item.vis.kind, VisibilityKind::Public)
+                    && BonAttributeAnalysis::builder(&item.attrs).is_some() =>
+            {
+                let Some(identifier) = item.kind.ident() else {
+                    return;
+                };
+                self.check_function(cx, identifier.name.as_str(), function);
             }
             ItemKind::Struct(identifier, _, data)
-                if BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
+                if matches!(item.vis.kind, VisibilityKind::Public)
+                    && BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
             {
                 let builder = identifier.name.to_string();
                 for field in data.fields() {
@@ -203,6 +206,30 @@ impl EarlyLintPass for BonRequiredBuilderMembersBreakingCompatibility {
                         continue;
                     };
                     violation.emit(cx);
+                }
+            }
+            ItemKind::Impl(implementation) => {
+                let Ok(owner) = cx
+                    .sess()
+                    .source_map()
+                    .span_to_snippet(implementation.self_ty.span)
+                else {
+                    return;
+                };
+                for associated in &implementation.items {
+                    let AssocItemKind::Fn(function) = &associated.kind else {
+                        continue;
+                    };
+                    if !matches!(associated.vis.kind, VisibilityKind::Public)
+                        || BonAttributeAnalysis::builder(&associated.attrs).is_none()
+                    {
+                        continue;
+                    }
+                    let Some(identifier) = associated.kind.ident() else {
+                        continue;
+                    };
+                    let builder = format!("{}::{}", owner.trim(), identifier.name);
+                    self.check_function(cx, &builder, function);
                 }
             }
             _ => {}

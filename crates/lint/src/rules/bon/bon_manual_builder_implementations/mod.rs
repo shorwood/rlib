@@ -4,14 +4,14 @@ extern crate rustc_middle;
 extern crate rustc_span;
 
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::{ImplItem, ImplItemKind, Item, ItemKind, Node};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
-use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
+use rustc_span::{Span, sym};
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::impl_target::ImplTargetExt;
@@ -79,12 +79,12 @@ struct Candidate {
     span: Span,
     /// Authored builder type name.
     name: String,
-    /// State fields expected to have corresponding setters.
-    fields: usize,
+    /// Named state fields expected to have corresponding setters.
+    fields: HashSet<String>,
     /// Whether an associated `new` starts construction.
     has_start: bool,
-    /// Consuming methods that update one builder state value.
-    setters: usize,
+    /// Distinct field-named consuming setters.
+    setters: HashSet<String>,
     /// Whether an infallible terminal method completes construction.
     has_terminal: bool,
 }
@@ -114,7 +114,7 @@ impl BonManualBuilderImplementations {
 
     /// Returns whether a terminal result still communicates domain failure.
     fn is_fallible(cx: &LateContext<'_>, ty: ty::Ty<'_>) -> bool {
-        matches!(ty.kind(), ty::Adt(definition, _) if matches!(cx.tcx.item_name(definition.did()).as_str(), "Result" | "Option"))
+        matches!(ty.kind(), ty::Adt(definition, _) if cx.tcx.is_diagnostic_item(sym::Result, definition.did()) || cx.tcx.is_diagnostic_item(sym::Option, definition.did()))
     }
 }
 impl LateLintPass<'_> for BonManualBuilderImplementations {
@@ -135,7 +135,11 @@ impl LateLintPass<'_> for BonManualBuilderImplementations {
             Candidate {
                 span: identifier.span,
                 name: name.to_owned(),
-                fields: data.fields().len(),
+                fields: data
+                    .fields()
+                    .iter()
+                    .map(|field| field.ident.name.to_string())
+                    .collect(),
                 ..Candidate::default()
             },
         );
@@ -178,13 +182,18 @@ impl LateLintPass<'_> for BonManualBuilderImplementations {
         if !signature.decl.implicit_self.has_implicit_self() {
             candidate.has_start |=
                 name == "new" && function.inputs().is_empty() && output_is_builder;
-        } else if receiver_is_builder && function.inputs().len() == 2 && output_is_builder {
-            candidate.setters += 1;
+        } else if receiver_is_builder
+            && function.inputs().len() == 2
+            && output_is_builder
+            && candidate.fields.contains(name)
+        {
+            candidate.setters.insert(name.to_owned());
         } else if receiver_is_builder
             && function.inputs().len() == 1
             && matches!(name, "build" | "complete" | "finish")
             && !output_is_builder
             && !Self::is_fallible(cx, function.output())
+            && matches!(function.output().kind(), ty::Adt(..))
         {
             candidate.has_terminal = true;
         }
@@ -194,8 +203,8 @@ impl LateLintPass<'_> for BonManualBuilderImplementations {
         for candidate in self.candidates.values() {
             if !(candidate.has_start
                 && candidate.has_terminal
-                && candidate.setters >= Self::MINIMUM_STRUCTURAL_MEMBERS
-                && candidate.setters >= candidate.fields)
+                && candidate.setters.len() >= Self::MINIMUM_STRUCTURAL_MEMBERS
+                && candidate.setters.len() >= candidate.fields.len())
             {
                 continue;
             }
@@ -203,7 +212,7 @@ impl LateLintPass<'_> for BonManualBuilderImplementations {
             Violation {
                 span: candidate.span,
                 name: candidate.name.clone(),
-                setters: candidate.setters,
+                setters: candidate.setters.len(),
             }
             .emit(cx);
         }

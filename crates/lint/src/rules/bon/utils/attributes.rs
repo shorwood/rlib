@@ -45,6 +45,130 @@ impl BonAttributeAnalysis {
         Self::source(cx, attribute).is_ok_and(|source| source.contains(needle))
     }
 
+    /// Returns whether a builder attribute contains a top-level option with this exact name.
+    pub fn builder_has_option(
+        cx: &EarlyContext<'_>,
+        attributes: &[Attribute],
+        expected: &str,
+    ) -> bool {
+        let Some(attribute) = Self::builder(attributes) else {
+            return false;
+        };
+        let Ok(source) = Self::source(cx, attribute) else {
+            return false;
+        };
+        let Some(open) = source.find('(') else {
+            return false;
+        };
+        let Some(close) = source.rfind(')') else {
+            return false;
+        };
+        let payload = &source[open + 1..close];
+        let mut nesting = 0_usize;
+        let mut start = 0_usize;
+        for (index, character) in payload.char_indices() {
+            match character {
+                '(' | '[' | '{' => nesting += 1,
+                ')' | ']' | '}' => nesting = nesting.saturating_sub(1),
+                ',' if nesting == 0 => {
+                    if Self::option_name(&payload[start..index]) == expected {
+                        return true;
+                    }
+                    start = index + character.len_utf8();
+                }
+                _ => {}
+            }
+        }
+        Self::option_name(&payload[start..]) == expected
+    }
+
+    /// Returns whether a top-level builder option is present without a value or payload.
+    pub fn builder_has_bare_option(
+        cx: &EarlyContext<'_>,
+        attributes: &[Attribute],
+        expected: &str,
+    ) -> bool {
+        let Some(attribute) = Self::builder(attributes) else {
+            return false;
+        };
+        let Ok(source) = Self::source(cx, attribute) else {
+            return false;
+        };
+        let Some(open) = source.find('(') else {
+            return false;
+        };
+        let Some(close) = source.rfind(')') else {
+            return false;
+        };
+        let payload = &source[open + 1..close];
+        let mut nesting = 0_usize;
+        let mut start = 0_usize;
+        for (index, character) in payload.char_indices() {
+            match character {
+                '(' | '[' | '{' => nesting += 1,
+                ')' | ']' | '}' => nesting = nesting.saturating_sub(1),
+                ',' if nesting == 0 => {
+                    if Self::is_bare_option(&payload[start..index], expected) {
+                        return true;
+                    }
+                    start = index + character.len_utf8();
+                }
+                _ => {}
+            }
+        }
+        Self::is_bare_option(&payload[start..], expected)
+    }
+
+    /// Checks one top-level option segment after removing authored comments.
+    fn is_bare_option(segment: &str, expected: &str) -> bool {
+        let uncommented = Self::without_comments(segment);
+        let segment = uncommented.trim();
+        Self::option_name(segment) == expected && segment[expected.len()..].trim().is_empty()
+    }
+
+    /// Removes line and block comments from a short attribute option segment.
+    fn without_comments(source: &str) -> String {
+        let bytes = source.as_bytes();
+        let mut result = String::with_capacity(source.len());
+        let mut index = 0_usize;
+        let mut block_depth = 0_usize;
+        while index < bytes.len() {
+            if block_depth > 0 {
+                if bytes.get(index..index + 2) == Some(b"/*") {
+                    block_depth += 1;
+                    index += 2;
+                } else if bytes.get(index..index + 2) == Some(b"*/") {
+                    block_depth -= 1;
+                    index += 2;
+                } else {
+                    index += 1;
+                }
+            } else if bytes.get(index..index + 2) == Some(b"/*") {
+                block_depth = 1;
+                index += 2;
+            } else if bytes.get(index..index + 2) == Some(b"//") {
+                break;
+            } else {
+                let character = source[index..]
+                    .chars()
+                    .next()
+                    .expect("the byte index is inside the source");
+                result.push(character);
+                index += character.len_utf8();
+            }
+        }
+        result
+    }
+
+    /// Returns the leading identifier of one top-level builder option.
+    fn option_name(segment: &str) -> &str {
+        let segment = segment.trim_start();
+        let end = segment
+            .find(|character: char| !character.is_alphanumeric() && character != '_')
+            .unwrap_or(segment.len());
+        &segment[..end]
+    }
+
     /// Returns whether the attributes derive `bon::Builder`.
     pub fn derives_builder(cx: &EarlyContext<'_>, attributes: &[Attribute]) -> bool {
         attributes.iter().any(|attribute| {

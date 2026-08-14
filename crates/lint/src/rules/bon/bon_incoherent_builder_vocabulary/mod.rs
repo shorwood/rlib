@@ -4,7 +4,7 @@ extern crate rustc_span;
 
 use std::borrow::Cow;
 
-use rustc_ast::ast::{FieldDef, Fn, Item, ItemKind, Param};
+use rustc_ast::ast::{AssocItemKind, FieldDef, Fn, Item, ItemKind, Param};
 use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
@@ -128,16 +128,15 @@ impl BonIncoherentBuilderVocabulary {
         Violation::member_violation(cx, &field.attrs, field.ident?.name.to_string())
     }
 
-    /// Checks the configured builder vocabulary and every function parameter.
-    fn check_function(cx: &EarlyContext<'_>, item: &Item, function: &Fn) {
-        let Some(attribute) = BonAttributeAnalysis::builder(&item.attrs) else {
+    /// Checks configured start and finish vocabulary against an established operation name.
+    fn check_operation(
+        cx: &EarlyContext<'_>,
+        attributes: &[rustc_ast::Attribute],
+        operation: &str,
+    ) {
+        let Some(attribute) = BonAttributeAnalysis::builder(attributes) else {
             return;
         };
-        let operation = item
-            .kind
-            .ident()
-            .map(|ident| ident.name.to_string())
-            .unwrap_or_default();
 
         // Diagnose generic entry and finish names that discard the operation vocabulary.
         if let Ok(source) = BonAttributeAnalysis::source(cx, attribute) {
@@ -153,13 +152,26 @@ impl BonIncoherentBuilderVocabulary {
                     Violation {
                         span: attribute.span,
                         configured,
-                        established: operation,
+                        established: operation.to_owned(),
                     }
                     .emit(cx);
                     break;
                 }
             }
         }
+    }
+
+    /// Checks the configured builder vocabulary and every function parameter.
+    fn check_function(
+        cx: &EarlyContext<'_>,
+        attributes: &[rustc_ast::Attribute],
+        operation: &str,
+        function: &Fn,
+    ) {
+        if BonAttributeAnalysis::builder(attributes).is_none() {
+            return;
+        }
+        Self::check_operation(cx, attributes, operation);
 
         // Diagnose parameter-level vocabulary independently.
         for parameter in &function.sig.decl.inputs {
@@ -174,11 +186,35 @@ impl EarlyLintPass for BonIncoherentBuilderVocabulary {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         match &item.kind {
             ItemKind::Fn(function) => {
-                Self::check_function(cx, item, function);
+                let operation = item
+                    .kind
+                    .ident()
+                    .map(|ident| ident.name.to_string())
+                    .unwrap_or_default();
+                Self::check_function(cx, &item.attrs, &operation, function);
+            }
+            ItemKind::Impl(implementation) => {
+                for associated in &implementation.items {
+                    let AssocItemKind::Fn(function) = &associated.kind else {
+                        continue;
+                    };
+                    let operation = associated
+                        .kind
+                        .ident()
+                        .map(|ident| ident.name.to_string())
+                        .unwrap_or_default();
+                    Self::check_function(cx, &associated.attrs, &operation, function);
+                }
             }
             ItemKind::Struct(_, _, data)
                 if BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
             {
+                let operation = item
+                    .kind
+                    .ident()
+                    .map(|ident| ident.name.to_string())
+                    .unwrap_or_default();
+                Self::check_operation(cx, &item.attrs, &operation);
                 for field in data.fields() {
                     let Some(violation) = Self::field_violation(cx, field) else {
                         continue;
