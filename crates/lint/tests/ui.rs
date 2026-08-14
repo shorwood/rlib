@@ -4,7 +4,7 @@ use std::env::var;
 
 use dylint_testing::ui::Test;
 
-const CROSS_CUTTING_LINT_ALLOWS: [&str; 98] = [
+const CROSS_CUTTING_LINT_ALLOWS: [&str; 104] = [
     "-A",
     "ad_hoc_collection_construction",
     "-A",
@@ -36,6 +36,8 @@ const CROSS_CUTTING_LINT_ALLOWS: [&str; 98] = [
     "-A",
     "discarded_results",
     "-A",
+    "documentation_after_attributes",
+    "-A",
     "duplicate_section_divider_prefixes",
     "-A",
     "fallible_values_replaced_with_defaults",
@@ -59,6 +61,8 @@ const CROSS_CUTTING_LINT_ALLOWS: [&str; 98] = [
     "missing_code_phase_comments",
     "-A",
     "missing_section_dividers",
+    "-A",
+    "misordered_test_declarations",
     "-A",
     "needless_delegating_types",
     "-A",
@@ -89,6 +93,8 @@ const CROSS_CUTTING_LINT_ALLOWS: [&str; 98] = [
     "stringly_typed_domain_function_families",
     "-A",
     "unconsumed_generic_abstractions",
+    "-A",
+    "undocumented_early_returns",
     "-A",
     "undocumented_items",
     "-A",

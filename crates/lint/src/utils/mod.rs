@@ -1,6 +1,7 @@
 mod control_flow_loop;
 pub mod declaration_node;
 mod dependency_collector;
+mod early_return_analysis;
 pub mod diagnostic;
 pub mod direct_forwarding;
 mod function_layout_source;
@@ -42,6 +43,7 @@ pub mod family_name_analysis;
 mod string_domain_vocabulary;
 mod string_domain_revalidation;
 pub mod string_domain_analysis;
+pub mod test_module;
 pub mod tuple_types;
 #[cfg(any(feature = "derive_more", feature = "strum"))]
 pub mod variant_methods;

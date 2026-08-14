@@ -1,0 +1,73 @@
+warning: declaration documentation appears after another attribute
+  --> $DIR/semantic.rs:6:1
+   |
+LL | #[allow(dead_code)]
+   | ------------------- this attribute appears first
+LL | /// Misplaced item documentation.
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this documentation is misplaced
+   |
+   = note: documentation should introduce the declaration before attributes modify how it is compiled
+   = help: move the complete documentation group above every other outer attribute
+note: the lint level is defined here
+  --> $DIR/semantic.rs:1:9
+   |
+LL | #![warn(documentation_after_attributes)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: declaration documentation appears after another attribute
+  --> $DIR/semantic.rs:9:5
+   |
+LL |     #[allow(dead_code)]
+   |     ------------------- this attribute appears first
+LL |     /// Misplaced field documentation.
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this documentation is misplaced
+   |
+   = note: documentation should introduce the declaration before attributes modify how it is compiled
+   = help: move the complete documentation group above every other outer attribute
+
+warning: declaration documentation appears after another attribute
+  --> $DIR/semantic.rs:15:5
+   |
+LL |     #[allow(dead_code)]
+   |     ------------------- this attribute appears first
+LL |     /// Misplaced variant documentation.
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this documentation is misplaced
+   |
+   = note: documentation should introduce the declaration before attributes modify how it is compiled
+   = help: move the complete documentation group above every other outer attribute
+
+warning: declaration documentation appears after another attribute
+  --> $DIR/semantic.rs:18:9
+   |
+LL |         #[allow(dead_code)]
+   |         ------------------- this attribute appears first
+LL |         #[doc = "Misplaced variant-field documentation."]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this documentation is misplaced
+   |
+   = note: documentation should introduce the declaration before attributes modify how it is compiled
+   = help: move the complete documentation group above every other outer attribute
+
+warning: declaration documentation appears after another attribute
+  --> $DIR/semantic.rs:25:5
+   |
+LL |     #[allow(dead_code)]
+   |     ------------------- this attribute appears first
+LL |     /// Misplaced associated-item documentation.
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this documentation is misplaced
+   |
+   = note: documentation should introduce the declaration before attributes modify how it is compiled
+   = help: move the complete documentation group above every other outer attribute
+
+warning: declaration documentation appears after another attribute
+  --> $DIR/semantic.rs:33:5
+   |
+LL |     #[allow(dead_code)]
+   |     ------------------- this attribute appears first
+LL |     /// Misplaced implementation-item documentation.
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this documentation is misplaced
+   |
+   = note: documentation should introduce the declaration before attributes modify how it is compiled
+   = help: move the complete documentation group above every other outer attribute
+
+warning: 6 warnings emitted
+

@@ -81,12 +81,12 @@ impl LateViolation for Violation {
     }
 }
 
-#[derive(Default)]
 // -----------------------------------------------------------------------------
 // SerdeDuplicateSerializedNames: Unique wire-name policy
 // -----------------------------------------------------------------------------
 
 /// Finds fields or variants that resolve to the same serialized wire name.
+#[derive(Default)]
 struct SerdeDuplicateSerializedNames {
     /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,

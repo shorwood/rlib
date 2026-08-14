@@ -17,12 +17,12 @@ use super::utils::contracts::{
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
-#[derive(Clone)]
 // -----------------------------------------------------------------------------
 // Violation: Flattened fields with colliding names
 // -----------------------------------------------------------------------------
 
 /// Effective wire names and flattening target for one struct field.
+#[derive(Clone)]
 struct FieldContract {
     /// Wire name emitted while serializing this field.
     serialize_names: Vec<String>,
@@ -157,12 +157,12 @@ impl LateViolation for Violation {
     }
 }
 
-#[derive(Default)]
 // -----------------------------------------------------------------------------
 // SerdeFlattenedFieldCollisions: Collision-free flattening policy
 // -----------------------------------------------------------------------------
 
 /// Resolves flattened struct graphs and reports duplicate wire fields.
+#[derive(Default)]
 struct SerdeFlattenedFieldCollisions {
     /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,

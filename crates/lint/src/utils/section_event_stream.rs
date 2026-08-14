@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{Item, ItemKind};
-use rustc_lint::{LateContext, LintContext};
+use rustc_lint::LateContext;
 use rustc_middle::ty;
 use rustc_span::{BytePos, Span};
 
@@ -17,6 +17,7 @@ use crate::utils::section_analysis::{
     SectionAnalysis, SectionAnalyzer, SectionEventDivider, SectionFinding, SectionParticipant,
 };
 use crate::utils::source_provenance::ItemProvenanceExt;
+use crate::utils::test_module::TestModuleExt;
 
 /// Smallest declaration group that can contain more than one responsibility.
 const MINIMUM_MULTIPLE_FAMILY_SIZE: usize = 2;
@@ -84,13 +85,7 @@ impl SectionEventCandidate {
         }
 
         // Give every active in-source test module an explicit source boundary.
-        if cx.sess().opts.test
-            && matches!(item.kind, ItemKind::Mod(..))
-            && item
-                .kind
-                .ident()
-                .is_some_and(|ident| matches!(ident.name.as_str(), "test" | "tests"))
-        {
+        if item.is_canonical_in_source_test_module(cx) {
             return Some(Self::from_named_item(
                 cx,
                 item,

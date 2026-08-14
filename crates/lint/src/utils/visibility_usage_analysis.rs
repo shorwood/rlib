@@ -19,6 +19,7 @@ use rustc_session::config::CrateType;
 use rustc_span::{Span, Symbol, sym};
 
 use super::source_provenance::{FieldProvenanceExt, ItemProvenanceExt};
+use super::test_module::TestModuleExt;
 use super::visibility_boundary::VisibilityBoundary;
 use super::visibility_package_policy::VisibilityPackagePolicy;
 
@@ -215,14 +216,7 @@ impl VisibilityUsageAnalyzer {
     /// Records a module-level authored declaration and its direct references.
     pub(crate) fn record_item<'tcx>(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         // Discover test ownership before classifying references made by descendants.
-        if cx.sess().opts.test
-            && matches!(item.kind, ItemKind::Mod(..))
-            && item
-                .kind
-                .ident()
-                .is_some_and(|ident| matches!(ident.name.as_str(), "test" | "tests"))
-            && Self::has_direct_test_cfg(cx, item)
-        {
+        if item.is_canonical_in_source_test_module(cx) {
             self.test_modules.insert(item.owner_id.def_id);
         }
 
@@ -293,32 +287,6 @@ impl VisibilityUsageAnalyzer {
 }
 
 impl VisibilityUsageAnalyzer {
-    /// Returns whether a canonical test module is directly gated by `#[cfg(test)]`.
-    fn has_direct_test_cfg(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
-        let source_file = cx.sess().source_map().lookup_source_file(item.span.lo());
-        let Some(source) = source_file.src.as_deref() else {
-            return false;
-        };
-        let offset = (item.span.lo() - source_file.start_pos).0 as usize;
-        let Some(prefix) = source.get(..offset) else {
-            return false;
-        };
-        for line in prefix.lines().rev() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            if line == "#[cfg(test)]" {
-                return true;
-            }
-            if line.starts_with("#[") {
-                continue;
-            }
-            break;
-        }
-        false
-    }
-
     /// Records one struct or union field with independently authored visibility.
     pub(crate) fn record_field(&mut self, cx: &LateContext<'_>, field: &FieldDef<'_>) {
         // Enum variant fields inherit the enum's visibility and cannot be narrowed independently.

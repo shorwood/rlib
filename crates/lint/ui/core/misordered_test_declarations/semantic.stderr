@@ -1,0 +1,40 @@
+warning: this in-source test module is not the final declaration
+  --> $DIR/semantic.rs:8:5
+   |
+LL | /     mod tests {
+LL | |         #[test]
+LL | |         fn works() {}
+LL | |     }
+   | |_____^ tests begin here
+LL |
+LL |       fn production_declaration() {}
+   |       ------------------------------ this declaration appears after the tests
+   |
+   = note: one terminal test module gives production declarations and their tests a predictable source boundary
+   = help: move the complete test module and its Tests divider to the end
+note: the lint level is defined here
+  --> $DIR/semantic.rs:1:9
+   |
+LL | #![warn(misordered_test_declarations)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: this module contains more than one in-source test module
+  --> $DIR/semantic.rs:24:5
+   |
+LL | /     mod test {
+LL | |         #[test]
+LL | |         fn first() {}
+LL | |     }
+   | |_____- the first test module is here
+...
+LL | /     mod tests {
+LL | |         #[test]
+LL | |         fn second() {}
+LL | |     }
+   | |_____^ merge this test module into the first
+   |
+   = note: one terminal test module gives production declarations and their tests a predictable source boundary
+   = help: merge the test modules into one `mod test` or `mod tests` block and place it last
+
+warning: 2 warnings emitted
+

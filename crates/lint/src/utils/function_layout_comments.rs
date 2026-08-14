@@ -4,13 +4,60 @@ extern crate rustc_span;
 use std::ops::RangeInclusive;
 
 use rustc_lint::{LateContext, LintContext};
-use rustc_span::Span;
+use rustc_span::{Pos, Span};
 
 use super::function_layout_prose::FunctionLayoutProse;
 use super::function_layout_source::{
     FunctionLayoutComment, FunctionLayoutPositionExt, FunctionLayoutSpanExt,
 };
 use super::function_structure_config::FunctionStructureConfig;
+
+/// Returns whether authored source before `boundary` contains an attached phase-comment block.
+///
+/// Blank lines are tolerated here so the malformed-comment lint can own a detached comment without
+/// a second missing-comment diagnostic. Code between the comment and boundary still stops the
+/// search because that comment belongs to the preceding operation.
+pub(super) fn has_phase_comment_candidate_before(
+    cx: &LateContext<'_>,
+    boundary: Span,
+    prefix: &str,
+) -> bool {
+    if boundary.from_expansion() {
+        return false;
+    }
+    let source_file = cx.sess().source_map().lookup_source_file(boundary.lo());
+    let Some(source) = source_file.src.as_deref() else {
+        return false;
+    };
+    let Ok(offset) = usize::try_from((boundary.lo() - source_file.start_pos).to_u32()) else {
+        return false;
+    };
+    let Some(before) = source.get(..offset) else {
+        return false;
+    };
+
+    // A boundary beginning after authored syntax on the same line cannot own a leading comment.
+    let mut lines = before.rsplit('\n');
+    if lines.next().is_some_and(|line| !line.trim().is_empty()) {
+        return false;
+    }
+
+    // Skip vertical detachment so the existing malformed-placement diagnostic takes precedence.
+    let mut line = lines.find(|line| !line.trim().is_empty());
+    let mut first_comment = None;
+    while let Some(candidate) = line {
+        let candidate = candidate.trim_start();
+        if !candidate.starts_with("//")
+            || candidate.starts_with("///")
+            || candidate.starts_with("//!")
+        {
+            break;
+        }
+        first_comment = Some(candidate);
+        line = lines.next();
+    }
+    first_comment.is_some_and(|comment| comment.starts_with(prefix))
+}
 
 // -----------------------------------------------------------------------------
 // FunctionLayoutFinding: Layout diagnostic

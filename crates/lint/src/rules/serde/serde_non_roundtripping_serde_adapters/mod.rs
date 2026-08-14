@@ -149,12 +149,12 @@ impl LateViolation for Violation {
     }
 }
 
-#[derive(Default)]
 // -----------------------------------------------------------------------------
 // SerdeNonRoundtrippingSerdeAdapters: Symmetric adapter policy
 // -----------------------------------------------------------------------------
 
 /// Rejects mismatched serialization and deserialization adapters on one value.
+#[derive(Default)]
 struct SerdeNonRoundtrippingSerdeAdapters {
     /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,

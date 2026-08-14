@@ -72,12 +72,12 @@ impl LateViolation for Violation {
     }
 }
 
-#[derive(Default)]
 // -----------------------------------------------------------------------------
 // SerdeDeserializationBypassingInvariants: Validated construction policy
 // -----------------------------------------------------------------------------
 
 /// Rejects derived deserialization that can construct types with restricted fields directly.
+#[derive(Default)]
 struct SerdeDeserializationBypassingInvariants {
     /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,

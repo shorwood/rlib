@@ -100,12 +100,12 @@ impl LateViolation for Violation {
     }
 }
 
-#[derive(Default)]
 // -----------------------------------------------------------------------------
 // SerdeRemoteRepresentationsDriftingFromSources: Synchronized schema policy
 // -----------------------------------------------------------------------------
 
 /// Correlates remote Serde representations with their current source declarations.
+#[derive(Default)]
 struct SerdeRemoteRepresentationsDriftingFromSources {
     /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,

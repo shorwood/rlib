@@ -76,12 +76,12 @@ impl LateViolation for Violation {
     }
 }
 
-#[derive(Default)]
 // -----------------------------------------------------------------------------
 // SerdeCatchAllVariantsHidingSchemaDrift: Visible schema-change policy
 // -----------------------------------------------------------------------------
 
 /// Rejects catch-all variants that silently absorb additions to an external schema.
+#[derive(Default)]
 struct SerdeCatchAllVariantsHidingSchemaDrift {
     /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,

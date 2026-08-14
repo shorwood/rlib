@@ -217,12 +217,12 @@ impl ContractNames {
     }
 }
 
-#[derive(Default)]
 // -----------------------------------------------------------------------------
 // SerdeUnstableImplicitWireNames: Stable explicit wire-name policy
 // -----------------------------------------------------------------------------
 
 /// Rejects externally visible wire names that change when Rust identifiers are renamed.
+#[derive(Default)]
 struct SerdeUnstableImplicitWireNames {
     /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,

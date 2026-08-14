@@ -175,27 +175,6 @@ impl LeptosMismatchedViewAttributeGroups {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{LeptosMismatchedViewAttributeGroups, ViewAttributeCategory};
-
-    #[test]
-    fn category_terms_do_not_match_inside_unrelated_words() {
-        assert_eq!(
-            LeptosMismatchedViewAttributeGroups::declared_category("Submission presentation"),
-            Some(ViewAttributeCategory::Presentation)
-        );
-        assert_eq!(
-            LeptosMismatchedViewAttributeGroups::declared_category("Database connection"),
-            None
-        );
-        assert_eq!(
-            LeptosMismatchedViewAttributeGroups::declared_category("Statement formatting"),
-            None
-        );
-    }
-}
-
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_MISMATCHED_VIEW_ATTRIBUTE_GROUPS,
@@ -232,5 +211,30 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMismatchedViewAttributeGroups {
                 }
             }
         }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Tests: In-source tests
+// -----------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::{LeptosMismatchedViewAttributeGroups, ViewAttributeCategory};
+
+    #[test]
+    fn category_terms_do_not_match_inside_unrelated_words() {
+        assert_eq!(
+            LeptosMismatchedViewAttributeGroups::declared_category("Submission presentation"),
+            Some(ViewAttributeCategory::Presentation)
+        );
+        assert_eq!(
+            LeptosMismatchedViewAttributeGroups::declared_category("Database connection"),
+            None
+        );
+        assert_eq!(
+            LeptosMismatchedViewAttributeGroups::declared_category("Statement formatting"),
+            None
+        );
     }
 }

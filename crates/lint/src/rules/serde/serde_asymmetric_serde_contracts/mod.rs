@@ -79,12 +79,12 @@ impl LateViolation for Violation {
     }
 }
 
-#[derive(Default)]
 // -----------------------------------------------------------------------------
 // SerdeAsymmetricSerdeContracts: Symmetric wire-contract policy
 // -----------------------------------------------------------------------------
 
 /// Finds public types whose serialization and deserialization contracts disagree.
+#[derive(Default)]
 struct SerdeAsymmetricSerdeContracts {
     /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,

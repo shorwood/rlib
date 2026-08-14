@@ -81,12 +81,12 @@ impl LateViolation for Violation {
     }
 }
 
-#[derive(Default)]
 // -----------------------------------------------------------------------------
 // SerdeFlattenedUnknownFieldPolicies: Coherent unknown-field policy
 // -----------------------------------------------------------------------------
 
 /// Rejects flattened maps whose unknown-field behavior contradicts the outer type.
+#[derive(Default)]
 struct SerdeFlattenedUnknownFieldPolicies {
     /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,

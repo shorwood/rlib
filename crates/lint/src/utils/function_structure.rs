@@ -10,6 +10,7 @@ use super::config::LibraryConfig;
 use super::control_flow_analysis::{
     ControlFlowAnalysis, ControlFlowAnalyzer, ControlFlowAnalyzerFunctionReturn,
 };
+use super::early_return_analysis::{EarlyReturnAnalyzer, EarlyReturnFinding};
 use super::function_layout_analysis::{FunctionLayoutAnalysis, FunctionLayoutAnalyzer};
 use super::function_structure_config::FunctionStructureConfig;
 
@@ -63,6 +64,15 @@ impl FunctionStructureAnalyzer {
         let function_return = ControlFlowAnalyzerFunctionReturn::from_output(output);
         ControlFlowAnalyzer::new(cx, &self.config, function_return)
             .analyze(Self::authored_body(cx, body))
+    }
+
+    /// Finds explicit early returns whose guard boundary has no phase explanation.
+    pub(crate) fn analyze_early_returns<'tcx>(
+        &self,
+        cx: &LateContext<'tcx>,
+        body: &'tcx Body<'tcx>,
+    ) -> Vec<EarlyReturnFinding> {
+        EarlyReturnAnalyzer::new(cx, &self.config).analyze(Self::authored_body(cx, body))
     }
 }
 

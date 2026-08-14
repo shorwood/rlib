@@ -79,6 +79,7 @@ impl<'graph> Tarjan<'graph> {
             }
         }
 
+        // Defer component extraction until traversal returns to its root.
         if self.state.lowlinks[vertex] != index {
             return;
         }
