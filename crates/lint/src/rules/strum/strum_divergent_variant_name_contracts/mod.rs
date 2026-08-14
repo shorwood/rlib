@@ -36,7 +36,7 @@ impl LateViolation for Violation {
 
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
-            "`VariantNames` advertises one preferred name while `EnumString` accepts additional aliases",
+            "`VariantNames` advertises a finite preferred vocabulary while `EnumString` accepts additional spellings",
         )
     }
 
@@ -91,10 +91,11 @@ impl LateLintPass<'_> for StrumDivergentVariantNameContracts {
             }
 
             let Some(variant) = contract.enabled_variants().find(|variant| {
-                variant
-                    .parser_names
-                    .iter()
-                    .any(|name| name != &variant.preferred_name)
+                variant.is_default_capture
+                    || variant
+                        .parser_names
+                        .iter()
+                        .any(|name| name != &variant.preferred_name)
             }) else {
                 continue;
             };

@@ -3,9 +3,10 @@ extern crate rustc_hir;
 extern crate rustc_span;
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::ImplItem;
+use rustc_hir::{ImplItem, Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::{Span, Symbol};
 
@@ -68,28 +69,74 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 
 /// Detects discriminant mirrors reproducible by Strum.
-struct StrumManualDiscriminantEnums;
+#[derive(Default)]
+struct StrumManualDiscriminantEnums {
+    /// Exact manual mirrors awaiting crate-wide schema evidence.
+    candidates: Vec<DiscriminantMirrorCandidate>,
+    /// Mirror enums with authored or generated Serde contracts.
+    external_schemas: HashSet<rustc_hir::def_id::LocalDefId>,
+}
 
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub STRUM_MANUAL_DISCRIMINANT_ENUMS,
     Warn,
     "finds manually mirrored enum discriminants reproducible by Strum",
-    StrumManualDiscriminantEnums
+    StrumManualDiscriminantEnums::default()
 }
 
 impl LateLintPass<'_> for StrumManualDiscriminantEnums {
+    fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        let ItemKind::Impl(implementation) = item.kind else {
+            return;
+        };
+        let Some(trait_def) = implementation
+            .of_trait
+            .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
+        else {
+            return;
+        };
+        if !matches!(
+            cx.tcx.item_name(trait_def).as_str(),
+            "Serialize" | "Deserialize"
+        ) || !matches!(
+            cx.tcx.crate_name(trait_def.krate).as_str(),
+            "serde" | "serde_core"
+        ) {
+            return;
+        }
+        let Some(definition) = cx
+            .tcx
+            .type_of(item.owner_id)
+            .instantiate_identity()
+            .ty_adt_def()
+            .and_then(|definition| definition.did().as_local())
+        else {
+            return;
+        };
+        self.external_schemas.insert(definition);
+    }
+
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         let Some(candidate) = DiscriminantMirrorCandidate::from_impl_item(cx, item) else {
             return;
         };
 
-        Violation {
-            owner: candidate.owner,
-            span: candidate.span,
-            source: cx.tcx.item_name(candidate.source_enum.to_def_id()),
-            mirror: cx.tcx.item_name(candidate.mirror_enum.to_def_id()),
+        self.candidates.push(candidate);
+    }
+
+    fn check_crate_post(&mut self, cx: &LateContext<'_>) {
+        for candidate in self.candidates.drain(..) {
+            if self.external_schemas.contains(&candidate.mirror_enum) {
+                continue;
+            }
+            Violation {
+                owner: candidate.owner,
+                span: candidate.span,
+                source: cx.tcx.item_name(candidate.source_enum.to_def_id()),
+                mirror: cx.tcx.item_name(candidate.mirror_enum.to_def_id()),
+            }
+            .emit(cx);
         }
-        .emit(cx);
     }
 }

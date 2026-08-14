@@ -104,16 +104,18 @@ impl StrumFilteredEnumCountContracts {
 
     /// Recognizes names that conventionally describe a filtered enum subset.
     fn is_subset_name(name: Symbol) -> bool {
-        [
+        let vocabulary = [
             "enabled",
             "visible",
             "supported",
             "actionable",
             "available",
             "selectable",
-        ]
-        .into_iter()
-        .any(|token| name.as_str().contains(token))
+        ];
+        name.as_str()
+            .trim_start_matches("r#")
+            .split('_')
+            .any(|component| vocabulary.contains(&component))
     }
 }
 impl LateLintPass<'_> for StrumFilteredEnumCountContracts {
@@ -147,8 +149,7 @@ impl LateLintPass<'_> for StrumFilteredEnumCountContracts {
                 contract.def_id == count_use.enum_def
                     && contract.derives(StrumDerive::EnumCount)
                     && contract.variants.iter().any(|variant| {
-                        variant.is_disabled
-                            || variant.is_deprecated
+                        variant.is_deprecated
                             || variant.has_payload
                             || matches!(
                                 variant.name.as_str(),

@@ -124,7 +124,18 @@ impl LateLintPass<'_> for StrumManualEnumStringParsers {
             let Some(contract) = contracts.iter().find(|contract| {
                 contract.def_id == candidate.enum_def
                     && contract.variants.iter().all(|variant| {
-                        candidate.names.get(&variant.def_id) == Some(&variant.parser_names)
+                        !variant.is_disabled
+                            && !variant.is_ascii_case_insensitive
+                            && !variant.is_default_capture
+                    })
+                    && contract.variants.iter().all(|variant| {
+                        candidate.names.get(&variant.def_id).is_some_and(|names| {
+                            let mut names = names.clone();
+                            let mut parser_names = variant.parser_names.clone();
+                            names.sort();
+                            parser_names.sort();
+                            names == parser_names
+                        })
                     })
             }) else {
                 continue;

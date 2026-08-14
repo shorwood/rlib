@@ -84,11 +84,30 @@ impl StrumDocumentationUsedAsEnumMessages {
 
     /// Recognizes call names that conventionally expose text to a user.
     fn is_observed_name(name: &str) -> bool {
-        [
+        let vocabulary = [
             "show", "display", "render", "response", "error", "message", "notify", "alert",
-        ]
-        .into_iter()
-        .any(|token| name.contains(token))
+        ];
+        name.trim_start_matches("r#")
+            .split('_')
+            .any(|component| vocabulary.contains(&component))
+    }
+
+    /// Returns whether the receiver enum contains documentation that this API can expose.
+    fn receiver_has_documentation(cx: &LateContext<'_>, receiver: &Expr<'_>) -> bool {
+        cx.typeck_results()
+            .expr_ty(receiver)
+            .peel_refs()
+            .ty_adt_def()
+            .is_some_and(|definition| {
+                definition.variants().iter().any(|variant| {
+                    variant.def_id.as_local().is_some_and(|definition| {
+                        cx.tcx
+                            .hir_attrs(cx.tcx.local_def_id_to_hir_id(definition))
+                            .iter()
+                            .any(|attribute| attribute.doc_str().is_some())
+                    })
+                })
+            })
     }
 
     /// Finds the nearby user-visible call that consumes a generated enum message.
@@ -131,10 +150,13 @@ impl StrumDocumentationUsedAsEnumMessages {
 }
 impl LateLintPass<'_> for StrumDocumentationUsedAsEnumMessages {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
-        let ExprKind::MethodCall(segment, ..) = expression.kind else {
+        let ExprKind::MethodCall(segment, receiver, ..) = expression.kind else {
             return;
         };
-        if segment.ident.name.as_str() != "get_documentation" {
+        if expression.span.from_expansion()
+            || segment.ident.name.as_str() != "get_documentation"
+            || !Self::receiver_has_documentation(cx, receiver)
+        {
             return;
         }
 

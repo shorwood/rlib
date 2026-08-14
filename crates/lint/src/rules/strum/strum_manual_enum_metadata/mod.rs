@@ -89,7 +89,7 @@ dylint_linting::impl_late_lint! {
 impl StrumManualEnumMetadata {
     /// Recognizes method names conventionally used to expose enum metadata.
     fn is_metadata_name(name: &str) -> bool {
-        [
+        let vocabulary = [
             "message",
             "description",
             "label",
@@ -101,9 +101,22 @@ impl StrumManualEnumMetadata {
             "severity",
             "kind",
             "property",
-        ]
-        .into_iter()
-        .any(|token| name.contains(token))
+        ];
+        name.trim_start_matches("r#")
+            .split('_')
+            .any(|component| vocabulary.contains(&component))
+    }
+
+    /// Returns whether documentation deliberately preserves authored policy or localization.
+    fn has_authored_policy(cx: &LateContext<'_>, owner: rustc_hir::HirId) -> bool {
+        cx.tcx.hir_attrs(owner).iter().any(|attribute| {
+            attribute.doc_str().is_some_and(|documentation| {
+                let documentation = documentation.as_str().to_ascii_lowercase();
+                ["policy", "localized", "localization", "locale", "i18n"]
+                    .into_iter()
+                    .any(|term| documentation.contains(term))
+            })
+        })
     }
 }
 impl LateLintPass<'_> for StrumManualEnumMetadata {
@@ -116,27 +129,36 @@ impl LateLintPass<'_> for StrumManualEnumMetadata {
             return;
         };
 
-        if self
-            .catalog
-            .contracts()
-            .iter()
-            .any(|contract| contract.def_id == family.enum_def && contract.has_authored_metadata())
-        {
-            return;
-        }
         if matches!(
             family.method_name.as_str(),
             "as_str" | "as_static_str" | "name"
         ) || !Self::is_metadata_name(family.method_name.as_str())
+            || Self::has_authored_policy(cx, family.owner)
         {
             return;
         }
 
-        let provider = if matches!(family.method_name.as_str(), "message" | "detailed_message") {
+        let is_message = family
+            .method_name
+            .as_str()
+            .trim_start_matches("r#")
+            .split('_')
+            .any(|component| component == "message");
+        let provider = if is_message {
             "EnumMessage"
         } else {
             "EnumProperty"
         };
+        if self.catalog.contracts().iter().any(|contract| {
+            contract.def_id == family.enum_def
+                && if is_message {
+                    contract.has_authored_message_metadata()
+                } else {
+                    contract.has_authored_property(family.method_name.as_str())
+                }
+        }) {
+            return;
+        }
 
         Violation {
             owner: family.owner,

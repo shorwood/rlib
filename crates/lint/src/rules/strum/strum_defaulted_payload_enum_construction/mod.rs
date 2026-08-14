@@ -98,7 +98,10 @@ impl LateLintPass<'_> for StrumDefaultedPayloadEnumConstruction {
                     derives.push("`FromRepr`");
                 }
 
-                if contract.derives(StrumDerive::EnumString) && !variant.is_default_capture {
+                if contract.derives(StrumDerive::EnumString)
+                    && !variant.is_default_capture
+                    && !variant.has_explicit_string_payload
+                {
                     derives.push("`EnumString`");
                 }
                 if derives.is_empty() {

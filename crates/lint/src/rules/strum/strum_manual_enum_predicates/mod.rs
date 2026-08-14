@@ -103,13 +103,11 @@ impl LateLintPass<'_> for StrumManualEnumPredicates {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for family in self.analyzer.complete_families(cx) {
-            if !(PredicateFamily::selected(cx, self.provider)
-                == Some(PredicateProvider::StrumEnumIs))
-            {
-                continue;
-            }
-
+        let selected = PredicateFamily::selected(cx, self.provider);
+        if selected != Some(PredicateProvider::StrumEnumIs) {
+            return;
+        }
+        for family in self.analyzer.complete_families(cx, selected) {
             Violation {
                 span: family.span,
                 owner: family.owner,

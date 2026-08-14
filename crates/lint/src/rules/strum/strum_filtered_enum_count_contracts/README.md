@@ -7,8 +7,8 @@ available subset when the enum contains variants excluded from that domain.
 
 ## Why is this bad?
 
-`COUNT` is the total declaration count. It includes disabled, deprecated, sentinel, and payload
-variants even when a surrounding name promises a narrower set.
+`COUNT` includes deprecated, sentinel, and payload variants even when a surrounding name promises a
+narrower set. Strum itself omits variants marked `disabled` from the generated count.
 
 ## Example
 

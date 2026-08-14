@@ -29,8 +29,8 @@ struct Violation {
 }
 
 impl Violation {
-    /// Classifies the resolved contract without relying on source spelling alone.
-    fn classify(contract: &EnumContract) -> Option<Self> {
+    /// Classifies every non-round-tripping variant without relying on source spelling alone.
+    fn classify(contract: &EnumContract) -> Vec<Self> {
         let has_output = [
             StrumDerive::Display,
             StrumDerive::AsRefStr,
@@ -40,34 +40,39 @@ impl Violation {
         .any(|derive| contract.derives(derive));
 
         if !contract.derives(StrumDerive::EnumString) || !has_output {
-            return None;
+            return Vec::new();
         }
-        for variant in contract
+        contract
             .enabled_variants()
             .filter(|variant| !variant.has_payload)
-        {
-            let owners = contract
-                .enabled_variants()
-                .filter(|candidate| {
-                    candidate.parser_names.iter().any(|name| {
-                        name == &variant.preferred_name
-                            || (candidate.is_ascii_case_insensitive
-                                && name.eq_ignore_ascii_case(&variant.preferred_name))
+            .filter_map(|variant| {
+                // `EnumString` emits match arms in declaration order. The first matching arm owns
+                // an overlapping spelling; a default-capture variant owns only unmatched input.
+                let parsed_variant = contract
+                    .enabled_variants()
+                    .filter(|candidate| !candidate.is_default_capture)
+                    .find(|candidate| {
+                        candidate.parser_names.iter().any(|name| {
+                            name == &variant.preferred_name
+                                || (candidate.is_ascii_case_insensitive
+                                    && name.eq_ignore_ascii_case(&variant.preferred_name))
+                        })
                     })
-                })
-                .map(|candidate| candidate.def_id)
-                .collect::<Vec<_>>();
-            if owners.as_slice() != [variant.def_id] {
-                return Some(Self {
-                    owner: contract.owner,
-                    span: variant.span,
-                    variant: variant.name,
-                    output: variant.preferred_name.clone(),
-                });
-            }
-        }
-
-        None
+                    .or_else(|| {
+                        contract
+                            .enabled_variants()
+                            .find(|candidate| candidate.is_default_capture)
+                    });
+                (parsed_variant.map(|candidate| candidate.def_id) != Some(variant.def_id)).then(
+                    || Self {
+                        owner: contract.owner,
+                        span: variant.span,
+                        variant: variant.name,
+                        output: variant.preferred_name.clone(),
+                    },
+                )
+            })
+            .collect()
     }
 }
 
@@ -132,10 +137,9 @@ impl LateLintPass<'_> for StrumNonRoundtrippingEnumStrings {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.contracts() {
-            let Some(violation) = Violation::classify(&contract) else {
-                continue;
-            };
-            violation.emit(cx);
+            for violation in Violation::classify(&contract) {
+                violation.emit(cx);
+            }
         }
     }
 }

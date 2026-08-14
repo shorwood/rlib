@@ -80,7 +80,8 @@ impl StrumDeclarationOrderDomainContracts {
                 _ => None,
             });
         name.is_some_and(|name| {
-            [
+            let components = name.as_str().trim_start_matches("r#").split('_');
+            let vocabulary = [
                 "workflow",
                 "migration",
                 "phase",
@@ -90,9 +91,10 @@ impl StrumDeclarationOrderDomainContracts {
                 "present",
                 "render",
                 "execute",
-            ]
-            .into_iter()
-            .any(|token| name.as_str().contains(token))
+            ];
+            components
+                .into_iter()
+                .any(|component| vocabulary.contains(&component))
         })
     }
 }

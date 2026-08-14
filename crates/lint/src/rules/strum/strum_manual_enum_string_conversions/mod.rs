@@ -30,6 +30,8 @@ struct Violation {
     enum_name: Symbol,
     /// Whether the declaration is visible outside its defining module.
     is_public: bool,
+    /// Generated Strum surface that exactly replaces this contract.
+    replacement: &'static str,
 }
 
 impl LateViolation for Violation {
@@ -45,7 +47,7 @@ impl LateViolation for Violation {
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
-        Cow::Borrowed("derive `strum::AsRefStr` and migrate callers to `AsRef<str>`")
+        Cow::Borrowed(self.replacement)
     }
 
     fn emit(self, cx: &LateContext<'_>) {
@@ -135,6 +137,7 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
         for family in self.families.drain(..) {
             let Some(contract) = contracts.iter().find(|contract| {
                 contract.def_id == family.enum_def
+                    && contract.variants.iter().all(|variant| !variant.is_disabled)
                     && contract.variants.iter().all(|variant| {
                         family.values.get(&variant.def_id)
                             == Some(&StaticValue::String(variant.preferred_name.clone()))
@@ -148,6 +151,7 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
                 span: family.span,
                 enum_name: contract.name,
                 is_public: family.is_public,
+                replacement: "derive `strum::AsRefStr` and migrate callers to `AsRef<str>`",
             }
             .emit(cx);
         }
@@ -159,6 +163,7 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
         for display in self.displays.drain(..) {
             let Some(contract) = contracts.iter().find(|contract| {
                 contract.def_id == display.enum_def
+                    && contract.variants.iter().all(|variant| !variant.is_disabled)
                     && contract.variants.iter().all(|variant| {
                         display.values.get(&variant.def_id) == Some(&variant.preferred_name)
                     })
@@ -171,6 +176,7 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
                 span: display.span,
                 enum_name: contract.name,
                 is_public: contract.is_public,
+                replacement: "derive `strum::Display` and remove the equivalent formatting implementation",
             }
             .emit(cx);
         }

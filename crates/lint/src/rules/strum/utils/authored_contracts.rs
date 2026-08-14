@@ -159,10 +159,20 @@ impl VariantValueFamily {
             return None;
         };
 
-        if signature.decl.inputs.len() != 1 {
+        if signature.decl.inputs.len() != 1 || !signature.decl.implicit_self.has_implicit_self() {
             return None;
         }
         let enum_def = AuthoredContractAnalysis::enclosing_inherent_enum(cx, item.hir_id())?;
+        let receiver = cx
+            .tcx
+            .fn_sig(item.owner_id.def_id)
+            .instantiate_identity()
+            .skip_binder()
+            .inputs()[0];
+        if !matches!(receiver.kind(), ty::Ref(_, inner, rustc_hir::Mutability::Not) if inner.ty_adt_def()?.did().as_local() == Some(enum_def))
+        {
+            return None;
+        }
         let body = cx.tcx.hir_body(body_id);
         let receiver = AuthoredContractAnalysis::binding_id(body.params.first()?.pat)?;
         let expression = AuthoredContractAnalysis::peel_transparent(body.value);
@@ -432,12 +442,12 @@ impl StringParserCandidate {
                 fallback = true;
                 continue;
             }
-            let name = AuthoredContractAnalysis::string_pattern(arm.pat)?;
+            let arm_names = AuthoredContractAnalysis::string_patterns(arm.pat)?;
             let variant = AuthoredContractAnalysis::result_ok_variant(cx, arm.body)?;
             if AuthoredContractAnalysis::owning_enum(cx, variant) != Some(enum_def) {
                 return None;
             }
-            names.entry(variant).or_default().push(name);
+            names.entry(variant).or_default().extend(arm_names);
         }
 
         let definition = cx.tcx.adt_def(enum_def.to_def_id());
@@ -498,7 +508,7 @@ impl DiscriminantMirrorCandidate {
                 crate_name: "core",
             },
         )?;
-        if cx.tcx.visibility(mirror_enum).is_public() {
+        if cx.tcx.effective_visibilities(()).is_exported(mirror_enum) {
             return None;
         }
 
@@ -579,7 +589,14 @@ struct AuthoredContractAnalysis;
 
 impl AuthoredContractAnalysis {
     /// Recovers the string literal matched by a parser arm.
-    fn string_pattern(pattern: &Pat<'_>) -> Option<String> {
+    fn string_patterns(pattern: &Pat<'_>) -> Option<Vec<String>> {
+        if let PatKind::Or(patterns) = pattern.kind {
+            return patterns
+                .iter()
+                .map(Self::string_patterns)
+                .collect::<Option<Vec<_>>>()
+                .map(|groups| groups.into_iter().flatten().collect());
+        }
         let PatKind::Expr(expression) = pattern.kind else {
             return None;
         };
@@ -593,7 +610,7 @@ impl AuthoredContractAnalysis {
         let rustc_ast::LitKind::Str(value, _) = lit.node else {
             return None;
         };
-        Some(value.as_str().to_owned())
+        Some(vec![value.as_str().to_owned()])
     }
 
     /// Returns whether a constructor resolves to the named standard `Result` variant.

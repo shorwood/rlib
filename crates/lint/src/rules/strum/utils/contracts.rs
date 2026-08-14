@@ -10,7 +10,7 @@ use heck::{
 };
 use rustc_hir::def::DefKind;
 use rustc_hir::def_id::LocalDefId;
-use rustc_hir::{Attribute, Expr, ExprKind, HirId, Item, ItemKind, QPath};
+use rustc_hir::{Expr, ExprKind, Item, ItemKind, QPath};
 use rustc_lint::LateContext;
 use rustc_span::symbol::sym;
 use rustc_span::{Span, Symbol};
@@ -18,6 +18,18 @@ use syn::meta::ParseNestedMeta;
 use syn::{LitBool, LitStr, Token};
 
 use super::authored_contracts::StringTableCandidate;
+
+/// Returns whether an identifier contains a type name as complete, contiguous name components.
+fn identifier_mentions_type(identifier: &str, type_name: &str) -> bool {
+    let identifier = identifier.trim_start_matches("r#").to_snake_case();
+    let type_name = type_name.trim_start_matches("r#").to_snake_case();
+    let identifier_components = identifier.split('_').collect::<Vec<_>>();
+    let type_components = type_name.split('_').collect::<Vec<_>>();
+
+    identifier_components
+        .windows(type_components.len())
+        .any(|window| window == type_components)
+}
 
 // -----------------------------------------------------------------------------
 // Strum: Derive and property vocabulary
@@ -27,7 +39,7 @@ use super::authored_contracts::StringTableCandidate;
 #[derive(Clone)]
 struct StrumProperty {
     /// Property name.
-    _name: String,
+    name: String,
     /// Property value.
     _value: String,
 }
@@ -143,8 +155,9 @@ impl EnumContract {
                     let field_type = cx.tcx.type_of(field.did).instantiate_identity();
                     !field_type.is_unit()
                         && !field_type.ty_adt_def().is_some_and(|field_definition| {
-                            cx.tcx.def_path_str(field_definition.did())
-                                == "core::marker::PhantomData"
+                            let definition = field_definition.did();
+                            cx.tcx.crate_name(definition.krate) == sym::core
+                                && cx.tcx.item_name(definition).as_str() == "PhantomData"
                         })
                 });
                 let implicit =
@@ -185,14 +198,13 @@ impl EnumContract {
                     has_domain_payload,
                     is_deprecated: cx
                         .tcx
-                        .hir_attrs(variant.hir_id)
-                        .iter()
-                        .any(|attribute| attribute.has_name(sym::deprecated)),
+                        .lookup_deprecation_entry(variant.def_id.to_def_id())
+                        .is_some(),
                     message: attributes.message,
                     detailed_message: attributes.detailed_message,
-                    documentation: Self::variant_documentation(cx, variant.hir_id),
                     properties: attributes.properties,
                     has_explicit_output: attributes.to_string.is_some(),
+                    has_explicit_string_payload: attributes.has_explicit_string_payload,
                 })
             })
             .collect::<Option<Vec<_>>>()?;
@@ -213,38 +225,29 @@ impl EnumContract {
         })
     }
 
-    /// Collects non-empty documentation lines for one enum variant.
-    fn variant_documentation(cx: &LateContext<'_>, hir_id: HirId) -> Option<String> {
-        let attributes = cx.tcx.hir_attrs(hir_id);
-        let documentation = attributes
-            .iter()
-            .filter_map(Attribute::doc_str)
-            .map(|documentation| documentation.as_str().trim().to_owned())
-            .filter(|documentation| !documentation.is_empty())
-            .collect::<Vec<_>>();
-        (!documentation.is_empty()).then(|| documentation.join("\n"))
-    }
-}
-
-impl EnumContract {
     /// Returns whether this enum has one generated Strum contract.
     pub(crate) fn derives(&self, derive: StrumDerive) -> bool {
         self.derives.contains(&derive)
     }
 
-    /// Returns active variants for derives that honor `#[strum(is_disabled)]`.
+    /// Returns active variants for derives that honor `#[strum(disabled)]`.
     pub(crate) fn enabled_variants(&self) -> impl Iterator<Item = &VariantContract> {
         self.variants.iter().filter(|variant| !variant.is_disabled)
     }
 
-    /// Returns whether variants already carry authored message or property metadata.
-    pub(crate) fn has_authored_metadata(&self) -> bool {
-        self.variants.iter().any(|variant| {
-            variant.message.is_some()
-                || variant.detailed_message.is_some()
-                || variant.documentation.is_some()
-                || !variant.properties.is_empty()
-        })
+    /// Returns whether any variant already carries Strum message metadata.
+    pub(crate) fn has_authored_message_metadata(&self) -> bool {
+        self.variants
+            .iter()
+            .any(|variant| variant.message.is_some() || variant.detailed_message.is_some())
+    }
+
+    /// Returns whether the named Strum property already owns this metadata key.
+    pub(crate) fn has_authored_property(&self, name: &str) -> bool {
+        self.variants
+            .iter()
+            .flat_map(|variant| &variant.properties)
+            .any(|property| property.name == name)
     }
 }
 
@@ -285,12 +288,12 @@ pub struct VariantContract {
     message: Option<String>,
     /// Longer user-facing message authored with `detailed_message`.
     detailed_message: Option<String>,
-    /// Rust documentation text that must remain distinct from runtime messages.
-    documentation: Option<String>,
     /// Static key-value metadata authored with Strum properties.
     properties: Vec<StrumProperty>,
     /// Whether the author selected an explicit output spelling for this variant.
     pub(crate) has_explicit_output: bool,
+    /// Whether `EnumString` invokes an authored constructor for every payload field.
+    pub(crate) has_explicit_string_payload: bool,
 }
 
 // -----------------------------------------------------------------------------
@@ -323,7 +326,8 @@ impl ContractCatalog {
 
     /// Returns the completed authored contracts after associating generated derives.
     pub(crate) fn contracts(&self) -> Vec<EnumContract> {
-        self.contracts
+        let mut contracts = self
+            .contracts
             .values()
             .cloned()
             .map(|mut contract| {
@@ -342,7 +346,9 @@ impl ContractCatalog {
                     .is_some_and(|definition| self.external_schema_types.contains(&definition));
                 contract
             })
-            .collect()
+            .collect::<Vec<_>>();
+        contracts.sort_by_key(|contract| contract.span.lo());
+        contracts
     }
 
     /// Finds the unique enum contract represented by an authored variant-name table.
@@ -361,11 +367,7 @@ impl ContractCatalog {
                         .map(|variant| variant.preferred_name.clone())
                         .collect::<Vec<_>>()
                 && (table.enum_def.is_some()
-                    || table
-                        .name
-                        .as_str()
-                        .to_ascii_lowercase()
-                        .contains(&contract.name.as_str().to_ascii_lowercase()))
+                    || identifier_mentions_type(table.name.as_str(), contract.name.as_str()))
         });
         let first = matches.next()?;
         matches.next().is_none().then_some(first)
@@ -407,7 +409,6 @@ impl ContractCatalog {
 
     /// Associates macro-generated implementations and discriminants with source enums.
     fn record_generated_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        self.record_external_schema_impl(cx, item);
         let Some(derive) = Self::derive_for(cx, item.span) else {
             return;
         };
@@ -437,6 +438,7 @@ impl ContractCatalog {
 
     /// Records authored enums and Strum-generated items.
     pub(crate) fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        self.record_external_schema_impl(cx, item);
         if item.span.from_expansion() {
             self.record_generated_item(cx, item);
             return;
@@ -579,7 +581,7 @@ impl TypeAttributes {
             let parsing = attribute.parse_nested_meta(|meta| {
                 if meta.path.is_ident("serialize_all") {
                     output.from_name = CaseStyle::from_name(&StrumAttributeValue::string(&meta)?);
-                } else if meta.path.is_ident("is_ascii_case_insensitive") {
+                } else if meta.path.is_ident("ascii_case_insensitive") {
                     output.is_ascii_case_insensitive = StrumAttributeValue::boolean(&meta)?;
                 } else if meta.path.is_ident("prefix") {
                     output.prefix = Some(StrumAttributeValue::string(&meta)?);
@@ -619,6 +621,8 @@ struct VariantAttributes {
     detailed_message: Option<String>,
     /// Static metadata entries authored for this variant.
     properties: Vec<StrumProperty>,
+    /// Whether parsing uses authored payload constructors instead of `Default`.
+    has_explicit_string_payload: bool,
 }
 
 impl VariantAttributes {
@@ -636,11 +640,14 @@ impl VariantAttributes {
                         .push(StrumAttributeValue::string(&meta)?);
                 } else if meta.path.is_ident("to_string") {
                     output.to_string = Some(StrumAttributeValue::string(&meta)?);
-                } else if meta.path.is_ident("is_disabled") {
+                } else if meta.path.is_ident("disabled") {
                     output.is_disabled = true;
                 } else if meta.path.is_ident("default") {
                     output.is_default_capture = true;
-                } else if meta.path.is_ident("is_ascii_case_insensitive") {
+                } else if meta.path.is_ident("default_with") {
+                    let _constructor = StrumAttributeValue::string(&meta)?;
+                    output.has_explicit_string_payload = true;
+                } else if meta.path.is_ident("ascii_case_insensitive") {
                     output.is_ascii_case_insensitive = Some(StrumAttributeValue::boolean(&meta)?);
                 } else if meta.path.is_ident("message") {
                     output.message = Some(StrumAttributeValue::string(&meta)?);
@@ -652,7 +659,7 @@ impl VariantAttributes {
                             return Ok(());
                         };
                         output.properties.push(StrumProperty {
-                            _name: name.to_string(),
+                            name: name.to_string(),
                             _value: StrumAttributeValue::string(&property)?,
                         });
                         Ok(())
@@ -697,10 +704,26 @@ impl SourceAttributes {
                 .variants
                 .into_iter()
                 .map(|variant| {
-                    (
-                        variant.ident.to_string(),
-                        VariantAttributes::from_attrs(&variant.attrs),
-                    )
+                    let mut attributes = VariantAttributes::from_attrs(&variant.attrs);
+                    if let syn::Fields::Named(fields) = &variant.fields {
+                        attributes.has_explicit_string_payload = fields.named.iter().all(|field| {
+                            field.attrs.iter().any(|attribute| {
+                                if !attribute.path().is_ident("strum") {
+                                    return false;
+                                }
+                                let mut found = false;
+                                let _parsing = attribute.parse_nested_meta(|meta| {
+                                    if meta.path.is_ident("default_with") {
+                                        let _constructor = StrumAttributeValue::string(&meta)?;
+                                        found = true;
+                                    }
+                                    Ok(())
+                                });
+                                found
+                            })
+                        });
+                    }
+                    (variant.ident.to_string(), attributes)
                 })
                 .collect(),
             span,
