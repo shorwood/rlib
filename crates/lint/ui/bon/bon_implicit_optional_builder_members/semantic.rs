@@ -2,6 +2,8 @@
 
 use std::time::Duration;
 
+use bon::bon;
+
 #[bon::builder]
 fn request(timeout: Option<Duration>, label: Option<String>) {
     let _ = (timeout, label);
@@ -23,6 +25,17 @@ fn documented(
     destination: Option<String>,
 ) {
     let _ = destination;
+}
+
+struct Client;
+
+#[bon]
+impl Client {
+    #[builder]
+    fn connect(timeout: Option<Duration>) -> Self {
+        let _ = timeout;
+        Self
+    }
 }
 
 fn main() {}

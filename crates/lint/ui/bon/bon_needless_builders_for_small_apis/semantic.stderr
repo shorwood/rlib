@@ -1,5 +1,5 @@
 warning: private Bon builder wraps only 2 required parameters
-  --> $DIR/semantic.rs:5:1
+  --> $DIR/semantic.rs:7:1
    |
 LL | #[bon::builder]
    | ^^^^^^^^^^^^^^^
@@ -8,5 +8,41 @@ LL | #[bon::builder]
    = help: remove `#[bon::builder]` and retain the direct function call
    = note: `#[warn(bon_needless_builders_for_small_apis)]` on by default
 
-warning: 1 warning emitted
+warning: private Bon builder wraps only 1 required parameter
+  --> $DIR/semantic.rs:12:1
+   |
+LL | #[bon::builder]
+   | ^^^^^^^^^^^^^^^
+   |
+   = note: this small internal API gains no optionality, default, conversion, or staging benefit from generated typestate
+   = help: remove `#[bon::builder]` and retain the direct function call
+
+warning: private Bon builder wraps only 2 required parameters
+  --> $DIR/semantic.rs:17:1
+   |
+LL | #[bon::builder]
+   | ^^^^^^^^^^^^^^^
+   |
+   = note: this small internal API gains no optionality, default, conversion, or staging benefit from generated typestate
+   = help: remove `#[bon::builder]` and retain the direct function call
+
+warning: private Bon builder wraps only 2 required parameters
+  --> $DIR/semantic.rs:51:5
+   |
+LL |     #[builder]
+   |     ^^^^^^^^^^
+   |
+   = note: this small internal API gains no optionality, default, conversion, or staging benefit from generated typestate
+   = help: remove `#[bon::builder]` and retain the direct function call
+
+warning: private Bon builder wraps only 1 required parameter
+  --> $DIR/semantic.rs:56:5
+   |
+LL |     #[builder]
+   |     ^^^^^^^^^^
+   |
+   = note: this small internal API gains no optionality, default, conversion, or staging benefit from generated typestate
+   = help: remove `#[bon::builder]` and retain the direct function call
+
+warning: 5 warnings emitted
 

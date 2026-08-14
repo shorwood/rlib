@@ -1,5 +1,5 @@
 warning: Bon members of type `String` use inconsistent conversion policy
-  --> $DIR/semantic.rs:4:50
+  --> $DIR/semantic.rs:6:50
    |
 LL | fn request(#[builder(into)] url: String, header: String) {
    |                                                  ^^^^^^ this member remains strict while its peer accepts `Into`
@@ -8,5 +8,23 @@ LL | fn request(#[builder(into)] url: String, header: String) {
    = help: apply `#[builder(into)]` coherently or make the stricter member's distinct validation policy explicit
    = note: `#[warn(bon_inconsistent_builder_conversions)]` on by default
 
-warning: 1 warning emitted
+warning: Bon members of type `String` use inconsistent conversion policy
+  --> $DIR/semantic.rs:33:54
+   |
+LL |     fn connect(#[builder(into)] host: String, label: String) -> Self {
+   |                                                      ^^^^^^ this member remains strict while its peer accepts `Into`
+   |
+   = note: callers should not need to memorize which same-representation setters accept `Into` conversions
+   = help: apply `#[builder(into)]` coherently or make the stricter member's distinct validation policy explicit
+
+warning: Bon members of type `String` use inconsistent conversion policy
+  --> $DIR/semantic.rs:43:12
+   |
+LL |     label: String,
+   |            ^^^^^^ this member remains strict while its peer accepts `Into`
+   |
+   = note: callers should not need to memorize which same-representation setters accept `Into` conversions
+   = help: apply `#[builder(into)]` coherently or make the stricter member's distinct validation policy explicit
+
+warning: 3 warnings emitted
 

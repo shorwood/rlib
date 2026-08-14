@@ -1,5 +1,5 @@
 warning: policy-bearing Bon member `timeout` is implicitly optional
-  --> $DIR/semantic.rs:6:21
+  --> $DIR/semantic.rs:8:21
    |
 LL | fn request(timeout: Option<Duration>, label: Option<String>) {
    |                     ^^^^^^^^^^^^^^^^ this `Option` member may be omitted
@@ -8,5 +8,14 @@ LL | fn request(timeout: Option<Duration>, label: Option<String>) {
    = help: add `#[builder(required)]` to require an explicit `Option`, document why omission is intentional, or use a semantic policy enum
    = note: `#[warn(bon_implicit_optional_builder_members)]` on by default
 
-warning: 1 warning emitted
+warning: policy-bearing Bon member `timeout` is implicitly optional
+  --> $DIR/semantic.rs:35:25
+   |
+LL |     fn connect(timeout: Option<Duration>) -> Self {
+   |                         ^^^^^^^^^^^^^^^^ this `Option` member may be omitted
+   |
+   = note: Bon makes `Option<T>` members omittable, which can hide whether the caller consciously selected the absence policy
+   = help: add `#[builder(required)]` to require an explicit `Option`, document why omission is intentional, or use a semantic policy enum
+
+warning: 2 warnings emitted
 

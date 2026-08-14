@@ -18,6 +18,16 @@ struct Pending {
     builder: RequestBuilder,
 }
 
+type PendingAlias = RequestBuilder;
+
+fn optional_base_request() -> Option<PendingAlias> {
+    Some(Request::builder())
+}
+
+struct NestedPending {
+    builders: (Option<RequestBuilder>, *const RequestBuilder),
+}
+
 fn complete() -> Request {
     Request::builder().host(String::new()).build()
 }

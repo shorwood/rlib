@@ -11,5 +11,17 @@ LL |     pub fn new(start: u32, end: u32) -> Result<Self, &'static str> {
    = help: remove the struct derive and apply Bon's `#[builder]` to the checked constructor inside a `#[bon]` inherent impl
    = note: `#[warn(bon_builders_bypassing_construction_invariants)]` on by default
 
-warning: 1 warning emitted
+warning: Bon derives raw-field construction for `CrateVisibleFields` despite its checked constructor
+  --> $DIR/semantic.rs:20:12
+   |
+LL | pub struct CrateVisibleFields {
+   |            ^^^^^^^^^^^^^^^^^^ this builder constructs restricted fields directly
+...
+LL |     pub fn new(start: u32, end: u32) -> Result<Self, &'static str> {
+   |            --- this constructor owns fallible validation
+   |
+   = note: the derived finishing method can assemble restricted fields without passing through the fallible invariant boundary
+   = help: remove the struct derive and apply Bon's `#[builder]` to the checked constructor inside a `#[bon]` inherent impl
+
+warning: 2 warnings emitted
 

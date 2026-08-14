@@ -1,5 +1,5 @@
 warning: Bon builder keeps 4 of 5 members positional
-  --> $DIR/semantic.rs:5:1
+  --> $DIR/semantic.rs:10:1
    |
 LL | #[bon::builder]
    | ^^^^^^^^^^^^^^^ this builder retains a positional-heavy call contract

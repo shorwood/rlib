@@ -23,4 +23,28 @@ pub fn configured() -> Request {
     Request::builder().host(String::new()).build()
 }
 
+pub struct PublicState {
+    pub pending: Option<RequestBuilder>,
+}
+
+struct PrivateState {
+    pub pending: Option<RequestBuilder>,
+}
+
+pub struct Service;
+
+impl Service {
+    pub fn raw_pending(builder: *const RequestBuilder) {
+        let _ = builder;
+    }
+}
+
+mod internal {
+    use super::{Request, RequestBuilder};
+
+    pub fn hidden_partial() -> RequestBuilder {
+        Request::builder()
+    }
+}
+
 fn main() {}

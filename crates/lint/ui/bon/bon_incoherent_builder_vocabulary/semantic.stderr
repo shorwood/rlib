@@ -1,5 +1,5 @@
 warning: generic Bon name `execute` replaces established `publish_report` vocabulary
-  --> $DIR/semantic.rs:3:1
+  --> $DIR/semantic.rs:5:1
    |
 LL | #[bon::builder(finish_fn = execute)]
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this override weakens the API vocabulary
@@ -9,7 +9,7 @@ LL | #[bon::builder(finish_fn = execute)]
    = note: `#[warn(bon_incoherent_builder_vocabulary)]` on by default
 
 warning: generic Bon name `data` replaces established `destination` vocabulary
-  --> $DIR/semantic.rs:4:19
+  --> $DIR/semantic.rs:6:19
    |
 LL | fn publish_report(#[builder(name = data)] destination: String) {
    |                   ^^^^^^^^^^^^^^^^^^^^^^^ this override weakens the API vocabulary
@@ -17,5 +17,41 @@ LL | fn publish_report(#[builder(name = data)] destination: String) {
    = note: generated builder names should preserve the domain language already established by the function or member
    = help: remove the override to use Bon's conventional default or choose a name derived from the domain operation or member
 
-warning: 2 warnings emitted
+warning: generic Bon name `process` replaces established `publish_article` vocabulary
+  --> $DIR/semantic.rs:19:5
+   |
+LL |     #[builder(finish_fn = process)]
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this override weakens the API vocabulary
+   |
+   = note: generated builder names should preserve the domain language already established by the function or member
+   = help: remove the override to use Bon's conventional default or choose a name derived from the domain operation or member
+
+warning: generic Bon name `value` replaces established `destination` vocabulary
+  --> $DIR/semantic.rs:20:24
+   |
+LL |     fn publish_article(#[builder(name = value)] destination: String) -> Self {
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^ this override weakens the API vocabulary
+   |
+   = note: generated builder names should preserve the domain language already established by the function or member
+   = help: remove the override to use Bon's conventional default or choose a name derived from the domain operation or member
+
+warning: generic Bon name `execute` replaces established `Delivery` vocabulary
+  --> $DIR/semantic.rs:27:1
+   |
+LL | #[builder(finish_fn = execute)]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this override weakens the API vocabulary
+   |
+   = note: generated builder names should preserve the domain language already established by the function or member
+   = help: remove the override to use Bon's conventional default or choose a name derived from the domain operation or member
+
+warning: generic Bon name `data` replaces established `destination` vocabulary
+  --> $DIR/semantic.rs:29:5
+   |
+LL |     #[builder(name = data)]
+   |     ^^^^^^^^^^^^^^^^^^^^^^^ this override weakens the API vocabulary
+   |
+   = note: generated builder names should preserve the domain language already established by the function or member
+   = help: remove the override to use Bon's conventional default or choose a name derived from the domain operation or member
+
+warning: 6 warnings emitted
 

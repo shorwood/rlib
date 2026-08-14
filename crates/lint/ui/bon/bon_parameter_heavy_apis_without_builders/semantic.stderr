@@ -8,5 +8,23 @@ LL | pub fn render(path: PathBuf, width: u32, height: u32, cache: bool, color: b
    = help: add `#[bon::builder]` for independent named choices, or introduce a domain options type when these values form one concept
    = note: `#[warn(bon_parameter_heavy_apis_without_builders)]` on by default
 
-warning: 1 warning emitted
+warning: public API has 5 positional parameters with builder-worthy ambiguity
+  --> $DIR/semantic.rs:21:12
+   |
+LL |     pub fn configure(&self, path: PathBuf, cache: bool, color: bool, width: u32, height: u32) {
+   |            ^^^^^^^^^
+   |
+   = note: 2 boolean choices and 0 interchangeable type groups make call sites difficult to verify
+   = help: add `#[bon::builder]` for independent named choices, or introduce a domain options type when these values form one concept
+
+warning: public API has 7 positional parameters with builder-worthy ambiguity
+  --> $DIR/semantic.rs:26:8
+   |
+LL | pub fn many_distinct(
+   |        ^^^^^^^^^^^^^
+   |
+   = note: 0 boolean choices and 0 interchangeable type groups make call sites difficult to verify
+   = help: add `#[bon::builder]` for independent named choices, or introduce a domain options type when these values form one concept
+
+warning: 3 warnings emitted
 

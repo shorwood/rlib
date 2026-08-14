@@ -8,6 +8,15 @@ LL | fn base_request() -> RequestBuilder {
    = help: finish construction before crossing the boundary or define a named domain state for intentional staged configuration
    = note: `#[warn(bon_escaping_incomplete_builders)]` on by default
 
+warning: incomplete Bon builder escapes through a return boundary
+  --> $DIR/semantic.rs:23:31
+   |
+LL | fn optional_base_request() -> Option<PendingAlias> {
+   |                               ^^^^^^^^^^^^^^^^^^^^ this boundary carries an unfinished builder
+   |
+   = note: moving generated typestate away from its focused construction expression obscures which scope owns the remaining required members
+   = help: finish construction before crossing the boundary or define a named domain state for intentional staged configuration
+
 warning: incomplete Bon builder escapes through a stored field boundary
   --> $DIR/semantic.rs:18:14
    |
@@ -17,5 +26,14 @@ LL |     builder: RequestBuilder,
    = note: moving generated typestate away from its focused construction expression obscures which scope owns the remaining required members
    = help: finish construction before crossing the boundary or define a named domain state for intentional staged configuration
 
-warning: 2 warnings emitted
+warning: incomplete Bon builder escapes through a stored field boundary
+  --> $DIR/semantic.rs:28:15
+   |
+LL |     builders: (Option<RequestBuilder>, *const RequestBuilder),
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this boundary carries an unfinished builder
+   |
+   = note: moving generated typestate away from its focused construction expression obscures which scope owns the remaining required members
+   = help: finish construction before crossing the boundary or define a named domain state for intentional staged configuration
+
+warning: 4 warnings emitted
 

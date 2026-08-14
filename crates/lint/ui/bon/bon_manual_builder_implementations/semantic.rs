@@ -50,4 +50,55 @@ impl CheckedBuilder {
     }
 }
 
+struct WorkflowBuilder {
+    state: u32,
+    revision: u32,
+}
+
+impl WorkflowBuilder {
+    fn new() -> Self {
+        Self {
+            state: 0,
+            revision: 0,
+        }
+    }
+    fn advance(self, _input: u32) -> Self {
+        self
+    }
+    fn retry(self, _input: u32) -> Self {
+        self
+    }
+    fn build(self) -> Request {
+        Request {
+            host: String::new(),
+            port: 80,
+        }
+    }
+}
+
+struct CounterBuilder {
+    minimum: u32,
+    maximum: u32,
+}
+
+impl CounterBuilder {
+    fn new() -> Self {
+        Self {
+            minimum: 0,
+            maximum: 0,
+        }
+    }
+    fn minimum(mut self, minimum: u32) -> Self {
+        self.minimum = minimum;
+        self
+    }
+    fn maximum(mut self, maximum: u32) -> Self {
+        self.maximum = maximum;
+        self
+    }
+    fn build(self) -> u32 {
+        self.maximum - self.minimum
+    }
+}
+
 fn main() {}
