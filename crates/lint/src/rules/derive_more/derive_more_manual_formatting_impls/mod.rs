@@ -170,7 +170,20 @@ impl DeriveMoreManualFormattingImpls {
     }
 
     /// Recognizes one `write!` invocation that formats only a receiver field.
-    fn single_field_write(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
+    fn single_field_write(
+        cx: &LateContext<'_>,
+        item: &ImplItem<'_>,
+        expression: &Expr<'_>,
+    ) -> bool {
+        let is_standard_write = expression.span.macro_backtrace().any(|expansion| {
+            expansion.macro_def_id.is_some_and(|definition| {
+                cx.tcx.item_name(definition).as_str() == "write"
+                    && matches!(cx.tcx.crate_name(definition.krate).as_str(), "core" | "std")
+            })
+        });
+        if !is_standard_write {
+            return false;
+        }
         let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
             return false;
         };
@@ -182,7 +195,13 @@ impl DeriveMoreManualFormattingImpls {
         else {
             return false;
         };
-        if !invocation.mac.path.is_ident("write") {
+        if invocation
+            .mac
+            .path
+            .segments
+            .last()
+            .is_none_or(|segment| segment.ident != "write")
+        {
             return false;
         }
         let inputs = method.sig.inputs.iter().collect::<Vec<_>>();
@@ -244,7 +263,13 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualFormattingImpls {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (_, mut family) in self.families.drain() {
+        let mut families = self
+            .families
+            .drain()
+            .map(|(_, family)| family)
+            .collect::<Vec<_>>();
+        families.sort_by_key(|family| family.span.lo());
+        for mut family in families {
             family.traits.sort_unstable();
             Violation(family).emit(cx);
         }
@@ -275,6 +300,11 @@ impl ExactFormatting {
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return None;
         };
+        if !cx.tcx.hir_attrs(parent.hir_id()).is_empty()
+            || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
+        {
+            return None;
+        }
         let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
 
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core" {
@@ -306,7 +336,7 @@ impl ExactFormatting {
             *self_binding,
             *formatter_binding,
             trait_id,
-        ) || DeriveMoreManualFormattingImpls::single_field_write(cx, item)
+        ) || DeriveMoreManualFormattingImpls::single_field_write(cx, item, forwarding.forwarded)
         {
             Some(Self {
                 definition,

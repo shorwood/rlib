@@ -1,3 +1,4 @@
+extern crate rustc_ast;
 extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_middle;
@@ -6,6 +7,7 @@ extern crate rustc_span;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
+use rustc_ast::LitKind;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{BinOpKind, Expr, ExprKind, ImplItem, ImplItemKind, Item, ItemKind, Node, PatKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
@@ -98,7 +100,10 @@ struct TraitTarget {
 impl TraitTarget {
     /// Recognizes a relevant equality trait implementation.
     fn for_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
-        if item.span.from_expansion() || !matches!(item.kind, ItemKind::Impl(_)) {
+        if item.span.from_expansion()
+            || !matches!(item.kind, ItemKind::Impl(_))
+            || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
+        {
             return None;
         }
         let trait_ref = cx
@@ -234,7 +239,9 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualEqualityImpls {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (target, candidate) in self.candidates.drain() {
+        let mut candidates = self.candidates.drain().collect::<Vec<_>>();
+        candidates.sort_by_key(|(_, candidate)| candidate.span.lo());
+        for (target, candidate) in candidates {
             Violation {
                 candidate,
                 has_eq: self.eq_targets.contains(&target),
@@ -268,6 +275,11 @@ impl StructuralEquality {
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return None;
         };
+        if !cx.tcx.hir_attrs(parent.hir_id()).is_empty()
+            || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
+        {
+            return None;
+        }
 
         if implementation_item.items.iter().any(|id| {
             let associated = cx.tcx.hir_impl_item(*id);
@@ -287,7 +299,7 @@ impl StructuralEquality {
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return None;
         };
-        if !definition.is_struct() || !cx.tcx.generics_of(definition.did()).own_params.is_empty() {
+        if !definition.is_struct() {
             return None;
         }
         let body = cx.tcx.hir_body(body_id);
@@ -304,14 +316,18 @@ impl StructuralEquality {
         };
         let expression = DirectForwarding::single_body_expression(body.value)?;
         let mut fields = HashSet::new();
-        DeriveMoreManualEqualityImpls::collect_equal_fields(
-            cx,
-            expression,
-            left,
-            right,
-            &mut fields,
-        )?;
-        (!fields.is_empty()).then_some(Self {
+        let is_empty_equality = definition.non_enum_variant().fields.is_empty()
+            && matches!(expression.kind, ExprKind::Lit(literal) if literal.node == LitKind::Bool(true));
+        if !is_empty_equality {
+            DeriveMoreManualEqualityImpls::collect_equal_fields(
+                cx,
+                expression,
+                left,
+                right,
+                &mut fields,
+            )?;
+        }
+        (is_empty_equality || !fields.is_empty()).then_some(Self {
             target: definition.did().as_local()?,
             field_count: fields.len(),
         })

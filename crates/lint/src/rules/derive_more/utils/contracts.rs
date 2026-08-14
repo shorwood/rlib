@@ -1,11 +1,13 @@
 extern crate rustc_hir;
 extern crate rustc_lint;
+extern crate rustc_middle;
 extern crate rustc_span;
 
 use std::collections::{HashMap, HashSet};
 
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::LateContext;
+use rustc_middle::ty;
 use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 
@@ -22,6 +24,8 @@ pub struct DeriveMoreTypeContract {
     pub name: Symbol,
     /// Whether field visibility prevents generated construction from widening access.
     pub has_restricted_fields: bool,
+    /// Whether every field is less visible than its nominal owner.
+    pub all_fields_restricted: bool,
 }
 
 /// Correlates authored type declarations with their `derive_more` expansions.
@@ -34,6 +38,18 @@ pub struct DeriveMoreContractCatalog {
 }
 
 impl DeriveMoreContractCatalog {
+    /// Returns whether a field is less visible than the nominal type that owns it.
+    fn field_is_restricted(cx: &LateContext<'_>, owner: LocalDefId, field: LocalDefId) -> bool {
+        let owner_visibility = cx.tcx.visibility(owner);
+        let field_visibility = cx.tcx.visibility(field);
+        match owner_visibility {
+            ty::Visibility::Public => !field_visibility.is_public(),
+            ty::Visibility::Restricted(scope) => {
+                !field_visibility.is_accessible_from(scope, cx.tcx)
+            }
+        }
+    }
+
     /// Resolves the `derive_more` macro responsible for one generated item.
     fn expansion(cx: &LateContext<'_>, span: Span) -> Option<&'static str> {
         span.macro_backtrace().find_map(|expansion| {
@@ -141,28 +157,34 @@ impl DeriveMoreContractCatalog {
             return;
         }
 
-        let (identifier, has_restricted_fields) = match item.kind {
-            ItemKind::Struct(identifier, _, data) => (
-                identifier,
-                data.fields().iter().any(|field| field.vis_span.is_empty()),
-            ),
+        let owner = item.owner_id.def_id;
+        let (identifier, fields) = match item.kind {
+            ItemKind::Struct(identifier, _, data) => {
+                (identifier, data.fields().iter().collect::<Vec<_>>())
+            }
             ItemKind::Enum(identifier, _, definition) => (
                 identifier,
                 definition
                     .variants
                     .iter()
                     .flat_map(|variant| variant.data.fields())
-                    .any(|field| field.vis_span.is_empty()),
+                    .collect::<Vec<_>>(),
             ),
             _ => return,
         };
-
+        let has_restricted_fields = fields
+            .iter()
+            .any(|field| Self::field_is_restricted(cx, owner, field.def_id));
+        let all_fields_restricted = fields
+            .iter()
+            .all(|field| Self::field_is_restricted(cx, owner, field.def_id));
         self.types.insert(
-            item.owner_id.def_id,
+            owner,
             DeriveMoreTypeContract {
                 span: identifier.span,
                 name: identifier.name,
                 has_restricted_fields,
+                all_fields_restricted,
             },
         );
     }

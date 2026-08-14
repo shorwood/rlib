@@ -123,6 +123,11 @@ impl ExactDelegation {
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return None;
         };
+        if !cx.tcx.hir_attrs(parent.hir_id()).is_empty()
+            || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
+        {
+            return None;
+        }
         let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
 
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core"
@@ -222,7 +227,13 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualIntoIteratorImpls {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (_, mut family) in self.families.drain() {
+        let mut families = self
+            .families
+            .drain()
+            .map(|(_, family)| family)
+            .collect::<Vec<_>>();
+        families.sort_by_key(|family| family.span.lo());
+        for mut family in families {
             family.receivers.sort();
             Violation(family).emit(cx);
         }

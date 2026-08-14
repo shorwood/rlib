@@ -162,12 +162,20 @@ impl DeriveMoreInconsistentDerivedEquality {
         let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
             return 0;
         };
-        let Ok(item) = syn::parse_str::<syn::ItemStruct>(&source) else {
+        let Ok(item) = syn::parse_str::<syn::Item>(&source) else {
             return 0;
         };
-
-        item.fields
-            .iter()
+        let fields = match &item {
+            syn::Item::Struct(structure) => structure.fields.iter().collect::<Vec<_>>(),
+            syn::Item::Enum(enumeration) => enumeration
+                .variants
+                .iter()
+                .flat_map(|variant| variant.fields.iter())
+                .collect::<Vec<_>>(),
+            _ => return 0,
+        };
+        fields
+            .into_iter()
             .filter(|field| {
                 field.attrs.iter().any(|attribute| {
                     if !matches!(
@@ -181,8 +189,12 @@ impl DeriveMoreInconsistentDerivedEquality {
                         return false;
                     }
                     attribute.meta.require_list().is_ok_and(|list| {
-                        let arguments = list.tokens.to_string();
-                        arguments.contains("skip") || arguments.contains("ignore")
+                        list.tokens
+                            .to_string()
+                            .chars()
+                            .filter(|character| !character.is_whitespace())
+                            .collect::<String>()
+                            == "skip"
                     })
                 })
             })
@@ -202,8 +214,9 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreInconsistentDerivedEquality {
             return;
         }
 
-        let ItemKind::Struct(identifier, _, _) = item.kind else {
-            return;
+        let identifier = match item.kind {
+            ItemKind::Struct(identifier, _, _) | ItemKind::Enum(identifier, _, _) => identifier,
+            _ => return,
         };
         let skipped = Self::skipped_field_count(cx, item);
 
@@ -222,7 +235,9 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreInconsistentDerivedEquality {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (definition, selection) in self.selections.drain() {
+        let mut selections = self.selections.drain().collect::<Vec<_>>();
+        selections.sort_by_key(|(_, selection)| selection.span.lo());
+        for (definition, selection) in selections {
             if self.catalog.derived_type(definition, "PartialEq").is_none() {
                 continue;
             }

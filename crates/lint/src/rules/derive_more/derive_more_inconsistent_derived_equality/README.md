@@ -2,8 +2,8 @@
 
 ## What it does
 
-Finds `derive_more::PartialEq` configurations that skip fields still included by a built-in `Hash`
-or `Ord` derive.
+Finds `derive_more::PartialEq` struct and enum configurations that use an exact field-level `skip`
+while a generated `Hash` or `Ord` implementation still includes that field.
 
 ## Why is this bad?
 

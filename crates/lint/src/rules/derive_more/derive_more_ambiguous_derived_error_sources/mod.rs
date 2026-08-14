@@ -4,6 +4,7 @@ extern crate rustc_span;
 
 use std::borrow::Cow;
 
+use quote::ToTokens;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
@@ -26,6 +27,15 @@ struct Candidate {
     span: Span,
     /// Additional field competing for the same semantic role.
     competing_field: String,
+}
+
+/// Explicit source role attached to one derive_more error field.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum SourcePolicy {
+    /// The field is the selected causal source.
+    Source,
+    /// The field is explicitly excluded from source inference.
+    NotSource,
 }
 
 /// Derived error whose source field cannot be selected unambiguously.
@@ -96,48 +106,29 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for DeriveMoreAmbiguousDerivedErrorSources {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
-        if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
+        if item.span.from_expansion()
+            || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
+        {
             return;
         }
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
-        let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
+        let Ok(declaration) = syn::parse_str::<syn::Item>(&source) else {
             return;
         };
-
-        if structure.fields.iter().any(|field| {
-            field
-                .attrs
-                .iter()
-                .any(|attribute| attribute.path().is_ident("error"))
-        }) {
-            return;
+        match declaration {
+            syn::Item::Struct(structure) => {
+                self.collect_candidate(item.owner_id.def_id, item.span, &structure.fields)
+            }
+            syn::Item::Enum(enumeration) => {
+                for variant in &enumeration.variants {
+                    self.collect_candidate(item.owner_id.def_id, item.span, &variant.fields);
+                }
+            }
+            _ => {}
         }
-
-        let has_implicit_source = structure
-            .fields
-            .iter()
-            .any(|field| field.ident.as_ref().is_some_and(|name| name == "source"));
-        if !has_implicit_source {
-            return;
-        }
-
-        let Some(competing_field) = structure.fields.iter().find_map(|field| {
-            let name = field.ident.as_ref()?;
-            let normalized = name.to_string().to_ascii_lowercase();
-            (name != "source" && (normalized.ends_with("error") || normalized.ends_with("cause")))
-                .then(|| name.to_string())
-        }) else {
-            return;
-        };
-
-        self.candidates.push(Candidate {
-            definition: item.owner_id.def_id,
-            span: item.span,
-            competing_field,
-        });
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
@@ -153,5 +144,60 @@ impl LateLintPass<'_> for DeriveMoreAmbiguousDerivedErrorSources {
             }
             .emit(cx);
         }
+    }
+}
+
+impl DeriveMoreAmbiguousDerivedErrorSources {
+    /// Collects one struct or enum-variant field scope with unresolved source competition.
+    fn collect_candidate(&mut self, definition: LocalDefId, span: Span, fields: &syn::Fields) {
+        if fields
+            .iter()
+            .any(|field| Self::source_policy(field) == Some(SourcePolicy::Source))
+        {
+            return;
+        }
+        let has_implicit_source = fields.iter().any(|field| {
+            field.ident.as_ref().is_some_and(|name| name == "source")
+                && Self::source_policy(field) != Some(SourcePolicy::NotSource)
+        });
+        if !has_implicit_source {
+            return;
+        }
+        let Some(competing_field) = fields.iter().find_map(|field| {
+            let name = field.ident.as_ref()?;
+            let normalized = name.to_string().to_ascii_lowercase();
+            (name != "source"
+                && Self::source_policy(field) != Some(SourcePolicy::NotSource)
+                && (normalized.ends_with("error") || normalized.ends_with("cause")))
+            .then(|| name.to_string())
+        }) else {
+            return;
+        };
+        self.candidates.push(Candidate {
+            definition,
+            span,
+            competing_field,
+        });
+    }
+
+    /// Parses the exact derive_more source helper attached to one field.
+    fn source_policy(field: &syn::Field) -> Option<SourcePolicy> {
+        field.attrs.iter().find_map(|attribute| {
+            if !attribute.path().is_ident("error") {
+                return None;
+            }
+            let compact: String = attribute
+                .meta
+                .to_token_stream()
+                .to_string()
+                .chars()
+                .filter(|character| !character.is_whitespace())
+                .collect();
+            match compact.as_str() {
+                "error(source)" => Some(SourcePolicy::Source),
+                "error(not(source))" => Some(SourcePolicy::NotSource),
+                _ => None,
+            }
+        })
     }
 }

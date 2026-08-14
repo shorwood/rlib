@@ -5,6 +5,7 @@ extern crate rustc_span;
 
 use std::borrow::Cow;
 
+use quote::ToTokens;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass};
@@ -158,17 +159,30 @@ dylint_linting::impl_late_lint! {
 
 impl DeriveMoreManualOperatorImpls {
     /// Extracts the sole expression used to reconstruct a newtype result.
-    fn constructed_argument(method: &syn::ImplItemFn) -> Option<&syn::Expr> {
-        let [syn::Stmt::Expr(syn::Expr::Call(construction), _)] = method.block.stmts.as_slice()
-        else {
-            return None;
-        };
-        if !matches!(construction.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Self"))
-            || construction.args.len() != 1
-        {
+    fn constructed_argument(method: &syn::ImplItemFn) -> Option<(&syn::Expr, String)> {
+        if !method.attrs.is_empty() {
             return None;
         }
-        construction.args.first()
+        let [syn::Stmt::Expr(expression, _)] = method.block.stmts.as_slice() else {
+            return None;
+        };
+        match expression {
+            syn::Expr::Call(construction)
+                if matches!(construction.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Self"))
+                    && construction.args.len() == 1 =>
+            {
+                Some((construction.args.first()?, "0".to_owned()))
+            }
+            syn::Expr::Struct(construction)
+                if construction.path.is_ident("Self")
+                    && construction.rest.is_none()
+                    && construction.fields.len() == 1 =>
+            {
+                let field = construction.fields.first()?;
+                Some((&field.expr, field.member.to_token_stream().to_string()))
+            }
+            _ => None,
+        }
     }
 
     /// Returns the standard method name implemented by an operator derive.
@@ -212,13 +226,12 @@ impl DeriveMoreManualOperatorImpls {
     }
 
     /// Returns whether an expression selects a field from the named binding.
-    fn field_of(expression: &syn::Expr, receiver: &str) -> bool {
-        matches!(
-            expression,
-            syn::Expr::Field(field)
-                if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident(receiver))
-                    && matches!(&field.member, syn::Member::Unnamed(index) if index.index == 0)
-        )
+    fn field_of(expression: &syn::Expr, receiver: &str) -> Option<String> {
+        let syn::Expr::Field(field) = expression else {
+            return None;
+        };
+        matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident(receiver))
+            .then(|| field.member.to_token_stream().to_string())
     }
 
     /// Proves that an authored operator applies directly to corresponding newtype fields.
@@ -240,30 +253,31 @@ impl DeriveMoreManualOperatorImpls {
                     return false;
                 };
 
-                let Some(argument) = Self::constructed_argument(method) else {
+                let Some((argument, constructed_field)) = Self::constructed_argument(method) else {
                     return false;
                 };
 
                 matches!(argument, syn::Expr::Binary(operation)
                 if expected(&operation.op)
-                    && Self::field_of(&operation.left, "self")
-                    && Self::field_of(&operation.right, "rhs"))
+                    && Self::field_of(&operation.left, "self").as_deref() == Some(&constructed_field)
+                    && Self::field_of(&operation.right, "rhs").as_deref() == Some(&constructed_field))
             }
             Operator::Unary(expected) => {
                 let Some(method) = Self::output_method(&implementation.items, derive) else {
                     return false;
                 };
-                let Some(argument) = Self::constructed_argument(method) else {
+                let Some((argument, constructed_field)) = Self::constructed_argument(method) else {
                     return false;
                 };
                 matches!(argument, syn::Expr::Unary(operation)
-                if expected(&operation.op) && Self::field_of(&operation.expr, "self"))
+                if expected(&operation.op)
+                    && Self::field_of(&operation.expr, "self").as_deref() == Some(&constructed_field))
             }
             Operator::Assignment(expected) => {
                 let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
                     return false;
                 };
-                if method.sig.ident != Self::operator_method(derive) {
+                if method.sig.ident != Self::operator_method(derive) || !method.attrs.is_empty() {
                     return false;
                 }
                 let [syn::Stmt::Expr(syn::Expr::Binary(operation), _)] =
@@ -271,9 +285,10 @@ impl DeriveMoreManualOperatorImpls {
                 else {
                     return false;
                 };
+                let left = Self::field_of(&operation.left, "self");
                 expected(&operation.op)
-                    && Self::field_of(&operation.left, "self")
-                    && Self::field_of(&operation.right, "rhs")
+                    && left.is_some()
+                    && Self::field_of(&operation.right, "rhs") == left
             }
         }
     }
@@ -310,9 +325,13 @@ impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
             return;
         };
 
+        let rhs_is_self = !matches!(
+            Operator::from_derive(derive),
+            Some(Operator::Binary(_) | Operator::Assignment(_))
+        ) || trait_ref.args.type_at(1) == trait_ref.self_ty();
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
-            || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
+            || !rhs_is_self
             || !Self::exact_operator_source(cx, item, derive)
         {
             return;

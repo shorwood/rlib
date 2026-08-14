@@ -137,7 +137,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreMutableForwardingBypassingInvariants
             let Some(contract) = self.catalog.type_contract(constructor.target.def_id) else {
                 continue;
             };
-            if !contract.has_restricted_fields {
+            if !contract.all_fields_restricted {
                 continue;
             }
 

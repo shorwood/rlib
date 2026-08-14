@@ -2,8 +2,9 @@
 
 ## What it does
 
-Finds `derive_more::Error` types that implicitly select a conventionally named `source` field while
-another error-named field also looks like a cause.
+Finds `derive_more::Error` structs and enum variants that implicitly select a conventionally named
+`source` field while another error-named field also looks like a cause. Source policy is evaluated
+per field scope; unrelated helper attributes do not resolve the ambiguity.
 
 ## Why is this bad?
 

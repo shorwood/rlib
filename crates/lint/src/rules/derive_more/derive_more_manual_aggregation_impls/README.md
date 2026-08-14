@@ -2,8 +2,9 @@
 
 ## What it does
 
-Finds owned `Sum` and `Product` implementations on single-field newtypes that map the sole field and
-delegate directly to the field's corresponding aggregation.
+Finds owned `Sum<Self>` and `Product<Self>` implementations on tuple, named, and generic
+single-field newtypes that map the sole field and delegate directly to the corresponding
+aggregation. Borrowed-item aggregation is excluded because the derive would not replace it.
 
 ## Why is this bad?
 

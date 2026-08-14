@@ -1,6 +1,7 @@
 extern crate rustc_abi;
 extern crate rustc_errors;
 extern crate rustc_hir;
+extern crate rustc_middle;
 extern crate rustc_span;
 
 use std::borrow::Cow;
@@ -13,6 +14,7 @@ use rustc_hir::{
     Constness, ExprKind, ImplItem, ImplItemKind, ItemKind, Node, PatKind, StructTailExpr,
 };
 use rustc_lint::{LateContext, LateLintPass};
+use rustc_middle::ty;
 use rustc_span::{Span, Symbol};
 
 use crate::utils::diagnostic::LateViolation;
@@ -111,6 +113,12 @@ impl DeriveMoreManualConstructors {
     fn path_targets(cx: &LateContext<'_>, resolution: Res, definition: DefId) -> bool {
         match resolution {
             Res::Def(_, target) => target == definition,
+            Res::SelfCtor(implementation) => cx
+                .tcx
+                .type_of(implementation)
+                .instantiate_identity()
+                .ty_adt_def()
+                .is_some_and(|target| target.did() == definition),
             Res::SelfTyAlias { alias_to, .. } => cx
                 .tcx
                 .type_of(alias_to)
@@ -133,6 +141,14 @@ impl DeriveMoreManualConstructors {
             ExprKind::Struct(path, fields, StructTailExpr::None) => {
                 Self::path_targets(cx, cx.qpath_res(path, expression.hir_id), definition)
                     && fields.len() == bindings.len()
+                    && cx
+                        .tcx
+                        .adt_def(definition)
+                        .non_enum_variant()
+                        .fields
+                        .iter()
+                        .zip(bindings)
+                        .all(|(field, parameter)| field.name == parameter.name)
                     && fields.iter().all(|field| {
                         bindings.iter().any(|parameter| {
                             field.ident.name == parameter.name
@@ -148,8 +164,37 @@ impl DeriveMoreManualConstructors {
                             DirectForwarding::is_binding(cx, argument, parameter.binding)
                         })
                 }),
+            ExprKind::Path(path) => {
+                bindings.is_empty()
+                    && Self::path_targets(cx, cx.qpath_res(&path, expression.hir_id), definition)
+            }
             _ => false,
         }
+    }
+
+    /// Proves that the generated constructor preserves the authored callable type.
+    fn signature_matches(
+        cx: &LateContext<'_>,
+        implementation: LocalDefId,
+        method: LocalDefId,
+        definition: DefId,
+    ) -> bool {
+        let self_ty = cx.tcx.type_of(implementation).instantiate_identity();
+        let ty::Adt(adt, arguments) = self_ty.kind() else {
+            return false;
+        };
+        if adt.did() != definition {
+            return false;
+        }
+
+        let signature = cx.tcx.fn_sig(method).instantiate_identity().skip_binder();
+        signature.output() == self_ty
+            && signature.inputs().len() == adt.non_enum_variant().fields.len()
+            && signature
+                .inputs()
+                .iter()
+                .zip(&adt.non_enum_variant().fields)
+                .all(|(input, field)| *input == field.ty(cx.tcx, arguments))
     }
 }
 impl LateLintPass<'_> for DeriveMoreManualConstructors {
@@ -191,6 +236,9 @@ impl LateLintPass<'_> for DeriveMoreManualConstructors {
             return;
         };
         if !definition.is_struct() {
+            return;
+        }
+        if !Self::signature_matches(cx, implementation, item.owner_id.def_id, definition.did()) {
             return;
         }
         let body = cx.tcx.hir_body(body_id);

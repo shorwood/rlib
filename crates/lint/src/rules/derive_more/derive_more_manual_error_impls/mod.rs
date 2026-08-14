@@ -7,11 +7,13 @@ use std::borrow::Cow;
 use std::mem;
 
 use rustc_errors::DiagDecorator;
+use rustc_hir::def::{CtorOf, DefKind, Res};
 use rustc_hir::def_id::LocalDefId;
-use rustc_hir::{HirId, Item, ItemKind};
+use rustc_hir::{ExprKind, HirId, ImplItemKind, Item, ItemKind, Mutability, PatKind};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty;
 use rustc_span::Span;
+use rustc_span::symbol::sym;
 
 #[cfg(feature = "thiserror")]
 use crate::rules::framework::utils::config::{DeriveResolutionConfig, ErrorImplementationProvider};
@@ -20,7 +22,7 @@ use crate::rules::thiserror::utils::error_implementations::ManualErrorCatalog;
 #[cfg(feature = "thiserror")]
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::AuthoredItemSource;
+use crate::utils::direct_forwarding::DirectForwarding;
 
 // -----------------------------------------------------------------------------
 // Candidate: Derivable manual error implementation evidence
@@ -67,7 +69,7 @@ impl Candidate {
         if !definition.is_struct()
             || definition.did().as_local().is_none()
             || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
-            || !DeriveMoreManualErrorImpls::is_derivable_error_impl(cx, item)
+            || !DeriveMoreManualErrorImpls::is_derivable_error_impl(cx, item, *definition)
         {
             return None;
         }
@@ -166,50 +168,81 @@ impl DeriveMoreManualErrorImpls {
         }
     }
 
+    /// Returns whether derive_more would add source or backtrace behavior to an empty impl.
+    fn derive_adds_behavior(cx: &LateContext<'_>, definition: ty::AdtDef<'_>) -> bool {
+        let fields = &definition.non_enum_variant().fields;
+        let is_tuple = fields
+            .iter()
+            .all(|field| field.name.as_str().parse::<usize>().is_ok());
+        fields.iter().any(|field| {
+            let name = field.name.as_str();
+            let is_backtrace = name == "backtrace"
+                || field
+                    .ty(cx.tcx, ty::GenericArgs::empty())
+                    .ty_adt_def()
+                    .is_some_and(|adt| cx.tcx.item_name(adt.did()).as_str() == "Backtrace");
+            name == "source" || is_backtrace || (is_tuple && fields.len() == 1)
+        })
+    }
+
     /// Finds the unique field conventionally acting as an error source.
-    fn conventional_source(method: &syn::ImplItemFn) -> bool {
-        if method.sig.ident != "source" {
+    fn conventional_source(cx: &LateContext<'_>, method: &rustc_hir::ImplItem<'_>) -> bool {
+        if method.ident.name.as_str() != "source" || !cx.tcx.hir_attrs(method.hir_id()).is_empty() {
             return false;
         }
-        let [syn::Stmt::Expr(syn::Expr::Call(call), _)] = method.block.stmts.as_slice() else {
+        let ImplItemKind::Fn(_, body_id) = method.kind else {
             return false;
         };
-
-        if !matches!(call.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Some")) {
+        let body = cx.tcx.hir_body(body_id);
+        let [parameter] = body.params else {
+            return false;
+        };
+        let PatKind::Binding(_, receiver, _, None) = parameter.pat.kind else {
+            return false;
+        };
+        let Some(expression) = DirectForwarding::single_body_expression(body.value) else {
+            return false;
+        };
+        let ExprKind::Call(callee, [argument]) = expression.kind else {
+            return false;
+        };
+        let ExprKind::Path(path) = callee.kind else {
+            return false;
+        };
+        let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
+            cx.qpath_res(&path, callee.hir_id)
+        else {
+            return false;
+        };
+        let variant = cx.tcx.parent(constructor);
+        if cx.tcx.item_name(variant).as_str() != "Some"
+            || !cx
+                .tcx
+                .is_diagnostic_item(sym::Option, cx.tcx.parent(variant))
+        {
             return false;
         }
-        if call.args.len() != 1 {
-            return false;
-        }
-
-        let Some(argument) = call.args.first() else {
+        let ExprKind::AddrOf(_, Mutability::Not, field) = argument.kind else {
             return false;
         };
-
-        let syn::Expr::Reference(reference) = argument else {
+        let ExprKind::Field(base, name) = field.kind else {
             return false;
         };
-
-        matches!(
-            reference.expr.as_ref(),
-            syn::Expr::Field(field)
-                if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self"))
-                    && matches!(&field.member, syn::Member::Named(name) if name == "source")
-        )
+        name.name.as_str() == "source" && DirectForwarding::is_binding(cx, base, receiver)
     }
 
     /// Proves that `source` only returns the conventional field as a trait object.
-    fn is_derivable_error_impl(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
-        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
+    fn is_derivable_error_impl(
+        cx: &LateContext<'_>,
+        item: &Item<'_>,
+        definition: ty::AdtDef<'_>,
+    ) -> bool {
+        let ItemKind::Impl(implementation) = item.kind else {
             return false;
         };
-        let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
-            return false;
-        };
-
-        match implementation.items.as_slice() {
-            [] => true,
-            [syn::ImplItem::Fn(method)] => Self::conventional_source(method),
+        match implementation.items {
+            [] => !Self::derive_adds_behavior(cx, definition),
+            [id] => Self::conventional_source(cx, cx.tcx.hir_impl_item(*id)),
             _ => false,
         }
     }

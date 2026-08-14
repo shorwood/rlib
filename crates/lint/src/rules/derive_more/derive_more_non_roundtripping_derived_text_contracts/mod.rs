@@ -111,8 +111,29 @@ impl DeriveMoreNonRoundtrippingDerivedTextContracts {
             Err(_error) => return None,
         };
 
+        let field = item.fields.iter().next()?;
+        let field_name = field
+            .ident
+            .as_ref()
+            .map_or_else(|| "_0".to_owned(), ToString::to_string);
         let format = format.value();
-        (!matches!(format.as_str(), "{}" | "{_0}" | "{0}")).then_some(format)
+        (!Self::numeric_format_roundtrips(&format, &field_name)).then_some(format)
+    }
+
+    /// Returns whether one whole-value placeholder remains accepted by numeric `FromStr`.
+    fn numeric_format_roundtrips(format: &str, field_name: &str) -> bool {
+        let Some(inner) = format
+            .strip_prefix('{')
+            .and_then(|value| value.strip_suffix('}'))
+        else {
+            return false;
+        };
+        if inner.contains(['{', '}']) {
+            return false;
+        }
+        let (argument, specification) = inner.split_once(':').unwrap_or((inner, ""));
+        (matches!(argument, "" | "0" | "_0") || argument == field_name)
+            && matches!(specification, "" | "+")
     }
 
     /// Returns whether the newtype field uses a primitive numeric parser.
@@ -155,7 +176,9 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreNonRoundtrippingDerivedTextContracts
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (definition, candidate) in self.candidates.drain() {
+        let mut candidates = self.candidates.drain().collect::<Vec<_>>();
+        candidates.sort_by_key(|(_, candidate)| candidate.span.lo());
+        for (definition, candidate) in candidates {
             if self.catalog.derived_type(definition, "Display").is_none()
                 || self.catalog.derived_type(definition, "FromStr").is_none()
                 || !Self::has_numeric_field(cx, definition)

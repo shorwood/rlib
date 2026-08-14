@@ -198,6 +198,33 @@ impl DeriveMoreManualForwardingInterfaces {
         };
         DirectForwarding::is_binding(cx, base, binding)
     }
+
+    /// Recognizes ordinary indexing syntax over one receiver field.
+    fn direct_index(
+        cx: &LateContext<'_>,
+        owner: LocalDefId,
+        expression: &Expr<'_>,
+        bindings: &[rustc_hir::HirId],
+        trait_id: DefId,
+        derive: &'static str,
+    ) -> bool {
+        let ExprKind::AddrOf(_, mutability, indexed) = expression.kind else {
+            return false;
+        };
+        if mutability != Self::expected_mutability(derive) {
+            return false;
+        }
+        let ExprKind::Index(container, index, _) = indexed.kind else {
+            return false;
+        };
+        let ExprKind::Field(base, _) = container.kind else {
+            return false;
+        };
+        let target = cx.tcx.typeck(owner).type_dependent_def_id(indexed.hir_id);
+        target.is_some_and(|target| cx.tcx.trait_of_assoc(target) == Some(trait_id))
+            && DirectForwarding::is_binding(cx, base, bindings[0])
+            && DirectForwarding::is_binding(cx, index, bindings[1])
+    }
 }
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualForwardingInterfaces {
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
@@ -220,7 +247,13 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualForwardingInterfaces {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
-        for (_, mut family) in self.families.drain() {
+        let mut families = self
+            .families
+            .drain()
+            .map(|(_, family)| family)
+            .collect::<Vec<_>>();
+        families.sort_by_key(|family| family.span.lo());
+        for mut family in families {
             family.contracts.sort();
             Violation(family).emit(cx);
         }
@@ -291,6 +324,11 @@ impl ContractTarget {
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return None;
         };
+        if !cx.tcx.hir_attrs(parent.hir_id()).is_empty()
+            || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
+        {
+            return None;
+        }
         let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
 
         let derive = DeriveMoreManualForwardingInterfaces::supported_trait(
@@ -344,6 +382,25 @@ impl ContractTarget {
                 contract: Contract {
                     derive,
                     is_direct_delegation: field_type != *target,
+                },
+            });
+        }
+
+        if matches!(derive, "Index" | "IndexMut")
+            && DeriveMoreManualForwardingInterfaces::direct_index(
+                cx,
+                forwarding.typeck_owner,
+                forwarding.forwarded,
+                &forwarding.bindings,
+                trait_id,
+                derive,
+            )
+        {
+            return Some(Self {
+                definition,
+                contract: Contract {
+                    derive,
+                    is_direct_delegation: true,
                 },
             });
         }

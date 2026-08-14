@@ -2,19 +2,19 @@
 
 ## What it does
 
-Finds `derive_more::From` or `derive_more::TryFrom` construction paths that bypass a type's fallible
-constructor.
+Finds `derive_more::From` construction paths that bypass a type's fallible constructor. Repr-based
+`derive_more::TryFrom` enum conversion is excluded because it does not populate restricted fields.
 
 ## Why is this bad?
 
-Structural conversion can populate restricted state directly even though the type otherwise rejects
-invalid inputs through a checked construction boundary.
+Structural conversion can populate fields that are less visible than their owning type even though
+the type otherwise rejects invalid inputs through a checked construction boundary.
 
 ## Example
 
 ```rust,ignore
 #[derive(derive_more::From)]
-struct EmailAddress(String);
+pub struct EmailAddress(String);
 
 impl EmailAddress {
     fn parse(value: String) -> Result<Self, InvalidEmail> { /* validates */ }

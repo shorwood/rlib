@@ -6,8 +6,9 @@ extern crate rustc_span;
 use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::def_id::LocalDefId;
-use rustc_hir::{ExprKind, ImplItem, ImplItemKind, ItemKind, Node};
+use rustc_hir::def::Res;
+use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::{ExprKind, ImplItem, ImplItemKind, ItemKind, Node, StructTailExpr};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
 use rustc_span::Span;
@@ -103,6 +104,20 @@ dylint_linting::impl_late_lint! {
 }
 
 impl DeriveMoreManualConversionImpls {
+    /// Returns whether a construction path names the wrapper definition.
+    fn path_targets(cx: &LateContext<'_>, resolution: Res, definition: DefId) -> bool {
+        match resolution {
+            Res::Def(_, target) => target == definition,
+            Res::SelfTyAlias { alias_to, .. } => cx
+                .tcx
+                .type_of(alias_to)
+                .instantiate_identity()
+                .ty_adt_def()
+                .is_some_and(|target| target.did() == definition),
+            _ => false,
+        }
+    }
+
     /// Recognizes `From` implementations that only place an input in a newtype.
     fn exact_wrapping<'tcx>(
         cx: &LateContext<'tcx>,
@@ -116,18 +131,33 @@ impl DeriveMoreManualConversionImpls {
             definition,
             arguments,
         } = OneFieldStruct::from_ty(wrapper)?;
-        let call = DirectForwarding::call(cx, owner, expression)?;
-        let [argument] = call.arguments.as_slice() else {
-            return None;
-        };
         let field = definition.non_enum_variant().fields.iter().next()?;
+        if field.ty(cx.tcx, arguments) != inner {
+            return None;
+        }
 
-        let is_wrapper_constructor = call.target == definition.did()
-            || cx.tcx.opt_parent(call.target) == Some(definition.did());
-        (is_wrapper_constructor
-            && DirectForwarding::is_binding(cx, argument, binding)
-            && field.ty(cx.tcx, arguments) == inner)
-            .then(|| cx.tcx.item_name(definition.did()).to_string())
+        let is_exact = match expression.kind {
+            ExprKind::Call(_, _) => {
+                DirectForwarding::call(cx, owner, expression).is_some_and(|call| {
+                    let [argument] = call.arguments.as_slice() else {
+                        return false;
+                    };
+                    (call.target == definition.did()
+                        || cx.tcx.opt_parent(call.target) == Some(definition.did()))
+                        && DirectForwarding::is_binding(cx, argument, binding)
+                })
+            }
+            ExprKind::Struct(path, fields, StructTailExpr::None) => {
+                let [constructed] = fields else {
+                    return None;
+                };
+                Self::path_targets(cx, cx.qpath_res(path, expression.hir_id), definition.did())
+                    && constructed.ident.name == field.name
+                    && DirectForwarding::is_binding(cx, constructed.expr, binding)
+            }
+            _ => false,
+        };
+        is_exact.then(|| cx.tcx.item_name(definition.did()).to_string())
     }
 
     /// Recognizes `Into` implementations that only return a newtype's field.
@@ -147,7 +177,7 @@ impl DeriveMoreManualConversionImpls {
         };
         let sole_field = definition.non_enum_variant().fields.iter().next()?;
 
-        (field.name.as_str() == "0"
+        (field.name == sole_field.name
             && DirectForwarding::is_binding(cx, base, binding)
             && sole_field.ty(cx.tcx, arguments) == inner)
             .then(|| cx.tcx.item_name(definition.did()).to_string())
@@ -169,6 +199,12 @@ impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return;
         };
+        if !cx.tcx.hir_attrs(parent.hir_id()).is_empty()
+            || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
+            || !implementation_item.generics.predicates.is_empty()
+        {
+            return;
+        }
 
         let Some(trait_ref) = implementation_item
             .of_trait

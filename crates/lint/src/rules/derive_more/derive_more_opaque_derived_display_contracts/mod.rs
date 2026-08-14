@@ -7,8 +7,8 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Expr, ExprKind, Item};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
-use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
+use rustc_span::{Span, Symbol};
 
 use super::utils::contracts::DeriveMoreContractCatalog;
 use crate::utils::diagnostic::LateViolation;
@@ -17,7 +17,7 @@ use crate::utils::diagnostic::LateViolation;
 // Violation: Opaque generated display contract
 // -----------------------------------------------------------------------------
 
-/// Public derived display contract awaiting authored-format inspection.
+/// Derived display contract awaiting authored-format inspection.
 struct Candidate {
     /// Local declaration identity used to associate evidence collected in separate passes.
     definition: LocalDefId,
@@ -25,7 +25,7 @@ struct Candidate {
     span: Span,
 }
 
-/// Public display contract whose generated grammar is not explicit in source.
+/// Display contract whose generated grammar is not explicit in source.
 struct Violation {
     /// Authored declaration or expression range used as the diagnostic anchor.
     span: Span,
@@ -94,6 +94,10 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
     }
 
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        if expression.span.from_expansion() {
+            return;
+        }
+
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return;
         };
@@ -130,10 +134,10 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
         };
 
         if cx.tcx.item_name(to_string).as_str() != "to_string"
-            || cx
-                .tcx
-                .trait_of_assoc(to_string)
-                .is_none_or(|trait_id| cx.tcx.item_name(trait_id).as_str() != "ToString")
+            || !cx.tcx.trait_of_assoc(to_string).is_some_and(|trait_id| {
+                cx.tcx
+                    .is_diagnostic_item(Symbol::intern("ToString"), trait_id)
+            })
         {
             return;
         }
@@ -155,6 +159,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
+        self.candidates.sort_by_key(|candidate| candidate.span.lo());
         for candidate in self.candidates.drain(..) {
             let Some(contract) = self.catalog.derived_type(candidate.definition, "Display") else {
                 continue;

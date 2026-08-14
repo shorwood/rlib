@@ -131,7 +131,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreDerivedConversionsBypassingInvariant
 
             let derives = self
                 .catalog
-                .derives_for(constructor.target.def_id, &["From", "TryFrom"]);
+                .derives_for(constructor.target.def_id, &["From"]);
             if derives.is_empty() {
                 continue;
             }

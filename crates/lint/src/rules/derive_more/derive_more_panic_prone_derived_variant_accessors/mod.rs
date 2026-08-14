@@ -84,25 +84,55 @@ impl DeriveMorePanicProneDerivedVariantAccessors {
         })
     }
 
+    /// Removes authored wrappers that do not change the constructed value.
+    const fn peel_transparent<'hir>(mut expression: &'hir Expr<'hir>) -> &'hir Expr<'hir> {
+        loop {
+            expression = match expression.kind {
+                ExprKind::Block(block, None) if block.stmts.is_empty() => {
+                    let Some(inner) = block.expr else {
+                        return expression;
+                    };
+                    inner
+                }
+                ExprKind::DropTemps(inner) => inner,
+                _ => return expression,
+            };
+        }
+    }
+
+    /// Resolves the enum variant constructed directly by an expression.
+    fn constructed_variant(cx: &LateContext<'_>, receiver: &Expr<'_>) -> Option<DefId> {
+        let receiver = Self::peel_transparent(receiver);
+        let resolution = match receiver.kind {
+            ExprKind::Call(constructor, _) => {
+                let ExprKind::Path(path) = constructor.kind else {
+                    return None;
+                };
+                cx.qpath_res(&path, constructor.hir_id)
+            }
+            ExprKind::Struct(path, ..) => cx.qpath_res(path, receiver.hir_id),
+            ExprKind::Path(path) => cx.qpath_res(&path, receiver.hir_id),
+            _ => return None,
+        };
+
+        match resolution {
+            Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) => {
+                Some(cx.tcx.parent(constructor))
+            }
+            Res::Def(DefKind::Variant, variant) => Some(variant),
+            _ => None,
+        }
+    }
+
     /// Proves that the receiver is constructed as the variant required by the accessor.
     fn receiver_constructs_expected_variant(
         cx: &LateContext<'_>,
         receiver: &Expr<'_>,
         method: &str,
     ) -> bool {
-        let ExprKind::Call(constructor, _) = receiver.kind else {
+        let Some(variant) = Self::constructed_variant(cx, receiver) else {
             return false;
         };
-        let ExprKind::Path(path) = constructor.kind else {
-            return false;
-        };
-
-        let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
-            cx.qpath_res(&path, constructor.hir_id)
-        else {
-            return false;
-        };
-        let variant = cx.tcx.parent(constructor);
 
         let expected = format!(
             "unwrap_{}",
@@ -115,6 +145,10 @@ impl DeriveMorePanicProneDerivedVariantAccessors {
 }
 impl LateLintPass<'_> for DeriveMorePanicProneDerivedVariantAccessors {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        if expression.span.from_expansion() {
+            return;
+        }
+
         let ExprKind::MethodCall(segment, receiver, arguments, _) = expression.kind else {
             return;
         };

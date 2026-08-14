@@ -2,7 +2,9 @@
 
 ## What it does
 
-Finds `derive_more::Constructor` uses that expose raw field assembly around a fallible constructor.
+Finds `derive_more::Constructor` uses that expose raw field assembly around a constructor with an
+actual failure path. A `Result` return type that only ever constructs `Ok` is not treated as
+validation evidence.
 
 ## Why is this bad?
 
@@ -13,7 +15,7 @@ type's checked invariant boundary.
 
 ```rust,ignore
 #[derive(derive_more::Constructor)]
-struct Percentage(u8);
+pub struct Percentage(u8);
 
 impl Percentage {
     fn checked(value: u8) -> Result<Self, OutOfRange> { /* validates */ }
@@ -26,7 +28,7 @@ Remove `Constructor` and keep construction behind the fallible API. If unchecked
 intentional, represent it with a separate transparent type.
 
 ```rust,ignore
-struct Percentage(u8);
+pub struct Percentage(u8);
 
 impl Percentage {
     fn checked(value: u8) -> Result<Self, OutOfRange> { /* validates */ }

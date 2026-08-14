@@ -83,7 +83,13 @@ dylint_linting::impl_late_lint! {
 
 impl DeriveMoreManualAggregationImpls {
     /// Proves that aggregation maps inputs to the sole field and wraps the result unchanged.
-    fn exact_aggregation_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) -> bool {
+    fn exact_aggregation_source(
+        cx: &LateContext<'_>,
+        item: &Item<'_>,
+        derive: &str,
+        type_name: &str,
+        field_name: Option<&str>,
+    ) -> bool {
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return false;
         };
@@ -108,16 +114,25 @@ impl DeriveMoreManualAggregationImpls {
             return false;
         };
 
-        let [syn::Stmt::Expr(syn::Expr::Call(construction), _)] = method.block.stmts.as_slice()
-        else {
+        let [syn::Stmt::Expr(construction, _)] = method.block.stmts.as_slice() else {
             return false;
         };
-        if !matches!(construction.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Self"))
-            || construction.args.len() != 1
-        {
-            return false;
-        }
-        let Some(syn::Expr::MethodCall(aggregation)) = construction.args.first() else {
+        let aggregation = match construction {
+            syn::Expr::Call(construction)
+                if matches!(construction.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Self") || path.path.is_ident(type_name))
+                    && construction.args.len() == 1 => construction.args.first(),
+            syn::Expr::Struct(construction)
+                if (construction.path.is_ident("Self") || construction.path.is_ident(type_name))
+                    && construction.fields.len() == 1
+                    && construction.rest.is_none()
+                    && construction.fields.first().is_some_and(|field| {
+                        matches!((&field.member, field_name), (syn::Member::Named(actual), Some(expected)) if actual == expected)
+                    }) => {
+                construction.fields.first().map(|field| &field.expr)
+            }
+            _ => None,
+        };
+        let Some(syn::Expr::MethodCall(aggregation)) = aggregation else {
             return false;
         };
 
@@ -148,7 +163,8 @@ impl DeriveMoreManualAggregationImpls {
             projection.body.as_ref(),
             syn::Expr::Field(field)
                 if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident(&value.ident))
-                    && matches!(&field.member, syn::Member::Unnamed(index) if index.index == 0)
+                    && (matches!(&field.member, syn::Member::Unnamed(index) if index.index == 0 && field_name.is_none())
+                        || matches!((&field.member, field_name), (syn::Member::Named(actual), Some(expected)) if actual == expected))
         )
     }
 }
@@ -157,7 +173,7 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
-        if item.span.from_expansion() || !cx.tcx.hir_attrs(item.hir_id()).is_empty() {
+        if item.span.from_expansion() {
             return;
         }
 
@@ -180,22 +196,38 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
             .tcx
             .impl_trait_ref(item.owner_id.def_id)
             .instantiate_identity();
-        let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
+        let self_ty = trait_ref.self_ty();
+        let ty::Adt(definition, _) = self_ty.kind() else {
             return;
         };
+        if trait_ref.args.type_at(1) != self_ty {
+            return;
+        }
+        let name = cx.tcx.item_name(definition.did()).to_string();
+        if !definition.is_struct() || definition.non_enum_variant().fields.len() != 1 {
+            return;
+        }
+        let field = definition
+            .non_enum_variant()
+            .fields
+            .iter()
+            .next()
+            .expect("the single field was checked above");
+        let field_name = (!field
+            .name
+            .as_str()
+            .chars()
+            .all(|character| character.is_ascii_digit()))
+        .then(|| field.name.as_str());
 
-        if !definition.is_struct()
-            || definition.non_enum_variant().fields.len() != 1
-            || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
-            || !Self::exact_aggregation_source(cx, item, derive)
-        {
+        if !Self::exact_aggregation_source(cx, item, derive, &name, field_name) {
             return;
         }
 
         Violation {
             owner: item.hir_id(),
             span: item.span,
-            name: cx.tcx.item_name(definition.did()).to_string(),
+            name,
             derive: derive.to_owned(),
         }
         .emit(cx);
