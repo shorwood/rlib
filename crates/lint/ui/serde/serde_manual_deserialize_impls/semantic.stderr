@@ -13,5 +13,60 @@ LL | | }
    = help: replace this implementation with `#[derive(serde::Deserialize)]` and `#[serde(transparent)]`
    = note: `#[warn(serde_manual_deserialize_impls)]` on by default
 
-warning: 1 warning emitted
+warning: manual transparent deserializer for `Generic` is derivable
+  --> $DIR/semantic.rs:30:1
+   |
+LL | / impl<'de, T> Deserialize<'de> for Generic<T>
+LL | | where
+LL | |     T: Deserialize<'de>,
+...  |
+LL | | }
+   | |_^ this deserializer is exact transparent forwarding
+   |
+   = note: the complete implementation decodes the sole field unchanged and immediately constructs the wrapper
+   = help: replace this implementation with `#[derive(serde::Deserialize)]` and `#[serde(transparent)]`
+
+warning: manual transparent deserializer for `NamedId` is derivable
+  --> $DIR/semantic.rs:46:1
+   |
+LL | / impl<'de> Deserialize<'de> for NamedId {
+LL | |     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+LL | |     where
+LL | |         D: Deserializer<'de>,
+...  |
+LL | | }
+   | |_^ this deserializer is exact transparent forwarding
+   |
+   = note: the complete implementation decodes the sole field unchanged and immediately constructs the wrapper
+   = help: replace this implementation with `#[derive(serde::Deserialize)]` and `#[serde(transparent)]`
+
+warning: manual transparent deserializer for `QualifiedResult` is derivable
+  --> $DIR/semantic.rs:59:1
+   |
+LL | / impl<'de> Deserialize<'de> for QualifiedResult {
+LL | |     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+LL | |     where
+LL | |         D: Deserializer<'de>,
+...  |
+LL | | }
+   | |_^ this deserializer is exact transparent forwarding
+   |
+   = note: the complete implementation decodes the sole field unchanged and immediately constructs the wrapper
+   = help: replace this implementation with `#[derive(serde::Deserialize)]` and `#[serde(transparent)]`
+
+warning: manual transparent deserializer for `DocumentedImpl` is derivable
+  --> $DIR/semantic.rs:71:1
+   |
+LL | / impl<'de> Deserialize<'de> for DocumentedImpl {
+LL | |     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+LL | |     where
+LL | |         D: Deserializer<'de>,
+...  |
+LL | | }
+   | |_^ this deserializer is exact transparent forwarding
+   |
+   = note: the complete implementation decodes the sole field unchanged and immediately constructs the wrapper
+   = help: replace this implementation with `#[derive(serde::Deserialize)]` and `#[serde(transparent)]`
+
+warning: 5 warnings emitted
 

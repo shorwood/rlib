@@ -11,5 +11,50 @@ LL | | }
    = help: declare `#[serde(rename_all = "...")]` or explicit member renames for each wire direction
    = note: `#[warn(serde_unstable_implicit_wire_names)]` on by default
 
-warning: 1 warning emitted
+warning: public Serde serialization contract relies on implicit wire names
+  --> $DIR/semantic.rs:17:1
+   |
+LL | / pub struct PublicRecord {
+LL | |     value: u64,
+LL | | }
+   | |_^ this public contract inherits Rust identifiers
+   |
+   = note: renaming the Rust identifiers `value` would silently change externally observed data
+   = help: declare `#[serde(rename_all = "...")]` or explicit member renames for each wire direction
+
+warning: public Serde serialization and deserialization contract relies on implicit wire names
+  --> $DIR/semantic.rs:23:1
+   |
+LL | / pub enum StableVariantsOnly {
+LL | |     Updated { record_value: u64 },
+LL | | }
+   | |_^ this public contract inherits Rust identifiers
+   |
+   = note: renaming the Rust identifiers `Updated.record_value` would silently change externally observed data
+   = help: declare `#[serde(rename_all = "...")]` or explicit member renames for each wire direction
+
+warning: public Serde serialization and deserialization contract relies on implicit wire names
+  --> $DIR/semantic.rs:35:1
+   |
+LL | / pub enum UntaggedPayload {
+LL | |     Number { numeric_value: u64 },
+LL | |     Empty,
+LL | | }
+   | |_^ this public contract inherits Rust identifiers
+   |
+   = note: renaming the Rust identifiers `Number.numeric_value` would silently change externally observed data
+   = help: declare `#[serde(rename_all = "...")]` or explicit member renames for each wire direction
+
+warning: public Serde serialization contract relies on implicit wire names
+  --> $DIR/semantic.rs:41:1
+   |
+LL | / pub struct RawIdentifier {
+LL | |     r#type: String,
+LL | | }
+   | |_^ this public contract inherits Rust identifiers
+   |
+   = note: renaming the Rust identifiers `type` would silently change externally observed data
+   = help: declare `#[serde(rename_all = "...")]` or explicit member renames for each wire direction
+
+warning: 5 warnings emitted
 

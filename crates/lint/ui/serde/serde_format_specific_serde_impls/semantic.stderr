@@ -13,5 +13,19 @@ LL | | }
    = help: use one portable Serde shape, or move this policy into a documented format-specific wrapper
    = note: `#[warn(serde_format_specific_serde_impls)]` on by default
 
-warning: 1 warning emitted
+warning: generic Serde `Serialize` for `UnrelatedDocumentation` embeds format-specific behavior
+  --> $DIR/semantic.rs:34:1
+   |
+LL | / impl Serialize for UnrelatedDocumentation {
+LL | |     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+LL | |     where
+LL | |         S: Serializer,
+...  |
+LL | | }
+   | |_^ this generic trait implementation has a hidden format boundary
+   |
+   = note: `is_human_readable()` selects different string and binary Serde data-model shapes
+   = help: use one portable Serde shape, or move this policy into a documented format-specific wrapper
+
+warning: 2 warnings emitted
 

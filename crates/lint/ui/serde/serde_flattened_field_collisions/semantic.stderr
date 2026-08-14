@@ -25,5 +25,58 @@ LL | | }
    = note: flattening places `id` more than once in the same wire namespace
    = help: rename a colliding field or retain a nested representation
 
-warning: 2 warnings emitted
+warning: Serde flattening creates duplicate serialization names
+  --> $DIR/semantic.rs:35:1
+   |
+LL | / struct RecursiveEnvelope {
+LL | |     id: u64,
+LL | |     #[serde(flatten)]
+LL | |     middle: Middle,
+LL | | }
+   | |_^ these flattened schemas share wire keys
+   |
+   = note: flattening places `id` more than once in the same wire namespace
+   = help: rename a colliding field or retain a nested representation
+
+warning: Serde flattening creates duplicate deserialization names
+  --> $DIR/semantic.rs:35:1
+   |
+LL | / struct RecursiveEnvelope {
+LL | |     id: u64,
+LL | |     #[serde(flatten)]
+LL | |     middle: Middle,
+LL | | }
+   | |_^ these flattened schemas share wire keys
+   |
+   = note: flattening places `id` more than once in the same wire namespace
+   = help: rename a colliding field or retain a nested representation
+
+warning: Serde flattening creates duplicate deserialization names
+  --> $DIR/semantic.rs:48:1
+   |
+LL | / struct AliasEnvelope {
+LL | |     legacy_id: u64,
+LL | |     #[serde(flatten)]
+LL | |     details: AliasedDetails,
+LL | | }
+   | |_^ these flattened schemas share wire keys
+   |
+   = note: flattening places `legacy_id` more than once in the same wire namespace
+   = help: rename a colliding field or retain a nested representation
+
+warning: Serde flattening creates duplicate serialization names
+  --> $DIR/semantic.rs:65:1
+   |
+LL | / struct TwoFlattenedSchemas {
+LL | |     #[serde(flatten)]
+LL | |     left: LeftDetails,
+LL | |     #[serde(flatten)]
+LL | |     right: RightDetails,
+LL | | }
+   | |_^ these flattened schemas share wire keys
+   |
+   = note: flattening places `key` more than once in the same wire namespace
+   = help: rename a colliding field or retain a nested representation
+
+warning: 6 warnings emitted
 

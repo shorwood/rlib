@@ -10,5 +10,40 @@ LL | | }
    = help: mirror the missing fields, or document this as a versioned projection and its reconstruction policy
    = note: `#[warn(serde_remote_representations_drifting_from_sources)]` on by default
 
-warning: 1 warning emitted
+warning: Serde remote representation drifts from `left::Source`
+  --> $DIR/semantic.rs:39:1
+   |
+LL | / struct QualifiedSourceDef {
+LL | |     id: u64,
+LL | | }
+   | |_^ this remote schema is an implicit subset of its source
+   |
+   = note: the undocumented remote projection omits visible source field `label`
+   = help: mirror the missing fields, or document this as a versioned projection and its reconstruction policy
+
+warning: Serde remote representation drifts from `left::Source`
+  --> $DIR/semantic.rs:46:1
+   |
+LL | / struct UnrelatedDocumentationDef {
+LL | |     id: u64,
+LL | | }
+   | |_^ this remote schema is an implicit subset of its source
+   |
+   = note: the undocumented remote projection omits visible source field `label`
+   = help: mirror the missing fields, or document this as a versioned projection and its reconstruction policy
+
+warning: Serde remote representation drifts from `SkippedSource`
+  --> $DIR/semantic.rs:64:1
+   |
+LL | / struct SkippedSourceDef {
+LL | |     id: u64,
+LL | |     #[serde(skip)]
+LL | |     label: String,
+LL | | }
+   | |_^ this remote schema is an implicit subset of its source
+   |
+   = note: the undocumented remote projection omits visible source field `label`
+   = help: mirror the missing fields, or document this as a versioned projection and its reconstruction policy
+
+warning: 4 warnings emitted
 

@@ -13,5 +13,61 @@ LL | | }
    = help: replace this implementation with `#[derive(serde::Serialize)]` and `#[serde(transparent)]`
    = note: `#[warn(serde_manual_serialize_impls)]` on by default
 
-warning: 1 warning emitted
+warning: manual transparent serializer for `Generic` is derivable
+  --> $DIR/semantic.rs:29:1
+   |
+LL | / impl<T: Serialize> Serialize for Generic<T> {
+LL | |     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+LL | |     where
+LL | |         S: Serializer,
+...  |
+LL | | }
+   | |_^ this serializer is exact transparent forwarding
+   |
+   = note: the complete implementation forwards the sole field unchanged to the provided serializer
+   = help: replace this implementation with `#[derive(serde::Serialize)]` and `#[serde(transparent)]`
+
+warning: manual transparent serializer for `NamedId` is derivable
+  --> $DIR/semantic.rs:42:1
+   |
+LL | / impl Serialize for NamedId {
+LL | |     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+LL | |     where
+LL | |         S: Serializer,
+...  |
+LL | | }
+   | |_^ this serializer is exact transparent forwarding
+   |
+   = note: the complete implementation forwards the sole field unchanged to the provided serializer
+   = help: replace this implementation with `#[derive(serde::Serialize)]` and `#[serde(transparent)]`
+
+warning: manual transparent serializer for `QualifiedCall` is derivable
+  --> $DIR/semantic.rs:53:1
+   |
+LL | / impl Serialize for QualifiedCall {
+LL | |     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+LL | |     where
+LL | |         S: Serializer,
+...  |
+LL | | }
+   | |_^ this serializer is exact transparent forwarding
+   |
+   = note: the complete implementation forwards the sole field unchanged to the provided serializer
+   = help: replace this implementation with `#[derive(serde::Serialize)]` and `#[serde(transparent)]`
+
+warning: manual transparent serializer for `DocumentedImpl` is derivable
+  --> $DIR/semantic.rs:65:1
+   |
+LL | / impl Serialize for DocumentedImpl {
+LL | |     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+LL | |     where
+LL | |         S: Serializer,
+...  |
+LL | | }
+   | |_^ this serializer is exact transparent forwarding
+   |
+   = note: the complete implementation forwards the sole field unchanged to the provided serializer
+   = help: replace this implementation with `#[derive(serde::Serialize)]` and `#[serde(transparent)]`
+
+warning: 5 warnings emitted
 

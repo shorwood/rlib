@@ -14,5 +14,53 @@ LL | | }
    = help: add a matching deserialization default, make the field optional, or remove the skip predicate
    = note: `#[warn(serde_lossy_conditional_serialization)]` on by default
 
-warning: 1 warning emitted
+warning: conditional serialization of `score` is not reversible
+  --> $DIR/semantic.rs:18:1
+   |
+LL | / struct DocumentedLoss {
+LL | |     /// The public score.
+LL | |     #[serde(skip_serializing_if = "is_zero")]
+LL | |     score: u32,
+LL | | }
+   | |_^ this omission produces input the type rejects
+   |
+   = note: `is_zero` can omit this required field, but deserialization has no optional or default value for the missing key
+   = help: add a matching deserialization default, make the field optional, or remove the skip predicate
+
+warning: conditional serialization of `field 0` is not reversible
+  --> $DIR/semantic.rs:25:1
+   |
+LL | struct TupleLoss(#[serde(skip_serializing_if = "is_zero")] u32);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this omission produces input the type rejects
+   |
+   = note: `is_zero` can omit this required field, but deserialization has no optional or default value for the missing key
+   = help: add a matching deserialization default, make the field optional, or remove the skip predicate
+
+warning: conditional serialization of `Changed.score` is not reversible
+  --> $DIR/semantic.rs:28:1
+   |
+LL | / enum Event {
+LL | |     Changed {
+LL | |         #[serde(skip_serializing_if = "is_zero")]
+LL | |         score: u32,
+LL | |     },
+LL | | }
+   | |_^ this omission produces input the type rejects
+   |
+   = note: `is_zero` can omit this required field, but deserialization has no optional or default value for the missing key
+   = help: add a matching deserialization default, make the field optional, or remove the skip predicate
+
+warning: conditional serialization of `value` is not reversible
+  --> $DIR/semantic.rs:50:1
+   |
+LL | / struct CustomOptionLoss {
+LL | |     #[serde(skip_serializing_if = "custom::Option::is_none")]
+LL | |     value: custom::Option<u32>,
+LL | | }
+   | |_^ this omission produces input the type rejects
+   |
+   = note: `custom::Option::is_none` can omit this required field, but deserialization has no optional or default value for the missing key
+   = help: add a matching deserialization default, make the field optional, or remove the skip predicate
+
+warning: 5 warnings emitted
 

@@ -49,5 +49,76 @@ LL | | }
    = note: the effective name is shared by HttpServer, HTTPServer; the wire representation cannot identify one member unambiguously
    = help: assign distinct Serde names or aliases for this direction
 
-warning: 4 warnings emitted
+warning: Serde serialization name `id` is duplicated
+  --> $DIR/semantic.rs:31:1
+   |
+LL | / enum VariantFieldCollision {
+LL | |     Updated {
+LL | |         #[serde(rename = "id")]
+LL | |         internal_id: u64,
+LL | |         id: String,
+LL | |     },
+LL | | }
+   | |_^ these declarations share an effective wire name
+   |
+   = note: the effective name is shared by internal_id, id; the wire representation cannot identify one member unambiguously
+   = help: assign distinct Serde names or aliases for this direction
+
+warning: Serde deserialization name `id` is duplicated
+  --> $DIR/semantic.rs:31:1
+   |
+LL | / enum VariantFieldCollision {
+LL | |     Updated {
+LL | |         #[serde(rename = "id")]
+LL | |         internal_id: u64,
+LL | |         id: String,
+LL | |     },
+LL | | }
+   | |_^ these declarations share an effective wire name
+   |
+   = note: the effective name is shared by internal_id, id; the wire representation cannot identify one member unambiguously
+   = help: assign distinct Serde names or aliases for this direction
+
+warning: Serde serialization name `http_server` is duplicated
+  --> $DIR/semantic.rs:41:1
+   |
+LL | / enum VariantFieldCaseCollision {
+LL | |     Started { HttpServer: u16, HTTPServer: u16 },
+LL | | }
+   | |_^ these declarations share an effective wire name
+   |
+   = note: the effective name is shared by HttpServer, HTTPServer; the wire representation cannot identify one member unambiguously
+   = help: assign distinct Serde names or aliases for this direction
+
+warning: Serde serialization name `a` is duplicated
+  --> $DIR/semantic.rs:46:1
+   |
+LL | / struct MultipleOutputCollisions {
+LL | |     #[serde(rename = "b")]
+LL | |     first_b: u8,
+LL | |     b: u8,
+...  |
+LL | |     a: u8,
+LL | | }
+   | |_^ these declarations share an effective wire name
+   |
+   = note: the effective name is shared by first_a, a; the wire representation cannot identify one member unambiguously
+   = help: assign distinct Serde names or aliases for this direction
+
+warning: Serde serialization name `b` is duplicated
+  --> $DIR/semantic.rs:46:1
+   |
+LL | / struct MultipleOutputCollisions {
+LL | |     #[serde(rename = "b")]
+LL | |     first_b: u8,
+LL | |     b: u8,
+...  |
+LL | |     a: u8,
+LL | | }
+   | |_^ these declarations share an effective wire name
+   |
+   = note: the effective name is shared by first_b, b; the wire representation cannot identify one member unambiguously
+   = help: assign distinct Serde names or aliases for this direction
+
+warning: 9 warnings emitted
 

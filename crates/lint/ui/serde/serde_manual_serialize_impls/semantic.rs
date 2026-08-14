@@ -24,4 +24,51 @@ impl Serialize for Masked {
     }
 }
 
+struct Generic<T>(T);
+
+impl<T: Serialize> Serialize for Generic<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
+struct NamedId {
+    value: u64,
+}
+
+impl Serialize for NamedId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.value.serialize(serializer)
+    }
+}
+
+struct QualifiedCall(u64);
+
+impl Serialize for QualifiedCall {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        <u64 as Serialize>::serialize(&self.0, serializer)
+    }
+}
+
+struct DocumentedImpl(u64);
+
+/// This implementation serializes an identifier.
+impl Serialize for DocumentedImpl {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
 fn main() {}

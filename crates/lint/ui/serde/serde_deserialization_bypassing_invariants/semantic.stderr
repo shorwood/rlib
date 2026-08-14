@@ -1,5 +1,5 @@
 warning: derived `Deserialize` bypasses `Percentage` invariants
-  --> $DIR/semantic.rs:7:8
+  --> $DIR/semantic.rs:13:8
    |
 LL | struct Percentage(u8);
    |        ^^^^^^^^^^ direct field deserialization is derived here

@@ -14,5 +14,53 @@ LL | | }
    = help: use `Option`, a named default function, or document why the generic default represents missing input
    = note: `#[warn(serde_defaults_hiding_missing_data)]` on by default
 
-warning: 1 warning emitted
+warning: missing `maximum` data is replaced with an implicit default
+  --> $DIR/semantic.rs:17:1
+   |
+LL | / struct UnrelatedDocumentation {
+LL | |     /// The configured limit.
+LL | |     #[serde(default)]
+LL | |     maximum: u32,
+LL | | }
+   | |_^ missing input is silently defaulted here
+   |
+   = note: bare `#[serde(default)]` turns absence into a potentially meaningful domain value without naming the compatibility policy
+   = help: use `Option`, a named default function, or document why the generic default represents missing input
+
+warning: missing `field 0` data is replaced with an implicit default
+  --> $DIR/semantic.rs:24:1
+   |
+LL | struct TupleLimit(#[serde(default)] u32);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing input is silently defaulted here
+   |
+   = note: bare `#[serde(default)]` turns absence into a potentially meaningful domain value without naming the compatibility policy
+   = help: use `Option`, a named default function, or document why the generic default represents missing input
+
+warning: missing `Changed.maximum` data is replaced with an implicit default
+  --> $DIR/semantic.rs:27:1
+   |
+LL | / enum LimitEvent {
+LL | |     Changed {
+LL | |         #[serde(default)]
+LL | |         maximum: u32,
+LL | |     },
+LL | | }
+   | |_^ missing input is silently defaulted here
+   |
+   = note: bare `#[serde(default)]` turns absence into a potentially meaningful domain value without naming the compatibility policy
+   = help: use `Option`, a named default function, or document why the generic default represents missing input
+
+warning: missing `value` data is replaced with an implicit default
+  --> $DIR/semantic.rs:47:1
+   |
+LL | / struct CustomOption {
+LL | |     #[serde(default)]
+LL | |     value: Option<u32>,
+LL | | }
+   | |_^ missing input is silently defaulted here
+   |
+   = note: bare `#[serde(default)]` turns absence into a potentially meaningful domain value without naming the compatibility policy
+   = help: use `Option`, a named default function, or document why the generic default represents missing input
+
+warning: 5 warnings emitted
 

@@ -14,5 +14,72 @@ LL | | }
    = help: add an explicit Serde tag or make the variants' required shapes disjoint
    = note: `#[warn(serde_ambiguous_untagged_enums)]` on by default
 
-warning: 1 warning emitted
+warning: Serde untagged variants `Signed` and `Unsigned` accept the same input shape
+  --> $DIR/semantic.rs:25:1
+   |
+LL | / enum NumericOverlap {
+LL | |     Signed { value: i64 },
+LL | |     Unsigned { value: u8 },
+LL | |     Floating { value: f64 },
+LL | | }
+   | |_^ `Signed` shadows `Unsigned` for this shape
+   |
+   = note: an object containing `value` is a concrete witness accepted by both variants, so the first declaration wins
+   = help: add an explicit Serde tag or make the variants' required shapes disjoint
+
+warning: Serde untagged variants `Signed` and `Floating` accept the same input shape
+  --> $DIR/semantic.rs:25:1
+   |
+LL | / enum NumericOverlap {
+LL | |     Signed { value: i64 },
+LL | |     Unsigned { value: u8 },
+LL | |     Floating { value: f64 },
+LL | | }
+   | |_^ `Signed` shadows `Floating` for this shape
+   |
+   = note: an object containing `value` is a concrete witness accepted by both variants, so the first declaration wins
+   = help: add an explicit Serde tag or make the variants' required shapes disjoint
+
+warning: Serde untagged variants `Unsigned` and `Floating` accept the same input shape
+  --> $DIR/semantic.rs:25:1
+   |
+LL | / enum NumericOverlap {
+LL | |     Signed { value: i64 },
+LL | |     Unsigned { value: u8 },
+LL | |     Floating { value: f64 },
+LL | | }
+   | |_^ `Unsigned` shadows `Floating` for this shape
+   |
+   = note: an object containing `value` is a concrete witness accepted by both variants, so the first declaration wins
+   = help: add an explicit Serde tag or make the variants' required shapes disjoint
+
+warning: Serde untagged variants `Character` and `Text` accept the same input shape
+  --> $DIR/semantic.rs:33:1
+   |
+LL | / enum TextOverlap {
+LL | |     Character { value: char },
+LL | |     Text { value: String },
+LL | |     Flag { value: bool },
+LL | | }
+   | |_^ `Character` shadows `Text` for this shape
+   |
+   = note: an object containing `value` is a concrete witness accepted by both variants, so the first declaration wins
+   = help: add an explicit Serde tag or make the variants' required shapes disjoint
+
+warning: Serde untagged variants `First` and `Second` accept the same input shape
+  --> $DIR/semantic.rs:53:1
+   |
+LL | / enum DefaultedOverlap {
+LL | |     First {
+LL | |         #[serde(default)]
+LL | |         first: bool,
+...  |
+LL | |     },
+LL | | }
+   | |_^ `First` shadows `Second` for this shape
+   |
+   = note: an empty object is a concrete witness accepted by both variants, so the first declaration wins
+   = help: add an explicit Serde tag or make the variants' required shapes disjoint
+
+warning: 6 warnings emitted
 

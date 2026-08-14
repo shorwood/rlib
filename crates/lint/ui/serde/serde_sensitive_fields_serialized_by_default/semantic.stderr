@@ -11,5 +11,30 @@ LL | | }
    = help: skip these fields, use a redacting or encrypting serializer, or introduce a secret-aware wrapper
    = note: `#[warn(serde_sensitive_fields_serialized_by_default)]` on by default
 
-warning: 1 warning emitted
+warning: Serde serializes likely credentials by default
+  --> $DIR/semantic.rs:19:1
+   |
+LL | / pub enum CredentialEvent {
+LL | |     Created {
+LL | |         primary_access_token_value: String,
+LL | |         encrypted_refresh_token: String,
+LL | |     },
+LL | | }
+   | |_^ this public serialization contract exposes raw sensitive data
+   |
+   = note: `Created.primary_access_token_value` combines strong credential vocabulary with raw string or byte storage and has no skip, redaction, or encryption policy
+   = help: skip these fields, use a redacting or encrypting serializer, or introduce a secret-aware wrapper
+
+warning: Serde serializes likely credentials by default
+  --> $DIR/semantic.rs:28:1
+   |
+LL | / pub struct RawIdentifier {
+LL | |     pub r#api_key: Vec<u8>,
+LL | | }
+   | |_^ this public serialization contract exposes raw sensitive data
+   |
+   = note: `r#api_key` combines strong credential vocabulary with raw string or byte storage and has no skip, redaction, or encryption policy
+   = help: skip these fields, use a redacting or encrypting serializer, or introduce a secret-aware wrapper
+
+warning: 3 warnings emitted
 

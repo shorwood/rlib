@@ -14,5 +14,50 @@ LL | | }
    = help: pair helpers with the same unit or encoding, or use one `with` module
    = note: `#[warn(serde_non_roundtripping_serde_adapters)]` on by default
 
-warning: 1 warning emitted
+warning: Serde adapters for `field 0` do not round-trip
+  --> $DIR/semantic.rs:15:1
+   |
+LL | / struct TupleRecord(
+LL | |     #[serde(
+LL | |         serialize_with = "timestamp_seconds",
+LL | |         deserialize_with = "timestamp_milliseconds"
+LL | |     )]
+LL | |     u64,
+LL | | );
+   | |__^ these directional adapters disagree
+   |
+   = note: serialization uses `timestamp_seconds` while deserialization uses the incompatible `timestamp_milliseconds` contract
+   = help: pair helpers with the same unit or encoding, or use one `with` module
+
+warning: Serde adapters for `Created.at` do not round-trip
+  --> $DIR/semantic.rs:24:1
+   |
+LL | / enum Event {
+LL | |     Created {
+LL | |         #[serde(
+LL | |             serialize_with = "timestamp_seconds",
+...  |
+LL | |     },
+LL | | }
+   | |_^ these directional adapters disagree
+   |
+   = note: serialization uses `timestamp_seconds` while deserialization uses the incompatible `timestamp_milliseconds` contract
+   = help: pair helpers with the same unit or encoding, or use one `with` module
+
+warning: Serde adapters for `at` do not round-trip
+  --> $DIR/semantic.rs:57:1
+   |
+LL | / struct ModuleAdapters {
+LL | |     #[serde(
+LL | |         serialize_with = "timestamp_seconds_adapter::serialize",
+LL | |         deserialize_with = "timestamp_milliseconds_adapter::deserialize"
+LL | |     )]
+LL | |     at: u64,
+LL | | }
+   | |_^ these directional adapters disagree
+   |
+   = note: serialization uses `timestamp_seconds_adapter::serialize` while deserialization uses the incompatible `timestamp_milliseconds_adapter::deserialize` contract
+   = help: pair helpers with the same unit or encoding, or use one `with` module
+
+warning: 4 warnings emitted
 

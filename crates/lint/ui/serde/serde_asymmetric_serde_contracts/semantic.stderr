@@ -11,5 +11,53 @@ LL | | }
    = help: use one stable name or document the intentional one-way schema migration at this declaration
    = note: `#[warn(serde_asymmetric_serde_contracts)]` on by default
 
-warning: 1 warning emitted
+warning: Serde names for `id` differ by direction
+  --> $DIR/semantic.rs:23:1
+   |
+LL | / struct UnrelatedDocumentation {
+LL | |     /// The account identifier.
+LL | |     #[serde(rename(serialize = "user_id", deserialize = "id"))]
+LL | |     id: u64,
+LL | | }
+   | |_^ this declaration has directional wire names
+   |
+   = note: serialization writes `user_id` while deserialization accepts `id` as the primary name, without an authored compatibility explanation
+   = help: use one stable name or document the intentional one-way schema migration at this declaration
+
+warning: Serde names for `field 0` differ by direction
+  --> $DIR/semantic.rs:30:1
+   |
+LL | struct TupleAccount(#[serde(rename(serialize = "user_id", deserialize = "id"))] u64);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this declaration has directional wire names
+   |
+   = note: serialization writes `user_id` while deserialization accepts `id` as the primary name, without an authored compatibility explanation
+   = help: use one stable name or document the intentional one-way schema migration at this declaration
+
+warning: Serde names for `Changed.id` differ by direction
+  --> $DIR/semantic.rs:33:1
+   |
+LL | / enum Event {
+LL | |     Changed {
+LL | |         #[serde(rename(serialize = "new_id", deserialize = "id"))]
+LL | |         id: u64,
+LL | |     },
+LL | | }
+   | |_^ this declaration has directional wire names
+   |
+   = note: serialization writes `new_id` while deserialization accepts `id` as the primary name, without an authored compatibility explanation
+   = help: use one stable name or document the intentional one-way schema migration at this declaration
+
+warning: Serde names for `Created` differ by direction
+  --> $DIR/semantic.rs:41:1
+   |
+LL | / enum DirectionalVariant {
+LL | |     #[serde(rename(serialize = "created", deserialize = "new"))]
+LL | |     Created,
+LL | | }
+   | |_^ this declaration has directional wire names
+   |
+   = note: serialization writes `created` while deserialization accepts `new` as the primary name, without an authored compatibility explanation
+   = help: use one stable name or document the intentional one-way schema migration at this declaration
+
+warning: 5 warnings emitted
 

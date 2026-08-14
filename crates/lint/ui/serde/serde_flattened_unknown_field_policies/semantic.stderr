@@ -8,9 +8,24 @@ LL | |     extensions: HashMap<String, String>,
 LL | | }
    | |_^ these Serde policies cannot both be enforced coherently
    |
-   = note: flattened field `extensions` merges an open key namespace into a container that promises to reject unknown keys
+   = note: flattened field `extensions` merges another key namespace into a container that promises to reject unknown keys, but Serde does not support combining these policies
    = help: remove `deny_unknown_fields` to accept flattened extensions, or remove flattening to keep a closed schema
    = note: `#[warn(serde_flattened_unknown_field_policies)]` on by default
 
-warning: 1 warning emitted
+warning: Serde flattening conflicts with the container's unknown-field policy
+  --> $DIR/semantic.rs:22:1
+   |
+LL | / enum StrictEvent {
+LL | |     Updated {
+LL | |         id: u64,
+LL | |         #[serde(flatten)]
+LL | |         extensions: HashMap<String, String>,
+LL | |     },
+LL | | }
+   | |_^ these Serde policies cannot both be enforced coherently
+   |
+   = note: flattened field `Updated.extensions` merges another key namespace into a container that promises to reject unknown keys, but Serde does not support combining these policies
+   = help: remove `deny_unknown_fields` to accept flattened extensions, or remove flattening to keep a closed schema
+
+warning: 2 warnings emitted
 
