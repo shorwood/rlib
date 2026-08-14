@@ -277,7 +277,7 @@ impl FrameworkResolutionRequired {
     /// Reports complete predicate families with no configured provider.
     #[cfg(feature = "strum")]
     fn emit_unresolved_predicates(&self, cx: &LateContext<'_>) {
-        for family in self.predicates.complete_families(cx) {
+        for family in self.predicates.complete_families(cx, None) {
             if !(PredicateFamily::providers(cx).len() > 1
                 && self.config.enum_variant_predicates().is_none())
             {

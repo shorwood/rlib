@@ -96,12 +96,13 @@ impl DeriveResolutionConfig {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "strum")]
     use super::DeriveResolutionConfig;
     #[cfg(feature = "strum")]
     use crate::rules::strum::utils::authored_contracts::{DisplayProvider, StringParserProvider};
     #[cfg(feature = "strum")]
     use crate::rules::strum::utils::enumeration::CollectionProvider;
-    #[cfg(any(feature = "strum", feature = "derive_more"))]
+    #[cfg(feature = "strum")]
     use crate::utils::variant_methods::PredicateProvider;
 
     #[cfg(feature = "strum")]
