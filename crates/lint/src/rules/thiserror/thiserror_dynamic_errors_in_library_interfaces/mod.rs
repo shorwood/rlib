@@ -6,10 +6,11 @@ extern crate rustc_span;
 use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{Item, ItemKind};
+use rustc_hir::{ImplItem, ImplItemKind, Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty::{self, Ty};
-use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
+use rustc_span::{Span, sym};
 
 use crate::utils::diagnostic::LateViolation;
 
@@ -114,21 +115,21 @@ impl ThiserrorDynamicErrorsInLibraryInterfaces {
         }
         None
     }
-}
-impl LateLintPass<'_> for ThiserrorDynamicErrorsInLibraryInterfaces {
-    fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Limit the policy to authored public functions.
-        if item.span.from_expansion()
-            || !matches!(item.kind, ItemKind::Fn { .. })
-            || !cx.tcx.visibility(item.owner_id.def_id).is_public()
-        {
+
+    /// Checks one effectively exported free or inherent function.
+    fn check_function(
+        cx: &LateContext<'_>,
+        owner: rustc_hir::HirId,
+        definition: LocalDefId,
+        span: Span,
+    ) {
+        if span.from_expansion() || !cx.tcx.effective_visibilities(()).is_exported(definition) {
             return;
         }
 
-        // Resolve the function's concrete return contract.
         let output = cx
             .tcx
-            .fn_sig(item.owner_id.def_id)
+            .fn_sig(definition)
             .instantiate_identity()
             .skip_binder()
             .output();
@@ -136,24 +137,36 @@ impl LateLintPass<'_> for ThiserrorDynamicErrorsInLibraryInterfaces {
         let ty::Adt(result, arguments) = output.kind() else {
             return;
         };
-        if cx.tcx.item_name(result.did()).as_str() != "Result"
+        if !cx.tcx.is_diagnostic_item(sym::Result, result.did())
             || arguments.len() != Self::RESULT_TYPE_ARGUMENT_COUNT
         {
             return;
         }
-        let error = arguments.type_at(1);
-
-        // Report only error types that erase the public failure vocabulary.
-        let Some(error_name) = Self::error_name(cx, error) else {
+        let Some(error) = Self::error_name(cx, arguments.type_at(1)) else {
             return;
         };
 
         Violation {
-            owner: item.hir_id(),
-            span: item.span,
-            function: cx.tcx.item_name(item.owner_id.def_id).to_string(),
-            error: error_name,
+            owner,
+            span,
+            function: cx.tcx.item_name(definition).to_string(),
+            error,
         }
         .emit(cx);
+    }
+}
+impl LateLintPass<'_> for ThiserrorDynamicErrorsInLibraryInterfaces {
+    fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        if !matches!(item.kind, ItemKind::Fn { .. }) {
+            return;
+        }
+        Self::check_function(cx, item.hir_id(), item.owner_id.def_id, item.span);
+    }
+
+    fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        if !matches!(item.kind, ImplItemKind::Fn(..)) {
+            return;
+        }
+        Self::check_function(cx, item.hir_id(), item.owner_id.def_id, item.span);
     }
 }

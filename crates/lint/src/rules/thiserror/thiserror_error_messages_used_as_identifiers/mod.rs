@@ -99,6 +99,16 @@ impl ThiserrorErrorMessagesUsedAsIdentifiers {
         let ExprKind::MethodCall(segment, receiver, _, _) = expression.kind else {
             return None;
         };
+        if segment.ident.as_str() == "as_str" {
+            let receiver_type = cx.typeck_results().expr_ty(receiver).peel_refs();
+            let definition = receiver_type.ty_adt_def()?;
+            if cx.tcx.item_name(definition.did()).as_str() == "String"
+                && cx.tcx.crate_name(definition.did().krate).as_str() == "alloc"
+            {
+                return Self::displayed_error(cx, receiver);
+            }
+            return None;
+        }
         if segment.ident.as_str() != "to_string" {
             return None;
         }
@@ -107,7 +117,9 @@ impl ThiserrorErrorMessagesUsedAsIdentifiers {
             .typeck_results()
             .type_dependent_def_id(expression.hir_id)?;
         let trait_id = cx.tcx.trait_of_assoc(method)?;
-        if cx.tcx.item_name(trait_id).as_str() != "ToString" {
+        if cx.tcx.item_name(trait_id).as_str() != "ToString"
+            || cx.tcx.crate_name(trait_id.krate).as_str() != "alloc"
+        {
             return None;
         }
 

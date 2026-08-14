@@ -7,12 +7,12 @@ use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap};
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{Item, ItemKind};
+use rustc_hir::def_id::{DefId, LocalDefId};
+use rustc_hir::intravisit::{self, Visitor};
+use rustc_hir::{Expr, ExprKind, Item, ItemKind, MatchSource, QPath};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
-use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, sym};
-use syn::visit::{Visit, visit_expr_try};
 
 use super::utils::contracts::{ThiserrorAttributes, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
@@ -78,6 +78,8 @@ struct ContextCandidateError {
     span: Span,
     /// Sole transparent `#[from]` variant.
     variant: String,
+    /// Concrete source type converted by this variant.
+    source: DefId,
 }
 
 /// Function result and the propagated operations it contains.
@@ -85,7 +87,7 @@ struct ContextCandidateUse {
     /// Local error returned by the function.
     error: LocalDefId,
     /// Named calls immediately propagated with `?`.
-    operations: BTreeSet<String>,
+    operations: HashMap<DefId, BTreeSet<String>>,
 }
 
 // -----------------------------------------------------------------------------
@@ -93,32 +95,80 @@ struct ContextCandidateUse {
 // -----------------------------------------------------------------------------
 
 /// Collects names of calls whose results are immediately propagated.
-#[derive(Default)]
-struct TryOperationVisitor {
-    /// Distinct operation names found beneath `?` expressions.
-    operations: BTreeSet<String>,
+struct TryOperationVisitor<'cx, 'tcx> {
+    /// Compiler context used to resolve operation signatures.
+    cx: &'cx LateContext<'tcx>,
+    /// Body owner whose type-checking results describe the visited expressions.
+    owner: LocalDefId,
+    /// Distinct operation names grouped by their concrete error type.
+    operations: HashMap<DefId, BTreeSet<String>>,
 }
 
-impl TryOperationVisitor {
-    /// Names direct function and method calls beneath a `?` expression.
-    fn operation_name(expression: &syn::Expr) -> Option<String> {
-        match expression {
-            syn::Expr::Call(call) => match call.func.as_ref() {
-                syn::Expr::Path(path) => Some(path.path.segments.last()?.ident.to_string()),
-                _ => None,
-            },
-            syn::Expr::MethodCall(call) => Some(call.method.to_string()),
-            _ => None,
+impl TryOperationVisitor<'_, '_> {
+    /// Resolves one authored call beneath a compiler-generated try desugaring.
+    fn operation(&self, expression: &Expr<'_>) -> Option<(DefId, String)> {
+        if expression.span.from_expansion() {
+            return None;
         }
+        let name = match expression.kind {
+            ExprKind::Call(callee, _) => {
+                let ExprKind::Path(path) = callee.kind else {
+                    return None;
+                };
+                match path {
+                    QPath::Resolved(_, path) => path.segments.last()?.ident.name.to_string(),
+                    QPath::TypeRelative(_, segment) => segment.ident.name.to_string(),
+                }
+            }
+            ExprKind::MethodCall(segment, ..) => segment.ident.name.to_string(),
+            _ => return None,
+        };
+        let ty::Adt(result, arguments) = self.cx.tcx.typeck(self.owner).expr_ty(expression).kind()
+        else {
+            return None;
+        };
+        if !self.cx.tcx.is_diagnostic_item(sym::Result, result.did()) {
+            return None;
+        }
+        let source = arguments.type_at(1).ty_adt_def()?.did();
+        Some((source, name))
     }
 }
 
-impl<'ast> Visit<'ast> for TryOperationVisitor {
-    fn visit_expr_try(&mut self, expression: &'ast syn::ExprTry) {
-        if let Some(operation) = Self::operation_name(&expression.expr) {
-            self.operations.insert(operation);
+impl<'tcx> Visitor<'tcx> for TryOperationVisitor<'_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if let ExprKind::Match(scrutinee, _, MatchSource::TryDesugar(_)) = expression.kind {
+            let mut finder = AuthoredOperationFinder {
+                visitor: self,
+                operation: None,
+            };
+            finder.visit_expr(scrutinee);
+            if let Some((source, name)) = finder.operation {
+                self.operations.entry(source).or_default().insert(name);
+            }
         }
-        visit_expr_try(self, expression);
+        intravisit::walk_expr(self, expression);
+    }
+
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+}
+
+/// Finds the authored call wrapped by one try desugaring.
+struct AuthoredOperationFinder<'visitor, 'cx, 'tcx> {
+    visitor: &'visitor TryOperationVisitor<'cx, 'tcx>,
+    operation: Option<(DefId, String)>,
+}
+
+impl<'tcx> Visitor<'tcx> for AuthoredOperationFinder<'_, '_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if self.operation.is_some() {
+            return;
+        }
+        if let Some(operation) = self.visitor.operation(expression) {
+            self.operation = Some(operation);
+            return;
+        }
+        intravisit::walk_expr(self, expression);
     }
 }
 
@@ -132,7 +182,7 @@ struct ThiserrorFromSourcesWithoutContext {
     /// Local derived error contracts.
     catalog: ThiserrorContractCatalog,
     /// Transparent variants indexed by their error enum.
-    errors: HashMap<LocalDefId, ContextCandidateError>,
+    errors: HashMap<LocalDefId, Vec<ContextCandidateError>>,
     /// Functions returning those errors and their propagated operations.
     uses: Vec<ContextCandidateUse>,
 }
@@ -164,25 +214,29 @@ impl LateLintPass<'_> for ThiserrorFromSourcesWithoutContext {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for usage in self.uses.drain(..) {
-            let Some(error) = self.errors.get(&usage.error) else {
+            let Some(errors) = self.errors.get(&usage.error) else {
                 continue;
             };
-            if self.catalog.derived_type(usage.error).is_none()
-                || usage.operations.len() < Self::MINIMUM_PROPAGATION_OPERATIONS
-            {
+            if self.catalog.derived_type(usage.error).is_none() {
                 continue;
             }
-
-            Violation {
-                span: error.span,
-                variant: error.variant.clone(),
-                operations: usage
-                    .operations
-                    .into_iter()
-                    .map(|operation| format!("`{operation}`"))
-                    .collect(),
+            for error in errors {
+                let Some(operations) = usage.operations.get(&error.source) else {
+                    continue;
+                };
+                if operations.len() < Self::MINIMUM_PROPAGATION_OPERATIONS {
+                    continue;
+                }
+                Violation {
+                    span: error.span,
+                    variant: error.variant.clone(),
+                    operations: operations
+                        .iter()
+                        .map(|operation| format!("`{operation}`"))
+                        .collect(),
+                }
+                .emit(cx);
             }
-            .emit(cx);
         }
     }
 }
@@ -196,10 +250,14 @@ impl ThiserrorFromSourcesWithoutContext {
             return;
         };
 
+        let ItemKind::Enum(_, _, hir_definition) = item.kind else {
+            return;
+        };
         let variants = enumeration
             .variants
             .iter()
-            .filter_map(|variant| {
+            .zip(hir_definition.variants)
+            .filter_map(|(variant, hir_variant)| {
                 let transparent = variant.attrs.iter().any(|attribute| {
                     attribute.path().is_ident("error")
                         && attribute
@@ -210,22 +268,29 @@ impl ThiserrorFromSourcesWithoutContext {
                 let [field] = fields.as_slice() else {
                     return None;
                 };
-                (transparent && ThiserrorAttributes::from_attributes(&field.attrs).is_from)
-                    .then(|| variant.ident.to_string())
+                if !transparent || !ThiserrorAttributes::from_attributes(&field.attrs).is_from {
+                    return None;
+                }
+                let [hir_field] = hir_variant.data.fields() else {
+                    return None;
+                };
+                let source = cx
+                    .tcx
+                    .type_of(hir_field.def_id)
+                    .instantiate_identity()
+                    .ty_adt_def()?
+                    .did();
+                Some(ContextCandidateError {
+                    span: hir_variant.span,
+                    variant: variant.ident.to_string(),
+                    source,
+                })
             })
             .collect::<Vec<_>>();
-
-        let [variant] = variants.as_slice() else {
+        if variants.is_empty() {
             return;
-        };
-
-        self.errors.insert(
-            item.owner_id.def_id,
-            ContextCandidateError {
-                span: item.span,
-                variant: variant.clone(),
-            },
-        );
+        }
+        self.errors.insert(item.owner_id.def_id, variants);
     }
 
     /// Records propagated operations in a function returning a local error.
@@ -252,15 +317,15 @@ impl ThiserrorFromSourcesWithoutContext {
             return;
         };
 
-        let Some(source) = AuthoredItemSource::for_item(cx, item) else {
+        let ItemKind::Fn { body, .. } = item.kind else {
             return;
         };
-        let Ok(function) = syn::parse_str::<syn::ItemFn>(&source) else {
-            return;
+        let mut visitor = TryOperationVisitor {
+            cx,
+            owner: item.owner_id.def_id,
+            operations: HashMap::new(),
         };
-        let mut visitor = TryOperationVisitor::default();
-
-        visitor.visit_block(&function.block);
+        visitor.visit_expr(cx.tcx.hir_body(body).value);
         self.uses.push(ContextCandidateUse {
             error,
             operations: visitor.operations,

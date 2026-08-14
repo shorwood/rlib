@@ -116,6 +116,16 @@ impl ErrorMessage {
             Err(_error) => return None,
         };
 
-        (!message.contains('{')).then_some(message)
+        let mut rendered = String::with_capacity(message.len());
+        let mut characters = message.chars().peekable();
+        while let Some(character) = characters.next() {
+            match character {
+                '{' if characters.next_if_eq(&'{').is_some() => rendered.push('{'),
+                '}' if characters.next_if_eq(&'}').is_some() => rendered.push('}'),
+                '{' | '}' => return None,
+                _ => rendered.push(character),
+            }
+        }
+        Some(rendered)
     }
 }

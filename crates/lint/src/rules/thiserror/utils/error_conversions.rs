@@ -3,13 +3,15 @@ extern crate rustc_lint;
 extern crate rustc_middle;
 extern crate rustc_span;
 
-use rustc_hir::{ImplItem, ImplItemKind, ItemKind, Node};
+use rustc_hir::{ExprKind, ImplItem, ImplItemKind, ItemKind, Node, StructTailExpr};
 use rustc_lint::LateContext;
 use rustc_middle::ty;
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
+use super::contracts::ThiserrorAttributes;
 use crate::utils::direct_forwarding::DirectForwarding;
+use crate::utils::source_provenance::AuthoredItemSource;
 
 /// Exact manual conversion that wraps one error in one enum variant.
 pub struct Candidate {
@@ -67,9 +69,22 @@ impl Candidate {
         let [binding] = forwarding.bindings.as_slice() else {
             return None;
         };
-        let call = DirectForwarding::call(cx, forwarding.typeck_owner, forwarding.forwarded)?;
-
-        let [argument] = call.arguments.as_slice() else {
+        let (target, argument) = if let Some(call) =
+            DirectForwarding::call(cx, forwarding.typeck_owner, forwarding.forwarded)
+        {
+            let [argument] = call.arguments.as_slice() else {
+                return None;
+            };
+            (call.target, *argument)
+        } else if let ExprKind::Struct(path, [field], StructTailExpr::None) =
+            forwarding.forwarded.kind
+        {
+            (
+                cx.qpath_res(&path, forwarding.forwarded.hir_id)
+                    .opt_def_id()?,
+                field.expr,
+            )
+        } else {
             return None;
         };
         if !DirectForwarding::is_binding(cx, argument, *binding) {
@@ -84,9 +99,30 @@ impl Candidate {
                     .iter()
                     .next()
                     .is_some_and(|field| field.ty(cx.tcx, arguments) == source)
-                && (call.target == variant.def_id
-                    || cx.tcx.opt_parent(call.target) == Some(variant.def_id))
+                && (target == variant.def_id || cx.tcx.opt_parent(target) == Some(variant.def_id))
         })?;
+        let enum_item = match cx.tcx.hir_node_by_def_id(definition.did().as_local()?) {
+            Node::Item(item) => item,
+            _ => return None,
+        };
+        let source_text = AuthoredItemSource::for_item(cx, enum_item)?;
+        let enumeration = syn::parse_str::<syn::ItemEnum>(&source_text).ok()?;
+        let authored_variant = enumeration
+            .variants
+            .iter()
+            .find(|candidate| candidate.ident == variant.name.as_str())?;
+        let authored_fields = authored_variant.fields.iter().collect::<Vec<_>>();
+        let [authored_field] = authored_fields.as_slice() else {
+            return None;
+        };
+        let is_source = authored_field
+            .ident
+            .as_ref()
+            .is_some_and(|name| name == "source")
+            || ThiserrorAttributes::from_attributes(&authored_field.attrs).is_source;
+        if !is_source {
+            return None;
+        }
 
         Some(Self {
             definition: definition.did().as_local()?,

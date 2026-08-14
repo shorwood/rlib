@@ -5,12 +5,14 @@ extern crate rustc_span;
 
 use std::collections::HashMap;
 
-use rustc_hir::{Item, ItemKind};
+use rustc_hir::def::{CtorOf, DefKind, Res};
+use rustc_hir::{ExprKind, ImplItem, ImplItemKind, Item, ItemKind, Mutability, PatKind};
 use rustc_lint::LateContext;
 use rustc_middle::ty;
-use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
+use rustc_span::{Span, sym};
 
+use crate::utils::direct_forwarding::DirectForwarding;
 use crate::utils::source_provenance::AuthoredItemSource;
 
 // -----------------------------------------------------------------------------
@@ -147,47 +149,91 @@ enum ManualErrorSource {
 impl ManualErrorSource {
     /// Parses a conventional empty or single-field source implementation.
     fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
-        let source = AuthoredItemSource::for_item(cx, item)?;
-        let implementation = match syn::parse_str::<syn::ItemImpl>(&source) {
-            Ok(implementation) => implementation,
-            Err(_error) => return None,
+        let ItemKind::Impl(implementation) = item.kind else {
+            return None;
         };
-
-        match implementation.items.as_slice() {
+        match implementation.items {
             [] => Some(Self::Empty),
-            [syn::ImplItem::Fn(method)] => Self::conventional_field(method).map(Self::Field),
+            [method] => {
+                let method = cx.tcx.hir_impl_item(*method);
+                Self::conventional_field(cx, method)
+                    .map(Self::Field)
+                    .or_else(|| Self::conventional_none(cx, method).then_some(Self::Empty))
+            }
             _ => None,
         }
     }
 
+    /// Recognizes an explicit source method that returns the standard `Option::None`.
+    fn conventional_none(cx: &LateContext<'_>, method: &ImplItem<'_>) -> bool {
+        if method.ident.name.as_str() != "source" || !cx.tcx.hir_attrs(method.hir_id()).is_empty() {
+            return false;
+        }
+        let ImplItemKind::Fn(_, body_id) = method.kind else {
+            return false;
+        };
+        let Some(expression) =
+            DirectForwarding::single_body_expression(cx.tcx.hir_body(body_id).value)
+        else {
+            return false;
+        };
+        let ExprKind::Path(path) = expression.kind else {
+            return false;
+        };
+        let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
+            cx.qpath_res(&path, expression.hir_id)
+        else {
+            return false;
+        };
+        let variant = cx.tcx.parent(constructor);
+        cx.tcx.item_name(variant).as_str() == "None"
+            && cx
+                .tcx
+                .is_diagnostic_item(sym::Option, cx.tcx.parent(variant))
+    }
+
     /// Parses a conventional `Some(&self.field)` source method.
-    fn conventional_field(method: &syn::ImplItemFn) -> Option<String> {
-        if method.sig.ident != "source" {
+    fn conventional_field(cx: &LateContext<'_>, method: &ImplItem<'_>) -> Option<String> {
+        if method.ident.name.as_str() != "source" || !cx.tcx.hir_attrs(method.hir_id()).is_empty() {
             return None;
         }
-        let [syn::Stmt::Expr(syn::Expr::Call(call), _)] = method.block.stmts.as_slice() else {
+        let ImplItemKind::Fn(_, body_id) = method.kind else {
             return None;
         };
-
-        if !matches!(call.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Some"))
-            || call.args.len() != 1
+        let body = cx.tcx.hir_body(body_id);
+        let [parameter] = body.params else {
+            return None;
+        };
+        let PatKind::Binding(_, receiver, _, None) = parameter.pat.kind else {
+            return None;
+        };
+        let expression = DirectForwarding::single_body_expression(body.value)?;
+        let ExprKind::Call(callee, [argument]) = expression.kind else {
+            return None;
+        };
+        let ExprKind::Path(path) = callee.kind else {
+            return None;
+        };
+        let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
+            cx.qpath_res(&path, callee.hir_id)
+        else {
+            return None;
+        };
+        let variant = cx.tcx.parent(constructor);
+        if cx.tcx.item_name(variant).as_str() != "Some"
+            || !cx
+                .tcx
+                .is_diagnostic_item(sym::Option, cx.tcx.parent(variant))
         {
             return None;
         }
-        let syn::Expr::Reference(reference) = call.args.first()? else {
+        let ExprKind::AddrOf(_, Mutability::Not, field) = argument.kind else {
             return None;
         };
-        let syn::Expr::Field(field) = reference.expr.as_ref() else {
+        let ExprKind::Field(base, name) = field.kind else {
             return None;
         };
-
-        if !matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self")) {
-            return None;
-        }
-        match &field.member {
-            syn::Member::Named(name) => Some(name.to_string()),
-            syn::Member::Unnamed(_) => None,
-        }
+        DirectForwarding::is_binding(cx, base, receiver).then(|| name.name.to_string())
     }
 
     /// Returns the selected field, if the implementation overrides `source`.
@@ -243,7 +289,7 @@ impl ManualErrorImpl {
             return None;
         };
 
-        if !definition.is_struct() || !cx.tcx.generics_of(definition.did()).own_params.is_empty() {
+        if !definition.is_struct() {
             return None;
         }
         Some(Self {

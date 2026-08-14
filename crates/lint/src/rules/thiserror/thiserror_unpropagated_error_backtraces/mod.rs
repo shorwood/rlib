@@ -53,10 +53,17 @@ impl BacktraceShape {
     }
 
     /// Adds one source-level field to this error's backtrace shape.
-    fn record_field(&mut self, cx: &LateContext<'_>, field: &syn::Field, hir_field: &FieldDef<'_>) {
-        let Some(name) = field.ident.as_ref().map(ToString::to_string) else {
-            return;
-        };
+    fn record_field(
+        &mut self,
+        cx: &LateContext<'_>,
+        index: usize,
+        field: &syn::Field,
+        hir_field: &FieldDef<'_>,
+    ) {
+        let name = field
+            .ident
+            .as_ref()
+            .map_or_else(|| index.to_string(), ToString::to_string);
         let attributes = ThiserrorAttributes::from_attributes(&field.attrs);
         let field_type = cx.tcx.type_of(hir_field.def_id).instantiate_identity();
         let is_backtrace = attributes.is_backtrace || Self::is_std(cx, field_type);
@@ -163,7 +170,7 @@ struct ThiserrorUnpropagatedErrorBacktraces {
     /// Authored error definitions in stable source order.
     order: Vec<LocalDefId>,
     /// Backtrace shapes indexed by local error definition.
-    shapes: HashMap<LocalDefId, BacktraceShape>,
+    shapes: HashMap<LocalDefId, Vec<BacktraceShape>>,
 }
 
 dylint_linting::impl_late_lint! {
@@ -181,25 +188,48 @@ impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
             return;
         }
 
-        let hir_fields = match item.kind {
-            ItemKind::Struct(_, _, data) => data.fields().iter().collect::<Vec<_>>(),
-            _ => return,
-        };
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
-
-        let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
-            return;
+        let shapes = match item.kind {
+            ItemKind::Struct(_, _, data) => {
+                let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
+                    return;
+                };
+                let mut shape = BacktraceShape::default();
+                for (index, (field, hir_field)) in
+                    structure.fields.iter().zip(data.fields()).enumerate()
+                {
+                    shape.record_field(cx, index, field, hir_field);
+                }
+                vec![shape]
+            }
+            ItemKind::Enum(_, _, definition) => {
+                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
+                    return;
+                };
+                enumeration
+                    .variants
+                    .iter()
+                    .zip(definition.variants)
+                    .map(|(variant, hir_variant)| {
+                        let mut shape = BacktraceShape::default();
+                        for (index, (field, hir_field)) in variant
+                            .fields
+                            .iter()
+                            .zip(hir_variant.data.fields())
+                            .enumerate()
+                        {
+                            shape.record_field(cx, index, field, hir_field);
+                        }
+                        shape
+                    })
+                    .collect()
+            }
+            _ => return,
         };
-        let syn_fields = structure.fields.into_iter().collect::<Vec<_>>();
-        let mut shape = BacktraceShape::default();
-
-        for (field, hir_field) in syn_fields.iter().zip(hir_fields) {
-            shape.record_field(cx, field, hir_field);
-        }
         self.order.push(item.owner_id.def_id);
-        self.shapes.insert(item.owner_id.def_id, shape);
+        self.shapes.insert(item.owner_id.def_id, shapes);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
@@ -207,30 +237,32 @@ impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
             if self.catalog.derived_type(*definition).is_none() {
                 continue;
             }
-            let Some(shape) = self.shapes.get(definition) else {
+            let Some(shapes) = self.shapes.get(definition) else {
                 continue;
             };
-            for source in &shape.sources {
-                if self.catalog.derived_type(source.target).is_none()
-                    || !self.source_provides_backtrace(source.target)
-                    || source.is_forwarding_backtrace
-                {
-                    continue;
-                }
-                if let Some(span) = shape.captures.first() {
-                    Violation {
-                        span: *span,
-                        kind: ViolationKind::DuplicateCapture,
+            for shape in shapes {
+                for source in &shape.sources {
+                    if self.catalog.derived_type(source.target).is_none()
+                        || !self.source_provides_backtrace(source.target)
+                        || source.is_forwarding_backtrace
+                    {
+                        continue;
                     }
-                    .emit(cx);
-                } else {
-                    Violation {
-                        span: source.span,
-                        kind: ViolationKind::MissingForwarding {
-                            field: source.name.clone(),
-                        },
+                    if let Some(span) = shape.captures.first() {
+                        Violation {
+                            span: *span,
+                            kind: ViolationKind::DuplicateCapture,
+                        }
+                        .emit(cx);
+                    } else {
+                        Violation {
+                            span: source.span,
+                            kind: ViolationKind::MissingForwarding {
+                                field: source.name.clone(),
+                            },
+                        }
+                        .emit(cx);
                     }
-                    .emit(cx);
                 }
             }
         }
@@ -246,13 +278,15 @@ impl ThiserrorUnpropagatedErrorBacktraces {
         if !visiting.insert(definition) {
             return false;
         }
-        let result = self.shapes.get(&definition).is_some_and(|shape| {
-            !shape.captures.is_empty()
-                || shape.sources.iter().any(|source| {
-                    source.is_forwarding_backtrace
-                        && self.catalog.derived_type(source.target).is_some()
-                        && self.provides_backtrace(source.target, visiting)
-                })
+        let result = self.shapes.get(&definition).is_some_and(|shapes| {
+            shapes.iter().any(|shape| {
+                !shape.captures.is_empty()
+                    || shape.sources.iter().any(|source| {
+                        source.is_forwarding_backtrace
+                            && self.catalog.derived_type(source.target).is_some()
+                            && self.provides_backtrace(source.target, visiting)
+                    })
+            })
         });
         visiting.remove(&definition);
         result

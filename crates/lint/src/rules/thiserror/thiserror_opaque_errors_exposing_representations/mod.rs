@@ -112,7 +112,12 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
         let ItemKind::Enum(_, _, definition) = item.kind else {
             return;
         };
-        if item.span.from_expansion() || !cx.tcx.visibility(item.owner_id.def_id).is_public() {
+        if item.span.from_expansion()
+            || !cx
+                .tcx
+                .effective_visibilities(())
+                .is_exported(item.owner_id.def_id)
+        {
             return;
         }
 
@@ -126,6 +131,12 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
 
         // Inspect only fields that participate in the public causal chain.
         for (variant, hir_variant) in enumeration.variants.iter().zip(definition.variants) {
+            let is_transparent = variant.attrs.iter().any(|attribute| {
+                attribute.path().is_ident("error")
+                    && attribute
+                        .parse_args::<syn::Path>()
+                        .is_ok_and(|path| path.is_ident("transparent"))
+            });
             for (field, hir_field) in variant.fields.iter().zip(hir_variant.data.fields()) {
                 let attributes = ThiserrorAttributes::from_attributes(&field.attrs);
                 let conventional_source = field
@@ -133,7 +144,10 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
                     .as_ref()
                     .is_some_and(|identifier| identifier == "source");
 
-                if !attributes.is_source && !conventional_source {
+                if !attributes.is_source
+                    && !conventional_source
+                    && !(is_transparent && variant.fields.len() == 1)
+                {
                     continue;
                 }
 

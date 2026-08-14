@@ -87,6 +87,59 @@ struct Candidate {
     fields: Vec<CandidateField>,
 }
 
+impl Candidate {
+    /// Builds one candidate from fields that coexist in the same struct or enum variant.
+    fn from_fields(
+        cx: &LateContext<'_>,
+        definition: LocalDefId,
+        span: Span,
+        syn_fields: &[syn::Field],
+        hir_fields: &[rustc_hir::FieldDef<'_>],
+        is_transparent: bool,
+    ) -> Self {
+        let fields = syn_fields
+            .iter()
+            .zip(hir_fields)
+            .filter_map(|(field, hir_field)| {
+                let name = field.ident.as_ref()?.to_string();
+                if !ThiserrorUnreportedErrorSources::has_causal_name(&name) {
+                    return None;
+                }
+                let target = cx
+                    .tcx
+                    .type_of(hir_field.def_id)
+                    .instantiate_identity()
+                    .ty_adt_def()?
+                    .did()
+                    .as_local()?;
+                let attributes = ThiserrorAttributes::from_attributes(&field.attrs);
+                Some(CandidateField {
+                    is_marked_source: attributes.is_source
+                        || name == "source"
+                        || (is_transparent && syn_fields.len() == 1),
+                    name,
+                    target,
+                })
+            })
+            .collect();
+        Self {
+            definition,
+            span,
+            fields,
+        }
+    }
+
+    /// Returns whether an error attribute delegates transparently to its sole field.
+    fn is_transparent(attributes: &[syn::Attribute]) -> bool {
+        attributes.iter().any(|attribute| {
+            attribute.path().is_ident("error")
+                && attribute
+                    .parse_args::<syn::Path>()
+                    .is_ok_and(|path| path.is_ident("transparent"))
+        })
+    }
+}
+
 // -----------------------------------------------------------------------------
 // ThiserrorUnreportedErrorSources: Complete source-chain policy
 // -----------------------------------------------------------------------------
@@ -121,63 +174,42 @@ impl LateLintPass<'_> for ThiserrorUnreportedErrorSources {
             return;
         }
 
-        let hir_fields = match item.kind {
-            ItemKind::Struct(_, _, data) => data.fields().iter().collect::<Vec<_>>(),
-            ItemKind::Enum(_, _, definition) => definition
-                .variants
-                .iter()
-                .flat_map(|variant| variant.data.fields())
-                .collect(),
-            _ => return,
-        };
-
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
-
-        let syn_fields = match syn::parse_str::<syn::ItemStruct>(&source) {
-            Ok(structure) => structure.fields.into_iter().collect::<Vec<_>>(),
-            Err(_error) => {
+        match item.kind {
+            ItemKind::Struct(_, _, data) => {
+                let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
+                    return;
+                };
+                let fields = structure.fields.iter().cloned().collect::<Vec<_>>();
+                self.candidates.push(Candidate::from_fields(
+                    cx,
+                    item.owner_id.def_id,
+                    item.span,
+                    &fields,
+                    data.fields(),
+                    Candidate::is_transparent(&structure.attrs),
+                ));
+            }
+            ItemKind::Enum(_, _, definition) => {
                 let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
                     return;
                 };
-                enumeration
-                    .variants
-                    .into_iter()
-                    .flat_map(|variant| variant.fields)
-                    .collect()
-            }
-        };
-
-        let fields = syn_fields
-            .iter()
-            .zip(hir_fields)
-            .filter_map(|(field, hir_field)| {
-                let name = field.ident.as_ref()?.to_string();
-                if !Self::has_causal_name(&name) {
-                    return None;
+                for (variant, hir_variant) in enumeration.variants.iter().zip(definition.variants) {
+                    let fields = variant.fields.iter().cloned().collect::<Vec<_>>();
+                    self.candidates.push(Candidate::from_fields(
+                        cx,
+                        item.owner_id.def_id,
+                        hir_variant.span,
+                        &fields,
+                        hir_variant.data.fields(),
+                        Candidate::is_transparent(&variant.attrs),
+                    ));
                 }
-                let target = cx
-                    .tcx
-                    .type_of(hir_field.def_id)
-                    .instantiate_identity()
-                    .ty_adt_def()?
-                    .did()
-                    .as_local()?;
-                let attributes = ThiserrorAttributes::from_attributes(&field.attrs);
-                Some(CandidateField {
-                    is_marked_source: attributes.is_source || name == "source",
-                    name,
-                    target,
-                })
-            })
-            .collect();
-
-        self.candidates.push(Candidate {
-            definition: item.owner_id.def_id,
-            span: item.span,
-            fields,
-        });
+            }
+            _ => {}
+        }
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {

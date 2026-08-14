@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{Item, ItemKind};
+use rustc_hir::{ImplItem, ImplItemKind, Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty::{self, Ty};
 use rustc_span::Span;
@@ -89,19 +89,6 @@ impl ChannelNesting {
     const fn is_inside(self) -> bool {
         matches!(self, Self::InsideChannel)
     }
-
-    /// Advances traversal after inspecting the current nominal type path.
-    fn entering(self, path: &str) -> Self {
-        if self.is_inside()
-            || ["::mpsc::Sender", "::mpsc::SyncSender", "::mpsc::Receiver"]
-                .iter()
-                .any(|suffix| path.ends_with(suffix))
-        {
-            Self::InsideChannel
-        } else {
-            Self::OutsideChannel
-        }
-    }
 }
 
 // -----------------------------------------------------------------------------
@@ -139,8 +126,17 @@ impl ThiserrorNonSendSyncPublicErrors {
             return;
         };
         let path = cx.tcx.def_path_str(definition.did());
-
-        let nesting = nesting.entering(&path);
+        let is_standard_channel = cx.tcx.crate_name(definition.did().krate).as_str() == "std"
+            && matches!(
+                cx.tcx.item_name(definition.did()).as_str(),
+                "Sender" | "SyncSender" | "Receiver"
+            )
+            && path.contains("::sync::mpsc::");
+        let nesting = if nesting.is_inside() || is_standard_channel {
+            ChannelNesting::InsideChannel
+        } else {
+            ChannelNesting::OutsideChannel
+        };
         let channel = nesting.is_inside();
         if channel && let Some(local) = definition.did().as_local() {
             errors.insert(local);
@@ -176,14 +172,30 @@ impl LateLintPass<'_> for ThiserrorNonSendSyncPublicErrors {
                 self.record_error(cx, item, fields);
             }
             ItemKind::Fn { .. } if cx.tcx.visibility(item.owner_id.def_id).is_public() => {
-                self.record_public_channel_boundary(cx, item);
+                self.record_public_channel_boundary(
+                    cx,
+                    item.owner_id.def_id,
+                    cx.tcx.item_name(item.owner_id.def_id).to_string(),
+                );
             }
             _ => {}
         }
     }
 
+    fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        if !item.span.from_expansion() && matches!(item.kind, ImplItemKind::Fn(..)) {
+            self.record_public_channel_boundary(
+                cx,
+                item.owner_id.def_id,
+                cx.tcx.item_name(item.owner_id.def_id).to_string(),
+            );
+        }
+    }
+
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for (definition, candidate) in self.errors.drain() {
+        let mut candidates = self.errors.drain().collect::<Vec<_>>();
+        candidates.sort_by_key(|(_, candidate)| candidate.span.lo());
+        for (definition, candidate) in candidates {
             let Some(boundary) = self.boundaries.get(&definition) else {
                 continue;
             };
@@ -202,18 +214,44 @@ impl LateLintPass<'_> for ThiserrorNonSendSyncPublicErrors {
 }
 impl ThiserrorNonSendSyncPublicErrors {
     /// Records local errors transported by one public channel-returning function.
-    fn record_public_channel_boundary(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+    fn record_public_channel_boundary(
+        &mut self,
+        cx: &LateContext<'_>,
+        definition: LocalDefId,
+        name: String,
+    ) {
+        if !cx.tcx.effective_visibilities(()).is_exported(definition) {
+            return;
+        }
         let output = cx
             .tcx
-            .fn_sig(item.owner_id.def_id)
+            .fn_sig(definition)
             .instantiate_identity()
             .skip_binder()
             .output();
         let mut errors = HashSet::new();
         Self::collect_channel_errors(cx, output, ChannelNesting::OutsideChannel, &mut errors);
         for error in errors {
-            self.boundaries
-                .insert(error, cx.tcx.item_name(item.owner_id.def_id).to_string());
+            self.boundaries.insert(error, name.clone());
+        }
+    }
+
+    /// Collects known representations that prevent a value from implementing `Send`.
+    fn collect_send_blockers(cx: &LateContext<'_>, ty: Ty<'_>, blockers: &mut Vec<String>) {
+        let ty::Adt(definition, arguments) = ty.kind() else {
+            return;
+        };
+        let path = cx.tcx.def_path_str(definition.did());
+        if cx.tcx.crate_name(definition.did().krate).as_str() == "alloc"
+            && path.ends_with("::rc::Rc")
+        {
+            let blocker = format!("`{path}`");
+            if !blockers.contains(&blocker) {
+                blockers.push(blocker);
+            }
+        }
+        for nested in arguments.types() {
+            Self::collect_send_blockers(cx, nested, blockers);
         }
     }
 
@@ -224,24 +262,22 @@ impl ThiserrorNonSendSyncPublicErrors {
         item: &Item<'_>,
         fields: impl IntoIterator<Item = &'hir rustc_hir::FieldDef<'hir>>,
     ) {
-        if !cx.tcx.visibility(item.owner_id.def_id).is_public() {
+        if !cx
+            .tcx
+            .effective_visibilities(())
+            .is_exported(item.owner_id.def_id)
+        {
             return;
         }
 
-        let blockers = fields
-            .into_iter()
-            .filter_map(|field| {
-                let ty = cx.tcx.type_of(field.def_id).instantiate_identity();
-                let ty::Adt(definition, _) = ty.kind() else {
-                    return None;
-                };
-                let path = cx.tcx.def_path_str(definition.did());
-                let blocked = path.ends_with("::rc::Rc")
-                    || path.ends_with("::cell::Cell")
-                    || path.ends_with("::cell::RefCell");
-                blocked.then(|| format!("`{path}`"))
-            })
-            .collect::<Vec<_>>();
+        let mut blockers = Vec::new();
+        for field in fields {
+            Self::collect_send_blockers(
+                cx,
+                cx.tcx.type_of(field.def_id).instantiate_identity(),
+                &mut blockers,
+            );
+        }
 
         if blockers.is_empty() {
             return;
