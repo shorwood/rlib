@@ -445,6 +445,11 @@ path = "ui/leptos/leptos_hydration_divergent_views/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
+name = "leptos_implicit_default_component_props"
+path = "ui/leptos/leptos_implicit_default_component_props/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_unstable_for_keys"
 path = "ui/leptos/leptos_unstable_for_keys/semantic.rs"
 required-features = ["leptos"]

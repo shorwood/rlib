@@ -1,5 +1,7 @@
 //! UI regression tests for every default-configuration lint fixture.
 
+use std::env::var;
+
 use dylint_testing::ui::Test;
 
 const CROSS_CUTTING_LINT_ALLOWS: [&str; 98] = [
@@ -107,7 +109,9 @@ const CROSS_CUTTING_LINT_ALLOWS: [&str; 98] = [
 // recommendations are tested by their own dependency-aware examples and must not change core
 // fixture snapshots when all features are enabled together.
 #[cfg(any(feature = "derive_more", feature = "framework", feature = "thiserror"))]
-const CORE_FIXTURE_FRAMEWORK_LINT_ALLOWS: [&str; 12] = [
+const CORE_FIXTURE_FRAMEWORK_LINT_ALLOWS: [&str; 14] = [
+    "-A",
+    "unknown_lints",
     "-A",
     "derive_more_manual_equality_impls",
     "-A",
@@ -266,7 +270,7 @@ fn rerun_with_feature_aware_cargo_wrapper() -> bool {
         .args(["ui", "--exact", "--nocapture"])
         .env("RLIB_LINT_ALL_FEATURE_UI_CHILD", "1")
         .env("RLIB_LINT_REAL_CARGO", cargo)
-        .env("DYLINT_TOML", "")
+        .env("DYLINT_TOML", include_str!("../../../dylint.toml"))
         .env("PATH", path)
         .status()
         .expect("wrapped all-feature UI child should start");
@@ -292,11 +296,22 @@ fn rerun_with_feature_aware_cargo_wrapper() -> bool {
 
 /// Runs fixtures that rustc can compile directly without Cargo dependency metadata.
 fn run_standalone_fixtures() {
-    let mut test = Test::src_base(env!("CARGO_PKG_NAME"), "ui/core");
+    let source = selected_core_fixture().map_or_else(
+        || "ui/core".to_owned(),
+        |fixture| format!("ui/core/{fixture}"),
+    );
+    let mut test = Test::src_base(env!("CARGO_PKG_NAME"), source);
     test.rustc_flags(CROSS_CUTTING_LINT_ALLOWS);
     #[cfg(any(feature = "derive_more", feature = "framework", feature = "thiserror"))]
     test.rustc_flags(CORE_FIXTURE_FRAMEWORK_LINT_ALLOWS);
     test.run();
+}
+
+/// Returns the core fixture selected for focused local regression testing.
+fn selected_core_fixture() -> Option<String> {
+    var("RLIB_LINT_CORE_FIXTURE")
+        .ok()
+        .filter(|fixture| !fixture.is_empty())
 }
 
 #[cfg(feature = "bon")]
@@ -339,6 +354,12 @@ fn run_bon_fixtures() {
         .dylint_toml(
             r#"
                 [rlib-lint.bon_api_baseline.builders.Request]
+                members = ["host"]
+
+                [rlib-lint.bon_api_baseline.builders.upload]
+                members = ["path"]
+
+                [rlib-lint.bon_api_baseline.builders."Client::connect"]
                 members = ["host"]
             "#,
         )
@@ -596,6 +617,7 @@ fn run_leptos_fixtures() {
         "leptos_boolean_component_props",
         "leptos_effects_synchronizing_signals",
         "leptos_hydration_divergent_views",
+        "leptos_implicit_default_component_props",
         "leptos_manual_resource_refetch_signals",
         "leptos_missing_view_section_comments",
         "leptos_missing_view_attribute_group_comments",
