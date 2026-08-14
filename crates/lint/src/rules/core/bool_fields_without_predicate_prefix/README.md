@@ -2,7 +2,8 @@
 
 ## What it does
 
-Checks that named boolean fields in structs start with `is_` or `has_`.
+Checks that named boolean fields in structs use `is_<predicate>` or `has_<predicate>`. The prefix
+must be followed by a nonempty, ordinarily formed predicate phrase.
 
 ## Why is this bad?
 

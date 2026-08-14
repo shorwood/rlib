@@ -124,6 +124,9 @@ impl LateLintPass<'_> for BidirectionalModuleDependencies {
         let ItemKind::Use(path, _) = item.kind else {
             return;
         };
+        if item.span.in_external_macro(cx.sess().source_map()) {
+            return;
+        }
 
         // Iterate over all resolved namespaces for this import and record the first relevant
         // dependency.

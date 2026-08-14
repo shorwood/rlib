@@ -219,7 +219,7 @@ impl ForeignTypeAnalyzer {
         let ambient = self.ambient_foreign_types();
         self.functions
             .iter()
-            .map(|function| {
+            .filter_map(|function| {
                 let foreign = function
                     .nominal_parameters
                     .iter()
@@ -233,7 +233,10 @@ impl ForeignTypeAnalyzer {
                         name: cx.tcx.item_name(parameter.def_id),
                         span: parameter.span,
                     })
-                    .collect();
+                    .collect::<Vec<_>>();
+                if owners.is_empty() {
+                    return None;
+                }
                 let candidates = foreign
                     .iter()
                     .copied()
@@ -250,13 +253,13 @@ impl ForeignTypeAnalyzer {
                         span: parameter.span,
                     })
                     .collect();
-                ForeignTypeFunctionFinding {
+                Some(ForeignTypeFunctionFinding {
                     span: function.span,
                     name: function.name,
                     owners,
                     candidates,
                     ambient,
-                }
+                })
             })
             .collect()
     }

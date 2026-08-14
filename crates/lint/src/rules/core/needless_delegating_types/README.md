@@ -7,6 +7,8 @@ two behavior-bearing methods and only forwards them to the stored value. Forward
 preserve the receiver, arguments and their order, return value, error propagation, and async
 behavior. An identity constructor or direct field accessor is neutral, but any substantive
 constructor or method preserves the wrapper.
+Receiver preservation distinguishes owned, shared-borrowed, and mutably borrowed calls, including
+when a `Copy` inner value would otherwise make a consuming call compile through a wrapper borrow.
 
 The lint excludes generic wrappers and wrappers with trait implementations, since those can
 own a real type-level or behavioral contract. Semantic attributes such as representation or

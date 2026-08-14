@@ -6,7 +6,8 @@ Checks local traits implemented for a foreign named type or a generic blanket ta
 Such an extension trait must operate on at most one concrete nonreceiver subject family and
 contain no more than `extension_traits.max_methods` methods, which defaults to eight.
 Receiver-only accessors count toward the method budget but do not invent a subject family.
-Primitive, string, and generic callback parameters likewise do not split a family.
+Primitive, borrowed or owned string, and generic callback parameters likewise do not split a
+family.
 
 ## Why is this bad?
 

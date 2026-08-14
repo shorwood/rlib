@@ -30,7 +30,7 @@ struct Violation {
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
-            "boolean struct field `{}` should start with `is_` or `has_`",
+            "boolean struct field `{}` should use `is_<predicate>` or `has_<predicate>`",
             self.name
         ))
     }
@@ -101,7 +101,11 @@ impl LateLintPass<'_> for BoolFieldsWithoutPredicatePrefix {
 
         // Predicate-style names already communicate that callers should expect a boolean value.
         let name = field.ident.name.as_str();
-        if name.starts_with("is_") || name.starts_with("has_") {
+        let has_predicate_name = ["is_", "has_"].iter().any(|prefix| {
+            name.strip_prefix(prefix)
+                .is_some_and(|predicate| !predicate.is_empty() && !predicate.starts_with('_'))
+        });
+        if has_predicate_name {
             return;
         }
 

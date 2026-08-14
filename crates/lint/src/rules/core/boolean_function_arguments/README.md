@@ -3,7 +3,8 @@
 ## What it does
 
 Finds direct boolean function and method parameters. One boolean is accepted only for an
-exact setter contract such as `set_enabled(enabled: bool)`; two or more are always rejected.
+exact setter contract such as `set_enabled(enabled: bool)`, with no other non-receiver
+parameters; two or more are always rejected.
 Boolean returns, predicate callbacks, and wrapped state such as `Option<bool>` are outside
 the rule.
 

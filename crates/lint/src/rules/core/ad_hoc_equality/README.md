@@ -4,7 +4,8 @@
 
 Finds free functions and inherent methods that compare two shared references to the same
 local type, return `bool`, use both operands in a proven equality expression, and have an
-unqualified equality name. Existing direct `PartialEq` delegation remains valid.
+unqualified equality name. Returned local aliases retain comparison provenance; discarded and
+dormant comparisons do not. Existing direct `PartialEq` delegation remains valid.
 
 ## Why is this bad?
 

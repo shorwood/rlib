@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{FieldDef, HirId, ImplItem, Item, ItemKind, Node, TraitItem, Variant};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
-use rustc_span::{Span, sym};
+use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::{FieldProvenanceExt, SpanProvenanceExt};
@@ -45,10 +45,11 @@ impl Violation {
 
     /// Returns whether an item carries any authored `doc` attribute or documentation comment.
     fn has_documentation(cx: &LateContext<'_>, hir_id: HirId) -> bool {
-        cx.tcx
-            .hir_attrs(hir_id)
-            .iter()
-            .any(|attribute| attribute.is_doc_comment().is_some() || attribute.has_name(sym::doc))
+        cx.tcx.hir_attrs(hir_id).iter().any(|attribute| {
+            attribute
+                .doc_str()
+                .is_some_and(|documentation| !documentation.as_str().trim().is_empty())
+        })
     }
 }
 

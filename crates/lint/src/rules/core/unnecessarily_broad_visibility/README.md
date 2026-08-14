@@ -4,8 +4,10 @@
 
 Finds hand-written module items, types, functions, constants, statics, struct and union fields,
 and inherent associated items whose canonical visibility is broader than every resolved use
-in the current crate. It recommends private visibility for uses confined to the defining
-module, `pub(super)` for the immediate parent subtree, and `pub(crate)` for wider crate use.
+in the current crate. Named and positional field uses, including tuple construction and
+destructuring, contribute to the required boundary. It recommends private visibility for uses
+confined to the defining module, `pub(super)` for the immediate parent subtree, and
+`pub(crate)` for wider crate use.
 
 Unrestricted `pub` APIs in publishable library packages are preserved because downstream
 users cannot be observed. Binaries and packages explicitly marked `publish = false` are

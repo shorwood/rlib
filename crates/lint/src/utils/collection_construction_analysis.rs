@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use rustc_hir::def::{DefKind, Res};
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir::intravisit::{self, FnKind, Visitor};
-use rustc_hir::{Body, Expr, ExprKind, HirId, Item, ItemKind, LoopSource, Mutability, PatKind};
+use rustc_hir::{Body, Expr, ExprKind, HirId, Item, ItemKind, MatchSource, Mutability, PatKind};
 use rustc_lint::LateContext;
 use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol};
@@ -269,7 +269,9 @@ impl CollectionConstructionAnalysis {
 
         // Require complete source iteration into storage physically owned by the target.
         let storage = collection_storage_discover(cx, shape.target_def_id);
-        let Some(evidence) = CollectionEvidence::analyze(cx, body, source_binding, &storage) else {
+        let Some(evidence) =
+            CollectionEvidence::analyze(cx, body, source_binding, &storage, shape.target_def_id)
+        else {
             return;
         };
 
@@ -536,14 +538,12 @@ struct CollectionEvidenceResult {
 /// Mutable facts accumulated while traversing one collection-like body.
 #[derive(Default)]
 struct CollectionEvidenceState {
-    /// Whether traversal reached the iterable source.
-    has_seen_source: bool,
-    /// Whether a for-loop or direct extend consumes the whole source.
-    has_complete_iteration: bool,
     /// First operation storing source items.
     result: Option<CollectionEvidenceResult>,
     /// Whether filtering or truncation introduces hidden policy.
     has_policy: bool,
+    /// Number of enclosing desugared `for` matches whose iterator references the source.
+    source_loop_depth: usize,
 }
 
 /// Proves that one source is completely consumed into target-owned storage.
@@ -554,6 +554,8 @@ struct CollectionEvidence<'analysis, 'tcx, 'storage> {
     source: HirId,
     /// Standard collection fields owned by the target.
     storage: &'storage [CollectionStorageField<'tcx>],
+    /// Local wrapper whose directly owned fields qualify as storage.
+    target: LocalDefId,
     /// Mutable evidence accumulated during traversal.
     state: CollectionEvidenceState,
 }
@@ -565,6 +567,7 @@ impl CollectionEvidence<'_, '_, '_> {
         body: &'tcx Body<'tcx>,
         source: HirId,
         storage: &[CollectionStorageField<'tcx>],
+        target: LocalDefId,
     ) -> Option<CollectionEvidenceResult> {
         // A target without standard storage cannot own a collection protocol.
         if storage.is_empty() {
@@ -577,6 +580,7 @@ impl CollectionEvidence<'_, '_, '_> {
             cx,
             source,
             storage,
+            target,
             state,
         };
 
@@ -584,9 +588,7 @@ impl CollectionEvidence<'_, '_, '_> {
         evidence.visit_expr(body.value);
 
         // Report only complete, policy-free ingestion with a proven storage operation.
-        (!evidence.state.has_policy
-            && evidence.state.has_seen_source
-            && evidence.state.has_complete_iteration)
+        (!evidence.state.has_policy)
             .then_some(evidence.state.result)
             .flatten()
     }
@@ -624,8 +626,33 @@ impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
         finder.has_found
     }
 
+    /// Returns whether an expression is a projection or adapter rooted at the source binding.
+    fn is_source_rooted(&self, expression: &'tcx Expr<'tcx>) -> bool {
+        if let ExprKind::Path(path) = expression.kind {
+            return matches!(
+                self.cx.qpath_res(&path, expression.hir_id),
+                Res::Local(binding) if binding == self.source
+            );
+        }
+        match expression.kind {
+            ExprKind::MethodCall(_, receiver, _, _)
+            | ExprKind::Field(receiver, _)
+            | ExprKind::AddrOf(_, _, receiver)
+            | ExprKind::Unary(_, receiver)
+            | ExprKind::DropTemps(receiver) => self.is_source_rooted(receiver),
+            _ => false,
+        }
+    }
+
     /// Resolves a receiver expression to one target-owned collection field.
     fn storage_item(&self, receiver: &'tcx Expr<'tcx>) -> Option<String> {
+        let ExprKind::Field(base, _) = receiver.kind else {
+            return None;
+        };
+        let base_ty = self.cx.typeck_results().expr_ty_adjusted(base).peel_refs();
+        if collection_classification_local_adt(base_ty) != Some(self.target) {
+            return None;
+        }
         let receiver_ty = self.cx.typeck_results().expr_ty(receiver).peel_refs();
         self.storage
             .iter()
@@ -640,7 +667,17 @@ impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
         receiver: &'tcx Expr<'tcx>,
         arguments: &'tcx [Expr<'tcx>],
     ) {
-        let is_policy = ["filter", "filter_map", "skip", "take", "take_while"].contains(&name);
+        let is_policy = [
+            "filter",
+            "filter_map",
+            "map",
+            "map_while",
+            "scan",
+            "skip",
+            "take",
+            "take_while",
+        ]
+        .contains(&name);
         let uses_source = self.uses_source(receiver)
             || arguments.iter().any(|argument| self.uses_source(argument));
         self.state.has_policy |= is_policy && uses_source;
@@ -662,9 +699,15 @@ impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
             return;
         };
 
-        // Direct `extend(source)` proves complete iteration and standard delegation.
-        if name == "extend" && arguments.iter().any(|argument| self.uses_source(argument)) {
-            self.state.has_complete_iteration = true;
+        // Direct extension must be rooted at the iterable parameter; generated ranges and other
+        // expressions that merely mention it do not make the parameter an item source.
+        let consumes_source = name == "extend"
+            && arguments
+                .iter()
+                .any(|argument| self.is_source_rooted(argument));
+        let consumes_loop_item = name != "extend" && self.state.source_loop_depth > 0;
+        if !consumes_source && !consumes_loop_item {
+            return;
         }
         self.state.result.get_or_insert(CollectionEvidenceResult {
             span: expression.span,
@@ -672,20 +715,65 @@ impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
             has_standard_trait_delegation: name == "extend",
         });
     }
+
+    /// Records `Target { field: source.into_iter().collect() }` construction.
+    fn record_collected_field(&mut self, expression: &'tcx Expr<'tcx>) {
+        let ExprKind::Struct(_, fields, _) = expression.kind else {
+            return;
+        };
+        let target_ty = self
+            .cx
+            .typeck_results()
+            .expr_ty_adjusted(expression)
+            .peel_refs();
+        if collection_classification_local_adt(target_ty) != Some(self.target) {
+            return;
+        }
+        for field in fields {
+            let ExprKind::MethodCall(segment, receiver, arguments, _) = field.expr.kind else {
+                continue;
+            };
+            if segment.ident.name.as_str() != "collect"
+                || !arguments.is_empty()
+                || !self.is_source_rooted(receiver)
+            {
+                continue;
+            }
+            let field_ty = self.cx.typeck_results().expr_ty(field.expr).peel_refs();
+            let Some(storage) = self
+                .storage
+                .iter()
+                .find(|storage| storage.ty.peel_refs() == field_ty)
+            else {
+                continue;
+            };
+            self.state
+                .result
+                .get_or_insert_with(|| CollectionEvidenceResult {
+                    span: field.expr.span,
+                    item_name: storage.item_name.clone(),
+                    has_standard_trait_delegation: false,
+                });
+        }
+    }
 }
 
 impl<'tcx> Visitor<'tcx> for CollectionEvidence<'_, 'tcx, '_> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        self.state.has_seen_source |= self.uses_source(expression);
         match expression.kind {
-            ExprKind::Loop(_, _, LoopSource::ForLoop, _) => {
-                self.state.has_complete_iteration = true;
+            ExprKind::Match(scrutinee, _, MatchSource::ForLoopDesugar) => {
+                let iterates_source = self.uses_source(scrutinee);
+                self.state.source_loop_depth += usize::from(iterates_source);
+                intravisit::walk_expr(self, expression);
+                self.state.source_loop_depth -= usize::from(iterates_source);
+                return;
             }
             ExprKind::MethodCall(segment, receiver, arguments, _) => {
                 let name = segment.ident.name.as_str();
                 self.record_policy_adapter(name, receiver, arguments);
                 self.record_storage_operation(expression, name, receiver, arguments);
             }
+            ExprKind::Struct(..) => self.record_collected_field(expression),
             _ => {}
         }
         intravisit::walk_expr(self, expression);

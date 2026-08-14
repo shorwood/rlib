@@ -3,9 +3,10 @@
 ## What it does
 
 Finds `if` expressions that choose both variants of a local enum with exactly two unit
-variants when that mapping is written outside the enum's inherent implementation. Enums
-with payloads, enums with any other variant count, partial mappings, macro expansions, and
-mappings owned by the enum itself remain valid.
+variants when that mapping is written outside the enum's inherent implementation. Both
+value-producing branches and branches that explicitly `return` the selected variant are
+recognized. Enums with payloads, enums with any other variant count, partial mappings,
+macro expansions, and mappings owned by the enum itself remain valid.
 
 ## Why is this bad?
 

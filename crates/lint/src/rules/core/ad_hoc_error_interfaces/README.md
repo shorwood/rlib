@@ -4,7 +4,7 @@
 
 Finds hand-written local structs and enums used as the concrete error argument of an active
 standard `Result` when they expose messages or causes through project-specific conventions.
-`Result` use or an error-like name alone is never sufficient: the lint requires an hand-written
+`Result` use or an error-like name alone is never sufficient: the lint requires a hand-written
 textual field or accessor, canonical formatter, or direct causal accessor.
 
 Presentation evidence requires `Display`. Types named `*Error` or `*Failure`, and types with

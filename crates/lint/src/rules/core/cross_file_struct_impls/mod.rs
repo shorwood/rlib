@@ -12,6 +12,21 @@ use rustc_span::{Span, Symbol};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::impl_target::ImplTargetExt;
 
+/// Returns the shortest stable path suffixes that distinguish two physical files.
+fn distinctive_file_labels(first: &str, second: &str) -> (String, String) {
+    let first = first.split(['/', '\\']).collect::<Vec<_>>();
+    let second = second.split(['/', '\\']).collect::<Vec<_>>();
+    let maximum = first.len().min(second.len());
+    for depth in 1..=maximum {
+        let first_suffix = first[first.len() - depth..].join("/");
+        let second_suffix = second[second.len() - depth..].join("/");
+        if first_suffix != second_suffix {
+            return (first_suffix, second_suffix);
+        }
+    }
+    (first.join("/"), second.join("/"))
+}
+
 // -----------------------------------------------------------------------------
 // Violation: Cross file implementation diagnostic
 // -----------------------------------------------------------------------------
@@ -60,17 +75,25 @@ impl Violation {
         if implementation_file == struct_file {
             return None;
         }
+        let implementation_path = implementation_file
+            .prefer_remapped_unconditionally()
+            .to_string_lossy();
+        let struct_path = struct_file
+            .prefer_remapped_unconditionally()
+            .to_string_lossy();
+        let (implementation_label, struct_label) =
+            distinctive_file_labels(&implementation_path, &struct_path);
 
         // Own both physical locations before crossing the diagnostic boundary.
         let implementation = ViolationLocation {
             span: item.span,
-            file: implementation_file.short().to_string(),
+            file: implementation_label,
         };
 
         // Capture the definition independently because it is also the move target.
         let definition = ViolationLocation {
             span: struct_span,
-            file: struct_file.short().to_string(),
+            file: struct_label,
         };
 
         // Preserve the precise source facts needed to explain and repair the violation.

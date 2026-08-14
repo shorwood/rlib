@@ -5,6 +5,9 @@
 Checks that every direct impl block for a local struct is defined in the same physical file
 as the struct.
 
+Diagnostics show the shortest path suffixes that distinguish the two files, so identically
+named files in different modules remain unambiguous.
+
 ## Why is this bad?
 
 Keeping a struct and all of its behavior in one file makes the type understandable without

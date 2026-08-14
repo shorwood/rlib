@@ -4,7 +4,7 @@ extern crate rustc_span;
 
 use rustc_hir::def::Res;
 use rustc_hir::def_id::{DefId, LocalDefId};
-use rustc_hir::{Body, Expr, ExprKind, FnHeader, HirId, MatchSource, PatKind};
+use rustc_hir::{BlockCheckMode, Body, Expr, ExprKind, FnHeader, HirId, MatchSource, PatKind};
 use rustc_lint::LateContext;
 use rustc_span::symbol::sym;
 
@@ -103,8 +103,17 @@ impl DirectForwarding {
     ) -> Option<&'hir Expr<'hir>> {
         loop {
             expression = match expression.kind {
-                ExprKind::Block(block, None) if block.stmts.is_empty() => block.expr?,
-                ExprKind::Block(block, None) if block.expr.is_none() && block.stmts.len() == 1 => {
+                ExprKind::Block(block, None)
+                    if matches!(block.rules, BlockCheckMode::DefaultBlock)
+                        && block.stmts.is_empty() =>
+                {
+                    block.expr?
+                }
+                ExprKind::Block(block, None)
+                    if matches!(block.rules, BlockCheckMode::DefaultBlock)
+                        && block.expr.is_none()
+                        && block.stmts.len() == 1 =>
+                {
                     Self::returned_expression(&block.stmts[0])?
                 }
                 ExprKind::DropTemps(inner) | ExprKind::Ret(Some(inner)) => inner,

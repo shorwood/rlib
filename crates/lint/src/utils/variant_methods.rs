@@ -17,6 +17,8 @@ use rustc_hir::{Arm, Expr, ExprKind, ImplItem, ImplItemKind, Node, Pat, PatExprK
 use rustc_lint::LateContext;
 use rustc_middle::ty;
 #[cfg(feature = "strum")]
+use rustc_middle::ty::util::IntTypeExt;
+#[cfg(feature = "strum")]
 use rustc_span::symbol::sym;
 use rustc_span::{Span, Symbol};
 use serde::Deserialize;
@@ -342,25 +344,100 @@ fn enum_has_strum_variant_attributes(cx: &LateContext<'_>, enum_def: LocalDefId)
     })
 }
 
+/// Returns whether Strum excludes any variant from generated enum APIs.
+#[cfg(feature = "strum")]
+fn enum_has_strum_disabled_variant(cx: &LateContext<'_>, enum_def: LocalDefId) -> bool {
+    let Node::Item(item) = cx.tcx.hir_node_by_def_id(enum_def) else {
+        return true;
+    };
+    let rustc_hir::ItemKind::Enum(_, _, definition) = item.kind else {
+        return true;
+    };
+    definition
+        .variants
+        .iter()
+        .any(|variant| variant_is_strum_disabled(cx, variant.hir_id))
+}
+
+/// Returns whether one variant is excluded by canonical `#[strum(disabled)]` metadata.
+pub(crate) fn variant_is_strum_disabled(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> bool {
+    let span = cx.tcx.hir_span(hir_id);
+    let source_map = cx.tcx.sess.source_map();
+    let location = source_map.lookup_char_pos(span.lo());
+    let Some(file_source) = location.file.src.as_deref() else {
+        return false;
+    };
+    let Some(raw_offset) = span.lo().0.checked_sub(location.file.start_pos.0) else {
+        return false;
+    };
+    let Ok(offset) = usize::try_from(raw_offset) else {
+        return false;
+    };
+    let bytes = file_source.as_bytes();
+    let mut start = offset;
+    loop {
+        while start > 0 && bytes[start - 1].is_ascii_whitespace() {
+            start -= 1;
+        }
+        if start == 0 || bytes[start - 1] != b']' {
+            break;
+        }
+        let mut cursor = start - 1;
+        let mut depth = 1_u32;
+        while cursor > 0 && depth > 0 {
+            cursor -= 1;
+            match bytes[cursor] {
+                b']' => depth += 1,
+                b'[' => depth -= 1,
+                _ => {}
+            }
+        }
+        if depth != 0 || cursor == 0 || bytes[cursor - 1] != b'#' {
+            break;
+        }
+        start = cursor - 1;
+    }
+
+    file_source[start..offset].split("#[").any(|attribute| {
+        attribute.trim_start().starts_with("strum")
+            && attribute
+                .split(|character: char| !(character.is_alphanumeric() || character == '_'))
+                .any(|component| component == "disabled")
+    })
+}
+
 /// Returns every variant when Strum attributes cannot change generated coverage.
-fn eligible_variants(cx: &LateContext<'_>, enum_def: LocalDefId) -> Option<Vec<LocalDefId>> {
-    if enum_has_strum_variant_attributes(cx, enum_def) {
+fn eligible_variants(
+    cx: &LateContext<'_>,
+    enum_def: LocalDefId,
+    provider: Option<PredicateProvider>,
+) -> Option<Vec<LocalDefId>> {
+    if provider.is_none() && enum_has_strum_variant_attributes(cx, enum_def) {
         return None;
     }
-    let definition = cx.tcx.adt_def(enum_def.to_def_id());
-    definition.is_enum().then(|| {
+    let Node::Item(item) = cx.tcx.hir_node_by_def_id(enum_def) else {
+        return None;
+    };
+    let rustc_hir::ItemKind::Enum(_, _, definition) = item.kind else {
+        return None;
+    };
+    Some(
         definition
-            .variants()
+            .variants
             .iter()
-            .filter_map(|variant| variant.def_id.as_local())
-            .collect()
-    })
+            .filter(|variant| {
+                provider != Some(PredicateProvider::StrumEnumIs)
+                    || !variant_is_strum_disabled(cx, variant.hir_id)
+            })
+            .map(|variant| variant.def_id)
+            .collect(),
+    )
 }
 
 /// Returns every tuple variant when Strum attributes cannot change generated coverage.
 #[cfg(feature = "strum")]
 fn eligible_tuple_variants(cx: &LateContext<'_>, enum_def: LocalDefId) -> Option<Vec<LocalDefId>> {
-    let variants = eligible_variants(cx, enum_def)?;
+    let variants = eligible_variants(cx, enum_def, Some(PredicateProvider::StrumEnumIs))?;
     let definition = cx.tcx.adt_def(enum_def.to_def_id());
 
     Some(
@@ -578,7 +655,17 @@ impl PredicateMethod {
             return None;
         };
 
-        if signature.decl.inputs.len() != 1 {
+        if signature.decl.inputs.len() != 1
+            || signature.header.is_unsafe()
+            || signature.header.is_async()
+            || !cx
+                .tcx
+                .generics_of(item.owner_id.def_id)
+                .own_params
+                .is_empty()
+            || !cx.tcx.visibility(item.owner_id.def_id).is_public()
+            || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
+        {
             return None;
         }
         let enum_def = enclosing_inherent_enum(cx, item.hir_id())?;
@@ -636,11 +723,16 @@ impl PredicateFamilyAnalyzer {
     }
 
     /// Returns only families covering every enabled enum variant exactly once.
-    pub(crate) fn complete_families(&self, cx: &LateContext<'_>) -> Vec<PredicateFamily> {
-        self.methods
+    pub(crate) fn complete_families(
+        &self,
+        cx: &LateContext<'_>,
+        provider: Option<PredicateProvider>,
+    ) -> Vec<PredicateFamily> {
+        let mut families = self
+            .methods
             .iter()
             .filter_map(|(&enum_def, methods)| {
-                let expected = eligible_variants(cx, enum_def)?;
+                let expected = eligible_variants(cx, enum_def, provider)?;
                 let found = methods
                     .iter()
                     .map(|method| method.variant)
@@ -659,7 +751,9 @@ impl PredicateFamilyAnalyzer {
                     is_public_api: methods.iter().any(|method| method.is_public_api),
                 })
             })
-            .collect()
+            .collect::<Vec<_>>();
+        families.sort_by_key(|family| family.span.lo());
+        families
     }
 }
 
@@ -734,7 +828,7 @@ fn repr_match(
         }
     }
 
-    if !has_fallback || enum_has_strum_variant_attributes(cx, enum_def) {
+    if !has_fallback || enum_has_strum_disabled_variant(cx, enum_def) {
         return None;
     }
     let definition = cx.tcx.adt_def(enum_def.to_def_id());
@@ -744,6 +838,15 @@ fn repr_match(
         .iter()
         .any(|variant| !variant.fields.is_empty())
         || observed.len() != definition.variants().len()
+        || definition
+            .variants()
+            .iter_enumerated()
+            .any(|(index, variant)| {
+                variant.def_id.as_local().is_none_or(|variant_def| {
+                    observed.get(&variant_def).copied()
+                        != Some(definition.discriminant_for_variant(cx.tcx, index).val)
+                })
+            })
     {
         return None;
     }
@@ -785,7 +888,16 @@ impl ReprConversionCandidate {
             return None;
         }
         let enum_def = enclosing_inherent_enum(cx, item.hir_id())?;
-        cx.tcx.adt_def(enum_def.to_def_id()).repr().int?;
+        let definition = cx.tcx.adt_def(enum_def.to_def_id());
+        let repr = definition.repr().int?;
+        let signature = cx
+            .tcx
+            .fn_sig(item.owner_id.def_id)
+            .instantiate_identity()
+            .skip_binder();
+        if signature.inputs()[0] != repr.to_ty(cx.tcx) {
+            return None;
+        }
         let output = option_output(cx, item.owner_id.def_id)?;
 
         if output.ty_adt_def()?.did().as_local() != Some(enum_def) {
@@ -846,7 +958,21 @@ impl AccessorMethod {
             return None;
         };
 
-        if signature.decl.inputs.len() != 1 {
+        if signature.decl.inputs.len() != 1
+            || signature.header.is_unsafe()
+            || signature.header.is_async()
+            || !cx
+                .tcx
+                .generics_of(item.owner_id.def_id)
+                .own_params
+                .is_empty()
+            || !cx.tcx.visibility(item.owner_id.def_id).is_public()
+            || cx
+                .tcx
+                .hir_attrs(item.hir_id())
+                .iter()
+                .any(|attribute| attribute.doc_str().is_some())
+        {
             return None;
         }
         let enum_def = enclosing_inherent_enum(cx, item.hir_id())?;
@@ -917,7 +1043,8 @@ impl AccessorFamilyAnalyzer {
         /// Owned, shared, and mutable accessors expected for each variant.
         const ACCESSOR_MODES_PER_VARIANT: usize = 3;
 
-        self.methods
+        let mut families = self
+            .methods
             .iter()
             .filter_map(|(&enum_def, methods)| {
                 let variants = eligible_tuple_variants(cx, enum_def)?;
@@ -948,6 +1075,8 @@ impl AccessorFamilyAnalyzer {
                     is_public_api: methods.iter().any(|method| method.is_public_api),
                 })
             })
-            .collect()
+            .collect::<Vec<_>>();
+        families.sort_by_key(|family| family.span.lo());
+        families
     }
 }

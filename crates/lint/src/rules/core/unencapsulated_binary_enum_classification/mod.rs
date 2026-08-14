@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::def::{CtorKind, CtorOf, DefKind, Res};
 use rustc_hir::def_id::LocalDefId;
-use rustc_hir::{Expr, ExprKind, ItemKind, Node};
+use rustc_hir::{Expr, ExprKind, ItemKind, Node, StmtKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
@@ -107,8 +107,8 @@ impl LateLintPass<'_> for UnencapsulatedBinaryEnumClassification {
         };
 
         // Resolve each pure branch to a local unit-variant constructor.
-        let then_expression = then_expression.peel_blocks();
-        let else_expression = else_expression.peel_blocks();
+        let then_expression = Self::branch_outcome(then_expression);
+        let else_expression = Self::branch_outcome(else_expression);
         if then_expression.span.from_expansion() || else_expression.span.from_expansion() {
             return;
         }
@@ -156,6 +156,29 @@ impl LateLintPass<'_> for UnencapsulatedBinaryEnumClassification {
 }
 
 impl UnencapsulatedBinaryEnumClassification {
+    /// Peels transparent block and explicit-return wrappers from a branch outcome.
+    fn branch_outcome<'hir>(mut expression: &'hir Expr<'hir>) -> &'hir Expr<'hir> {
+        expression = expression.peel_blocks();
+        if let ExprKind::Ret(Some(returned)) = expression.kind {
+            return returned.peel_blocks();
+        }
+
+        let ExprKind::Block(block, _) = expression.kind else {
+            return expression;
+        };
+        let [statement] = block.stmts else {
+            return expression;
+        };
+        let returned = match statement.kind {
+            StmtKind::Expr(returned) | StmtKind::Semi(returned) => returned,
+            _ => return expression,
+        };
+        let ExprKind::Ret(Some(returned)) = returned.kind else {
+            return expression;
+        };
+        returned.peel_blocks()
+    }
+
     /// Resolves a pure path expression to its local unit variant and owning enum.
     fn unit_variant(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<BinaryEnumVariant> {
         // Resolve only a direct path to a fieldless variant constructor.

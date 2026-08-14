@@ -95,21 +95,27 @@ dylint_linting::impl_late_lint! {
 }
 
 impl MisorderedInherentImplItems {
-    /// Returns whether authored return syntax explicitly names `Self`.
-    fn return_mentions_self(cx: &LateContext<'_>, output: rustc_hir::FnRetTy<'_>) -> bool {
-        // Require an explicit authored return type before inspecting its source.
-        let rustc_hir::FnRetTy::Return(ty) = output else {
+    /// Returns whether the resolved return type contains the inherent impl's self type.
+    fn returns_self_type(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
+        let ImplItemKind::Fn(signature, _) = item.kind else {
             return false;
         };
+        if matches!(signature.decl.output, rustc_hir::FnRetTy::DefaultReturn(_)) {
+            return false;
+        }
 
-        // Inspect identifier-like words in the authored return type.
-        let source_map = cx.sess().source_map();
-        let Ok(snippet) = source_map.span_to_snippet(ty.span) else {
-            return false;
-        };
-        snippet
-            .split(|character: char| !character.is_alphanumeric() && character != '_')
-            .any(|word| word == "Self")
+        // Resolve aliases and authored `Self` syntax to the same semantic type identity.
+        let impl_def_id = cx.tcx.local_parent(item.owner_id.def_id);
+        let self_type = cx.tcx.type_of(impl_def_id).instantiate_identity();
+        let output = cx
+            .tcx
+            .fn_sig(item.owner_id.def_id)
+            .instantiate_identity()
+            .skip_binder()
+            .output();
+        output
+            .walk()
+            .any(|argument| argument.as_type() == Some(self_type))
     }
 
     /// Assigns the associated-item tie-break rank used after dependencies.
@@ -120,7 +126,7 @@ impl MisorderedInherentImplItems {
             ImplItemKind::Fn(signature, _) => {
                 if signature.decl.implicit_self.has_implicit_self() {
                     4
-                } else if Self::return_mentions_self(cx, signature.decl.output) {
+                } else if Self::returns_self_type(cx, item) {
                     2
                 } else {
                     3

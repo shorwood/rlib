@@ -3,7 +3,7 @@ extern crate rustc_errors;
 extern crate rustc_span;
 
 use std::borrow::Cow;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rustc_ast::ast::{Inline, Item, ItemKind, ModKind};
 use rustc_errors::DiagDecorator;
@@ -79,6 +79,27 @@ impl MixedModuleFileLayouts {
                 || (path.is_dir() && Self::directory_contains_rust_source(&path))
         })
     }
+
+    /// Resolves the unique conventional flat source candidate for a module declaration.
+    fn flat_module_source(parent_source: &Path, name: &str) -> Option<PathBuf> {
+        let parent_directory = parent_source.parent()?;
+        let mut roots = vec![parent_directory.to_owned()];
+
+        // A conventionally loaded `parent.rs` owns children under `parent/`. A `#[path]` parent
+        // instead searches beside its file; considering both and requiring uniqueness avoids
+        // guessing when early expansion has not exposed directory-ownership metadata.
+        let parent_name = parent_source.file_name()?.to_str()?;
+        if !matches!(parent_name, "lib.rs" | "main.rs" | "mod.rs") {
+            roots.push(parent_source.with_extension(""));
+        }
+
+        let mut candidates = roots
+            .into_iter()
+            .map(|root| root.join(format!("{name}.rs")))
+            .filter(|source| source.is_file());
+        let candidate = candidates.next()?;
+        candidates.next().is_none().then_some(candidate)
+    }
 }
 
 dylint_linting::impl_pre_expansion_lint! {
@@ -109,20 +130,19 @@ impl EarlyLintPass for MixedModuleFileLayouts {
             return;
         }
 
-        // Resolve the declaring file so both conventional module locations can be checked.
+        // Resolve the declaring file and the unique conventional flat source candidate.
         let source_map = cx.sess().source_map();
         let Some(parent_source) = source_map.span_to_filename(item.span).into_local_path() else {
             return;
         };
-        let Some(parent_directory) = parent_source.parent() else {
+        let name = ident.name.as_str();
+        let Some(module_source) = Self::flat_module_source(&parent_source, name) else {
             return;
         };
 
-        // Diagnose only the exact `name.rs` plus `name/` split, not unrelated sibling styles.
-        let name = ident.name.as_str();
-        let companion_directory = parent_directory.join(name);
-        if !parent_directory.join(format!("{name}.rs")).is_file()
-            || !companion_directory.is_dir()
+        // Diagnose only a flat source plus a same-name non-Rust companion directory.
+        let companion_directory = module_source.with_extension("");
+        if !companion_directory.is_dir()
             || Self::directory_contains_rust_source(&companion_directory)
         {
             return;

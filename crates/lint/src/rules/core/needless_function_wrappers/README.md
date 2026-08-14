@@ -4,6 +4,8 @@
 
 Rejects safe Rust functions and inherent methods that do nothing except pass every argument
 unchanged to another function in the same crate.
+Unsafe blocks are behavioral boundaries: a safe function that encapsulates an unsafe call is not
+treated as transparent forwarding.
 
 ## Why is this bad?
 

@@ -5,7 +5,7 @@ extern crate rustc_span;
 
 use rustc_hir::def::{CtorOf, DefKind, Res};
 use rustc_hir::def_id::DefId;
-use rustc_hir::{Expr, ExprKind};
+use rustc_hir::{Expr, ExprKind, HirId, PatKind, Stmt, StmtKind};
 use rustc_lint::LateContext;
 use rustc_middle::ty::{self, Ty};
 use rustc_span::symbol::sym;
@@ -246,13 +246,66 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
                 .is_diagnostic_item(sym::Default, trait_definition)
     }
 
+    /// Returns whether an expression is exactly one resolved local binding.
+    fn is_binding_path(&self, expression: &Expr<'_>, binding: HirId) -> bool {
+        matches!(
+            expression.kind,
+            ExprKind::Path(path)
+                if matches!(
+                    self.cx.qpath_res(&path, expression.hir_id),
+                    Res::Local(resolved) if resolved == binding
+                )
+        )
+    }
+
+    /// Returns whether a closure statement explicitly disposes of its error binding.
+    fn discards_binding(&self, statement: &Stmt<'_>, binding: HirId) -> bool {
+        if let StmtKind::Let(local) = statement.kind
+            && matches!(local.pat.kind, PatKind::Wild)
+        {
+            return local
+                .init
+                .is_some_and(|initializer| self.is_binding_path(initializer, binding));
+        }
+        let (StmtKind::Expr(expression) | StmtKind::Semi(expression)) = statement.kind else {
+            return false;
+        };
+        let ExprKind::Call(callee, [argument]) = expression.kind else {
+            return false;
+        };
+        self.resolved_path_definition(callee)
+            .is_some_and(|definition| self.cx.tcx.is_diagnostic_item(sym::mem_drop, definition))
+            && self.is_binding_path(argument, binding)
+    }
+
     /// Returns whether a closure ignores its error and directly yields a default value.
     pub(crate) fn is_defaulting_closure(&self, expression: &Expr<'_>) -> bool {
         let ExprKind::Closure(closure) = expression.kind else {
             return false;
         };
         let body = self.cx.tcx.hir_body(closure.body);
-        self.is_default_value(Self::direct_closure_value(body.value))
+        let [parameter] = body.params else {
+            return false;
+        };
+        let (statements, value) = match body.value.kind {
+            ExprKind::Block(block, _) => {
+                let Some(value) = block.expr else {
+                    return false;
+                };
+                (block.stmts, Self::direct_closure_value(value))
+            }
+            _ => (&[][..], Self::direct_closure_value(body.value)),
+        };
+        if !self.is_default_value(value) {
+            return false;
+        }
+        match parameter.pat.kind {
+            PatKind::Wild => statements.is_empty(),
+            PatKind::Binding(_, binding, _, None) => statements
+                .iter()
+                .all(|statement| self.discards_binding(statement, binding)),
+            _ => false,
+        }
     }
 
     /// Recognizes an explicit call to standard `drop` with a Result argument.
@@ -310,8 +363,29 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
             return false;
         };
         let body = self.cx.tcx.hir_body(closure.body);
-        let value = Self::direct_closure_value(body.value);
-        self.is_option_absence(value)
+        let [parameter] = body.params else {
+            return false;
+        };
+        let (statements, value) = match body.value.kind {
+            ExprKind::Block(block, _) => {
+                let Some(value) = block.expr else {
+                    return false;
+                };
+                (block.stmts, Self::direct_closure_value(value))
+            }
+            _ => (&[][..], Self::direct_closure_value(body.value)),
+        };
+        if !self.is_option_absence(value) {
+            return false;
+        }
+
+        // A statement-free closure ignores its error regardless of parameter spelling. When a
+        // simple binding exists, also recognize statements whose only effect is explicit disposal.
+        statements.is_empty()
+            || matches!(parameter.pat.kind, PatKind::Binding(_, binding, _, None)
+                if statements
+                    .iter()
+                    .all(|statement| self.discards_binding(statement, binding)))
     }
 
     /// Normalizes one direct UFCS call into semantic call parts.

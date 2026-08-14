@@ -723,14 +723,11 @@ struct ModuleNamingAnalysis {
 impl ModuleNamingAnalysis {
     /// Collects naming context, declarations, dependencies, and occupied names.
     fn collect(cx: &LateContext<'_>, module: &Mod<'_>, hir_id: HirId) -> Self {
-        // Resolve direct module declarations before filtering authored nominal types.
-        let resolved = module
+        // Retain nominal declarations written directly in the module as lint candidates.
+        let authored = module
             .item_ids
             .iter()
-            .map(|item_id| cx.tcx.hir_item(*item_id));
-
-        // Retain nominal declarations written directly in the module.
-        let authored = resolved
+            .map(|item_id| cx.tcx.hir_item(*item_id))
             .filter(|item| !item.span.from_expansion() && !item.is_framework_generated())
             .filter_map(|item| {
                 Self::nominal_name(cx, item.kind, item.owner_id.def_id).map(|name| {
@@ -746,10 +743,13 @@ impl ModuleNamingAnalysis {
         // Materialize participants before deriving occupied namespace names.
         let participants = authored.collect::<Vec<_>>();
 
-        // Reserve every existing nominal name before proposing concise replacements.
-        let occupied_names = participants
+        // Reserve every existing nominal name, including generated declarations that cannot be
+        // lint candidates but can still make a proposed Rust identifier unavailable.
+        let occupied_names = module
+            .item_ids
             .iter()
-            .map(|participant| participant.name.clone())
+            .map(|item_id| cx.tcx.hir_item(*item_id))
+            .filter_map(|item| Self::nominal_name(cx, item.kind, item.owner_id.def_id))
             .collect();
 
         // Combine naming context, dependency evidence, and namespace occupancy.

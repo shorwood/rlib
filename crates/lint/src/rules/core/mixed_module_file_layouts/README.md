@@ -5,6 +5,7 @@
 Checks for a module stored in `module.rs` when a neighboring `module/` directory contains only
 documentation or other non-Rust companion files. A directory containing Rust source is a normal
 submodule layout and is allowed. Modules using `#[path]` are also left alone.
+Nested children of a conventional flat parent are resolved under that parent's same-name directory.
 
 ## Why is this bad?
 

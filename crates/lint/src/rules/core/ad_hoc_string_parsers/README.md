@@ -7,6 +7,9 @@ one immutable `&str`, uses that input, constructs a same-module owned type, and 
 `Result<T, E>`. When the target has no borrowed lifetime and no existing `FromStr`
 implementation, the lint asks the type to expose the standard parsing contract.
 
+Returned local aliases and explicit returns retain construction provenance. Discarded target
+values, uncalled closures, and explicitly discarded input bindings do not establish a parser.
+
 Names are deliberately secondary to structure. Neutral construction words such as
 `parse`, `decode`, `try`, and the target's own words describe a canonical parser. Additional
 words such as `json`, `lossy`, or `strict` identify a qualified format or policy and remain

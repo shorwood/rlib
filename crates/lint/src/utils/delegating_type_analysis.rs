@@ -118,6 +118,17 @@ pub struct DelegatingTypeAnalyzer {
 }
 
 impl DelegatingTypeAnalyzer {
+    /// Returns whether wrapper and target receivers preserve ownership and borrow mutability.
+    fn receiver_modes_match(wrapper: ty::Ty<'_>, target: ty::Ty<'_>) -> bool {
+        match (wrapper.kind(), target.kind()) {
+            (ty::Ref(_, _, wrapper_mutability), ty::Ref(_, _, target_mutability)) => {
+                wrapper_mutability == target_mutability
+            }
+            (ty::Ref(..), _) | (_, ty::Ref(..)) => false,
+            _ => true,
+        }
+    }
+
     /// Resolves a tuple constructor or struct path to its local struct definition.
     fn struct_resolution(cx: &LateContext<'_>, resolution: Res) -> Option<LocalDefId> {
         let mut definition = resolution.opt_def_id()?;
@@ -199,6 +210,15 @@ impl DelegatingTypeAnalyzer {
             .fn_sig(item.owner_id.def_id)
             .instantiate_identity()
             .skip_binder();
+        let target_signature = cx
+            .tcx
+            .fn_sig(call.target)
+            .instantiate_identity()
+            .skip_binder();
+        if !Self::receiver_modes_match(wrapper_signature.inputs()[0], target_signature.inputs()[0])
+        {
+            return None;
+        }
 
         // Require all explicit parameters to retain binding identity, order, and adjusted type.
         let forwarded_arguments = call.arguments.iter().skip(1);

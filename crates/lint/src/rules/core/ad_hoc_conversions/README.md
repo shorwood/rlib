@@ -8,7 +8,7 @@ an infallible `From` opportunity; an exact `Result<Target, Error>` return is tre
 fallible `TryFrom` opportunity.
 
 The analysis follows the source through destructuring, local bindings, assignments,
-branches, matches, closures, and helper calls. It accepts concrete named, primitive,
+branches, matches, explicit returns, and helper calls. It accepts concrete named, primitive,
 tuple, array, slice, and reference sources while rejecting unresolved generic, opaque,
 dynamic, and raw-pointer contracts. Lifetimes do not split otherwise identical families.
 

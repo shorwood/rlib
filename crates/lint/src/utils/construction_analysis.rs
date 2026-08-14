@@ -7,10 +7,12 @@ extern crate rustc_span;
 use std::collections::{HashMap, HashSet};
 
 use rustc_abi::ExternAbi;
-use rustc_hir::def::{DefKind, Res};
+use rustc_hir::def::{CtorOf, DefKind, Res};
 use rustc_hir::def_id::{DefId, LocalDefId};
 use rustc_hir::intravisit::{self, FnKind, Visitor};
-use rustc_hir::{Body, Expr, ExprKind, HirId, Item, ItemKind, Node, PatKind};
+use rustc_hir::{
+    Body, Expr, ExprKind, HirId, Item, ItemKind, MatchSource, Node, PatKind, Stmt, StmtKind,
+};
 use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty::{self, Ty};
 use rustc_span::symbol::sym;
@@ -106,6 +108,12 @@ pub struct ConstructionCandidate {
     pub(crate) ownership: ConstructionCandidateOwnership,
     /// Text-parser-specific structural evidence.
     parser: ConstructionParserFacts,
+    /// Whether the body can propagate or explicitly return a standard `Result` failure.
+    #[cfg_attr(
+        not(any(feature = "bon", feature = "derive_more", feature = "serde")),
+        allow(dead_code)
+    )]
+    has_failure_path: bool,
     /// Source facts governing automatic relocation.
     pub(crate) migration: ConstructionMigrationFacts,
 }
@@ -114,7 +122,7 @@ impl ConstructionCandidate {
     /// Returns whether this constructor exposes an exact `Result<T, E>` contract.
     #[cfg(any(feature = "bon", feature = "derive_more", feature = "serde"))]
     pub(crate) fn is_fallible_direct(&self) -> bool {
-        self.target.return_shape == ConstructionReturn::FallibleDirect
+        self.target.return_shape == ConstructionReturn::FallibleDirect && self.has_failure_path
     }
 
     /// Returns whether this `candidate` is a structurally canonical textual parser.
@@ -434,7 +442,9 @@ impl ConstructionAnalysis {
 
         // Prove that the body both constructs its target and consumes parser input.
         let string_binding = Self::single_string_binding(body, inputs);
-        let mut evidence = ConstructionEvidence::new(cx, target.def_id, string_binding);
+        let returned_targets = ConstructionResultCollector::collect(cx, target.def_id, body.value);
+        let mut evidence =
+            ConstructionEvidence::new(cx, target.def_id, string_binding, returned_targets);
         evidence.visit_expr(body.value);
         if !evidence.has_constructed_target {
             return;
@@ -481,6 +491,7 @@ impl ConstructionAnalysis {
             has_used_string_input: evidence.has_used_source,
             has_target_lifetime,
         };
+        let has_failure_path = ConstructionFailureCollector::collect(cx, body.value);
 
         // Preserve conservative source facts used only by automatic migration.
         let migration = ConstructionMigrationFacts {
@@ -494,6 +505,7 @@ impl ConstructionAnalysis {
             target: target_facts,
             ownership,
             parser,
+            has_failure_path,
             migration,
         });
     }
@@ -604,6 +616,108 @@ impl ConstructionAnalysis {
 }
 
 // -----------------------------------------------------------------------------
+// ConstructionFailureCollector: Actual fallible-boundary evidence
+// -----------------------------------------------------------------------------
+
+/// Finds an explicit standard `Err` result or authored `?` propagation in a constructor body.
+struct ConstructionFailureCollector<'analysis, 'tcx> {
+    cx: &'analysis LateContext<'tcx>,
+    has_failure_path: bool,
+}
+
+impl<'analysis, 'tcx> ConstructionFailureCollector<'analysis, 'tcx> {
+    fn collect(cx: &'analysis LateContext<'tcx>, expression: &'tcx Expr<'tcx>) -> bool {
+        let mut collector = Self {
+            cx,
+            has_failure_path: false,
+        };
+        collector.visit_result_expr(expression);
+        collector.visit_expr(expression);
+        collector.has_failure_path
+    }
+
+    /// Returns whether one expression directly constructs the standard `Result::Err` variant.
+    fn is_result_variant(&self, expression: &Expr<'_>, expected: &str) -> bool {
+        let ExprKind::Call(callee, _) = expression.kind else {
+            return false;
+        };
+        let ExprKind::Path(path) = callee.kind else {
+            return false;
+        };
+        let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
+            self.cx.qpath_res(&path, callee.hir_id)
+        else {
+            return false;
+        };
+        let variant = self.cx.tcx.parent(constructor);
+        let owner = self.cx.tcx.parent(variant);
+        self.cx.tcx.item_name(variant).as_str() == expected
+            && self.cx.tcx.is_diagnostic_item(sym::Result, owner)
+    }
+
+    /// Returns whether a returned call has a standard `Result` contract beyond direct `Ok`.
+    fn is_result_operation(&self, expression: &Expr<'_>) -> bool {
+        if !matches!(
+            expression.kind,
+            ExprKind::Call(..) | ExprKind::MethodCall(..)
+        ) || self.is_result_variant(expression, "Ok")
+        {
+            return false;
+        }
+        matches!(self.cx.typeck_results().expr_ty(expression).kind(), ty::Adt(definition, _) if self.cx.tcx.is_diagnostic_item(sym::Result, definition.did()))
+    }
+
+    /// Visits only expressions whose value can become the function's returned result.
+    fn visit_result_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if self.is_result_variant(expression, "Err") || self.is_result_operation(expression) {
+            self.has_failure_path = true;
+            return;
+        }
+        match expression.kind {
+            ExprKind::Block(block, _) => {
+                if let Some(tail) = block.expr {
+                    self.visit_result_expr(tail);
+                }
+            }
+            ExprKind::If(_, then_expression, else_expression) => {
+                self.visit_result_expr(then_expression);
+                if let Some(else_expression) = else_expression {
+                    self.visit_result_expr(else_expression);
+                }
+            }
+            ExprKind::Match(_, arms, _) => {
+                for arm in arms {
+                    self.visit_result_expr(arm.body);
+                }
+            }
+            ExprKind::Ret(Some(value)) | ExprKind::DropTemps(value) => {
+                self.visit_result_expr(value);
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<'tcx> Visitor<'tcx> for ConstructionFailureCollector<'_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if matches!(
+            expression.kind,
+            ExprKind::Match(_, _, MatchSource::TryDesugar(_))
+        ) {
+            self.has_failure_path = true;
+        }
+        if let ExprKind::Ret(Some(value)) = expression.kind {
+            self.visit_result_expr(value);
+        }
+        if !matches!(expression.kind, ExprKind::Closure(_)) {
+            intravisit::walk_expr(self, expression);
+        }
+    }
+
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+}
+
+// -----------------------------------------------------------------------------
 // ConstructionEvidence: Body level semantic proof
 // -----------------------------------------------------------------------------
 
@@ -615,6 +729,8 @@ struct ConstructionEvidence<'analysis, 'tcx> {
     target: LocalDefId,
     /// Optional parser source binding.
     source: Option<HirId>,
+    /// Target constructions contributing to the function result.
+    returned_targets: HashSet<HirId>,
     /// Whether a target-producing expression occurs in the body.
     has_constructed_target: bool,
     /// Whether the parser source occurs in the body.
@@ -623,16 +739,19 @@ struct ConstructionEvidence<'analysis, 'tcx> {
 
 impl<'analysis, 'tcx> ConstructionEvidence<'analysis, 'tcx> {
     /// Starts evidence collection for one function body.
-    const fn new(
+    fn new(
         cx: &'analysis LateContext<'tcx>,
         target: LocalDefId,
         source: Option<HirId>,
+        returned_targets: HashSet<HirId>,
     ) -> Self {
+        let has_constructed_target = !returned_targets.is_empty();
         Self {
             cx,
             target,
             source,
-            has_constructed_target: false,
+            returned_targets,
+            has_constructed_target,
             has_used_source: false,
         }
     }
@@ -657,9 +776,33 @@ impl<'analysis, 'tcx> ConstructionEvidence<'analysis, 'tcx> {
         let produced_target = ConstructionAnalysis::direct_adt(expression_type);
         (is_operation || is_unit_constructor) && produced_target == Some(self.target)
     }
+
+    /// Returns whether an expression is exactly the parser source binding.
+    fn is_source_path(&self, expression: &Expr<'_>) -> bool {
+        matches!(
+            expression.kind,
+            ExprKind::Path(path)
+                if matches!(
+                    self.cx.qpath_res(&path, expression.hir_id),
+                    Res::Local(binding) if self.source == Some(binding)
+                )
+        )
+    }
 }
 
 impl<'tcx> Visitor<'tcx> for ConstructionEvidence<'_, 'tcx> {
+    fn visit_stmt(&mut self, statement: &'tcx Stmt<'tcx>) {
+        if let StmtKind::Let(local) = statement.kind
+            && matches!(local.pat.kind, PatKind::Wild)
+            && local
+                .init
+                .is_some_and(|initializer| self.is_source_path(initializer))
+        {
+            return;
+        }
+        intravisit::walk_stmt(self, statement);
+    }
+
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         if let ExprKind::Path(path) = expression.kind
             && let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id)
@@ -667,11 +810,191 @@ impl<'tcx> Visitor<'tcx> for ConstructionEvidence<'_, 'tcx> {
         {
             self.has_used_source = true;
         }
-        self.has_constructed_target |= self.produces_target(expression);
-        intravisit::walk_expr(self, expression);
+        self.has_constructed_target |=
+            self.returned_targets.contains(&expression.hir_id) && self.produces_target(expression);
+        if !matches!(expression.kind, ExprKind::Closure(_)) {
+            intravisit::walk_expr(self, expression);
+        }
     }
 
-    fn visit_nested_body(&mut self, body: rustc_hir::BodyId) {
-        self.visit_body(self.cx.tcx.hir_body(body));
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+}
+
+// -----------------------------------------------------------------------------
+// ConstructionResultCollector: Returned target ownership
+// -----------------------------------------------------------------------------
+
+/// Finds target constructions contributing to tail values and explicit returns.
+struct ConstructionResultCollector<'analysis, 'tcx> {
+    cx: &'analysis LateContext<'tcx>,
+    target: LocalDefId,
+    returned_targets: HashSet<HirId>,
+    bindings: HashMap<HirId, HashSet<HirId>>,
+}
+
+impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
+    fn collect(
+        cx: &'analysis LateContext<'tcx>,
+        target: LocalDefId,
+        expression: &'tcx Expr<'tcx>,
+    ) -> HashSet<HirId> {
+        let mut collector = Self {
+            cx,
+            target,
+            returned_targets: HashSet::new(),
+            bindings: HashMap::new(),
+        };
+        collector.visit_result_expr(expression);
+        collector.returned_targets
     }
+
+    fn produces_target(&self, expression: &Expr<'_>) -> bool {
+        let operation = matches!(
+            expression.kind,
+            ExprKind::Call(..) | ExprKind::MethodCall(..) | ExprKind::Struct(..)
+        ) || matches!(
+            expression.kind,
+            ExprKind::Path(path)
+                if matches!(self.cx.qpath_res(&path, expression.hir_id), Res::Def(DefKind::Ctor(..), _))
+        );
+        operation
+            && ConstructionAnalysis::direct_adt(self.cx.typeck_results().expr_ty(expression))
+                == Some(self.target)
+    }
+
+    fn targets_in(&self, expression: &'tcx Expr<'tcx>) -> HashSet<HirId> {
+        struct TargetFinder<'collector, 'analysis, 'tcx> {
+            collector: &'collector ConstructionResultCollector<'analysis, 'tcx>,
+            targets: HashSet<HirId>,
+        }
+
+        impl<'tcx> Visitor<'tcx> for TargetFinder<'_, '_, 'tcx> {
+            fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+                if self.collector.produces_target(expression) {
+                    self.targets.insert(expression.hir_id);
+                    return;
+                }
+                if let ExprKind::Path(path) = expression.kind
+                    && let Res::Local(binding) =
+                        self.collector.cx.qpath_res(&path, expression.hir_id)
+                    && let Some(targets) = self.collector.bindings.get(&binding)
+                {
+                    self.targets.extend(targets);
+                    return;
+                }
+                if !matches!(expression.kind, ExprKind::Closure(_)) {
+                    intravisit::walk_expr(self, expression);
+                }
+            }
+
+            fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+        }
+
+        let mut finder = TargetFinder {
+            collector: self,
+            targets: HashSet::new(),
+        };
+        finder.visit_expr(expression);
+        finder.targets
+    }
+
+    fn visit_result_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if self.produces_target(expression) {
+            self.returned_targets.insert(expression.hir_id);
+            return;
+        }
+        if let ExprKind::Path(path) = expression.kind
+            && let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id)
+            && let Some(targets) = self.bindings.get(&binding)
+        {
+            self.returned_targets.extend(targets);
+            return;
+        }
+        match expression.kind {
+            ExprKind::Block(block, _) => {
+                for statement in block.stmts {
+                    self.visit_stmt(statement);
+                }
+                if let Some(tail) = block.expr {
+                    self.visit_result_expr(tail);
+                }
+            }
+            ExprKind::If(condition, then_expression, else_expression) => {
+                self.visit_expr(condition);
+                self.visit_result_expr(then_expression);
+                if let Some(else_expression) = else_expression {
+                    self.visit_result_expr(else_expression);
+                }
+            }
+            ExprKind::Match(scrutinee, arms, _) => {
+                self.visit_expr(scrutinee);
+                for arm in arms {
+                    if let Some(guard) = arm.guard {
+                        self.visit_expr(guard);
+                    }
+                    self.visit_result_expr(arm.body);
+                }
+            }
+            ExprKind::Call(callee, arguments) => {
+                self.visit_expr(callee);
+                for argument in arguments {
+                    self.visit_result_expr(argument);
+                }
+            }
+            ExprKind::MethodCall(_, receiver, arguments, _) => {
+                self.visit_result_expr(receiver);
+                for argument in arguments {
+                    self.visit_result_expr(argument);
+                }
+            }
+            ExprKind::Closure(closure) => {
+                let body = self.cx.tcx.hir_body(closure.body);
+                self.visit_result_expr(body.value);
+            }
+            ExprKind::Ret(Some(value)) | ExprKind::DropTemps(value) => {
+                self.visit_result_expr(value);
+            }
+            _ => self.visit_expr(expression),
+        }
+    }
+}
+
+impl<'tcx> Visitor<'tcx> for ConstructionResultCollector<'_, 'tcx> {
+    fn visit_stmt(&mut self, statement: &'tcx Stmt<'tcx>) {
+        if let StmtKind::Let(local) = statement.kind
+            && let Some(initializer) = local.init
+            && let PatKind::Binding(_, binding, _, None) = local.pat.kind
+        {
+            let targets = self.targets_in(initializer);
+            if !targets.is_empty() {
+                self.bindings.insert(binding, targets);
+            }
+        }
+        intravisit::walk_stmt(self, statement);
+    }
+
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if let ExprKind::Assign(left, right, _) = expression.kind {
+            let targets = self.targets_in(right);
+            self.visit_expr(right);
+            if let ExprKind::Path(path) = left.kind
+                && let Res::Local(binding) = self.cx.qpath_res(&path, left.hir_id)
+            {
+                if targets.is_empty() {
+                    self.bindings.remove(&binding);
+                } else {
+                    self.bindings.insert(binding, targets);
+                }
+            }
+            self.visit_expr(left);
+            return;
+        }
+        match expression.kind {
+            ExprKind::Ret(Some(value)) => self.visit_result_expr(value),
+            ExprKind::Closure(_) => {}
+            _ => intravisit::walk_expr(self, expression),
+        }
+    }
+
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
 }

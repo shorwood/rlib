@@ -3,7 +3,9 @@
 ## What it does
 
 Finds non-unit tuple types nested inside another explicit type, including references,
-slices, arrays, collections, options, results, and associated type bindings.
+slices, arrays, collections, options, results, and associated type bindings. Positional
+arguments in `Fn`, `FnMut`, and `FnOnce` syntax are not tuple types; real tuples elsewhere in
+the same annotation are still checked.
 
 ## Why is this bad?
 

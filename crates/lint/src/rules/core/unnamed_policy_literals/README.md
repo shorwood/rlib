@@ -9,9 +9,9 @@ configuration values, and control flow around fallible operations. Immutable loc
 are followed back to their literal initializer.
 
 Exact `0` and `1`, direct indexing, constant and static initializers, unrelated arithmetic,
-infallible loop bounds, ordinary comparisons, and macro-generated expressions remain
-accepted. User-defined APIs that merely share a familiar method name are not classified as
-policy sinks.
+infallible loop bounds, ordinary comparisons, success-only `Result` branches, and
+macro-generated expressions remain accepted. User-defined APIs that merely share a familiar
+method name are not classified as policy sinks.
 
 ## Why is this bad?
 

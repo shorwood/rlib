@@ -1,8 +1,10 @@
 extern crate rustc_hir;
 extern crate rustc_lint;
+extern crate rustc_span;
 
 use rustc_hir::{Arm, Expr, ExprKind, Node};
 use rustc_lint::LateContext;
+use rustc_span::BytePos;
 
 use super::function_layout_analysis::FunctionLayoutAnalyzerSpanExt;
 
@@ -19,18 +21,14 @@ pub(super) trait ControlFlowArmExt {
 impl ControlFlowArmExt for Arm<'_> {
     fn code_lines(&self, cx: &LateContext<'_>) -> usize {
         if let ExprKind::Block(block, _) = self.body.kind {
-            // Count direct statements without charging the arm's braces.
-            let statement_lines = block
-                .stmts
-                .iter()
-                .map(|statement| statement.span.code_line_count(cx))
-                .sum::<usize>();
-
-            // Add the optional tail expression as an independent authored line range.
-            let tail_lines = block
-                .expr
-                .map_or(0, |expression| expression.span.code_line_count(cx));
-            statement_lines + tail_lines
+            // Measure the block interior once so several statements sharing a physical line do
+            // not count that line repeatedly. Removing the brace bytes also keeps brace-only
+            // lines outside the authored-code budget.
+            let interior = block
+                .span
+                .with_lo(block.span.lo() + BytePos(1))
+                .with_hi(block.span.hi() - BytePos(1));
+            interior.code_line_count(cx)
         } else {
             self.body.span.code_line_count(cx)
         }

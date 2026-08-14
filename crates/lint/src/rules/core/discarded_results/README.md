@@ -3,9 +3,10 @@
 ## What it does
 
 Finds standard `Result` values deliberately consumed through a wildcard assignment, an
-underscore-prefixed binding, or an explicit call to `drop`. Ordinary unused Results remain
-covered by Rust's `unused_must_use` lint, while non-Result values and macro-generated code
-remain valid.
+unused underscore-prefixed binding, or an explicit call to `drop`. An underscore-prefixed
+binding that is subsequently read is not a discard. Ordinary unused Results remain covered
+by Rust's `unused_must_use` lint, while non-Result values and macro-generated code remain
+valid.
 
 ## Why is this bad?
 

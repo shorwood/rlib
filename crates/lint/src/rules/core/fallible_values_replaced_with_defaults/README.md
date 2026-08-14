@@ -5,7 +5,8 @@
 Finds standard Result operations that replace the error branch with the success type's
 `Default` value: `unwrap_or_default`, `unwrap_or(T::default())`, and a direct
 `unwrap_or_else(|_| T::default())` closure. Method and UFCS syntax and type aliases are
-recognized semantically. Option fallbacks are delegated to
+recognized semantically. Closures that explicitly discard the error with `let _ = error`
+or `drop(error)` are also treated as error-ignoring. Option fallbacks are delegated to
 `results_converted_to_options`; custom methods, error-aware closures, explicit matches, and
 macro-generated code remain valid.
 

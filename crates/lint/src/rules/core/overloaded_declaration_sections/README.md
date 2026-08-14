@@ -6,6 +6,8 @@ Rejects a valid section when it both exceeds the configured declaration limit an
 several independently named concepts. A named type and all of its implementation blocks
 count as one declaration. A large but consistently named family remains valid because its
 divider still communicates one responsibility. The default scale limit is five declarations.
+This repository configures a limit of forty, and the UI boundary fixture follows that active
+policy.
 
 ## Why is this bad?
 

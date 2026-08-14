@@ -4,7 +4,8 @@
 
 Finds neutral free functions and inherent methods over two shared references to one local
 type. A proven `Ordering` result is treated as an `Ord` opportunity; a proven
-`Option<Ordering>` result is treated as a `PartialOrd` opportunity.
+`Option<Ordering>` result is treated as a `PartialOrd` opportunity. Returned local aliases and
+explicit returns retain relation provenance; discarded and dormant comparisons do not.
 
 ## Why is this bad?
 
@@ -25,7 +26,8 @@ fn compare_slugs(left: &Slug, right: &Slug) -> Ordering {
 ## Use instead
 
 Contextual orderings such as display order, priority, or business-key order remain named.
-Float-backed types are ignored unless the body explicitly establishes total ordering.
+Float-backed types are ignored unless the returned relation explicitly establishes total
+ordering.
 
 ```rust
 #[derive(Eq, Ord, PartialEq, PartialOrd)]

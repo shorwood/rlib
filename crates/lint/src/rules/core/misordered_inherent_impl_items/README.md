@@ -10,6 +10,8 @@ Trait impls and other inherent impl blocks are independent.
 A stable order makes an impl predictable to scan: supporting types and constants come
 first, followed by constructors, other associated functions, and methods. Dependency-first
 ordering also prevents a declaration from relying on details introduced later in the block.
+Constructor ranking follows resolved return types, so `Self`, the concrete type name, and aliases
+receive the same ordering semantics.
 
 For example, this method appears before the constructor it uses:
 

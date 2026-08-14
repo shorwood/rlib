@@ -3,7 +3,9 @@
 ## What it does
 
 Finds match arms whose hand-written code exceeds the configured line limit. Blank lines,
-comments, and the arm's outer braces are excluded from the count.
+comments, and the arm's outer braces are excluded from the count, and a physical line is counted
+only once even when it contains several statements. Matches owned by closure bodies are outside
+this named-function structure policy.
 
 ## Why is this bad?
 

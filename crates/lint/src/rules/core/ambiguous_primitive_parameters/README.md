@@ -6,6 +6,8 @@ Finds function and method signatures where parameters with the same primitive
 representation carry distinct domain roles. Scalar aliases are resolved semantically, and
 owned and borrowed UTF-8 strings form one textual family. Conventional coordinates,
 bounds, operands, ranges, dimensions, and generic text operations remain accepted.
+Non-text primitives are grouped only when their ownership and reference mutability also match,
+because owned, shared-borrowed, and mutably borrowed arguments are not freely swappable.
 
 ## Why is this bad?
 

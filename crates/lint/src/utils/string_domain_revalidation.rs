@@ -4,10 +4,11 @@ extern crate rustc_span;
 
 use std::collections::HashSet;
 
-use rustc_hir::def::Res;
+use rustc_hir::def::{CtorOf, DefKind, Res};
 use rustc_hir::intravisit::{self, Visitor};
 use rustc_hir::{Body, Expr, ExprKind, HirId};
 use rustc_lint::LateContext;
+use rustc_span::symbol::sym;
 
 use super::parameter_analysis::Parameter;
 use super::string_domain_vocabulary::StringDomainSymbolExt;
@@ -32,16 +33,40 @@ impl<'tcx> Visitor<'tcx> for RevalidationBindingCollector<'_, 'tcx> {
 }
 
 /// Finds returns without descending into nested closures.
-#[derive(Default)]
-struct RevalidationReturnFinder {
-    /// Whether a return expression was encountered.
-    has_return: bool,
+struct RevalidationReturnFinder<'analysis, 'tcx> {
+    /// Compiler context used to distinguish successful and rejecting return variants.
+    cx: &'analysis LateContext<'tcx>,
+    /// Whether a rejecting return expression was encountered.
+    has_rejection_return: bool,
 }
 
-impl<'tcx> Visitor<'tcx> for RevalidationReturnFinder {
+impl RevalidationReturnFinder<'_, '_> {
+    /// Returns whether a return value directly constructs standard `Ok` or `Some` success.
+    fn is_success_variant(&self, value: &Expr<'_>) -> bool {
+        let ExprKind::Call(callee, _) = value.kind else {
+            return false;
+        };
+        let ExprKind::Path(path) = callee.kind else {
+            return false;
+        };
+        let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
+            self.cx.qpath_res(&path, callee.hir_id)
+        else {
+            return false;
+        };
+        let variant = self.cx.tcx.parent(constructor);
+        let owner = self.cx.tcx.parent(variant);
+        (self.cx.tcx.item_name(variant).as_str() == "Ok"
+            && self.cx.tcx.is_diagnostic_item(sym::Result, owner))
+            || (self.cx.tcx.item_name(variant).as_str() == "Some"
+                && self.cx.tcx.is_diagnostic_item(sym::Option, owner))
+    }
+}
+
+impl<'tcx> Visitor<'tcx> for RevalidationReturnFinder<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if matches!(expression.kind, ExprKind::Ret(_)) {
-            self.has_return = true;
+        if let ExprKind::Ret(value) = expression.kind {
+            self.has_rejection_return |= value.is_none_or(|value| !self.is_success_variant(value));
             return;
         }
         if matches!(expression.kind, ExprKind::Closure(_)) {
@@ -73,10 +98,13 @@ impl<'analysis, 'tcx> RevalidationVisitor<'analysis, 'tcx> {
     }
 
     /// Returns whether an expression contains an explicit function return.
-    fn contains_return(expression: &'tcx Expr<'tcx>) -> bool {
-        let mut finder = RevalidationReturnFinder::default();
+    fn contains_return(&self, expression: &'tcx Expr<'tcx>) -> bool {
+        let mut finder = RevalidationReturnFinder {
+            cx: self.cx,
+            has_rejection_return: false,
+        };
         finder.visit_expr(expression);
-        finder.has_return
+        finder.has_rejection_return
     }
 
     /// Records parameter bindings used anywhere inside an expression.
@@ -132,7 +160,7 @@ impl<'tcx> Visitor<'tcx> for RevalidationVisitor<'_, 'tcx> {
             ExprKind::MethodCall(segment, receiver, arguments, _) => {
                 self.record_method_call(segment.ident.name, receiver, arguments);
             }
-            ExprKind::If(condition, then, _) if Self::contains_return(then) => {
+            ExprKind::If(condition, then, _) if self.contains_return(then) => {
                 self.record_bindings(condition);
             }
             _ => {}

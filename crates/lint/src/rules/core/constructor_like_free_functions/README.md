@@ -7,6 +7,10 @@ union, directly or through nested `Option` and `Result` success containers, and 
 actually contains an expression that constructs that type. Functions already shaped like
 instance methods are left to `method_like_free_functions`.
 
+Construction must contribute to the returned value. This includes returned aliases and
+adapter closures such as `Option::map`, but excludes discarded values and closure bodies
+stored for later use.
+
 A unique canonical `&str -> Result<T, E>` parser is also left to
 `ad_hoc_string_parsers`, which can recommend the stronger `FromStr` contract. Ambiguous or
 deliberately qualified parser families still receive this ownership warning when written

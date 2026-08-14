@@ -5,7 +5,8 @@
 Finds domain-shaped textual parameters whose invariants are established near the start of
 at least two consumers in the same module. Validation and normalization helper calls and
 parameter-dependent early rejection guards count as evidence. The constructor, parser, or
-validator that establishes the boundary is not itself a consumer.
+validator that establishes the boundary is not itself a consumer. Parameter-dependent fast paths
+that directly return standard `Ok` or `Some` success are not rejection evidence.
 
 ## Why is this bad?
 

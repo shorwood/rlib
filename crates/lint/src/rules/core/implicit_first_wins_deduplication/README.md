@@ -3,8 +3,9 @@
 ## What it does
 
 Finds iterator filters that deduplicate values by returning the result of
-`HashSet::insert` directly. Other uses of `HashSet::insert` and ordinary predicates remain
-valid.
+`HashSet::insert` directly. Both operations are identified by their resolved standard
+definitions, so same-named custom methods, other uses of `HashSet::insert`, and ordinary
+predicates remain valid.
 
 ## Why is this bad?
 

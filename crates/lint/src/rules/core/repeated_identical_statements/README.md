@@ -2,8 +2,9 @@
 
 ## What it does
 
-Finds adjacent statements whose hand-written source is identical. Statements produced by macro
-expansion are ignored because their repetition cannot be repaired at the diagnostic site.
+Finds adjacent statements whose hand-written source is identical. An authored comment between
+the statements makes the repetition explicit and suppresses the finding. Statements produced by
+macro expansion are ignored because their repetition cannot be repaired at the diagnostic site.
 
 ## Why is this bad?
 

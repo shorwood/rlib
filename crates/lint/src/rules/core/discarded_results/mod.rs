@@ -5,7 +5,9 @@ extern crate rustc_span;
 use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{Expr, PatKind, Stmt, StmtKind};
+use rustc_hir::def::Res;
+use rustc_hir::intravisit::{self, Visitor};
+use rustc_hir::{Expr, ExprKind, HirId, PatKind, Stmt, StmtKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
@@ -138,6 +140,46 @@ impl LateLintPass<'_> for DiscardedResults {
 }
 
 impl DiscardedResults {
+    /// Returns whether an underscore-prefixed binding is subsequently read in its body.
+    fn binding_is_used(cx: &LateContext<'_>, expression: &Expr<'_>, binding: HirId) -> bool {
+        struct BindingUse<'analysis, 'tcx> {
+            cx: &'analysis LateContext<'tcx>,
+            binding: HirId,
+            found: bool,
+        }
+
+        impl<'tcx> Visitor<'tcx> for BindingUse<'_, 'tcx> {
+            fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+                if self.found {
+                    return;
+                }
+                if let ExprKind::Path(path) = expression.kind
+                    && matches!(
+                        self.cx.qpath_res(&path, expression.hir_id),
+                        Res::Local(binding) if binding == self.binding
+                    )
+                {
+                    self.found = true;
+                    return;
+                }
+                intravisit::walk_expr(self, expression);
+            }
+
+            fn visit_nested_body(&mut self, body: rustc_hir::BodyId) {
+                self.visit_body(self.cx.tcx.hir_body(body));
+            }
+        }
+
+        let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+        let mut usage = BindingUse {
+            cx,
+            binding,
+            found: false,
+        };
+        usage.visit_body(cx.tcx.hir_body_owned_by(owner));
+        usage.found
+    }
+
     /// Classifies one authored wildcard or underscore-prefixed binding of a standard result.
     fn binding_violation(cx: &LateContext<'_>, statement: &Stmt<'_>) -> Option<Violation> {
         // Resolve the authored binding syntax and its initializer.
@@ -149,14 +191,17 @@ impl DiscardedResults {
         };
 
         // Classify only bindings whose spelling explicitly advertises disposal.
-        let discard = match local.pat.kind {
-            PatKind::Wild => ResultDiscard::WildcardBinding,
-            PatKind::Binding(_, _, ident, None) if ident.name.as_str().starts_with('_') => {
-                ResultDiscard::UnderscoreBinding
+        let (discard, binding) = match local.pat.kind {
+            PatKind::Wild => (ResultDiscard::WildcardBinding, None),
+            PatKind::Binding(_, binding, ident, None) if ident.name.as_str().starts_with('_') => {
+                (ResultDiscard::UnderscoreBinding, Some(binding))
             }
             _ => return None,
         };
         let initializer = local.init?;
+        if binding.is_some_and(|binding| Self::binding_is_used(cx, initializer, binding)) {
+            return None;
+        }
 
         // Require the initializer itself to carry a standard result contract.
         let analyzer = ResultLossAnalyzer::for_context(cx);

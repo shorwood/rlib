@@ -4,9 +4,9 @@
 
 Rejects every `use` or `extern crate` declaration whose visibility escapes its containing
 module, including declarations produced by macros. This covers `pub`, `pub(crate)`,
-`pub(super)`, and `pub(in path)` forms for local items, dependency items, renamed imports,
-and glob imports. Ordinary private imports and the explicitly private `pub(self)` form are
-not reexports.
+`pub(super)`, and `pub(in path)` forms when their resolved scope is broader than the defining
+module, for local items, dependency items, renamed imports, and glob imports. Ordinary private
+imports, `pub(self)`, and restricted paths that resolve to the defining module are not reexports.
 
 ## Why is this bad?
 

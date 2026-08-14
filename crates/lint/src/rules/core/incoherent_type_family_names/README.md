@@ -6,6 +6,8 @@ Finds type names that repeat the module or lint-pass name instead of expressing 
 concept that connects those declarations. It analyzes valid sections and unsectioned module
 declarations, combining normalized Rust identifier words with compiler-resolved
 dependencies and source proximity.
+Generated declarations are excluded as naming candidates but still reserve their identifiers, so
+rename guidance does not propose an occupied type name.
 
 ## Why is this bad?
 

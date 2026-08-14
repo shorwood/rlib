@@ -568,7 +568,8 @@ impl ConversionAnalysis {
         .visit_pat(body.params[0].pat);
 
         // Follow derived bindings and effects through the complete function body.
-        let mut evidence = ConversionEvidence::new(cx, candidate.target.def_id, source_bindings);
+        let mut evidence =
+            ConversionEvidence::new(cx, candidate.target.def_id, source_bindings, body);
         evidence.visit_expr(body.value);
         if !evidence.has_source_reached_target {
             return;
@@ -699,6 +700,8 @@ struct ConversionEvidence<'analysis, 'tcx> {
     target: LocalDefId,
     /// Local bindings transitively derived from the sole source parameter.
     tainted: HashSet<HirId>,
+    /// Target constructions that contribute to a tail expression or explicit return.
+    returned_targets: HashSet<HirId>,
     /// Whether a source-derived value participates in target construction.
     has_source_reached_target: bool,
     /// Whether the body observes ambient state or known standard effects.
@@ -707,15 +710,24 @@ struct ConversionEvidence<'analysis, 'tcx> {
 
 impl<'analysis, 'tcx> ConversionEvidence<'analysis, 'tcx> {
     /// Starts source-flow and effect analysis for one `candidate` body.
-    const fn new(
+    fn new(
         cx: &'analysis LateContext<'tcx>,
         target: LocalDefId,
         tainted: HashSet<HirId>,
+        body: &'tcx Body<'tcx>,
     ) -> Self {
+        let mut returned_targets = HashSet::new();
+        ConversionResultCollector {
+            cx,
+            target,
+            returned_targets: &mut returned_targets,
+        }
+        .visit_result_expr(body.value);
         Self {
             cx,
             target,
             tainted,
+            returned_targets,
             has_source_reached_target: false,
             has_effect: false,
         }
@@ -843,17 +855,24 @@ impl<'tcx> Visitor<'tcx> for ConversionEvidence<'_, 'tcx> {
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         self.record_effect(expression);
-        if self.produces_target(expression) && self.uses_tainted(expression) {
+        if self.returned_targets.contains(&expression.hir_id)
+            && self.produces_target(expression)
+            && self.uses_tainted(expression)
+        {
             self.has_source_reached_target = true;
         }
 
         if let ExprKind::Assign(left, right, _) = expression.kind {
+            let right_is_tainted = self.uses_tainted(right);
             self.visit_expr(right);
-            if self.uses_tainted(right)
-                && let ExprKind::Path(path) = left.kind
+            if let ExprKind::Path(path) = left.kind
                 && let Res::Local(binding) = self.cx.qpath_res(&path, left.hir_id)
             {
-                self.tainted.insert(binding);
+                if right_is_tainted {
+                    self.tainted.insert(binding);
+                } else {
+                    self.tainted.remove(&binding);
+                }
             }
             self.visit_expr(left);
             return;
@@ -871,7 +890,103 @@ impl<'tcx> Visitor<'tcx> for ConversionEvidence<'_, 'tcx> {
         intravisit::walk_expr(self, expression);
     }
 
-    fn visit_nested_body(&mut self, body: rustc_hir::BodyId) {
-        self.visit_body(self.cx.tcx.hir_body(body));
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+}
+
+// -----------------------------------------------------------------------------
+// ConversionResultCollector: Returned target ownership
+// -----------------------------------------------------------------------------
+
+/// Finds target constructions that contribute to the function's returned value.
+struct ConversionResultCollector<'analysis, 'tcx, 'set> {
+    /// Compiler context used to resolve expression result types.
+    cx: &'analysis LateContext<'tcx>,
+    /// Local target promised by the function signature.
+    target: LocalDefId,
+    /// Construction expressions reached through tail values and explicit returns.
+    returned_targets: &'set mut HashSet<HirId>,
+}
+
+impl<'tcx> ConversionResultCollector<'_, 'tcx, '_> {
+    /// Returns whether an expression directly constructs the promised target.
+    fn produces_target(&self, expression: &Expr<'_>) -> bool {
+        let operation = matches!(
+            expression.kind,
+            ExprKind::Call(..) | ExprKind::MethodCall(..) | ExprKind::Struct(..)
+        ) || matches!(
+            expression.kind,
+            ExprKind::Path(path)
+                if matches!(
+                    self.cx.qpath_res(&path, expression.hir_id),
+                    Res::Def(DefKind::Ctor(..), _)
+                )
+        );
+        let ty = self.cx.typeck_results().expr_ty(expression).peel_refs();
+        let ty::Adt(definition, _) = ty.kind() else {
+            return false;
+        };
+        operation && definition.did().as_local() == Some(self.target)
     }
+
+    /// Follows only expression positions whose value contributes to a return contract.
+    fn visit_result_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if self.produces_target(expression) {
+            self.returned_targets.insert(expression.hir_id);
+            return;
+        }
+        match expression.kind {
+            ExprKind::Block(block, _) => {
+                for statement in block.stmts {
+                    self.visit_stmt(statement);
+                }
+                if let Some(tail) = block.expr {
+                    self.visit_result_expr(tail);
+                }
+            }
+            ExprKind::If(condition, then_expression, else_expression) => {
+                self.visit_expr(condition);
+                self.visit_result_expr(then_expression);
+                if let Some(else_expression) = else_expression {
+                    self.visit_result_expr(else_expression);
+                }
+            }
+            ExprKind::Match(scrutinee, arms, _) => {
+                self.visit_expr(scrutinee);
+                for arm in arms {
+                    if let Some(guard) = arm.guard {
+                        self.visit_expr(guard);
+                    }
+                    self.visit_result_expr(arm.body);
+                }
+            }
+            ExprKind::Call(callee, arguments) => {
+                self.visit_expr(callee);
+                for argument in arguments {
+                    self.visit_result_expr(argument);
+                }
+            }
+            ExprKind::MethodCall(_, receiver, arguments, _) => {
+                self.visit_result_expr(receiver);
+                for argument in arguments {
+                    self.visit_result_expr(argument);
+                }
+            }
+            ExprKind::Ret(Some(value)) | ExprKind::DropTemps(value) => {
+                self.visit_result_expr(value);
+            }
+            _ => self.visit_expr(expression),
+        }
+    }
+}
+
+impl<'tcx> Visitor<'tcx> for ConversionResultCollector<'_, 'tcx, '_> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        match expression.kind {
+            ExprKind::Ret(Some(value)) => self.visit_result_expr(value),
+            ExprKind::Closure(_) => {}
+            _ => intravisit::walk_expr(self, expression),
+        }
+    }
+
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
 }

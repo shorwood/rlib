@@ -79,8 +79,14 @@ impl LateLintPass<'_> for ImplicitFirstWinsDeduplication {
             return;
         };
 
-        // Abort early if the method name is not `filter`.
-        if filter.ident.name.as_str() != "filter" {
+        // Require the compiler-resolved standard Iterator operation, not a same-named method.
+        let filter_definition = cx.typeck_results().type_dependent_def_id(expression.hir_id);
+        if filter.ident.name.as_str() != "filter"
+            || filter_definition.is_none_or(|definition| {
+                !cx.tcx
+                    .is_diagnostic_item(sym::Iterator, cx.tcx.parent(definition))
+            })
+        {
             return;
         }
 

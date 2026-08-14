@@ -389,7 +389,7 @@ impl ModuleAnalysis {
         if participants.len() > analyzer.max_declarations_per_section
             && section
                 .participants
-                .has_multiple_conceptual_families(namespace)
+                .has_multiple_declaration_families(namespace)
         {
             // Use configured scale as corroborating evidence, not a reason to split one family.
             let message = format!(

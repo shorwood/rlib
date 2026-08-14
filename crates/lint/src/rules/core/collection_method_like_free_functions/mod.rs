@@ -9,7 +9,7 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{BindingMode, HirId, Item, ItemKind, Mod, Mutability, PatKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
-use rustc_middle::ty::{self, Ty};
+use rustc_middle::ty::{self, Ty, TypeVisitableExt};
 use rustc_span::{Span, Symbol, sym};
 
 use crate::utils::diagnostic::LateViolation;
@@ -109,6 +109,7 @@ impl CollectionReceiver {
 // -----------------------------------------------------------------------------
 
 /// Whether the canonical wrapper can receive the misplaced function.
+#[derive(Clone, Copy)]
 enum CandidateWrapperState {
     /// No item occupies the canonical wrapper name.
     Missing,
@@ -131,36 +132,36 @@ struct CandidateFunction {
 }
 
 /// Local collection element identity and display names retained for wrapper guidance.
-struct CandidateElement {
+struct CandidateElement<'tcx> {
     /// Local definition of the collection element struct.
     def_id: LocalDefId,
     /// Whether the element type requires generic wrapper design decisions.
     has_parameters: bool,
     /// Displayable semantic element type including generic arguments.
-    ty: String,
+    ty: Ty<'tcx>,
     /// Element struct name shown in diagnostics.
     name: Symbol,
 }
 
 /// One free function whose first parameter represents a collection that needs a domain wrapper.
-struct Candidate {
+struct Candidate<'tcx> {
     /// Free-function identity and source locations.
     function: CandidateFunction,
     /// Local collection element identity and display names.
-    element: CandidateElement,
+    element: CandidateElement<'tcx>,
     /// Canonical `<Element>List` wrapper name.
     wrapper_name: Symbol,
     /// Method receiver preserving collection ownership and mutability.
     receiver: CollectionReceiver,
 }
 
-impl Candidate {
+impl<'tcx> Candidate<'tcx> {
     /// Recognizes a free function whose first parameter is a supported collection of a local
     /// struct.
     ///
     /// The compiler's understanding of the type is used here, so aliases such as `type Items =
     /// Vec<Item>` are treated the same as spelling `Vec<Item>` directly.
-    fn discover(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+    fn discover(cx: &LateContext<'tcx>, item: &Item<'tcx>) -> Option<Self> {
         // Require an authored free function body before extracting its syntax.
         if !item.is_authored_rust_free_function(cx) {
             return None;
@@ -222,7 +223,7 @@ impl Candidate {
         let element = CandidateElement {
             def_id: element_def_id,
             has_parameters: !cx.tcx.generics_of(element_def_id).own_params.is_empty(),
-            ty: receiver_type.element.to_string(),
+            ty: receiver_type.element,
             name: element_name,
         };
 
@@ -236,7 +237,7 @@ impl Candidate {
     }
 
     /// Returns the local struct stored directly in a `Vec`, ignoring its generic arguments.
-    fn vector_element(cx: &LateContext<'_>, vector: Ty<'_>) -> Option<LocalDefId> {
+    fn vector_element(cx: &LateContext<'tcx>, vector: Ty<'tcx>) -> Option<Ty<'tcx>> {
         // Require the standard vector diagnostic item.
         let ty::Adt(vector_def, arguments) = vector.kind() else {
             return None;
@@ -249,10 +250,61 @@ impl Candidate {
         let ty::Adt(element, _) = arguments.type_at(0).kind() else {
             return None;
         };
-        element
-            .is_struct()
-            .then(|| element.did().as_local())
-            .flatten()
+        (element.is_struct() && element.did().is_local()).then_some(arguments.type_at(0))
+    }
+
+    /// Compares generic instantiations while treating same-position parameters as alpha-equivalent.
+    fn same_type_shape<'analysis>(expected: Ty<'analysis>, actual: Ty<'analysis>) -> bool {
+        match (expected.kind(), actual.kind()) {
+            (ty::Param(expected), ty::Param(actual)) => expected.index == actual.index,
+            (
+                ty::Adt(expected_definition, expected_arguments),
+                ty::Adt(actual_definition, actual_arguments),
+            ) => {
+                expected_definition.did() == actual_definition.did()
+                    && expected_arguments.len() == actual_arguments.len()
+                    && expected_arguments.iter().zip(actual_arguments.iter()).all(
+                        |(expected, actual)| {
+                            match (expected.as_type(), actual.as_type()) {
+                                (Some(expected), Some(actual)) => {
+                                    return Self::same_type_shape(expected, actual);
+                                }
+                                (Some(_), None) | (None, Some(_)) => return false,
+                                (None, None) => {}
+                            }
+                            match (expected.as_const(), actual.as_const()) {
+                                (Some(expected), Some(actual)) => {
+                                    match (expected.kind(), actual.kind()) {
+                                        (
+                                            ty::ConstKind::Param(expected),
+                                            ty::ConstKind::Param(actual),
+                                        ) => expected.index == actual.index,
+                                        _ => expected == actual,
+                                    }
+                                }
+                                (Some(_), None) | (None, Some(_)) => false,
+                                (None, None) => {
+                                    expected == actual
+                                        || (expected.has_param() && actual.has_param())
+                                }
+                            }
+                        },
+                    )
+            }
+            (ty::Ref(_, expected, expected_mutability), ty::Ref(_, actual, actual_mutability)) => {
+                expected_mutability == actual_mutability
+                    && Self::same_type_shape(*expected, *actual)
+            }
+            (ty::Slice(expected), ty::Slice(actual)) => Self::same_type_shape(*expected, *actual),
+            (ty::Tuple(expected), ty::Tuple(actual)) => {
+                expected.len() == actual.len()
+                    && expected
+                        .iter()
+                        .zip(actual.iter())
+                        .all(|(expected, actual)| Self::same_type_shape(expected, actual))
+            }
+            _ => expected == actual,
+        }
     }
 
     /// Returns whether an item occupies the canonical name in Rust's type namespace.
@@ -291,7 +343,7 @@ impl Candidate {
     }
 
     /// Determines whether the canonical wrapper is absent, usable, or occupied by another type.
-    fn wrapper_state<'tcx>(
+    fn wrapper_state(
         &self,
         cx: &LateContext<'tcx>,
         module_items: &[&'tcx Item<'tcx>],
@@ -313,7 +365,7 @@ impl Candidate {
         let has_expected_field = fields.fields().iter().any(|field| {
             field.ident.name == items
                 && Self::vector_element(cx, cx.tcx.type_of(field.def_id).instantiate_identity())
-                    .is_some_and(|element| element == self.element.def_id)
+                    .is_some_and(|element| Self::same_type_shape(self.element.ty, element))
         });
         if has_expected_field {
             CandidateWrapperState::Compatible
@@ -323,7 +375,7 @@ impl Candidate {
     }
 
     /// Returns editable items from the element struct's module, where its wrapper must live.
-    fn element_module_items<'tcx>(&self, cx: &LateContext<'tcx>) -> Vec<&'tcx Item<'tcx>> {
+    fn element_module_items(&self, cx: &LateContext<'tcx>) -> Vec<&'tcx Item<'tcx>> {
         // Resolve the element's owning module and its complete direct item set.
         let source_map = cx.sess().source_map();
         let module = cx.tcx.parent_module_from_def_id(self.element.def_id);
@@ -365,7 +417,7 @@ impl Candidate {
     /// Describes moving the operation onto an existing compatible wrapper.
     fn compatible_wrapper_remediation(&self, element_file: &str) -> String {
         format!(
-            "move `{}` into the existing `impl {}` block beside `{}` in `{element_file}` and use {}",
+            "implement `{}` on the existing `{}` wrapper beside `{}` in `{element_file}` and use {}",
             self.function.name,
             self.wrapper_name,
             self.element.name,
@@ -379,14 +431,14 @@ impl Candidate {
             "`{}` already names another type beside `{}` in `{element_file}`; choose a dedicated wrapper there with an `items: Vec<{}>` field and implement `{}` with {}",
             self.wrapper_name,
             self.element.name,
-            self.element.name,
+            self.element.ty,
             self.function.name,
             self.receiver.description()
         )
     }
 
     /// Resolves a complete wrapper recipe without pretending it is a safe automatic rewrite.
-    fn violation(&self, cx: &LateContext<'_>) -> Violation {
+    fn violation(&self, cx: &LateContext<'tcx>) -> Violation {
         // Resolve wrapper compatibility and the element's owning source file.
         let module_items = self.element_module_items(cx);
         let wrapper = self.wrapper_state(cx, &module_items);
@@ -419,6 +471,7 @@ impl Candidate {
             function_name: self.function.name,
             element_name: self.element.name,
             wrapper_name: self.wrapper_name,
+            wrapper_is_conflicting: matches!(wrapper, CandidateWrapperState::Conflicting),
             remediation_message,
         }
     }
@@ -448,12 +501,20 @@ struct Violation {
     element_name: Symbol,
     /// Canonical or proposed wrapper name.
     wrapper_name: Symbol,
+    /// Whether that canonical name is already occupied by an incompatible type.
+    wrapper_is_conflicting: bool,
     /// Namespace-aware wrapper construction or migration recipe.
     remediation_message: String,
 }
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
+        if self.wrapper_is_conflicting {
+            return Cow::Owned(format!(
+                "free function `{}` needs a dedicated collection wrapper for `{}`",
+                self.function_name, self.element_name
+            ));
+        }
         Cow::Owned(format!(
             "free function `{}` should be a method on `{}`",
             self.function_name, self.wrapper_name

@@ -38,6 +38,16 @@ pub struct Parameter {
     is_boolean: bool,
     /// Interchangeable primitive family, excluding booleans.
     pub(super) interchangeable: Option<ParameterKind>,
+    /// Call-site passing mode retained for non-text primitive families.
+    passing: ParameterPassing,
+}
+
+/// Parameter ownership modes that cannot be freely swapped at a call site.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+enum ParameterPassing {
+    Value,
+    SharedReference,
+    MutableReference,
 }
 
 /// One reportable family of interchangeable parameters.
@@ -176,12 +186,27 @@ impl ParameterSignature {
         name: Symbol,
         ty: Ty<'_>,
     ) -> Parameter {
+        let interchangeable = ty.interchangeable_kind(cx);
+        let passing = if interchangeable == Some(ParameterKind::Text) {
+            ParameterPassing::Value
+        } else {
+            match ty.kind() {
+                rustc_middle::ty::Ref(_, _, rustc_hir::Mutability::Not) => {
+                    ParameterPassing::SharedReference
+                }
+                rustc_middle::ty::Ref(_, _, rustc_hir::Mutability::Mut) => {
+                    ParameterPassing::MutableReference
+                }
+                _ => ParameterPassing::Value,
+            }
+        };
         Parameter {
             hir_id,
             span,
             name,
             is_boolean: ty.is_bool(),
-            interchangeable: ty.interchangeable_kind(cx),
+            interchangeable,
+            passing,
         }
     }
 
@@ -280,17 +305,20 @@ impl ParameterSignature {
 
     /// Groups interchangeable non-boolean primitive parameters by representation.
     pub(crate) fn ambiguous_groups(&self) -> Vec<ParameterGroup<'_>> {
-        let mut grouped = HashMap::<ParameterKind, Vec<&Parameter>>::new();
+        let mut grouped = HashMap::<(ParameterKind, ParameterPassing), Vec<&Parameter>>::new();
         for parameter in &self.parameters {
             let Some(kind) = parameter.interchangeable else {
                 continue;
             };
-            grouped.entry(kind).or_default().push(parameter);
+            grouped
+                .entry((kind, parameter.passing))
+                .or_default()
+                .push(parameter);
         }
 
         // Retain only precise, nonconventional role families.
         let mut groups = Vec::new();
-        for (kind, parameters) in grouped {
+        for ((kind, _), parameters) in grouped {
             if parameters.len() < MIN_AMBIGUOUS_PARAMETER_COUNT
                 || !Self::roles_are_distinct(&parameters)
                 || Self::roles_are_conventional(self.name, kind, &parameters)
@@ -306,7 +334,7 @@ impl ParameterSignature {
     /// Returns whether one boolean parameter forms `set_property(property)` exactly.
     pub(crate) fn has_exact_boolean_setter(&self) -> bool {
         let booleans = self.boolean_parameters();
-        if booleans.len() != 1 {
+        if self.parameters.len() != 1 || booleans.len() != 1 {
             return false;
         }
         self.name

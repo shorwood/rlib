@@ -7,7 +7,7 @@ extern crate rustc_span;
 use std::collections::HashMap;
 
 use rustc_ast::LitKind;
-use rustc_hir::def::Res;
+use rustc_hir::def::{CtorOf, DefKind, Res};
 use rustc_hir::intravisit::{self, Visitor};
 use rustc_hir::{
     BinOpKind, BindingMode, Body, ByRef, Expr, ExprKind, HirId, MatchSource, Mutability, PatKind,
@@ -322,6 +322,24 @@ impl ControlFlowEvidence {
         visitor.visit_expr(expression);
         visitor.evidence
     }
+
+    /// Returns whether a call constructs the standard successful `Result` variant.
+    fn is_result_success_constructor(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        let ExprKind::Call(callee, _) = expression.kind else {
+            return false;
+        };
+        let ExprKind::Path(path) = callee.kind else {
+            return false;
+        };
+        let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
+            cx.qpath_res(&path, callee.hir_id)
+        else {
+            return false;
+        };
+        let variant = cx.tcx.parent(constructor);
+        let owner = cx.tcx.parent(variant);
+        cx.tcx.item_name(variant).as_str() == "Ok" && cx.tcx.is_diagnostic_item(sym::Result, owner)
+    }
 }
 
 /// HIR visitor that identifies fallible operations and control-flow exits.
@@ -358,13 +376,18 @@ impl<'tcx> Visitor<'tcx> for ControlFlowEvidenceVisitor<'_, 'tcx> {
             self.evidence.has_exit = true;
         }
 
-        // Treat every standard Result-producing expression as fallible evidence.
+        // Treat calls producing standard Result as fallible, but not a successful constructor.
         let expression_type = self.cx.typeck_results().expr_ty(expression);
         if let ty::Adt(definition, _) = expression_type.kind()
             && self
                 .cx
                 .tcx
                 .is_diagnostic_item(sym::Result, definition.did())
+            && matches!(
+                expression.kind,
+                ExprKind::Call(..) | ExprKind::MethodCall(..)
+            )
+            && !ControlFlowEvidence::is_result_success_constructor(self.cx, expression)
         {
             self.evidence.has_fallible_operation = true;
         }

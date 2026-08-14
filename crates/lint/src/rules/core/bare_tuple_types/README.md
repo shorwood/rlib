@@ -4,7 +4,8 @@
 
 Finds non-unit tuple types used as the root of an explicit type annotation. This includes
 fields, parameters, return types, aliases, associated types, locals, and closure
-annotations.
+annotations. Unit tuples and the compiler's internal tuple encoding for `Fn`, `FnMut`, and
+`FnOnce` argument lists are excluded.
 
 ## Why is this bad?
 

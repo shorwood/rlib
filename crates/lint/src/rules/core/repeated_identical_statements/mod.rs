@@ -76,6 +76,23 @@ impl LateLintPass<'_> for RepeatedIdenticalStatements {
                 continue;
             }
 
+            // An authored comment between the operations makes the repetition's intent visible
+            // and must not be discarded merely because comments are absent from block HIR.
+            if first.span.hi() <= repeated.span.lo() {
+                let gap = first
+                    .span
+                    .with_lo(first.span.hi())
+                    .with_hi(repeated.span.lo());
+                if cx
+                    .sess()
+                    .source_map()
+                    .span_to_snippet(gap)
+                    .is_ok_and(|source| source.contains("//") || source.contains("/*"))
+                {
+                    continue;
+                }
+            }
+
             // Compare normalized source only when both snippets are available.
             let source_map = cx.sess().source_map();
             let (Ok(first_source), Ok(repeated_source)) = (

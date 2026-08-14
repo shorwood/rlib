@@ -1,16 +1,17 @@
-extern crate rustc_ast;
 extern crate rustc_errors;
+extern crate rustc_hir;
+extern crate rustc_middle;
 extern crate rustc_span;
 
 use std::borrow::Cow;
 
-use rustc_ast::ast::{Item, ItemKind, VisibilityKind};
 use rustc_errors::DiagDecorator;
-use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
+use rustc_hir::{Item, ItemKind};
+use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_middle::ty;
 use rustc_span::Span;
-use rustc_span::symbol::kw;
 
-use crate::utils::diagnostic::EarlyViolation;
+use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
 // ViolationKind: Reexport syntax classification
@@ -26,23 +27,11 @@ enum ViolationKind {
 
 impl ViolationKind {
     /// Classifies outwardly visible import syntax while retaining private imports.
-    fn from_item(item: &Item) -> Option<Self> {
-        if !Self::is_outward_visibility(&item.vis.kind) {
-            return None;
-        }
+    const fn from_item(item: &Item<'_>) -> Option<Self> {
         match item.kind {
-            ItemKind::Use(_) => Some(Self::Use),
+            ItemKind::Use(..) => Some(Self::Use),
             ItemKind::ExternCrate(..) => Some(Self::ExternCrate),
             _ => None,
-        }
-    }
-
-    /// Returns whether visibility escapes the module containing the import.
-    fn is_outward_visibility(visibility: &VisibilityKind) -> bool {
-        match visibility {
-            VisibilityKind::Public => true,
-            VisibilityKind::Restricted { path, .. } => **path != kw::SelfLower,
-            VisibilityKind::Inherited => false,
         }
     }
 
@@ -81,7 +70,7 @@ struct Violation {
     kind: ViolationKind,
 }
 
-impl EarlyViolation for Violation {
+impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(self.kind.primary_message())
     }
@@ -96,7 +85,7 @@ impl EarlyViolation for Violation {
         Cow::Borrowed(self.kind.remediation_message())
     }
 
-    fn emit(self, cx: &EarlyContext<'_>) {
+    fn emit(self, cx: &LateContext<'_>) {
         cx.emit_span_lint(
             NON_DEFINING_MODULE_REEXPORTS,
             self.span,
@@ -113,10 +102,10 @@ impl EarlyViolation for Violation {
 // NonDefiningModuleReexports: Canonical item path policy
 // -----------------------------------------------------------------------------
 
-/// Early lint pass that rejects authored and generated outward reexports.
+/// Late lint pass that rejects authored and generated outward reexports.
 struct NonDefiningModuleReexports;
 
-dylint_linting::impl_early_lint! {
+dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub NON_DEFINING_MODULE_REEXPORTS,
     Warn,
@@ -124,12 +113,21 @@ dylint_linting::impl_early_lint! {
     NonDefiningModuleReexports
 }
 
-impl EarlyLintPass for NonDefiningModuleReexports {
+impl LateLintPass<'_> for NonDefiningModuleReexports {
     /// Checks every expanded import declaration regardless of its local or dependency origin.
-    fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
+    fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         let Some(kind) = ViolationKind::from_item(item) else {
             return;
         };
+
+        // Compare resolved visibility with the import's own module. Rust normalizes inherited,
+        // `pub(self)`, and an explicit `pub(in path)` naming that module to the same restriction.
+        let def_id = item.owner_id.def_id;
+        let module = cx.tcx.parent_module_from_def_id(def_id).to_def_id();
+        let visibility = cx.tcx.visibility(def_id);
+        if matches!(visibility, ty::Visibility::Restricted(scope) if scope == module) {
+            return;
+        }
         Violation {
             span: item.span,
             kind,

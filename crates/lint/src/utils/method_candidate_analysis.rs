@@ -177,7 +177,7 @@ impl MethodCandidate {
         let receiver_syntax = Self::direct_receiver_type(cx, declared_receiver, semantic_receiver);
 
         // Separate impl-level generics from syntax that must remain on the method.
-        let candidate_generics = Self::movable_generics(cx, generics, receiver_syntax.span);
+        let candidate_generics = Self::movable_generics(cx, generics, def_id);
 
         // Warnings use semantic types and are intentionally broad. Suggestions require editable,
         // private source whose syntax can be moved without guessing about an API contract.
@@ -379,7 +379,7 @@ impl MethodCandidate {
     fn movable_generics(
         cx: &LateContext<'_>,
         generics: &Generics<'_>,
-        receiver_type_span: Span,
+        function_def_id: LocalDefId,
     ) -> CandidateComponentGenerics {
         // Collect explicit authored type parameters that could move to the impl.
         let explicit_type_params = generics
@@ -412,10 +412,21 @@ impl MethodCandidate {
 
         // A single unbounded type parameter can move wholesale to the impl. Bounds, defaults, and
         // multiple parameters may belong on either the impl or method, which is an API decision.
-        let source_map = cx.sess().source_map();
-        let receiver = source_map.span_to_snippet(receiver_type_span);
-        let receiver_mentions_parameter = receiver.is_ok_and(|receiver| {
-            receiver.contains(explicit_type_params[0].name.ident().name.as_str())
+        let signature = cx.tcx.fn_sig(function_def_id).instantiate_identity();
+        let first_type = *signature
+            .inputs()
+            .skip_binder()
+            .first()
+            .expect("method candidates always have a first parameter");
+        let receiver_type = match first_type.kind() {
+            ty::Ref(_, inner, _) => *inner,
+            _ => first_type,
+        };
+        let parameter_name = explicit_type_params[0].name.ident().name;
+        let receiver_mentions_parameter = receiver_type.walk().any(|argument| {
+            argument.as_type().is_some_and(
+                |ty| matches!(ty.kind(), ty::Param(param) if param.name == parameter_name),
+            )
         });
 
         // Move only one unbounded parameter that visibly occurs in the receiver type.

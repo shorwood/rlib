@@ -293,6 +293,30 @@ impl SectionEventStreamCandidates {
         namespace.is_some_and(|namespace| namespace.contains(&prefix))
     }
 
+    /// Returns whether all authored declarations reveal several naming families.
+    ///
+    /// Prefix diagnostics privilege nominal declarations because values often support a nearby
+    /// type. Capacity analysis cannot do that: otherwise one nominal type could hide an
+    /// arbitrarily unrelated value-level API in an oversized section.
+    pub(super) fn has_multiple_declaration_families(
+        &self,
+        namespace: Option<&ModuleNamespace>,
+    ) -> bool {
+        let names = self
+            .0
+            .iter()
+            .filter(|participant| !participant.is_opaque_macro)
+            .map(|participant| participant.name.as_str())
+            .collect::<Vec<_>>();
+        if names.len() < MINIMUM_MULTIPLE_FAMILY_SIZE {
+            return false;
+        }
+        let Some(prefix) = identifier_case::longest_common_pascal_prefix(&names) else {
+            return true;
+        };
+        namespace.is_some_and(|namespace| namespace.contains(&prefix))
+    }
+
     /// Returns `candidate` names in their authored order.
     fn names(&self) -> Vec<&str> {
         self.0

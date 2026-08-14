@@ -225,6 +225,9 @@ impl ExtensionTraitAnalyzer {
             let Some(subject) = parameter.nominal_def_id() else {
                 continue;
             };
+            if cx.tcx.lang_items().string() == Some(subject) {
+                continue;
+            }
             trait_.subjects.insert(subject);
         }
     }

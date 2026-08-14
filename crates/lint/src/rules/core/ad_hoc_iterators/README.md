@@ -3,8 +3,9 @@
 ## What it does
 
 Finds unique hand-written inherent methods taking only `&mut self`, returning `Option<T>`, and
-advancing persistent cursor-like receiver state. Explicit cursor/index updates and direct
-delegation to an inner iterator are recognized without requiring an observed caller.
+returning a value derived from persistent cursor-like receiver state while advancing that same
+state. Explicit cursor/index updates and returned delegation to an inner iterator are recognized
+without requiring an observed caller.
 
 ## Why is this bad?
 

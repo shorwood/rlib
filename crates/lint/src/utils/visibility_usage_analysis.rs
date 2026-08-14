@@ -6,7 +6,7 @@ extern crate rustc_span;
 
 use std::collections::{HashMap, HashSet};
 
-use rustc_hir::def::{DefKind, Res};
+use rustc_hir::def::{CtorOf, DefKind, Res};
 use rustc_hir::def_id::{CRATE_DEF_ID, DefId, LocalDefId};
 use rustc_hir::intravisit::{self, Visitor};
 use rustc_hir::{
@@ -221,6 +221,7 @@ impl VisibilityUsageAnalyzer {
                 .kind
                 .ident()
                 .is_some_and(|ident| matches!(ident.name.as_str(), "test" | "tests"))
+            && Self::has_direct_test_cfg(cx, item)
         {
             self.test_modules.insert(item.owner_id.def_id);
         }
@@ -292,6 +293,32 @@ impl VisibilityUsageAnalyzer {
 }
 
 impl VisibilityUsageAnalyzer {
+    /// Returns whether a canonical test module is directly gated by `#[cfg(test)]`.
+    fn has_direct_test_cfg(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
+        let source_file = cx.sess().source_map().lookup_source_file(item.span.lo());
+        let Some(source) = source_file.src.as_deref() else {
+            return false;
+        };
+        let offset = (item.span.lo() - source_file.start_pos).0 as usize;
+        let Some(prefix) = source.get(..offset) else {
+            return false;
+        };
+        for line in prefix.lines().rev() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            if line == "#[cfg(test)]" {
+                return true;
+            }
+            if line.starts_with("#[") {
+                continue;
+            }
+            break;
+        }
+        false
+    }
+
     /// Records one struct or union field with independently authored visibility.
     pub(crate) fn record_field(&mut self, cx: &LateContext<'_>, field: &FieldDef<'_>) {
         // Enum variant fields inherit the enum's visibility and cannot be narrowed independently.
@@ -1030,6 +1057,27 @@ impl<'analysis, 'tcx> VisibilityReferenceCollector<'analysis, 'tcx> {
             self.push_use(field, span);
         }
     }
+
+    /// Records every positional field exercised by a tuple-struct constructor or pattern.
+    fn record_tuple_struct_fields(&mut self, path: &QPath<'tcx>, hir_id: HirId, span: Span) {
+        let definition = match self.cx.qpath_res(path, hir_id) {
+            Res::Def(DefKind::Ctor(CtorOf::Struct, _), constructor) => {
+                self.cx.tcx.parent(constructor)
+            }
+            Res::Def(DefKind::Struct, definition) => definition,
+            _ => return,
+        };
+        let aggregate_type = self.cx.tcx.type_of(definition).instantiate_identity();
+        let ty::Adt(adt, _) = aggregate_type.kind() else {
+            return;
+        };
+        for field in &adt.non_enum_variant().fields {
+            let Some(field) = field.did.as_local() else {
+                continue;
+            };
+            self.push_use(field, span);
+        }
+    }
 }
 
 impl<'tcx> Visitor<'tcx> for VisibilityReferenceCollector<'_, 'tcx> {
@@ -1068,6 +1116,7 @@ impl<'tcx> Visitor<'tcx> for VisibilityReferenceCollector<'_, 'tcx> {
             && let ExprKind::Path(path) = callee.kind
         {
             self.record_resolution(self.cx.qpath_res(&path, callee.hir_id), callee.span);
+            self.record_tuple_struct_fields(&path, callee.hir_id, callee.span);
         }
 
         // Resolve method calls and direct field access from the active body's type tables.
@@ -1114,6 +1163,9 @@ impl<'tcx> Visitor<'tcx> for VisibilityReferenceCollector<'_, 'tcx> {
                     span: field.ident.span,
                 });
             self.record_aggregate_fields(&path, pattern.hir_id, fields);
+        }
+        if let PatKind::TupleStruct(path, ..) = pattern.kind {
+            self.record_tuple_struct_fields(&path, pattern.hir_id, pattern.span);
         }
         intravisit::walk_pat(self, pattern);
     }

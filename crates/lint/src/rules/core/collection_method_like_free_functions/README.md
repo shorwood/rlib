@@ -5,6 +5,10 @@
 Checks for free functions whose first parameter is a vector or slice of a struct defined in
 the same crate.
 
+An existing canonical `<Element>List` wrapper is reused only when its `items` field stores
+the same resolved element instantiation. If that name belongs to an incompatible type, the
+diagnostic asks for a separately named wrapper instead.
+
 ## Why is this bad?
 
 A collection of domain values usually has behavior of its own. Giving that collection a

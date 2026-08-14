@@ -28,9 +28,9 @@ impl Report {
 
 ## Use instead
 
-Fallible validation, filtering, truncation, early exit, explicit policy arguments, and
-builder finalization remain named. Multiple distinct item types may each implement the
-standard traits independently.
+Fallible validation, filtering, transformation, truncation, early exit, explicit policy
+arguments, and builder finalization remain named. Multiple distinct item types may each
+implement the standard traits independently.
 
 ```rust
 impl FromIterator<Entry> for Report {

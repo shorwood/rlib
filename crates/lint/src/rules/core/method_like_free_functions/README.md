@@ -4,6 +4,8 @@
 
 Checks for free functions whose first parameter can be the receiver of an inherent method
 on a struct defined in the same module.
+Automatic migrations move generic parameters only when the resolved receiver arguments actually
+use them; name substrings and other ambiguous syntax receive manual guidance.
 
 ## Why is this bad?
 
