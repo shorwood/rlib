@@ -69,12 +69,16 @@ EOF
     mkdir -p "$out/${toolchainLabel}"
     find ../target/nightly -type f -path '*/release/dylint-driver' \
       -exec install -m755 {} "$out/${toolchainLabel}/.dylint-driver-unwrapped" \;
+
     # The driver loads rustc's private shared libraries at runtime. They live
     # beside the pinned compiler rather than in the host's library search path.
     makeWrapper "$out/${toolchainLabel}/.dylint-driver-unwrapped" \
       "$out/${toolchainLabel}/dylint-driver" \
       --prefix LD_LIBRARY_PATH : "${rustToolchain}/lib" \
       --prefix DYLD_LIBRARY_PATH : "${rustToolchain}/lib"
+
+    # Ensure the wrapper is executable so cargo-dylint can find it. The unwrapped
+    # binary is not needed by cargo-dylint, but it is useful for debugging.
     test -x "$out/${toolchainLabel}/dylint-driver"
     runHook postInstall
   '';
