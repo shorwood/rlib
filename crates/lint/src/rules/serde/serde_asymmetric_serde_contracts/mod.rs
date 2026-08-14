@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog};
+use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -92,6 +92,47 @@ struct SerdeAsymmetricSerdeContracts {
     candidates: Vec<Candidate>,
 }
 
+fn has_compatibility_explanation(attributes: &[syn::Attribute]) -> bool {
+    let documentation = attributes
+        .iter()
+        .filter(|attribute| attribute.path().is_ident("doc"))
+        .filter_map(|attribute| attribute.meta.require_name_value().ok())
+        .filter_map(|value| match &value.value {
+            syn::Expr::Lit(expression) => match &expression.lit {
+                syn::Lit::Str(value) => Some(value.value().to_ascii_lowercase()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let explains_compatibility = ["compatib", "legacy", "migrat", "backward"]
+        .iter()
+        .any(|term| documentation.contains(term));
+    let explains_direction = ["accept", "deserial", "read", "serial", "write"]
+        .iter()
+        .any(|term| documentation.contains(term));
+    explains_compatibility && explains_direction
+}
+
+fn directional_names(attributes: &[syn::Attribute]) -> Option<(String, String)> {
+    if has_compatibility_explanation(attributes) {
+        return None;
+    }
+    let attributes = SerdeAttributes::from_attributes(attributes);
+    if attributes.has(SerdeFlag::SkipSerialize) || attributes.has(SerdeFlag::SkipDeserialize) {
+        return None;
+    }
+    let (Some(serialize), Some(deserialize)) =
+        (attributes.rename_serialize, attributes.rename_deserialize)
+    else {
+        return None;
+    };
+    (serialize != deserialize && !attributes.aliases.contains(&serialize))
+        .then_some((serialize, deserialize))
+}
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub SERDE_ASYMMETRIC_SERDE_CONTRACTS,
@@ -116,45 +157,43 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
                     return;
                 };
 
-                structure
-                    .fields
-                    .iter()
-                    .filter_map(|field| {
-                        Some((field.ident.as_ref()?.to_string(), field.attrs.clone()))
-                    })
-                    .collect::<Vec<_>>()
+                let mut members = vec![(structure.ident.to_string(), structure.attrs)];
+                members.extend(structure.fields.iter().enumerate().map(|(index, field)| {
+                    (
+                        field
+                            .ident
+                            .as_ref()
+                            .map_or_else(|| format!("field {index}"), ToString::to_string),
+                        field.attrs.clone(),
+                    )
+                }));
+                members
             }
             ItemKind::Enum(..) => {
                 let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
                     return;
                 };
-                enumeration
-                    .variants
-                    .iter()
-                    .map(|variant| (variant.ident.to_string(), variant.attrs.clone()))
-                    .collect::<Vec<_>>()
+                let mut members = vec![(enumeration.ident.to_string(), enumeration.attrs)];
+                for variant in enumeration.variants {
+                    let variant_name = variant.ident.to_string();
+                    members.push((variant_name.clone(), variant.attrs));
+                    members.extend(variant.fields.iter().enumerate().map(|(index, field)| {
+                        let field_name = field
+                            .ident
+                            .as_ref()
+                            .map_or_else(|| index.to_string(), ToString::to_string);
+                        (format!("{variant_name}.{field_name}"), field.attrs.clone())
+                    }));
+                }
+                members
             }
             _ => return,
         };
 
         for (declaration, attributes) in members {
-            if attributes
-                .iter()
-                .any(|attribute| attribute.path().is_ident("doc"))
-            {
-                continue;
-            }
-            let attributes = SerdeAttributes::from_attributes(&attributes);
-
-            let (Some(serialize), Some(deserialize)) =
-                (attributes.rename_serialize, attributes.rename_deserialize)
-            else {
+            let Some((serialize, deserialize)) = directional_names(&attributes) else {
                 continue;
             };
-
-            if serialize == deserialize {
-                continue;
-            }
 
             self.candidates.push(Candidate {
                 definition: item.owner_id.def_id,

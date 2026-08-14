@@ -109,22 +109,30 @@ impl SerdeManualDeserializeImpls {
         let [syn::Stmt::Expr(syn::Expr::Call(ok), _)] = method.block.stmts.as_slice() else {
             return false;
         };
-        if !matches!(ok.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Ok"))
+        if !matches!(ok.func.as_ref(), syn::Expr::Path(path)
+            if path.path.segments.last().is_some_and(|segment| segment.ident == "Ok"))
             || ok.args.len() != 1
         {
             return false;
         }
-        let Some(syn::Expr::Call(construction)) = ok.args.first() else {
-            return false;
+        let decoded = match ok.args.first() {
+            Some(syn::Expr::Call(construction))
+                if matches!(construction.func.as_ref(), syn::Expr::Path(path)
+                    if path.path.is_ident("Self"))
+                    && construction.args.len() == 1 =>
+            {
+                construction.args.first()
+            }
+            Some(syn::Expr::Struct(construction))
+                if construction.path.is_ident("Self")
+                    && construction.fields.len() == 1
+                    && construction.rest.is_none() =>
+            {
+                construction.fields.first().map(|field| &field.expr)
+            }
+            _ => None,
         };
-
-        if !matches!(construction.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Self"))
-            || construction.args.len() != 1
-        {
-            return false;
-        }
-
-        let Some(syn::Expr::Try(decoded)) = construction.args.first() else {
+        let Some(syn::Expr::Try(decoded)) = decoded else {
             return false;
         };
         let syn::Expr::Call(decode) = decoded.expr.as_ref() else {
@@ -143,7 +151,7 @@ impl LateLintPass<'_> for SerdeManualDeserializeImpls {
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
-        if item.span.from_expansion() || !cx.tcx.hir_attrs(item.hir_id()).is_empty() {
+        if item.span.from_expansion() {
             return;
         }
 
@@ -172,7 +180,6 @@ impl LateLintPass<'_> for SerdeManualDeserializeImpls {
         };
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
-            || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
             || !Self::exact_transparent_deserializer(cx, item)
         {
             return;

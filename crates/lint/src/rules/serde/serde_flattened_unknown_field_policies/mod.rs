@@ -43,7 +43,7 @@ impl LateViolation for Violation {
 
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
-            "flattened {} {} {} an open key namespace into a container that promises to reject unknown keys",
+            "flattened {} {} {} another key namespace into a container that promises to reject unknown keys, but Serde does not support combining these policies",
             if self.fields.len() == 1 {
                 "field"
             } else {
@@ -105,31 +105,70 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
-        if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
+        if item.span.from_expansion()
+            || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
+        {
             return;
         }
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
-        let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
-            return;
+        let (attributes, fields) = match item.kind {
+            ItemKind::Struct(..) => {
+                let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
+                    return;
+                };
+                let fields = structure
+                    .fields
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, field)| {
+                        let serde = SerdeAttributes::from_attributes(&field.attrs);
+                        (serde.has(SerdeFlag::Flatten) && !serde.has(SerdeFlag::SkipDeserialize))
+                            .then(|| {
+                                field.ident.as_ref().map_or_else(
+                                    || format!("`field {index}`"),
+                                    |name| format!("`{name}`"),
+                                )
+                            })
+                    })
+                    .collect::<Vec<_>>();
+                (structure.attrs, fields)
+            }
+            ItemKind::Enum(..) => {
+                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
+                    return;
+                };
+                let fields = enumeration
+                    .variants
+                    .iter()
+                    .flat_map(|variant| {
+                        variant
+                            .fields
+                            .iter()
+                            .enumerate()
+                            .filter_map(move |(index, field)| {
+                                let serde = SerdeAttributes::from_attributes(&field.attrs);
+                                (serde.has(SerdeFlag::Flatten)
+                                    && !serde.has(SerdeFlag::SkipDeserialize))
+                                .then(|| {
+                                    let field = field
+                                        .ident
+                                        .as_ref()
+                                        .map_or_else(|| index.to_string(), ToString::to_string);
+                                    format!("`{}.{field}`", variant.ident)
+                                })
+                            })
+                    })
+                    .collect::<Vec<_>>();
+                (enumeration.attrs, fields)
+            }
+            _ => return,
         };
-        if !SerdeAttributes::from_attributes(&structure.attrs).has(SerdeFlag::DenyUnknownFields) {
+        if !SerdeAttributes::from_attributes(&attributes).has(SerdeFlag::DenyUnknownFields) {
             return;
         }
-
-        let fields = structure
-            .fields
-            .iter()
-            .filter(|field| SerdeAttributes::from_attributes(&field.attrs).has(SerdeFlag::Flatten))
-            .map(|field| {
-                field
-                    .ident
-                    .as_ref()
-                    .map_or_else(|| "`<positional>`".to_owned(), |name| format!("`{name}`"))
-            })
-            .collect::<Vec<_>>();
 
         if fields.is_empty() {
             return;

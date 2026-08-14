@@ -6,9 +6,11 @@ extern crate rustc_span;
 use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{Item, ItemKind};
+use rustc_hir::def_id::LocalDefId;
+use rustc_hir::intravisit::{self, Visitor};
+use rustc_hir::{BodyId, Expr, ExprKind, Item, ItemKind, Path};
 use rustc_lint::{LateContext, LateLintPass};
-use rustc_middle::ty;
+use rustc_middle::ty::{self, TyCtxt};
 use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
@@ -75,6 +77,103 @@ impl LateViolation for Violation {
 /// Rejects generic Serde implementations coupled to a concrete wire format.
 struct SerdeFormatSpecificSerdeImpls;
 
+struct FormatEvidence<'tcx> {
+    tcx: TyCtxt<'tcx>,
+    body_owner: Option<LocalDefId>,
+    format: Option<String>,
+    human_readable: bool,
+    string_shape: bool,
+    binary_shape: bool,
+}
+
+impl<'tcx> FormatEvidence<'tcx> {
+    fn new(tcx: TyCtxt<'tcx>) -> Self {
+        Self {
+            tcx,
+            body_owner: None,
+            format: None,
+            human_readable: false,
+            string_shape: false,
+            binary_shape: false,
+        }
+    }
+
+    fn finish(self) -> Option<String> {
+        if let Some(format) = self.format {
+            return Some(format!(
+                "the generic implementation directly depends on the `{format}` format API"
+            ));
+        }
+        (self.human_readable && self.string_shape && self.binary_shape).then(|| {
+            "`is_human_readable()` selects different string and binary Serde data-model shapes"
+                .to_owned()
+        })
+    }
+}
+
+impl<'tcx> Visitor<'tcx> for FormatEvidence<'tcx> {
+    fn visit_nested_body(&mut self, body: BodyId) {
+        let previous = self
+            .body_owner
+            .replace(self.tcx.hir_body_owner_def_id(body));
+        self.visit_body(self.tcx.hir_body(body));
+        self.body_owner = previous;
+    }
+
+    fn visit_path(&mut self, path: &Path<'tcx>, _: rustc_hir::HirId) {
+        const FORMATS: &[&str] = &[
+            "serde_json",
+            "serde_yaml",
+            "serde_cbor",
+            "toml",
+            "bincode",
+            "rmp_serde",
+        ];
+        if let Some(definition) = path.res.opt_def_id() {
+            let krate = self.tcx.crate_name(definition.krate).to_string();
+            if FORMATS.contains(&krate.as_str()) {
+                self.format.get_or_insert(krate);
+            }
+        }
+        intravisit::walk_path(self, path);
+    }
+
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if let ExprKind::MethodCall(segment, ..) = expression.kind
+            && let Some(owner) = self.body_owner
+            && let Some(definition) = self
+                .tcx
+                .typeck(owner)
+                .type_dependent_def_id(expression.hir_id)
+            && matches!(
+                self.tcx.crate_name(definition.krate).as_str(),
+                "serde" | "serde_core"
+            )
+        {
+            let operation = segment.ident.name.as_str();
+            self.human_readable |= operation == "is_human_readable";
+            self.string_shape |= matches!(
+                operation,
+                "serialize_str" | "deserialize_str" | "deserialize_string"
+            );
+            self.binary_shape |= operation.starts_with("serialize_u")
+                || operation.starts_with("serialize_i")
+                || operation.starts_with("deserialize_u")
+                || operation.starts_with("deserialize_i")
+                || matches!(
+                    operation,
+                    "serialize_bytes"
+                        | "serialize_seq"
+                        | "serialize_map"
+                        | "deserialize_bytes"
+                        | "deserialize_seq"
+                        | "deserialize_map"
+                );
+        }
+        intravisit::walk_expr(self, expression);
+    }
+}
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub SERDE_FORMAT_SPECIFIC_SERDE_IMPLS,
@@ -84,54 +183,31 @@ dylint_linting::impl_late_lint! {
 }
 
 impl SerdeFormatSpecificSerdeImpls {
-    /// Finds a serializer or deserializer operation tied to one wire format.
-    fn format_specific_evidence(source: &str) -> Option<String> {
-        /// Data-format crates whose APIs must not leak into a generic Serde implementation.
-        const FORMAT_CRATES: &[&str] = &[
-            "serde_json::",
-            "serde_yaml::",
-            "serde_cbor::",
-            "toml::",
-            "bincode::",
-            "rmp_serde::",
-        ];
-
-        if let Some(format) = FORMAT_CRATES
-            .iter()
-            .find(|format| source.contains(**format))
-        {
-            return Some(format!(
-                "the generic implementation directly depends on the `{}` format API",
-                format.trim_end_matches("::")
-            ));
-        }
-
-        if !source.contains("is_human_readable()") {
-            return None;
-        }
-        let string_shape = ["serialize_str", "deserialize_str", "deserialize_string"]
-            .iter()
-            .any(|operation| source.contains(operation));
-
-        let binary_shape = [
-            "serialize_u",
-            "serialize_i",
-            "serialize_bytes",
-            "serialize_seq",
-            "serialize_map",
-            "deserialize_u",
-            "deserialize_i",
-            "deserialize_bytes",
-            "deserialize_seq",
-            "deserialize_map",
-        ]
-        .iter()
-        .any(|operation| source.contains(operation));
-
-        (string_shape && binary_shape).then(|| {
-            "`is_human_readable()` selects different string and binary Serde data-model shapes"
-                .to_owned()
-        })
+    fn documents_format_policy(source: &str) -> bool {
+        source
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim_start();
+                line.strip_prefix("///")
+                    .or_else(|| line.strip_prefix("#[doc"))
+            })
+            .any(|line| {
+                let line = line.to_ascii_lowercase();
+                [
+                    "format",
+                    "human-readable",
+                    "binary",
+                    "json",
+                    "yaml",
+                    "cbor",
+                    "bincode",
+                ]
+                .iter()
+                .any(|term| line.contains(term))
+                    && ["representation", "schema", "wire", "compatib", "migration"]
+                        .iter()
+                        .any(|term| line.contains(term))
+            })
     }
 }
 impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
@@ -163,14 +239,15 @@ impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
             return;
         };
 
-        if source.lines().any(|line| {
-            let line = line.trim_start();
-            line.starts_with("///") || line.starts_with("#[doc")
-        }) {
+        if Self::documents_format_policy(&source) {
             return;
         }
 
-        let Some(evidence) = Self::format_specific_evidence(&source) else {
+        let mut visitor = FormatEvidence::new(cx.tcx);
+        for reference in implementation.items {
+            visitor.visit_impl_item(cx.tcx.hir_impl_item(*reference));
+        }
+        let Some(evidence) = visitor.finish() else {
             return;
         };
         let trait_ref = cx

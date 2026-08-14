@@ -149,7 +149,7 @@ impl VariantShape {
         for key in &required {
             if let (Some(first_domain), Some(second_domain)) =
                 (self.fields.get(key), second.fields.get(key))
-                && first_domain != second_domain
+                && !SerdeAmbiguousUntaggedEnums::domains_overlap(first_domain, second_domain)
             {
                 return None;
             }
@@ -181,6 +181,31 @@ dylint_linting::impl_late_lint! {
 }
 
 impl SerdeAmbiguousUntaggedEnums {
+    /// Returns whether two scalar domains share at least one wire value.
+    fn domains_overlap(first: &str, second: &str) -> bool {
+        let numeric = |domain: &str| {
+            matches!(
+                domain,
+                "i8" | "i16"
+                    | "i32"
+                    | "i64"
+                    | "i128"
+                    | "isize"
+                    | "u8"
+                    | "u16"
+                    | "u32"
+                    | "u64"
+                    | "u128"
+                    | "usize"
+                    | "f32"
+                    | "f64"
+            )
+        };
+        first == second
+            || (numeric(first) && numeric(second))
+            || matches!((first, second), ("char", "string") | ("string", "char"))
+    }
+
     /// Recognizes signed integer scalar domains.
     fn signed_domain(name: &str) -> Option<&'static str> {
         match name {
@@ -281,6 +306,10 @@ impl LateLintPass<'_> for SerdeAmbiguousUntaggedEnums {
             .variants
             .iter()
             .filter_map(|variant| {
+                if SerdeAttributes::from_attributes(&variant.attrs).has(SerdeFlag::SkipDeserialize)
+                {
+                    return None;
+                }
                 VariantShape::from_variant(variant).map(|mut shape| {
                     shape.is_closed = container.has(SerdeFlag::DenyUnknownFields);
                     shape

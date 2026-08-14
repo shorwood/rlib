@@ -136,6 +136,13 @@ impl LateLintPass<'_> for SerdeCatchAllVariantsHidingSchemaDrift {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for candidate in self.candidates.drain(..) {
+            if !cx
+                .tcx
+                .effective_visibilities(())
+                .is_exported(candidate.definition)
+            {
+                continue;
+            }
             if self
                 .catalog
                 .derived_type(candidate.definition, "Deserialize")

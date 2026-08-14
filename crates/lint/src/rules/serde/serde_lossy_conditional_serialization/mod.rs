@@ -7,8 +7,8 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
-use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
+use rustc_span::{Span, sym};
 
 use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
@@ -98,28 +98,79 @@ dylint_linting::impl_late_lint! {
 
 impl SerdeLossyConditionalSerialization {
     /// Returns whether the type is the standard optional container.
-    fn is_option(ty: &syn::Type) -> bool {
-        matches!(ty, syn::Type::Path(path)
-        if path.path.segments.last().is_some_and(|segment| segment.ident == "Option"))
+    fn is_option(cx: &LateContext<'_>, field: LocalDefId) -> bool {
+        cx.tcx
+            .type_of(field)
+            .instantiate_identity()
+            .ty_adt_def()
+            .is_some_and(|definition| cx.tcx.is_diagnostic_item(sym::Option, definition.did()))
     }
 }
 impl LateLintPass<'_> for SerdeLossyConditionalSerialization {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
-        if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
+        if item.span.from_expansion()
+            || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
+        {
             return;
         }
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
-        let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
-            return;
+        let fields = match item.kind {
+            ItemKind::Struct(_, _, data) => {
+                let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
+                    return;
+                };
+                structure
+                    .fields
+                    .iter()
+                    .zip(data.fields())
+                    .enumerate()
+                    .map(|(index, (field, hir_field))| {
+                        (
+                            field
+                                .ident
+                                .as_ref()
+                                .map_or_else(|| format!("field {index}"), ToString::to_string),
+                            field.attrs.clone(),
+                            hir_field.def_id,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            }
+            ItemKind::Enum(_, _, definition) => {
+                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
+                    return;
+                };
+                enumeration
+                    .variants
+                    .iter()
+                    .zip(definition.variants)
+                    .flat_map(|(variant, hir_variant)| {
+                        variant
+                            .fields
+                            .iter()
+                            .zip(hir_variant.data.fields())
+                            .enumerate()
+                            .map(move |(index, (field, hir_field))| {
+                                let field_name = field
+                                    .ident
+                                    .as_ref()
+                                    .map_or_else(|| index.to_string(), ToString::to_string);
+                                (
+                                    format!("{}.{}", variant.ident, field_name),
+                                    field.attrs.clone(),
+                                    hir_field.def_id,
+                                )
+                            })
+                    })
+                    .collect::<Vec<_>>()
+            }
+            _ => return,
         };
-        for field in &structure.fields {
-            let Some(name) = field.ident.as_ref() else {
-                continue;
-            };
-            let attributes = SerdeAttributes::from_attributes(&field.attrs);
+        for (field, authored_attributes, field_definition) in fields {
+            let attributes = SerdeAttributes::from_attributes(&authored_attributes);
             let has_deserialization_fallback =
                 attributes.has(SerdeFlag::HasDefault) || attributes.has(SerdeFlag::SkipDeserialize);
 
@@ -127,20 +178,14 @@ impl LateLintPass<'_> for SerdeLossyConditionalSerialization {
                 continue;
             };
 
-            if has_deserialization_fallback
-                || Self::is_option(&field.ty)
-                || field
-                    .attrs
-                    .iter()
-                    .any(|attribute| attribute.path().is_ident("doc"))
-            {
+            if has_deserialization_fallback || Self::is_option(cx, field_definition) {
                 continue;
             }
 
             self.candidates.push(Candidate {
                 definition: item.owner_id.def_id,
                 span: item.span,
-                field: name.to_string(),
+                field,
                 predicate,
             });
         }

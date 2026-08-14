@@ -86,6 +86,10 @@ pub struct SerdeAttributes {
     pub rename_all_serialize: Option<String>,
     /// Case conversion inherited by deserialized child names.
     pub rename_all_deserialize: Option<String>,
+    /// Case conversion inherited by serialized fields of every enum variant.
+    pub rename_all_fields_serialize: Option<String>,
+    /// Case conversion inherited by deserialized fields of every enum variant.
+    pub rename_all_fields_deserialize: Option<String>,
     /// Additional wire names accepted during deserialization.
     pub aliases: Vec<String>,
     /// Independent Serde behaviors enabled by authored attributes.
@@ -98,6 +102,10 @@ pub struct SerdeAttributes {
     pub deserialize_with: Option<String>,
     /// Source type represented by this Serde remote declaration.
     pub remote: Option<String>,
+    /// Wire type converted through a fallible deserialization boundary.
+    pub try_from: Option<String>,
+    /// Wire type converted through an infallible deserialization boundary.
+    pub from: Option<String>,
 }
 
 impl SerdeAttributes {
@@ -109,7 +117,28 @@ impl SerdeAttributes {
             .filter(|attribute| attribute.path().is_ident("serde"))
         {
             let parsing = attribute.parse_nested_meta(|meta| {
-                if meta.path.is_ident("rename") || meta.path.is_ident("rename_all") {
+                if meta.path.is_ident("rename")
+                    || meta.path.is_ident("rename_all")
+                    || meta.path.is_ident("rename_all_fields")
+                {
+                    if meta.path.is_ident("rename_all_fields") {
+                        if meta.input.peek(syn::Token![=]) {
+                            let value = meta.value()?.parse::<syn::LitStr>()?.value();
+                            result.rename_all_fields_serialize = Some(value.clone());
+                            result.rename_all_fields_deserialize = Some(value);
+                        } else {
+                            meta.parse_nested_meta(|direction| {
+                                let value = direction.value()?.parse::<syn::LitStr>()?.value();
+                                if direction.path.is_ident("serialize") {
+                                    result.rename_all_fields_serialize = Some(value);
+                                } else if direction.path.is_ident("deserialize") {
+                                    result.rename_all_fields_deserialize = Some(value);
+                                }
+                                Ok(())
+                            })?;
+                        }
+                        return Ok(());
+                    }
                     let scope = SerdeNameScope::for_path(&meta.path);
                     if meta.input.peek(syn::Token![=]) {
                         let value = meta.value()?.parse::<syn::LitStr>()?.value();
@@ -164,6 +193,10 @@ impl SerdeAttributes {
                     result.insert(SerdeFlag::Other);
                 } else if meta.path.is_ident("remote") {
                     result.remote = Some(meta.value()?.parse::<syn::LitStr>()?.value());
+                } else if meta.path.is_ident("try_from") {
+                    result.try_from = Some(meta.value()?.parse::<syn::LitStr>()?.value());
+                } else if meta.path.is_ident("from") {
+                    result.from = Some(meta.value()?.parse::<syn::LitStr>()?.value());
                 }
                 Ok(())
             });

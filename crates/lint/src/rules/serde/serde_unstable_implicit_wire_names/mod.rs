@@ -101,6 +101,7 @@ impl ImplicitNames {
         let mut serialize = Vec::new();
         let mut deserialize = Vec::new();
         for ImplicitMember { name, attributes } in members {
+            let name = name.replace("r#", "");
             if serialize_rule.is_none()
                 && attributes.rename_serialize.is_none()
                 && !attributes.has(SerdeFlag::SkipSerialize)
@@ -166,22 +167,47 @@ impl ContractNames {
         };
         let container = SerdeAttributes::from_attributes(&enumeration.attrs);
 
-        if container.has(SerdeFlag::Untagged) {
-            return None;
+        let mut serialize = Vec::new();
+        let mut deserialize = Vec::new();
+        if !container.has(SerdeFlag::Untagged) {
+            let variants = enumeration.variants.iter().filter_map(|variant| {
+                let attributes = SerdeAttributes::from_attributes(&variant.attrs);
+                (!attributes.has(SerdeFlag::Untagged)).then(|| ImplicitMember {
+                    name: variant.ident.to_string(),
+                    attributes,
+                })
+            });
+            let names = ImplicitNames::analyze(
+                variants,
+                container.rename_all_serialize.as_deref(),
+                container.rename_all_deserialize.as_deref(),
+            );
+            serialize.extend(names.serialize);
+            deserialize.extend(names.deserialize);
         }
-        let variants = enumeration.variants.iter().map(|variant| ImplicitMember {
-            name: variant.ident.to_string(),
-            attributes: SerdeAttributes::from_attributes(&variant.attrs),
-        });
 
-        let ImplicitNames {
-            serialize,
-            deserialize,
-        } = ImplicitNames::analyze(
-            variants,
-            container.rename_all_serialize.as_deref(),
-            container.rename_all_deserialize.as_deref(),
-        );
+        for variant in &enumeration.variants {
+            let variant_attributes = SerdeAttributes::from_attributes(&variant.attrs);
+            let fields = variant.fields.iter().filter_map(|field| {
+                field.ident.as_ref().map(|name| ImplicitMember {
+                    name: format!("{}.{}", variant.ident, name),
+                    attributes: SerdeAttributes::from_attributes(&field.attrs),
+                })
+            });
+            let names = ImplicitNames::analyze(
+                fields,
+                variant_attributes
+                    .rename_all_serialize
+                    .as_deref()
+                    .or(container.rename_all_fields_serialize.as_deref()),
+                variant_attributes
+                    .rename_all_deserialize
+                    .as_deref()
+                    .or(container.rename_all_fields_deserialize.as_deref()),
+            );
+            serialize.extend(names.serialize);
+            deserialize.extend(names.deserialize);
+        }
 
         Some(Self {
             is_public: matches!(enumeration.vis, syn::Visibility::Public(_)),
@@ -247,6 +273,13 @@ impl LateLintPass<'_> for SerdeUnstableImplicitWireNames {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for candidate in self.candidates.drain(..) {
+            if !cx
+                .tcx
+                .effective_visibilities(())
+                .is_exported(candidate.definition)
+            {
+                continue;
+            }
             let serializes = self
                 .catalog
                 .derived_type(candidate.definition, "Serialize")

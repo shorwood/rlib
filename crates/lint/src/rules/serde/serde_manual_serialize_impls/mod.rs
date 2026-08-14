@@ -80,7 +80,11 @@ dylint_linting::impl_late_lint! {
 
 impl SerdeManualSerializeImpls {
     /// Proves that serialization delegates unchanged to a newtype's sole field.
-    fn exact_transparent_serializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
+    fn exact_transparent_serializer(
+        cx: &LateContext<'_>,
+        item: &Item<'_>,
+        field_name: &str,
+    ) -> bool {
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return false;
         };
@@ -104,17 +108,44 @@ impl SerdeManualSerializeImpls {
         let syn::Pat::Ident(serializer) = serializer.pat.as_ref() else {
             return false;
         };
-        let [syn::Stmt::Expr(syn::Expr::MethodCall(call), _)] = method.block.stmts.as_slice()
-        else {
+        let [syn::Stmt::Expr(expression, _)] = method.block.stmts.as_slice() else {
             return false;
         };
 
-        call.method == "serialize"
-            && call.args.len() == 1
-            && matches!(call.receiver.as_ref(), syn::Expr::Field(field)
+        let is_field = |expression: &syn::Expr| {
+            let expression = match expression {
+                syn::Expr::Reference(reference) => reference.expr.as_ref(),
+                expression => expression,
+            };
+            matches!(expression, syn::Expr::Field(field)
             if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self"))
-                && matches!(&field.member, syn::Member::Unnamed(index) if index.index == 0))
-            && matches!(call.args.first(), Some(syn::Expr::Path(path)) if path.path.is_ident(&serializer.ident))
+                && match &field.member {
+                    syn::Member::Unnamed(index) => index.index == 0,
+                    syn::Member::Named(name) => name == field_name,
+                })
+        };
+        let is_serializer = |expression: Option<&syn::Expr>| {
+            matches!(expression, Some(syn::Expr::Path(path))
+                if path.path.is_ident(&serializer.ident))
+        };
+
+        match expression {
+            syn::Expr::MethodCall(call) => {
+                call.method == "serialize"
+                    && call.args.len() == 1
+                    && is_field(&call.receiver)
+                    && is_serializer(call.args.first())
+            }
+            syn::Expr::Call(call) => {
+                matches!(call.func.as_ref(), syn::Expr::Path(path)
+                    if path.qself.is_some()
+                        && path.path.segments.last().is_some_and(|segment| segment.ident == "serialize"))
+                    && call.args.len() == 2
+                    && call.args.first().is_some_and(is_field)
+                    && is_serializer(call.args.iter().nth(1))
+            }
+            _ => false,
+        }
     }
 }
 impl LateLintPass<'_> for SerdeManualSerializeImpls {
@@ -122,7 +153,7 @@ impl LateLintPass<'_> for SerdeManualSerializeImpls {
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
-        if item.span.from_expansion() || !cx.tcx.hir_attrs(item.hir_id()).is_empty() {
+        if item.span.from_expansion() {
             return;
         }
 
@@ -151,8 +182,18 @@ impl LateLintPass<'_> for SerdeManualSerializeImpls {
         };
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
-            || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
-            || !Self::exact_transparent_serializer(cx, item)
+            || !Self::exact_transparent_serializer(
+                cx,
+                item,
+                definition
+                    .non_enum_variant()
+                    .fields
+                    .iter()
+                    .next()
+                    .expect("single-field shape was checked")
+                    .name
+                    .as_str(),
+            )
         {
             return;
         }

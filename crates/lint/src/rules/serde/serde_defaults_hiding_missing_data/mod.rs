@@ -7,8 +7,8 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
-use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
+use rustc_span::{Span, sym};
 
 use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
@@ -92,35 +92,105 @@ dylint_linting::impl_late_lint! {
 }
 
 impl SerdeDefaultsHidingMissingData {
-    /// Returns whether the type is the standard optional container.
-    fn is_option(ty: &syn::Type) -> bool {
-        matches!(ty, syn::Type::Path(path)
-        if path.path.segments.last().is_some_and(|segment| segment.ident == "Option"))
+    /// Returns whether documentation actually explains the missing-data policy.
+    fn documents_default(attributes: &[syn::Attribute]) -> bool {
+        attributes
+            .iter()
+            .filter(|attribute| attribute.path().is_ident("doc"))
+            .filter_map(|attribute| attribute.meta.require_name_value().ok())
+            .filter_map(|value| match &value.value {
+                syn::Expr::Lit(expression) => match &expression.lit {
+                    syn::Lit::Str(value) => Some(value.value().to_ascii_lowercase()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .any(|documentation| {
+                ["absent", "default", "legacy", "missing"]
+                    .iter()
+                    .any(|term| documentation.contains(term))
+            })
+    }
+
+    /// Returns whether the resolved field type is the standard optional container.
+    fn is_option(cx: &LateContext<'_>, field: LocalDefId) -> bool {
+        cx.tcx
+            .type_of(field)
+            .instantiate_identity()
+            .ty_adt_def()
+            .is_some_and(|definition| cx.tcx.is_diagnostic_item(sym::Option, definition.did()))
     }
 }
 impl LateLintPass<'_> for SerdeDefaultsHidingMissingData {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
-        if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
+        if item.span.from_expansion()
+            || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
+        {
             return;
         }
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
-        let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
-            return;
+        let fields = match item.kind {
+            ItemKind::Struct(_, _, data) => {
+                let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
+                    return;
+                };
+                structure
+                    .fields
+                    .iter()
+                    .zip(data.fields())
+                    .enumerate()
+                    .map(|(index, (field, hir_field))| {
+                        (
+                            field
+                                .ident
+                                .as_ref()
+                                .map_or_else(|| format!("field {index}"), ToString::to_string),
+                            field.attrs.clone(),
+                            hir_field.def_id,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            }
+            ItemKind::Enum(_, _, definition) => {
+                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
+                    return;
+                };
+                enumeration
+                    .variants
+                    .iter()
+                    .zip(definition.variants)
+                    .flat_map(|(variant, hir_variant)| {
+                        variant
+                            .fields
+                            .iter()
+                            .zip(hir_variant.data.fields())
+                            .enumerate()
+                            .map(move |(index, (field, hir_field))| {
+                                let field_name = field
+                                    .ident
+                                    .as_ref()
+                                    .map_or_else(|| index.to_string(), ToString::to_string);
+                                (
+                                    format!("{}.{}", variant.ident, field_name),
+                                    field.attrs.clone(),
+                                    hir_field.def_id,
+                                )
+                            })
+                    })
+                    .collect::<Vec<_>>()
+            }
+            _ => return,
         };
-        for field in &structure.fields {
-            let Some(name) = field.ident.as_ref() else {
-                continue;
-            };
 
-            if field
-                .attrs
-                .iter()
-                .any(|attribute| attribute.path().is_ident("doc"))
-                || Self::is_option(&field.ty)
-                || !SerdeAttributes::from_attributes(&field.attrs).has(SerdeFlag::ImplicitDefault)
+        for (field, attributes, field_definition) in fields {
+            let serde = SerdeAttributes::from_attributes(&attributes);
+            if Self::documents_default(&attributes)
+                || Self::is_option(cx, field_definition)
+                || serde.has(SerdeFlag::SkipDeserialize)
+                || !serde.has(SerdeFlag::ImplicitDefault)
             {
                 continue;
             }
@@ -128,7 +198,7 @@ impl LateLintPass<'_> for SerdeDefaultsHidingMissingData {
             self.candidates.push(Candidate {
                 definition: item.owner_id.def_id,
                 span: item.span,
-                field: name.to_string(),
+                field,
             });
         }
     }

@@ -1,5 +1,6 @@
 extern crate rustc_errors;
 extern crate rustc_hir;
+extern crate rustc_middle;
 extern crate rustc_span;
 
 use std::borrow::Cow;
@@ -7,6 +8,7 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
+use rustc_middle::ty::{self, Ty};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
@@ -105,50 +107,48 @@ dylint_linting::impl_late_lint! {
 impl SerdeSensitiveFieldsSerializedByDefault {
     /// Recognizes field names conventionally associated with credentials or secret material.
     fn sensitive_name(name: &str) -> bool {
-        let name = name.to_ascii_lowercase();
+        let name = name.strip_prefix("r#").unwrap_or(name).to_ascii_lowercase();
+        let components = name.split(['_', '.']).collect::<Vec<_>>();
+        if components.iter().any(|component| {
+            matches!(
+                *component,
+                "encrypted" | "hashed" | "masked" | "redacted" | "sanitized" | "scrubbed"
+            )
+        }) {
+            return false;
+        }
 
         [
-            "password",
-            "passphrase",
-            "access_token",
-            "refresh_token",
-            "auth_token",
-            "api_token",
-            "api_key",
-            "private_key",
-            "client_secret",
-            "shared_secret",
+            &["password"][..],
+            &["passphrase"],
+            &["access", "token"],
+            &["refresh", "token"],
+            &["auth", "token"],
+            &["api", "token"],
+            &["api", "key"],
+            &["private", "key"],
+            &["client", "secret"],
+            &["shared", "secret"],
         ]
         .iter()
-        .any(|term| name == *term || name.ends_with(&format!("_{term}")))
-    }
-
-    /// Returns whether a type is the primitive byte type.
-    fn is_u8(ty: &syn::Type) -> bool {
-        matches!(ty, syn::Type::Path(path)
-        if path.path.segments.last().is_some_and(|segment| segment.ident == "u8"))
+        .any(|term| components.windows(term.len()).any(|window| window == *term))
     }
 
     /// Recognizes strings and byte containers that can expose raw secret material.
-    fn raw_secret_carrier(ty: &syn::Type) -> bool {
-        match ty {
-            syn::Type::Array(array) => Self::is_u8(&array.elem),
-            syn::Type::Slice(slice) => Self::is_u8(&slice.elem),
-            syn::Type::Path(path) => {
-                let Some(segment) = path.path.segments.last() else {
-                    return false;
-                };
-
-                match segment.ident.to_string().as_str() {
-                "String" => true,
-                "Vec" => match &segment.arguments {
-                    syn::PathArguments::AngleBracketed(arguments) => arguments.args.iter().any(
-                        |argument| matches!(argument, syn::GenericArgument::Type(ty) if Self::is_u8(ty)),
-                    ),
-                    _ => false,
-                },
-                _ => false,
+    fn raw_secret_carrier(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+        match ty.kind() {
+            ty::Str => true,
+            ty::Ref(_, inner, _) => Self::raw_secret_carrier(cx, *inner),
+            ty::Slice(inner) | ty::Array(inner, _) => {
+                matches!(inner.kind(), ty::Uint(ty::UintTy::U8))
             }
+            ty::Adt(definition, arguments) => {
+                let path = cx.tcx.def_path_str(definition.did());
+                path.ends_with("::string::String")
+                    || (path.ends_with("::vec::Vec")
+                        && arguments.types().next().is_some_and(|element| {
+                            matches!(element.kind(), ty::Uint(ty::UintTy::U8))
+                        }))
             }
             _ => false,
         }
@@ -165,29 +165,78 @@ impl SerdeSensitiveFieldsSerializedByDefault {
 impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
-        if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
+        if item.span.from_expansion()
+            || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
+        {
             return;
         }
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
-        let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
-            return;
+        let (public, fields) = match item.kind {
+            ItemKind::Struct(_, _, data) => {
+                let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
+                    return;
+                };
+                (
+                    matches!(structure.vis, syn::Visibility::Public(_)),
+                    structure
+                        .fields
+                        .iter()
+                        .zip(data.fields())
+                        .filter_map(|(field, hir_field)| {
+                            Some((
+                                field.ident.as_ref()?.to_string(),
+                                field.attrs.clone(),
+                                hir_field.def_id,
+                            ))
+                        })
+                        .collect::<Vec<_>>(),
+                )
+            }
+            ItemKind::Enum(_, _, definition) => {
+                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
+                    return;
+                };
+                (
+                    matches!(enumeration.vis, syn::Visibility::Public(_)),
+                    enumeration
+                        .variants
+                        .iter()
+                        .zip(definition.variants)
+                        .flat_map(|(variant, hir_variant)| {
+                            variant
+                                .fields
+                                .iter()
+                                .zip(hir_variant.data.fields())
+                                .filter_map(move |(field, hir_field)| {
+                                    Some((
+                                        format!("{}.{}", variant.ident, field.ident.as_ref()?),
+                                        field.attrs.clone(),
+                                        hir_field.def_id,
+                                    ))
+                                })
+                        })
+                        .collect::<Vec<_>>(),
+                )
+            }
+            _ => return,
         };
-        if !matches!(structure.vis, syn::Visibility::Public(_)) {
+        if !public {
             return;
         }
 
-        let fields = structure
-            .fields
-            .iter()
-            .filter_map(|field| {
-                let name = field.ident.as_ref()?.to_string();
-                let attributes = SerdeAttributes::from_attributes(&field.attrs);
+        let fields = fields
+            .into_iter()
+            .filter_map(|(name, authored_attributes, field_definition)| {
+                let attributes = SerdeAttributes::from_attributes(&authored_attributes);
                 if attributes.has(SerdeFlag::SkipSerialize)
                     || !Self::sensitive_name(&name)
-                    || !Self::raw_secret_carrier(&field.ty)
+                    || !Self::raw_secret_carrier(
+                        cx,
+                        cx.tcx.type_of(field_definition).instantiate_identity(),
+                    )
                     || attributes
                         .serialize_with
                         .as_deref()
@@ -212,6 +261,13 @@ impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for candidate in self.candidates.drain(..) {
+            if !cx
+                .tcx
+                .effective_visibilities(())
+                .is_exported(candidate.definition)
+            {
+                continue;
+            }
             if self
                 .catalog
                 .derived_type(candidate.definition, "Serialize")

@@ -12,9 +12,10 @@ use rustc_hir::{Body, Expr, FnDecl, Item};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::contracts::SerdeContractCatalog;
+use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog};
 use crate::utils::construction_analysis::{ConstructionAnalysis, ConstructionOrigin};
 use crate::utils::diagnostic::LateViolation;
+use crate::utils::source_provenance::AuthoredItemSource;
 
 // -----------------------------------------------------------------------------
 // Violation: Deserialization bypassing invariants
@@ -82,6 +83,8 @@ struct SerdeDeserializationBypassingInvariants {
     catalog: SerdeContractCatalog,
     /// Construction sites correlated with the owning type.
     constructions: ConstructionAnalysis,
+    /// Types whose Serde contract already routes decoded data through a fallible conversion.
+    validated_deserialization: HashSet<LocalDefId>,
 }
 
 dylint_linting::impl_late_lint! {
@@ -95,6 +98,17 @@ dylint_linting::impl_late_lint! {
 impl<'tcx> LateLintPass<'tcx> for SerdeDeserializationBypassingInvariants {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.catalog.check_item(cx, item);
+        if !item.span.from_expansion()
+            && AuthoredItemSource::for_item(cx, item)
+                .and_then(|source| syn::parse_str::<syn::DeriveInput>(&source).ok())
+                .is_some_and(|input| {
+                    SerdeAttributes::from_attributes(&input.attrs)
+                        .try_from
+                        .is_some()
+                })
+        {
+            self.validated_deserialization.insert(item.owner_id.def_id);
+        }
         self.constructions.record_item(cx, item);
     }
 
@@ -120,6 +134,9 @@ impl<'tcx> LateLintPass<'tcx> for SerdeDeserializationBypassingInvariants {
         for constructor in &self.constructions.candidates {
             if constructor.ownership.origin != ConstructionOrigin::Inherent
                 || !constructor.is_fallible_direct()
+                || self
+                    .validated_deserialization
+                    .contains(&constructor.target.def_id)
                 || !reported.insert(constructor.target.def_id)
             {
                 continue;

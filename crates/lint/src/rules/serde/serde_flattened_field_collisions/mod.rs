@@ -3,7 +3,7 @@ extern crate rustc_hir;
 extern crate rustc_span;
 
 use std::borrow::Cow;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
@@ -25,19 +25,19 @@ use crate::utils::source_provenance::AuthoredItemSource;
 /// Effective wire names and flattening target for one struct field.
 struct FieldContract {
     /// Wire name emitted while serializing this field.
-    serialize_name: Option<String>,
+    serialize_names: Vec<String>,
     /// Wire name accepted while deserializing this field.
-    deserialize_name: Option<String>,
+    deserialize_names: Vec<String>,
     /// Nested struct whose fields are merged into this struct's wire object.
     flatten_target: Option<LocalDefId>,
 }
 
 impl FieldContract {
     /// Returns this field's name in one Serde direction.
-    const fn directional_name(&self, direction: SerdeDirection) -> Option<&String> {
+    fn directional_names(&self, direction: SerdeDirection) -> &[String] {
         match direction {
-            SerdeDirection::Serialize => self.serialize_name.as_ref(),
-            SerdeDirection::Deserialize => self.deserialize_name.as_ref(),
+            SerdeDirection::Serialize => &self.serialize_names,
+            SerdeDirection::Deserialize => &self.deserialize_names,
         }
     }
 }
@@ -54,6 +54,37 @@ struct StructContract {
 }
 
 impl StructContract {
+    fn flattened_names(
+        target: LocalDefId,
+        direction: SerdeDirection,
+        structs: &HashMap<LocalDefId, Self>,
+        catalog: &SerdeContractCatalog,
+        visiting: &mut HashSet<LocalDefId>,
+    ) -> Vec<String> {
+        let derive = match direction {
+            SerdeDirection::Serialize => "Serialize",
+            SerdeDirection::Deserialize => "Deserialize",
+        };
+        if !visiting.insert(target) || catalog.derived_type(target, derive).is_none() {
+            return Vec::new();
+        }
+        let Some(flattened) = structs.get(&target) else {
+            visiting.remove(&target);
+            return Vec::new();
+        };
+        let mut names = Vec::new();
+        for field in &flattened.fields {
+            names.extend(field.directional_names(direction).iter().cloned());
+            if let Some(nested) = field.flatten_target {
+                names.extend(Self::flattened_names(
+                    nested, direction, structs, catalog, visiting,
+                ));
+            }
+        }
+        visiting.remove(&target);
+        names
+    }
+
     /// Finds wire names duplicated by this structure's flattened fields.
     fn collisions(
         &self,
@@ -64,33 +95,19 @@ impl StructContract {
         let mut observed = BTreeSet::new();
         let mut collisions = BTreeSet::new();
         for field in &self.fields {
-            let Some(name) = field.directional_name(direction) else {
-                continue;
-            };
-            observed.insert(name.clone());
+            observed.extend(field.directional_names(direction).iter().cloned());
         }
         for field in &self.fields {
             let Some(target) = field.flatten_target else {
                 continue;
             };
-            let derive = match direction {
-                SerdeDirection::Serialize => "Serialize",
-                SerdeDirection::Deserialize => "Deserialize",
-            };
-            if catalog.derived_type(target, derive).is_none() {
-                continue;
-            }
-            let Some(flattened) = structs.get(&target) else {
-                continue;
-            };
-            for nested in &flattened.fields {
-                let Some(name) = nested.directional_name(direction) else {
-                    continue;
-                };
+            for name in
+                Self::flattened_names(target, direction, structs, catalog, &mut HashSet::new())
+            {
                 if observed.insert(name.clone()) {
                     continue;
                 }
-                collisions.insert(name.clone());
+                collisions.insert(name);
             }
         }
         collisions
@@ -198,20 +215,31 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
                             .and_then(|definition| definition.did().as_local())
                     })
                     .flatten();
-                Some(FieldContract {
-                    serialize_name: serialize.then(|| {
+                let serialize_names = serialize
+                    .then(|| {
                         attributes.rename_serialize.unwrap_or_else(|| {
                             SerdeCase::apply(&rust_name, container.rename_all_serialize.as_deref())
                         })
-                    }),
-                    deserialize_name: deserialize.then(|| {
-                        attributes.rename_deserialize.unwrap_or_else(|| {
+                    })
+                    .into_iter()
+                    .collect();
+                let mut deserialize_names = deserialize
+                    .then(|| {
+                        attributes.rename_deserialize.clone().unwrap_or_else(|| {
                             SerdeCase::apply(
                                 &rust_name,
                                 container.rename_all_deserialize.as_deref(),
                             )
                         })
-                    }),
+                    })
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                if deserialize {
+                    deserialize_names.extend(attributes.aliases);
+                }
+                Some(FieldContract {
+                    serialize_names,
+                    deserialize_names,
                     flatten_target,
                 })
             })
@@ -228,7 +256,9 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for structure in self.structs.values() {
+        let mut structures = self.structs.values().collect::<Vec<_>>();
+        structures.sort_by_key(|structure| structure.span.lo());
+        for structure in structures {
             for direction in [SerdeDirection::Serialize, SerdeDirection::Deserialize] {
                 if self
                     .catalog

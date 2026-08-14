@@ -3,7 +3,7 @@ extern crate rustc_hir;
 extern crate rustc_span;
 
 use std::borrow::Cow;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, ItemKind};
@@ -11,7 +11,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog};
+use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -21,6 +21,12 @@ use crate::utils::source_provenance::AuthoredItemSource;
 
 /// Current field schema of a type represented through Serde's remote mechanism.
 struct SourceSchema {
+    /// Compiler-qualified path used to distinguish same-named local types.
+    path: String,
+    /// Simple declaration name used for module-local resolution.
+    name: String,
+    /// Module containing the source declaration.
+    scope: String,
     /// Authored fields relevant to the contract.
     fields: BTreeSet<String>,
 }
@@ -33,8 +39,12 @@ struct RemoteCandidate {
     span: Span,
     /// Authored source used to recover framework metadata.
     source: String,
+    /// Module path in which the remote string is resolved.
+    scope: String,
     /// Authored fields relevant to the contract.
-    fields: BTreeSet<String>,
+    serialize_fields: BTreeSet<String>,
+    /// Fields represented during deserialization.
+    deserialize_fields: BTreeSet<String>,
 }
 
 /// Remote representation missing fields from its current source type.
@@ -100,7 +110,7 @@ struct SerdeRemoteRepresentationsDriftingFromSources {
     /// Effective Serde contracts consulted after all local declarations are known.
     catalog: SerdeContractCatalog,
     /// Source schemas keyed by the type path used in `remote` attributes.
-    sources: HashMap<String, Vec<SourceSchema>>,
+    sources: Vec<SourceSchema>,
     /// Authored Serde declarations awaiting crate-wide contract comparison.
     candidates: Vec<RemoteCandidate>,
 }
@@ -135,26 +145,68 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
         let attributes = SerdeAttributes::from_attributes(&structure.attrs);
 
         let Some(remote) = attributes.remote else {
-            self.sources
-                .entry(structure.ident.to_string())
-                .or_default()
-                .push(SourceSchema { fields });
+            let path = cx.tcx.def_path_str(item.owner_id.to_def_id());
+            self.sources.push(SourceSchema {
+                scope: path
+                    .rsplit_once("::")
+                    .map_or_else(String::new, |(scope, _)| scope.to_owned()),
+                name: structure.ident.to_string(),
+                path,
+                fields,
+            });
             return;
         };
 
-        if structure
+        let documentation = structure
             .attrs
             .iter()
-            .any(|attribute| attribute.path().is_ident("doc"))
+            .filter(|attribute| attribute.path().is_ident("doc"))
+            .filter_map(|attribute| attribute.meta.require_name_value().ok())
+            .filter_map(|value| match &value.value {
+                syn::Expr::Lit(expression) => match &expression.lit {
+                    syn::Lit::Str(value) => Some(value.value().to_ascii_lowercase()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        if ["projection", "versioned"]
+            .iter()
+            .any(|term| documentation.contains(term))
+            && ["omit", "reconstruct", "synthesi"]
+                .iter()
+                .any(|term| documentation.contains(term))
         {
             return;
+        }
+
+        let mut serialize_fields = BTreeSet::new();
+        let mut deserialize_fields = BTreeSet::new();
+        for field in &structure.fields {
+            let Some(name) = field.ident.as_ref().map(ToString::to_string) else {
+                continue;
+            };
+            let attributes = SerdeAttributes::from_attributes(&field.attrs);
+            if !attributes.has(SerdeFlag::SkipSerialize) {
+                serialize_fields.insert(name.clone());
+            }
+            if !attributes.has(SerdeFlag::SkipDeserialize) {
+                deserialize_fields.insert(name);
+            }
         }
 
         self.candidates.push(RemoteCandidate {
             definition: item.owner_id.def_id,
             span: item.span,
             source: remote,
-            fields,
+            scope: cx
+                .tcx
+                .def_path_str(item.owner_id.to_def_id())
+                .rsplit_once("::")
+                .map_or_else(String::new, |(scope, _)| scope.to_owned()),
+            serialize_fields,
+            deserialize_fields,
         });
     }
 
@@ -172,19 +224,54 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
                 continue;
             }
 
-            let source_name = candidate
+            let relative = candidate
                 .source
-                .rsplit("::")
-                .next()
+                .strip_prefix("self::")
                 .unwrap_or(&candidate.source);
-
-            let Some([source]) = self.sources.get(source_name).map(Vec::as_slice) else {
+            let expected = if candidate.source.starts_with("crate::") {
+                candidate.source.clone()
+            } else {
+                format!("{}::{relative}", candidate.scope)
+            };
+            let mut matches = self
+                .sources
+                .iter()
+                .filter(|source| {
+                    source.path == expected
+                        || (!candidate.source.contains("::")
+                            && source.scope == candidate.scope
+                            && source.name == candidate.source)
+                })
+                .collect::<Vec<_>>();
+            if matches.is_empty() {
+                matches = self
+                    .sources
+                    .iter()
+                    .filter(|source| {
+                        source.path == candidate.source
+                            || source.path.ends_with(&format!("::{}", candidate.source))
+                    })
+                    .collect();
+            }
+            let [source] = matches.as_slice() else {
                 continue;
             };
 
+            let serializes = self
+                .catalog
+                .derived_type(candidate.definition, "Serialize")
+                .is_some();
+            let deserializes = self
+                .catalog
+                .derived_type(candidate.definition, "Deserialize")
+                .is_some();
             let missing = source
                 .fields
-                .difference(&candidate.fields)
+                .iter()
+                .filter(|field| {
+                    (serializes && !candidate.serialize_fields.contains(*field))
+                        || (deserializes && !candidate.deserialize_fields.contains(*field))
+                })
                 .map(|name| format!("`{name}`"))
                 .collect::<Vec<_>>();
 

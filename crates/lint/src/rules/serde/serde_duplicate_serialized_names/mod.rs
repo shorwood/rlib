@@ -94,6 +94,60 @@ struct SerdeDuplicateSerializedNames {
     candidates: Vec<Candidate>,
 }
 
+impl SerdeDuplicateSerializedNames {
+    fn record_group(
+        &mut self,
+        definition: LocalDefId,
+        span: Span,
+        cases: [Option<&str>; 2],
+        members: &[(String, Vec<syn::Attribute>)],
+    ) {
+        for (direction, case) in [SerdeDirection::Serialize, SerdeDirection::Deserialize]
+            .into_iter()
+            .zip(cases)
+        {
+            let mut names: HashMap<String, Vec<String>> = HashMap::new();
+            for (rust_name, attributes) in members {
+                let attributes = SerdeAttributes::from_attributes(attributes);
+                if match direction {
+                    SerdeDirection::Serialize => attributes.has(SerdeFlag::SkipSerialize),
+                    SerdeDirection::Deserialize => attributes.has(SerdeFlag::SkipDeserialize),
+                } {
+                    continue;
+                }
+
+                let explicit = match direction {
+                    SerdeDirection::Serialize => attributes.rename_serialize.as_deref(),
+                    SerdeDirection::Deserialize => attributes.rename_deserialize.as_deref(),
+                };
+                let effective =
+                    explicit.map_or_else(|| SerdeCase::apply(rust_name, case), ToOwned::to_owned);
+                names.entry(effective).or_default().push(rust_name.clone());
+
+                if matches!(direction, SerdeDirection::Deserialize) {
+                    for alias in attributes.aliases {
+                        names.entry(alias).or_default().push(rust_name.clone());
+                    }
+                }
+            }
+
+            let mut collisions = names
+                .into_iter()
+                .filter(|(_, members)| members.iter().collect::<HashSet<_>>().len() > 1)
+                .collect::<Vec<_>>();
+            collisions.sort_by(|(left, _), (right, _)| left.cmp(right));
+            self.candidates
+                .extend(collisions.into_iter().map(|(name, members)| Candidate {
+                    definition,
+                    span,
+                    direction,
+                    name,
+                    members,
+                }));
+        }
+    }
+}
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub SERDE_DUPLICATE_SERIALIZED_NAMES,
@@ -112,7 +166,7 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
             return;
         };
 
-        let (attributes, members) = match item.kind {
+        let (attributes, members, field_groups) = match item.kind {
             ItemKind::Struct(..) => {
                 let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
                     return;
@@ -127,6 +181,7 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
                             Some((field.ident.as_ref()?.to_string(), field.attrs.clone()))
                         })
                         .collect::<Vec<_>>(),
+                    Vec::new(),
                 )
             }
             ItemKind::Enum(..) => {
@@ -134,6 +189,20 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
                     return;
                 };
 
+                let field_groups = enumeration
+                    .variants
+                    .iter()
+                    .filter_map(|variant| {
+                        let members = variant
+                            .fields
+                            .iter()
+                            .filter_map(|field| {
+                                Some((field.ident.as_ref()?.to_string(), field.attrs.clone()))
+                            })
+                            .collect::<Vec<_>>();
+                        (!members.is_empty()).then(|| (variant.attrs.clone(), members))
+                    })
+                    .collect::<Vec<_>>();
                 (
                     enumeration.attrs,
                     enumeration
@@ -141,6 +210,7 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
                         .iter()
                         .map(|variant| (variant.ident.to_string(), variant.attrs.clone()))
                         .collect::<Vec<_>>(),
+                    field_groups,
                 )
             }
             _ => return,
@@ -148,50 +218,32 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
 
         let container = SerdeAttributes::from_attributes(&attributes);
 
-        for direction in [SerdeDirection::Serialize, SerdeDirection::Deserialize] {
-            let case = match direction {
-                SerdeDirection::Serialize => container.rename_all_serialize.as_deref(),
-                SerdeDirection::Deserialize => container.rename_all_deserialize.as_deref(),
-            };
-            let mut names: HashMap<String, Vec<String>> = HashMap::new();
-            for (rust_name, attributes) in &members {
-                let attributes = SerdeAttributes::from_attributes(attributes);
-                if match direction {
-                    SerdeDirection::Serialize => attributes.has(SerdeFlag::SkipSerialize),
-                    SerdeDirection::Deserialize => attributes.has(SerdeFlag::SkipDeserialize),
-                } {
-                    continue;
-                }
-
-                let explicit = match direction {
-                    SerdeDirection::Serialize => attributes.rename_serialize.as_deref(),
-                    SerdeDirection::Deserialize => attributes.rename_deserialize.as_deref(),
-                };
-                let effective =
-                    explicit.map_or_else(|| SerdeCase::apply(rust_name, case), ToOwned::to_owned);
-                names.entry(effective).or_default().push(rust_name.clone());
-
-                if !(matches!(direction, SerdeDirection::Deserialize)) {
-                    continue;
-                }
-                for alias in attributes.aliases {
-                    names.entry(alias).or_default().push(rust_name.clone());
-                }
-            }
-            for (name, members) in names {
-                let distinct = members.iter().collect::<HashSet<_>>();
-                if distinct.len() <= 1 {
-                    continue;
-                }
-
-                self.candidates.push(Candidate {
-                    definition: item.owner_id.def_id,
-                    span: item.span,
-                    direction,
-                    name,
-                    members,
-                });
-            }
+        self.record_group(
+            item.owner_id.def_id,
+            item.span,
+            [
+                container.rename_all_serialize.as_deref(),
+                container.rename_all_deserialize.as_deref(),
+            ],
+            &members,
+        );
+        for (attributes, members) in field_groups {
+            let variant = SerdeAttributes::from_attributes(&attributes);
+            self.record_group(
+                item.owner_id.def_id,
+                item.span,
+                [
+                    variant
+                        .rename_all_serialize
+                        .as_deref()
+                        .or(container.rename_all_fields_serialize.as_deref()),
+                    variant
+                        .rename_all_deserialize
+                        .as_deref()
+                        .or(container.rename_all_fields_deserialize.as_deref()),
+                ],
+                &members,
+            );
         }
     }
 

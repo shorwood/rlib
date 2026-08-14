@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog};
+use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -53,11 +53,31 @@ impl NamedContract {
 
     /// Extracts a known unit or encoding contract from an adapter path.
     fn from_path(path: &str) -> Option<Self> {
-        let name = path.rsplit("::").next()?;
-        Self::CONTRACTS.iter().find_map(|&contract| {
-            name.strip_suffix(contract).map(|family| Self {
-                family: family.trim_end_matches('_').to_owned(),
-                contract,
+        path.rsplit("::").find_map(|name| {
+            Self::CONTRACTS.iter().find_map(|&contract| {
+                let parts = name.split('_').collect::<Vec<_>>();
+                parts.contains(&contract).then(|| {
+                    let family = parts
+                        .into_iter()
+                        .filter(|part| {
+                            *part != contract
+                                && !matches!(
+                                    *part,
+                                    "adapter"
+                                        | "helper"
+                                        | "as"
+                                        | "decode"
+                                        | "deserialize"
+                                        | "encode"
+                                        | "from"
+                                        | "serialize"
+                                        | "to"
+                                )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("_");
+                    Self { family, contract }
+                })
             })
         })
     }
@@ -153,20 +173,68 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for SerdeNonRoundtrippingSerdeAdapters {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
-        if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
+        if item.span.from_expansion()
+            || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
+        {
             return;
         }
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
-        let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
-            return;
+        let fields = match item.kind {
+            ItemKind::Struct(..) => {
+                let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
+                    return;
+                };
+                structure
+                    .fields
+                    .iter()
+                    .enumerate()
+                    .map(|(index, field)| {
+                        (
+                            field
+                                .ident
+                                .as_ref()
+                                .map_or_else(|| format!("field {index}"), ToString::to_string),
+                            field.attrs.clone(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            }
+            ItemKind::Enum(..) => {
+                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
+                    return;
+                };
+                enumeration
+                    .variants
+                    .iter()
+                    .flat_map(|variant| {
+                        variant
+                            .fields
+                            .iter()
+                            .enumerate()
+                            .map(move |(index, field)| {
+                                let field_name = field
+                                    .ident
+                                    .as_ref()
+                                    .map_or_else(|| index.to_string(), ToString::to_string);
+                                (
+                                    format!("{}.{field_name}", variant.ident),
+                                    field.attrs.clone(),
+                                )
+                            })
+                    })
+                    .collect::<Vec<_>>()
+            }
+            _ => return,
         };
-        for field in &structure.fields {
-            let Some(name) = field.ident.as_ref() else {
+        for (field, authored_attributes) in fields {
+            let attributes = SerdeAttributes::from_attributes(&authored_attributes);
+            if attributes.has(SerdeFlag::SkipSerialize)
+                || attributes.has(SerdeFlag::SkipDeserialize)
+            {
                 continue;
-            };
-            let attributes = SerdeAttributes::from_attributes(&field.attrs);
+            }
             let (Some(serialize), Some(deserialize)) =
                 (attributes.serialize_with, attributes.deserialize_with)
             else {
@@ -184,7 +252,7 @@ impl LateLintPass<'_> for SerdeNonRoundtrippingSerdeAdapters {
             self.candidates.push(Candidate {
                 definition: item.owner_id.def_id,
                 span: item.span,
-                field: name.to_string(),
+                field,
                 serialize,
                 deserialize,
             });
