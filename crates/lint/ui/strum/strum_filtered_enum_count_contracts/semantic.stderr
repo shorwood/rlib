@@ -8,5 +8,14 @@ LL |     Capability::COUNT
    = help: count the declared subset explicitly or rename the API as a total count
    = note: `#[warn(strum_filtered_enum_count_contracts)]` on by default
 
-warning: 1 warning emitted
+warning: `DeprecatedCapability::COUNT` is a total, not a filtered count
+  --> $DIR/semantic.rs:24:5
+   |
+LL |     DeprecatedCapability::COUNT
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: the surrounding API promises a subset while `EnumCount` includes every declared variant
+   = help: count the declared subset explicitly or rename the API as a total count
+
+warning: 2 warnings emitted
 

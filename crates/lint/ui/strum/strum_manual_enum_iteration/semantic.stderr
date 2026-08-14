@@ -27,7 +27,16 @@ LL |     STAGES.into_iter()
    = help: derive `strum::EnumIter`, import `strum::IntoEnumIterator`, and migrate callers to `Type::iter()`
 
 warning: `Stage` variants are manually exposed as an iterator
-  --> $DIR/semantic.rs:45:9
+  --> $DIR/semantic.rs:37:5
+   |
+LL |     STAGES.iter().copied()
+   |     ^^^^^^
+   |
+   = note: the exhaustive declaration-order sequence duplicates the enum definition and can become stale
+   = help: derive `strum::EnumIter`, import `strum::IntoEnumIterator`, and migrate callers to `Type::iter()`
+
+warning: `Stage` variants are manually exposed as an iterator
+  --> $DIR/semantic.rs:57:9
    |
 LL |         [Stage::Planned, Stage::Running, Stage::Complete].into_iter()
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -36,5 +45,5 @@ LL |         [Stage::Planned, Stage::Running, Stage::Complete].into_iter()
    = note: this API is public, so changing its return type or generated iterator name requires a compatibility review
    = help: derive `strum::EnumIter`, import `strum::IntoEnumIterator`, and migrate callers to `Type::iter()`
 
-warning: 4 warnings emitted
+warning: 5 warnings emitted
 

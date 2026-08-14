@@ -13,5 +13,44 @@ LL | |         }
    = help: derive `strum::FromRepr` and remove the equivalent inherent conversion
    = note: `#[warn(strum_manual_repr_conversions)]` on by default
 
-warning: 1 warning emitted
+warning: `SparseStatus::from_repr` repeats the enum discriminant mapping
+  --> $DIR/semantic.rs:45:9
+   |
+LL | /         match value {
+LL | |             5 => Option::Some(Self::Ready),
+LL | |             9 => Option::Some(Self::Done),
+LL | |             _ => Option::None,
+LL | |         }
+   | |_________^
+   |
+   = note: the exhaustive integer-to-unit-variant match duplicates resolved discriminants and `Option` failure behavior
+   = help: derive `strum::FromRepr` and remove the equivalent inherent conversion
+
+warning: `ImplicitStatus::from_repr` repeats the enum discriminant mapping
+  --> $DIR/semantic.rs:61:9
+   |
+LL | /         match value {
+LL | |             0 => Some(Self::Ready),
+LL | |             1 => Some(Self::Done),
+LL | |             _ => None,
+LL | |         }
+   | |_________^
+   |
+   = note: the exhaustive integer-to-unit-variant match duplicates resolved discriminants and `Option` failure behavior
+   = help: derive `strum::FromRepr` and remove the equivalent inherent conversion
+
+warning: `SerializedStatus::from_repr` repeats the enum discriminant mapping
+  --> $DIR/semantic.rs:111:9
+   |
+LL | /         match value {
+LL | |             1 => Some(Self::Ready),
+LL | |             2 => Some(Self::Done),
+LL | |             _ => None,
+LL | |         }
+   | |_________^
+   |
+   = note: the exhaustive integer-to-unit-variant match duplicates resolved discriminants and `Option` failure behavior
+   = help: derive `strum::FromRepr` and remove the equivalent inherent conversion
+
+warning: 4 warnings emitted
 

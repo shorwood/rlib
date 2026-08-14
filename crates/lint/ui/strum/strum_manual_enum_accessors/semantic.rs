@@ -48,4 +48,60 @@ impl Partial {
     }
 }
 
+enum PairMessage {
+    Values(u8, u16),
+    Quit,
+}
+
+impl PairMessage {
+    pub fn try_as_values(self) -> Option<(u8, u16)> {
+        match self {
+            Self::Values(left, right) => Some((left, right)),
+            _ => None,
+        }
+    }
+
+    pub fn try_as_values_ref(&self) -> Option<(&u8, &u16)> {
+        match self {
+            Self::Values(left, right) => Some((left, right)),
+            _ => None,
+        }
+    }
+
+    pub fn try_as_values_mut(&mut self) -> Option<(&mut u8, &mut u16)> {
+        match self {
+            Self::Values(left, right) => Some((left, right)),
+            _ => None,
+        }
+    }
+}
+
+enum PrivateMessage {
+    Value(u32),
+    Quit,
+}
+
+impl PrivateMessage {
+    fn try_as_value(self) -> Option<u32> {
+        match self {
+            Self::Value(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    fn try_as_value_ref(&self) -> Option<&u32> {
+        match self {
+            Self::Value(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    fn try_as_value_mut(&mut self) -> Option<&mut u32> {
+        match self {
+            Self::Value(value) => Some(value),
+            _ => None,
+        }
+    }
+}
+
 fn main() {}

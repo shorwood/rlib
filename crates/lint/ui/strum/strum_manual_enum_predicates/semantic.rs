@@ -37,4 +37,49 @@ impl Partial {
     }
 }
 
+#[derive(strum::EnumCount)]
+enum DisabledMessage {
+    Ready,
+    #[strum(disabled)]
+    Legacy,
+}
+
+impl DisabledMessage {
+    pub fn is_ready(&self) -> bool {
+        matches!(self, Self::Ready)
+    }
+}
+
+#[derive(strum::EnumCount)]
+enum SerializedMessage {
+    #[strum(serialize = "write")]
+    Write,
+    Quit,
+}
+
+impl SerializedMessage {
+    pub fn is_write(&self) -> bool {
+        matches!(self, Self::Write)
+    }
+
+    pub fn is_quit(&self) -> bool {
+        matches!(self, Self::Quit)
+    }
+}
+
+enum PrivateMessage {
+    Ready,
+    Done,
+}
+
+impl PrivateMessage {
+    fn is_ready(&self) -> bool {
+        matches!(self, Self::Ready)
+    }
+
+    fn is_done(&self) -> bool {
+        matches!(self, Self::Done)
+    }
+}
+
 fn main() {}

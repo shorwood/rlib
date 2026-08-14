@@ -8,5 +8,23 @@ LL |     Pending(String),
    = help: disable this variant for those derives or use an explicit payload constructor
    = note: `#[warn(strum_defaulted_payload_enum_construction)]` on by default
 
-warning: 1 warning emitted
+warning: `Pending` receives a defaulted payload
+  --> $DIR/semantic.rs:11:5
+   |
+LL |     Pending(String),
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `EnumString` constructs this variant without domain payload input
+   = help: disable this variant for those derives or use an explicit payload constructor
+
+warning: `Pending` receives a defaulted payload
+  --> $DIR/semantic.rs:33:5
+   |
+LL |     Pending(String),
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `EnumIter` constructs this variant without domain payload input
+   = help: disable this variant for those derives or use an explicit payload constructor
+
+warning: 3 warnings emitted
 

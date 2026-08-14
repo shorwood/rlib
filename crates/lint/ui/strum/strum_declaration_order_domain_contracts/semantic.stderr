@@ -8,5 +8,14 @@ LL |     for _phase in MigrationPhase::iter() {}
    = help: introduce a named ordering method or constant, or sort by an explicit key
    = note: `#[warn(strum_declaration_order_domain_contracts)]` on by default
 
-warning: 1 warning emitted
+warning: enum declaration order is used as a domain ordering contract
+  --> $DIR/semantic.rs:23:20
+   |
+LL |     let _entries = MenuEntry::VARIANTS;
+   |                    ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: reordering variants changes workflow or presentation behavior without changing an explicit policy
+   = help: introduce a named ordering method or constant, or sort by an explicit key
+
+warning: 2 warnings emitted
 

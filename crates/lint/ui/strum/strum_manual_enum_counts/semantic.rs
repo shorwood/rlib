@@ -20,6 +20,23 @@ impl Stage {
         3
     }
 
+    fn cardinality() -> usize {
+        3
+    }
+
+    const RETRY_LIMIT: usize = 3;
+
+    const COUNT_U8: u8 = 3;
+
+    fn version() -> usize {
+        3
+    }
+
+    fn generic_count<T>() -> usize {
+        let _marker = std::marker::PhantomData::<T>;
+        3
+    }
+
     const WRONG_COUNT: usize = 2;
 
     fn contextual_count(_include_complete: bool) -> usize {

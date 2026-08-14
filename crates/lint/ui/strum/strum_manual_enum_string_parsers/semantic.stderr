@@ -13,5 +13,19 @@ LL | |         }
    = help: derive `strum::EnumString` and remove the equivalent `FromStr` implementation
    = note: `#[warn(strum_manual_enum_string_parsers)]` on by default
 
-warning: 1 warning emitted
+warning: `AliasedStage` string parser is maintained manually
+  --> $DIR/semantic.rs:34:9
+   |
+LL | /         match value {
+LL | |             "queued" | "planned" => Result::Ok(Self::Planned),
+LL | |             "complete" => Result::Ok(Self::Complete),
+LL | |             _ => Result::Err(()),
+LL | |         }
+   | |_________^
+   |
+   = note: the exhaustive string match duplicates unit-variant names and failure handling
+   = note: this trait implementation is public API; compare the generated error type before migration
+   = help: derive `strum::EnumString` and remove the equivalent `FromStr` implementation
+
+warning: 2 warnings emitted
 

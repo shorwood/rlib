@@ -8,5 +8,23 @@ LL |     Resume,
    = help: assign unique aliases and an explicit `to_string` spelling
    = note: `#[warn(strum_conflicting_enum_serializations)]` on by default
 
-warning: 1 warning emitted
+warning: this Strum enum has conflicting serialization names
+  --> $DIR/semantic.rs:16:5
+   |
+LL |     LegacyGray,
+   |     ^^^^^^^^^^
+   |
+   = note: `GRAY` is accepted by both `Gray` and `LegacyGray`
+   = help: assign unique aliases and an explicit `to_string` spelling
+
+warning: this Strum enum has conflicting serialization names
+  --> $DIR/semantic.rs:22:5
+   |
+LL |     Start,
+   |     ^^^^^
+   |
+   = note: `Start` selects its longest alias `proceed` for output without an explicit policy
+   = help: assign unique aliases and an explicit `to_string` spelling
+
+warning: 3 warnings emitted
 

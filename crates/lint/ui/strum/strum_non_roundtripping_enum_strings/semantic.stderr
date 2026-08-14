@@ -8,5 +8,32 @@ LL |     Pending,
    = help: align `serialize` and `to_string` names or remove the unintended text contract
    = note: `#[warn(strum_non_roundtripping_enum_strings)]` on by default
 
-warning: 1 warning emitted
+warning: `Complete` does not round-trip through Strum text
+  --> $DIR/semantic.rs:7:5
+   |
+LL |     Complete,
+   |     ^^^^^^^^
+   |
+   = note: the generated output `state-Complete` is not parsed back into this variant
+   = help: align `serialize` and `to_string` names or remove the unintended text contract
+
+warning: `Ready` does not round-trip through Strum text
+  --> $DIR/semantic.rs:13:5
+   |
+LL |     Ready,
+   |     ^^^^^
+   |
+   = note: the generated output `Ready-value` is not parsed back into this variant
+   = help: align `serialize` and `to_string` names or remove the unintended text contract
+
+warning: `Second` does not round-trip through Strum text
+  --> $DIR/semantic.rs:22:5
+   |
+LL |     Second,
+   |     ^^^^^^
+   |
+   = note: the generated output `same` is not parsed back into this variant
+   = help: align `serialize` and `to_string` names or remove the unintended text contract
+
+warning: 4 warnings emitted
 

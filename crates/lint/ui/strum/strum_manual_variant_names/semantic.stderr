@@ -8,5 +8,39 @@ LL |     const NAMES: [&'static str; 2] = ["Planned", "Complete"];
    = help: derive `strum::VariantNames` and use its `VARIANTS` constant
    = note: `#[warn(strum_manual_variant_names)]` on by default
 
-warning: 1 warning emitted
+warning: `Stage` variant names are maintained manually
+  --> $DIR/semantic.rs:14:34
+   |
+LL | pub const STAGE_NAMES: &[&str] = &["Planned", "Complete"];
+   |                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: the static table duplicates canonical names and declaration order
+   = note: this table is public; preserve its type and symbol compatibility deliberately
+   = help: derive `strum::VariantNames` and use its `VARIANTS` constant
+
+warning: `WireState` variant names are maintained manually
+  --> $DIR/semantic.rs:32:35
+   |
+LL |   const WIRE_STATE_NAMES: &[&str] = &[
+   |  ___________________________________^
+LL | |     "api-http_ready-v1",
+LL | |     "api-finished-v1",
+LL | |     "api-explicit-v1",
+LL | |     "api-legacy-v1",
+LL | | ];
+   | |_^
+   |
+   = note: the static table duplicates canonical names and declaration order
+   = help: derive `strum::VariantNames` and use its `VARIANTS` constant
+
+warning: `Payload` variant names are maintained manually
+  --> $DIR/semantic.rs:46:28
+   |
+LL |     const NAMES: &[&str] = &["Unit", "Tuple", "Struct"];
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: the static table duplicates canonical names and declaration order
+   = help: derive `strum::VariantNames` and use its `VARIANTS` constant
+
+warning: 4 warnings emitted
 

@@ -11,5 +11,29 @@ LL | |         }
    = help: derive `strum::EnumDiscriminants` and configure its generated name as `EventKind`
    = note: `#[warn(strum_manual_discriminant_enums)]` on by default
 
-warning: 1 warning emitted
+warning: `OwnedEventKind` manually mirrors `OwnedEvent`
+  --> $DIR/semantic.rs:34:9
+   |
+LL | /         match event {
+LL | |             OwnedEvent::Created(_) => Self::Created,
+LL | |             OwnedEvent::Deleted(_) => Self::Deleted,
+LL | |         }
+   | |_________^
+   |
+   = note: the private unit enum and conversion duplicate every source variant one-for-one
+   = help: derive `strum::EnumDiscriminants` and configure its generated name as `OwnedEventKind`
+
+warning: `EventKind` manually mirrors `Event`
+  --> $DIR/semantic.rs:54:13
+   |
+LL | /             match event {
+LL | |                 Event::Created(_) => Self::Created,
+LL | |                 Event::Deleted(_) => Self::Deleted,
+LL | |             }
+   | |_____________^
+   |
+   = note: the private unit enum and conversion duplicate every source variant one-for-one
+   = help: derive `strum::EnumDiscriminants` and configure its generated name as `EventKind`
+
+warning: 3 warnings emitted
 

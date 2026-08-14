@@ -29,6 +29,18 @@ fn forwarded() -> impl Iterator<Item = Stage> {
     STAGES.into_iter()
 }
 
+fn borrowed_adapter() -> impl Iterator<Item = &'static Stage> {
+    STAGES.iter()
+}
+
+fn copied_adapter() -> impl Iterator<Item = Stage> {
+    STAGES.iter().copied()
+}
+
+fn array_value() -> [Stage; 3] {
+    [Stage::Planned, Stage::Running, Stage::Complete]
+}
+
 fn wrong_order() -> impl Iterator<Item = Stage> {
     [Stage::Running, Stage::Planned, Stage::Complete].into_iter()
 }

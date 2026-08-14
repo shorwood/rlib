@@ -21,5 +21,17 @@ LL | |     }
    = note: this API is public, so replacing it with the `EnumCount` trait requires a compatibility review
    = help: derive `strum::EnumCount`, import its trait, and use `Type::COUNT`
 
-warning: 2 warnings emitted
+warning: `Stage` variant count is maintained manually
+  --> $DIR/semantic.rs:23:31
+   |
+LL |       fn cardinality() -> usize {
+   |  _______________________________^
+LL | |         3
+LL | |     }
+   | |_____^
+   |
+   = note: the literal total duplicates the enum definition and can become stale
+   = help: derive `strum::EnumCount`, import its trait, and use `Type::COUNT`
+
+warning: 3 warnings emitted
 

@@ -4,9 +4,27 @@ warning: `Pending` has divergent Strum name contracts
 LL |     Pending,
    |     ^^^^^^^
    |
-   = note: `VariantNames` advertises one preferred name while `EnumString` accepts additional aliases
+   = note: `VariantNames` advertises a finite preferred vocabulary while `EnumString` accepts additional spellings
    = help: separate canonical names from parser aliases in the surrounding API
    = note: `#[warn(strum_divergent_variant_name_contracts)]` on by default
 
-warning: 1 warning emitted
+warning: `Unknown` has divergent Strum name contracts
+  --> $DIR/semantic.rs:14:5
+   |
+LL |     Unknown(String),
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `VariantNames` advertises a finite preferred vocabulary while `EnumString` accepts additional spellings
+   = help: separate canonical names from parser aliases in the surrounding API
+
+warning: `Ready` has divergent Strum name contracts
+  --> $DIR/semantic.rs:20:5
+   |
+LL |     Ready,
+   |     ^^^^^
+   |
+   = note: `VariantNames` advertises a finite preferred vocabulary while `EnumString` accepts additional spellings
+   = help: separate canonical names from parser aliases in the surrounding API
+
+warning: 3 warnings emitted
 
