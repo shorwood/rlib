@@ -2,7 +2,9 @@
 
 ## What it does
 
-Finds `Resource` fetchers that ignore their source argument and reread the same reactive value.
+Finds `Resource` fetchers that reread a reactive value already tracked by their source closure,
+whether or not they also use the supplied source argument. This covers the standard, arc,
+blocking, codec-specific, and options-based constructors.
 
 ## Why is this bad?
 

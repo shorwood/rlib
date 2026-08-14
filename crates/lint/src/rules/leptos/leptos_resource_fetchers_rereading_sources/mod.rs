@@ -7,9 +7,9 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::def::Res;
 use rustc_hir::intravisit::{self, Visitor};
-use rustc_hir::{BodyId, Expr, ExprKind, HirId, Pat, PatKind};
+use rustc_hir::{BodyId, Expr, ExprKind, HirId};
 use rustc_lint::{LateContext, LateLintPass};
-use rustc_span::Span;
+use rustc_span::{Span, Symbol};
 
 use crate::utils::diagnostic::LateViolation;
 
@@ -55,19 +55,28 @@ impl LateViolation for Violation {
     }
 }
 
-/// Selects whether closure parameters participate in reactive-read analysis.
+/// Selects the reactive read families relevant to one resource closure.
 #[derive(Clone, Copy)]
-enum ReactiveParameterCollection {
-    /// Ignore closure parameters when analyzing the source closure.
-    Ignore,
-    /// Collect closure parameters when analyzing the fetcher closure.
-    Collect,
+enum ReactiveReadCollection {
+    /// Only tracked reads establish resource source dependencies.
+    TrackedSource,
+    /// Any current-value read in the fetcher can bypass its supplied input.
+    Fetcher,
+}
+
+/// Local signal place, including named field projections.
+#[derive(Clone, PartialEq, Eq)]
+struct SignalPlace {
+    /// Root local binding.
+    root: HirId,
+    /// Field path below the root.
+    fields: Vec<Symbol>,
 }
 
 /// One reactive binding read and its authored expression span.
 struct ReactiveRead {
-    /// Binding read by the expression.
-    binding: HirId,
+    /// Signal place read by the expression.
+    place: SignalPlace,
     /// Authored read expression span.
     span: Span,
 }
@@ -78,10 +87,8 @@ struct ReactiveReads<'analysis, 'tcx> {
     cx: &'analysis LateContext<'tcx>,
     /// Reactive getters called from the fetcher closure.
     reads: Vec<ReactiveRead>,
-    /// Values already supplied by the resource source closure.
-    parameter_bindings: Vec<HirId>,
-    /// Source parameters actually consumed by the fetcher.
-    used_parameters: Vec<HirId>,
+    /// Read families accepted for this closure.
+    collection: ReactiveReadCollection,
     /// Nesting depth used to avoid attributing reads from nested closures.
     body_depth: u8,
 }
@@ -91,24 +98,20 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
     const MAXIMUM_RESOURCE_BODY_DEPTH: u8 = 2;
 
     /// Starts reactive-read collection for one resource fetcher body.
-    const fn new(cx: &'analysis LateContext<'tcx>) -> Self {
+    const fn new(cx: &'analysis LateContext<'tcx>, collection: ReactiveReadCollection) -> Self {
         Self {
             cx,
             reads: Vec::new(),
-            parameter_bindings: Vec::new(),
-            used_parameters: Vec::new(),
+            collection,
             body_depth: 0,
         }
     }
 
-    /// Recognizes a signal getter and resolves its receiver binding.
-    fn is_reactive_get(&self, expression: &Expr<'_>) -> bool {
+    /// Recognizes a reactive current-value read relevant to this closure.
+    fn is_reactive_read(&self, expression: &Expr<'_>) -> bool {
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return false;
         };
-        if !arguments.is_empty() {
-            return false;
-        }
         let owner = self.cx.tcx.hir_enclosing_body_owner(expression.hir_id);
 
         let Some(method) = self
@@ -120,20 +123,29 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
             return false;
         };
 
-        self.cx.tcx.crate_name(method.krate).as_str() == "reactive_graph"
-            && self.cx.tcx.item_name(method).as_str() == "get"
-            && self
-                .cx
-                .tcx
-                .trait_of_assoc(method)
-                .is_some_and(|trait_id| self.cx.tcx.item_name(trait_id).as_str() == "Get")
-    }
-
-    /// Returns whether the fetcher deliberately ignores its source argument.
-    fn ignored_source(&self) -> bool {
-        self.parameter_bindings
-            .iter()
-            .all(|binding| !self.used_parameters.contains(binding))
+        if self.cx.tcx.crate_name(method.krate).as_str() != "reactive_graph" {
+            return false;
+        }
+        let Some(trait_id) = self.cx.tcx.trait_of_assoc(method) else {
+            return false;
+        };
+        let trait_name = self.cx.tcx.item_name(trait_id);
+        let method_name = self.cx.tcx.item_name(method);
+        let identity = (trait_name.as_str(), method_name.as_str(), arguments.len());
+        let tracked = matches!(
+            identity,
+            ("Get", "get" | "try_get", 0)
+                | ("Read", "read" | "try_read", 0)
+                | ("With", "with" | "try_with", 1)
+        );
+        tracked
+            || matches!(self.collection, ReactiveReadCollection::Fetcher)
+                && matches!(
+                    identity,
+                    ("GetUntracked", "get_untracked" | "try_get_untracked", 0)
+                        | ("ReadUntracked", "read_untracked" | "try_read_untracked", 0)
+                        | ("WithUntracked", "with_untracked" | "try_with_untracked", 1)
+                )
     }
 }
 
@@ -148,41 +160,18 @@ impl<'tcx> Visitor<'tcx> for ReactiveReads<'_, 'tcx> {
     }
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if let ExprKind::Path(path) = expression.kind
-            && let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id)
-            && self.parameter_bindings.contains(&binding)
-            && !self.used_parameters.contains(&binding)
-        {
-            self.used_parameters.push(binding);
-        }
-
-        if self.is_reactive_get(expression)
+        if self.is_reactive_read(expression)
             && let ExprKind::MethodCall(_, receiver, _, _) = expression.kind
-            && let ExprKind::Path(path) = receiver.kind
-            && let Res::Local(binding) = self.cx.qpath_res(&path, receiver.hir_id)
-            && !self.reads.iter().any(|read| read.binding == binding)
+            && let Some(place) =
+                LeptosResourceFetchersRereadingSources::signal_place(self.cx, receiver)
+            && !self.reads.iter().any(|read| read.place == place)
         {
             self.reads.push(ReactiveRead {
-                binding,
+                place,
                 span: expression.span,
             });
         }
         intravisit::walk_expr(self, expression);
-    }
-}
-
-/// Bindings introduced by the resource fetcher's source parameter pattern.
-struct ParameterBindings<'bindings> {
-    /// HIR identities of every binding introduced by the pattern.
-    bindings: &'bindings mut Vec<HirId>,
-}
-
-impl<'tcx> Visitor<'tcx> for ParameterBindings<'_> {
-    fn visit_pat(&mut self, pattern: &'tcx Pat<'tcx>) {
-        if let PatKind::Binding(_, binding, _, _) = pattern.kind {
-            self.bindings.push(binding);
-        }
-        intravisit::walk_pat(self, pattern);
     }
 }
 
@@ -218,7 +207,7 @@ impl LeptosResourceFetchersRereadingSources {
         let ExprKind::Call(callee, arguments) = expression.kind else {
             return None;
         };
-        let [source, fetcher] = arguments else {
+        let [source, fetcher, ..] = arguments else {
             return None;
         };
 
@@ -230,7 +219,7 @@ impl LeptosResourceFetchersRereadingSources {
         };
 
         if cx.tcx.crate_name(method.krate).as_str() != "leptos_server"
-            || cx.tcx.item_name(method).as_str() != "new"
+            || !cx.tcx.item_name(method).as_str().starts_with("new")
         {
             return None;
         }
@@ -249,25 +238,39 @@ impl LeptosResourceFetchersRereadingSources {
         .then_some(ResourceClosures { source, fetcher })
     }
 
+    /// Resolves a local path and its named field projections.
+    fn signal_place(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<SignalPlace> {
+        match expression.kind {
+            ExprKind::Path(path) => {
+                let Res::Local(root) = cx.qpath_res(&path, expression.hir_id) else {
+                    return None;
+                };
+                Some(SignalPlace {
+                    root,
+                    fields: Vec::new(),
+                })
+            }
+            ExprKind::Field(base, field) => {
+                let mut place = Self::signal_place(cx, base)?;
+                place.fields.push(field.name);
+                Some(place)
+            }
+            ExprKind::AddrOf(_, _, inner) => Self::signal_place(cx, inner),
+            _ => None,
+        }
+    }
+
     /// Compares tracked source bindings with reactive reads in the fetcher.
     fn analyze<'analysis, 'tcx>(
         cx: &'analysis LateContext<'tcx>,
         closure: &'tcx Expr<'tcx>,
-        parameter_collection: ReactiveParameterCollection,
+        collection: ReactiveReadCollection,
     ) -> Option<ReactiveReads<'analysis, 'tcx>> {
         let ExprKind::Closure(closure) = closure.kind else {
             return None;
         };
         let body = cx.tcx.hir_body(closure.body);
-        let mut analysis = ReactiveReads::new(cx);
-        if matches!(parameter_collection, ReactiveParameterCollection::Collect) {
-            let mut collector = ParameterBindings {
-                bindings: &mut analysis.parameter_bindings,
-            };
-            for parameter in body.params {
-                collector.visit_pat(parameter.pat);
-            }
-        }
+        let mut analysis = ReactiveReads::new(cx, collection);
         analysis.visit_expr(body.value);
         Some(analysis)
     }
@@ -278,22 +281,19 @@ impl<'tcx> LateLintPass<'tcx> for LeptosResourceFetchersRereadingSources {
         let Some(ResourceClosures { source, fetcher }) = Self::closures(cx, expression) else {
             return;
         };
-        let Some(source) = Self::analyze(cx, source, ReactiveParameterCollection::Ignore) else {
+        let Some(source) = Self::analyze(cx, source, ReactiveReadCollection::TrackedSource) else {
             return;
         };
 
-        let Some(fetcher) = Self::analyze(cx, fetcher, ReactiveParameterCollection::Collect) else {
+        let Some(fetcher) = Self::analyze(cx, fetcher, ReactiveReadCollection::Fetcher) else {
             return;
         };
-        if !fetcher.ignored_source() {
-            return;
-        }
 
         let Some(read) = fetcher.reads.iter().find(|read| {
             source
                 .reads
                 .iter()
-                .any(|source_read| source_read.binding == read.binding)
+                .any(|source_read| source_read.place == read.place)
         }) else {
             return;
         };

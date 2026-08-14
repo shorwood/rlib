@@ -2,8 +2,9 @@
 
 ## What it does
 
-Checks for a reactive collection read with `get()`, mapped into views, and finished with
-`collect_view()`. Static iterators and already owned resource results are accepted.
+Checks for a tracked reactive collection read, transformed into views by a standard iterator
+mapping adapter, and finished with `collect_view()`. Static and explicitly untracked reads are
+accepted.
 
 ## Why is this bad?
 

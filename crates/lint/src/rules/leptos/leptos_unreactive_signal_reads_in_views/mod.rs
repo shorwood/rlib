@@ -97,7 +97,9 @@ impl LeptosUnreactiveSignalReadsInViews {
                 cx.tcx.item_name(trait_id).as_str(),
                 cx.tcx.item_name(method).as_str()
             ),
-            ("Get", "get") | ("Read", "read") | ("With", "with")
+            ("Get", "get" | "try_get")
+                | ("Read", "read" | "try_read")
+                | ("With", "with" | "try_with")
         )
     }
 
@@ -122,10 +124,7 @@ impl LeptosUnreactiveSignalReadsInViews {
                     .sess()
                     .source_map()
                     .span_to_snippet(parent.span)
-                    .is_ok_and(|source| {
-                        let source = source.trim_start();
-                        source.starts_with('|') || source.starts_with("move |")
-                    })
+                    .is_ok_and(|source| syn::parse_str::<syn::ExprClosure>(&source).is_ok())
             {
                 return false;
             }

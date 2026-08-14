@@ -4,6 +4,8 @@
 
 Finds Leptos server functions whose configured sensitive calls are not preceded by configured
 authorization evidence or covered by an explicit endpoint marker.
+Calls are identified from parsed Rust expressions, so names and braces in comments or literals do
+not affect the policy analysis.
 
 ## Why is this bad?
 

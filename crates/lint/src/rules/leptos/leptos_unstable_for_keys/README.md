@@ -2,7 +2,8 @@
 
 ## What it does
 
-Checks for `<For>` keys that are constant or use an iteration index as item identity.
+Checks parsed `<For>` keys that do not derive from the row or that return the position of an
+enumerated collection. Identifier spelling and whitespace do not determine the result.
 
 ## Why is this bad?
 

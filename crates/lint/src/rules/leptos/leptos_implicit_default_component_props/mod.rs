@@ -10,6 +10,9 @@ use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol};
+use syn::parse::Parser;
+use syn::punctuated::Punctuated;
+use syn::{FnArg, Meta, Token};
 
 use super::utils::component_props::{ComponentProp, ComponentProps};
 use crate::utils::diagnostic::LateViolation;
@@ -91,37 +94,46 @@ impl LeptosImplicitDefaultComponentProps {
     /// Recovers whether the authored property uses Leptos's implicit optional marker.
     fn is_implicitly_optional(cx: &LateContext<'_>, property: &ComponentProp<'_>) -> bool {
         let prefix = property.owner_span.with_hi(property.span.lo());
-        let Ok(source) = cx.sess().source_map().span_to_snippet(prefix) else {
+        let Ok(mut source) = cx.sess().source_map().span_to_snippet(prefix) else {
             return false;
         };
-        Self::last_parameter_attribute(source.as_str())
-            .is_some_and(Self::is_optional_prop_attribute)
-    }
-
-    /// Returns the outer attribute directly preceding a property binding.
-    fn last_parameter_attribute(source: &str) -> Option<&str> {
-        let source = source.trim_end();
-        let close = source.ends_with(']').then_some(source.len() - 1)?;
-        let open = source[..close].rfind("#[")?;
-        Some(&source[open + 2..close])
+        // Complete the partial signature with a probe parameter so syn can associate every
+        // preceding outer attribute with this exact property, regardless of attribute order.
+        source.push_str("__rlib_prop_probe: ()) {}");
+        let Ok(function) = syn::parse_str::<syn::ItemFn>(&source) else {
+            return false;
+        };
+        let Some(FnArg::Typed(parameter)) = function.sig.inputs.last() else {
+            return false;
+        };
+        parameter
+            .attrs
+            .iter()
+            .any(|attribute| Self::is_optional_prop_meta(&attribute.meta))
     }
 
     /// Recognizes `prop` attributes whose argument list contains the `optional` option.
-    fn is_optional_prop_attribute(attribute: &str) -> bool {
-        // Normalize formatting before extracting the attribute's top-level arguments.
-        let compact: String = attribute
-            .chars()
-            .filter(|character| !character.is_whitespace())
-            .collect();
-
-        // Isolate a `prop` argument list before checking its individual options.
-        let Some(arguments) = compact
-            .strip_prefix("prop(")
-            .and_then(|attribute| attribute.strip_suffix(')'))
-        else {
+    fn is_optional_prop_meta(attribute: &Meta) -> bool {
+        let Meta::List(attribute) = attribute else {
             return false;
         };
-        arguments.split(',').any(|argument| argument == "optional")
+        if !attribute.path.is_ident("prop") {
+            return false;
+        }
+        Punctuated::<Meta, Token![,]>::parse_terminated
+            .parse2(attribute.tokens.clone())
+            .is_ok_and(|options| {
+                options
+                    .iter()
+                    .any(|option| option.path().is_ident("optional"))
+            })
+    }
+
+    /// Parses one attribute body for focused syntax tests.
+    #[cfg(test)]
+    fn is_optional_prop_attribute(attribute: &str) -> bool {
+        syn::parse_str::<Meta>(attribute)
+            .is_ok_and(|attribute| Self::is_optional_prop_meta(&attribute))
     }
 }
 

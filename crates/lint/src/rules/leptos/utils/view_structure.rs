@@ -763,7 +763,12 @@ fn body_range(expression: &ExprMacro) -> Range<usize> {
 
 /// Gives control-flow components their higher direct-navigation weight.
 fn is_control_component(name: &str) -> bool {
-    matches!(name, "For" | "Show" | "Suspense" | "ErrorBoundary")
+    let terminal = name
+        .rsplit([':', '/'])
+        .find(|segment| !segment.trim().is_empty())
+        .map(str::trim)
+        .unwrap_or(name);
+    matches!(terminal, "For" | "Show" | "Suspense" | "ErrorBoundary")
 }
 
 /// Returns whether an opening tag contains an authored Leptos event binding.

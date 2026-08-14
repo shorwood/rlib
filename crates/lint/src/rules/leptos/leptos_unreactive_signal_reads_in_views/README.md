@@ -2,7 +2,8 @@
 
 ## What it does
 
-Checks for tracked signal reads evaluated directly while a Leptos view is first constructed.
+Checks for tracked signal reads evaluated directly while a Leptos view is first constructed,
+including fallible clone, guard, and closure-based reads.
 
 ## Why is this bad?
 

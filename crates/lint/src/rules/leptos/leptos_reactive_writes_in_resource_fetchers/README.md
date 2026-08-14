@@ -3,6 +3,7 @@
 ## What it does
 
 Checks for signal writes performed inside the asynchronous function that loads a Leptos resource.
+This covers local, arc, blocking, codec-specific, and options-based resource constructors.
 
 ## Why is this bad?
 

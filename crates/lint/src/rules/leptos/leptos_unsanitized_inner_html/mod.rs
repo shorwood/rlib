@@ -109,8 +109,40 @@ impl LeptosUnsanitizedInnerHtml {
     }
 
     /// Accepts static authored markup whose complete content is visible at the call site.
-    const fn is_string_literal(expression: &Expr<'_>) -> bool {
-        matches!(expression.kind, ExprKind::Lit(literal) if matches!(literal.node, LitKind::Str(..)))
+    fn is_static_markup(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        if matches!(expression.kind, ExprKind::Lit(literal) if matches!(literal.node, LitKind::Str(..)))
+        {
+            return true;
+        }
+
+        let ExprKind::MethodCall(_, input, [], _) = expression.kind else {
+            return false;
+        };
+        if !Self::is_static_markup(cx, input) {
+            return false;
+        }
+        let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+        let Some(method) = cx
+            .tcx
+            .typeck(owner)
+            .type_dependent_def_id(expression.hir_id)
+        else {
+            return false;
+        };
+        if let Some(trait_id) = cx.tcx.trait_of_assoc(method)
+            && matches!(
+                (
+                    cx.tcx.crate_name(trait_id.krate).as_str(),
+                    cx.tcx.item_name(trait_id).as_str(),
+                    cx.tcx.item_name(method).as_str(),
+                ),
+                ("alloc", "ToOwned", "to_owned") | ("alloc", "ToString", "to_string")
+            )
+        {
+            return true;
+        }
+
+        false
     }
 
     /// Peels the dynamic attribute conversion inserted by `view!`.
@@ -135,6 +167,23 @@ impl LeptosUnsanitizedInnerHtml {
 
         if is_conversion { value } else { expression }
     }
+
+    /// Follows transparent macro conversions and the output of a reactive attribute closure.
+    fn authored_output<'tcx>(
+        cx: &LateContext<'tcx>,
+        expression: &'tcx Expr<'tcx>,
+    ) -> &'tcx Expr<'tcx> {
+        let expression = Self::authored_value(cx, expression);
+        match expression.kind {
+            ExprKind::Closure(closure) => {
+                Self::authored_output(cx, cx.tcx.hir_body(closure.body).value)
+            }
+            ExprKind::Block(block, _) => block
+                .expr
+                .map_or(expression, |tail| Self::authored_output(cx, tail)),
+            _ => expression,
+        }
+    }
 }
 
 impl<'tcx> LateLintPass<'tcx> for LeptosUnsanitizedInnerHtml {
@@ -145,11 +194,11 @@ impl<'tcx> LateLintPass<'tcx> for LeptosUnsanitizedInnerHtml {
         let [value] = arguments else {
             return;
         };
-        let value = Self::authored_value(cx, value);
+        let value = Self::authored_output(cx, value);
 
-        let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+        let owner = cx.tcx.hir_enclosing_body_owner(value.hir_id);
         if !Self::is_inner_html(cx, expression)
-            || Self::is_string_literal(value)
+            || Self::is_static_markup(cx, value)
             || !Self::is_raw_text(cx, cx.tcx.typeck(owner).expr_ty(value))
         {
             return;

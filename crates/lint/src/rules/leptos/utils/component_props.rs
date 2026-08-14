@@ -70,7 +70,7 @@ impl ComponentProps {
             .to_owned();
 
         // Resolve the authored function body and align generated fields with its parameters.
-        let owner = Self::component_owner(cx, component_name.as_str())?;
+        let owner = Self::component_owner(cx, definition.did(), component_name.as_str())?;
         let ItemKind::Fn { body, .. } = owner.kind else {
             return None;
         };
@@ -145,15 +145,25 @@ impl ComponentProps {
     /// Finds the generated body function that retains attributes from the authored component.
     fn component_owner<'tcx>(
         cx: &LateContext<'tcx>,
+        props_definition: DefId,
         component_name: &str,
     ) -> Option<&'tcx Item<'tcx>> {
         let body_name = format!("__component_{}", component_name.to_case(Case::Snake));
+        let module = cx
+            .tcx
+            .parent_module_from_def_id(props_definition.as_local()?)
+            .to_local_def_id();
         cx.tcx.hir_free_items().find_map(|item_id| {
             let item = cx.tcx.hir_item(item_id);
             let ItemKind::Fn { .. } = item.kind else {
                 return None;
             };
-            (item.kind.ident()?.name.as_str() == body_name).then_some(item)
+            (cx.tcx
+                .parent_module_from_def_id(item.owner_id.def_id)
+                .to_local_def_id()
+                == module
+                && item.kind.ident()?.name.as_str() == body_name)
+                .then_some(item)
         })
     }
 

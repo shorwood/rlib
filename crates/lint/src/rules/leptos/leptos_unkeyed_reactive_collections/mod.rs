@@ -102,25 +102,53 @@ impl LeptosUnkeyedReactiveCollections {
             })
     }
 
-    /// Returns whether the rendering chain originates in a tracked signal clone.
-    fn chain_contains_reactive_get(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+    /// Returns whether an iterator adapter can transform collection items into child views.
+    fn is_view_mapping_adapter(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        ["map", "filter_map", "flat_map", "map_while", "scan"]
+            .into_iter()
+            .any(|method| {
+                Self::method_belongs_to(
+                    cx,
+                    expression,
+                    TraitMethodIdentity {
+                        defining_crate: "core",
+                        method,
+                        owning_trait: "Iterator",
+                    },
+                )
+            })
+    }
+
+    /// Returns whether the rendering chain originates in a tracked signal read.
+    fn chain_contains_reactive_read(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
         let ExprKind::MethodCall(_, receiver, arguments, _) = expression.kind else {
             return false;
         };
-        if arguments.is_empty()
-            && Self::method_belongs_to(
-                cx,
-                expression,
-                TraitMethodIdentity {
-                    defining_crate: "reactive_graph",
-                    method: "get",
-                    owning_trait: "Get",
-                },
-            )
-        {
+        let tracked_read = [
+            ("Get", "get", 0),
+            ("Get", "try_get", 0),
+            ("Read", "read", 0),
+            ("Read", "try_read", 0),
+            ("With", "with", 1),
+            ("With", "try_with", 1),
+        ]
+        .into_iter()
+        .any(|(owning_trait, method, argument_count)| {
+            arguments.len() == argument_count
+                && Self::method_belongs_to(
+                    cx,
+                    expression,
+                    TraitMethodIdentity {
+                        defining_crate: "reactive_graph",
+                        method,
+                        owning_trait,
+                    },
+                )
+        });
+        if tracked_read {
             return true;
         }
-        Self::chain_contains_reactive_get(cx, receiver)
+        Self::chain_contains_reactive_read(cx, receiver)
     }
 }
 
@@ -142,11 +170,13 @@ impl<'tcx> LateLintPass<'tcx> for LeptosUnkeyedReactiveCollections {
         {
             return;
         }
-        let ExprKind::MethodCall(map, collection, [_], _) = receiver.kind else {
+        let ExprKind::MethodCall(_, collection, [_], _) = receiver.kind else {
             return;
         };
 
-        if map.ident.name.as_str() != "map" || !Self::chain_contains_reactive_get(cx, collection) {
+        if !Self::is_view_mapping_adapter(cx, receiver)
+            || !Self::chain_contains_reactive_read(cx, collection)
+        {
             return;
         }
 

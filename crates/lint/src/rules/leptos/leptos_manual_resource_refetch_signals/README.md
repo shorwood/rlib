@@ -2,9 +2,9 @@
 
 ## What it does
 
-Checks for a signal value that is read and immediately discarded inside a `LocalResource`
-fetcher. This pattern is commonly used as a counter or toggle whose only purpose is forcing the
-resource to run again.
+Checks for a signal value that is read and immediately discarded inside a `LocalResource` or
+`ArcLocalResource` fetcher. This pattern is commonly used as a counter or toggle whose only
+purpose is forcing the resource to run again.
 
 ## Why is this bad?
 

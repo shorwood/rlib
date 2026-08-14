@@ -3,7 +3,9 @@
 ## What it does
 
 Checks for runtime `String` and `&str` values passed directly to Leptos's `inner_html` attribute.
-String literals are accepted because their complete markup is visible at the call site.
+Reactive attribute closures are inspected at their returned value. String literals and resolved
+standard conversions of those literals are accepted because their complete markup is visible at
+the call site.
 
 ## Why is this bad?
 

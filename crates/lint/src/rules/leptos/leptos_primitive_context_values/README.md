@@ -5,6 +5,9 @@
 Finds primitive, generic-container, callback, and unbranded reactive values used as Leptos context
 identities.
 
+This includes providing, using, expecting, taking, borrowing, updating, and bidirectionally
+searching for context values.
+
 ## Why is this bad?
 
 Leptos resolves context by concrete type. Broad types can collide with unrelated providers and make

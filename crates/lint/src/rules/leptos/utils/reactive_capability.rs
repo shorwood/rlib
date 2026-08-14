@@ -17,27 +17,29 @@ use rustc_trait_selection::traits;
 pub struct ReactiveCapability;
 
 impl ReactiveCapability {
-    /// Returns whether `ty`, optionally through `Option`, is proven to implement `Write`.
-    pub fn carries_write<'tcx>(cx: &LateContext<'tcx>, owner: LocalDefId, ty: Ty<'tcx>) -> bool {
+    /// Returns whether `ty`, optionally through `Option`, exposes reactive mutation authority.
+    pub fn carries_mutation<'tcx>(cx: &LateContext<'tcx>, owner: LocalDefId, ty: Ty<'tcx>) -> bool {
         // Preserve absence as transparent while excluding arbitrary capability containers.
         if let Some(inner) = Self::option_inner(cx, ty) {
-            return Self::carries_write(cx, owner, inner);
+            return Self::carries_mutation(cx, owner, inner);
         }
-        let Some(write_trait) = Self::write_trait(cx) else {
-            return false;
-        };
 
         // Ask the trait solver under the component's own generic typing environment.
         let typing_env = TypingEnv::post_analysis(cx.tcx, owner);
         let (infcx, param_env) = cx.tcx.infer_ctxt().build_with_typing_env(typing_env);
-        traits::type_known_to_meet_bound_modulo_regions(&infcx, param_env, ty, write_trait)
+        Self::mutation_traits(cx).any(|trait_id| {
+            traits::type_known_to_meet_bound_modulo_regions(&infcx, param_env, ty, trait_id)
+        })
     }
 
-    /// Resolves the reactive graph's mutation trait by semantic crate and item identity.
-    fn write_trait(cx: &LateContext<'_>) -> Option<DefId> {
-        cx.tcx.all_traits_including_private().find(|trait_id| {
+    /// Resolves the reactive graph's mutation traits by semantic crate and item identity.
+    fn mutation_traits<'cx>(cx: &'cx LateContext<'_>) -> impl Iterator<Item = DefId> + 'cx {
+        cx.tcx.all_traits_including_private().filter(|trait_id| {
             cx.tcx.crate_name(trait_id.krate).as_str() == "reactive_graph"
-                && cx.tcx.item_name(*trait_id).as_str() == "Write"
+                && matches!(
+                    cx.tcx.item_name(*trait_id).as_str(),
+                    "Write" | "Set" | "Update" | "UpdateUntracked"
+                )
         })
     }
 

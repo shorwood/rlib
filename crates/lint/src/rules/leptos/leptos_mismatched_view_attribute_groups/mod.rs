@@ -90,19 +90,26 @@ impl LeptosMismatchedViewAttributeGroups {
     const DECLARED_CATEGORIES: &[DeclaredCategory] = &[
         DeclaredCategory {
             category: ViewAttributeCategory::Accessibility,
-            words: &["accessib", "aria"],
+            words: &["accessibility", "accessible", "aria"],
         },
         DeclaredCategory {
             category: ViewAttributeCategory::Presentation,
-            words: &["present", "visual", "style"],
+            words: &["presentation", "visual", "style", "styling"],
         },
         DeclaredCategory {
             category: ViewAttributeCategory::Behavior,
-            words: &["behavior", "event", "interaction"],
+            words: &[
+                "behavior",
+                "behaviors",
+                "event",
+                "events",
+                "interaction",
+                "interactions",
+            ],
         },
         DeclaredCategory {
             category: ViewAttributeCategory::Identity,
-            words: &["identity", "semantic"],
+            words: &["identity", "semantic", "semantics"],
         },
         DeclaredCategory {
             category: ViewAttributeCategory::State,
@@ -129,6 +136,10 @@ impl LeptosMismatchedViewAttributeGroups {
     /// Maps an authored group heading to the responsibility it declares.
     fn declared_category(heading: &str) -> Option<ViewAttributeCategory> {
         let heading = heading.to_ascii_lowercase();
+        let words = heading
+            .split(|character: char| !character.is_ascii_alphanumeric())
+            .filter(|word| !word.is_empty())
+            .collect::<Vec<_>>();
 
         let matches = Self::DECLARED_CATEGORIES
             .iter()
@@ -136,7 +147,7 @@ impl LeptosMismatchedViewAttributeGroups {
                 declared
                     .words
                     .iter()
-                    .any(|word| heading.contains(word))
+                    .any(|word| words.contains(word))
                     .then_some(declared.category)
             })
             .collect::<Vec<_>>();
@@ -161,6 +172,27 @@ impl LeptosMismatchedViewAttributeGroups {
                     ViewAttributeCategory::State
                 )
             )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{LeptosMismatchedViewAttributeGroups, ViewAttributeCategory};
+
+    #[test]
+    fn category_terms_do_not_match_inside_unrelated_words() {
+        assert_eq!(
+            LeptosMismatchedViewAttributeGroups::declared_category("Submission presentation"),
+            Some(ViewAttributeCategory::Presentation)
+        );
+        assert_eq!(
+            LeptosMismatchedViewAttributeGroups::declared_category("Database connection"),
+            None
+        );
+        assert_eq!(
+            LeptosMismatchedViewAttributeGroups::declared_category("Statement formatting"),
+            None
+        );
     }
 }
 

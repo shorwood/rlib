@@ -2,7 +2,8 @@
 
 ## What it does
 
-Finds compile-time server/browser branches that author different initial `view!` element shapes.
+Finds compile-time server/browser branches that author different initial `view!` node shapes,
+including element nesting and text-node presence.
 
 ## Why is this bad?
 

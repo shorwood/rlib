@@ -2,9 +2,9 @@
 
 ## What it does
 
-Rejects direct and optional component properties proven to implement Leptos's reactive
-`Write` capability. A prop used exclusively by one native `bind:*` is accepted as a
-transparent control boundary.
+Rejects direct and optional component properties proven to implement Leptos's reactive `Write`,
+`Set`, `Update`, or `UpdateUntracked` capabilities. A prop used exclusively by one native `bind:*`
+is accepted as a transparent control boundary.
 
 ## Why is this bad?
 

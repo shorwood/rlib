@@ -123,8 +123,10 @@ impl LeptosMalformedViewSectionComments {
         let content = content
             .trim_end_matches([':', '.', ';', '!', '?', ',', '-'])
             .trim_end();
+        let content = content.split_whitespace().collect::<Vec<_>>().join(" ");
 
-        FunctionLayoutProse::replacement(Some(content), &self.config.view_section_comment_prefix)
+        FunctionLayoutProse::replacement(Some(&content), &self.config.view_section_comment_prefix)
+            .filter(|replacement| replacement != &heading.text)
     }
 
     /// Classifies the first failure for one direct-boundary comment.

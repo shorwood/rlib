@@ -165,11 +165,10 @@ impl LeptosReactiveWritesInResourceFetchers {
         let Res::Def(_, method) = cx.qpath_res(&path, callee.hir_id) else {
             return None;
         };
-        if cx.tcx.crate_name(method.krate).as_str() != "leptos_server"
-            || cx.tcx.item_name(method).as_str() != "new"
-        {
+        if cx.tcx.crate_name(method.krate).as_str() != "leptos_server" {
             return None;
         }
+        let constructor = cx.tcx.item_name(method);
         let implementation = cx.tcx.impl_of_assoc(method)?;
 
         let definition = cx
@@ -178,9 +177,12 @@ impl LeptosReactiveWritesInResourceFetchers {
             .instantiate_identity()
             .ty_adt_def()?;
 
-        match cx.tcx.item_name(definition.did()).as_str() {
-            "Resource" | "ArcResource" => arguments.get(1),
-            "LocalResource" | "ArcLocalResource" => arguments.first(),
+        match (
+            cx.tcx.item_name(definition.did()).as_str(),
+            constructor.as_str(),
+        ) {
+            ("Resource" | "ArcResource", name) if name.starts_with("new") => arguments.get(1),
+            ("LocalResource" | "ArcLocalResource", "new") => arguments.first(),
             _ => None,
         }
     }

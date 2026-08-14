@@ -3,9 +3,10 @@ extern crate rustc_hir;
 extern crate rustc_span;
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{Expr, ExprKind};
+use rustc_hir::Expr;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{BytePos, Span, Symbol};
 
@@ -70,45 +71,44 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that keeps reactive form state on live DOM properties.
-struct LeptosAttributeBoundControlledInputs;
+#[derive(Default)]
+struct LeptosAttributeBoundControlledInputs {
+    /// Authored value ranges already reported through macro-expanded HIR nodes.
+    reported: HashSet<(BytePos, BytePos)>,
+}
 
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_ATTRIBUTE_BOUND_CONTROLLED_INPUTS,
     Warn,
     "rejects writable form state supplied through initial-state HTML attributes",
-    LeptosAttributeBoundControlledInputs
+    LeptosAttributeBoundControlledInputs::default()
 }
 
 impl LeptosAttributeBoundControlledInputs {
     /// Recovers a raw authored state attribute immediately before a reactive value.
     fn raw_state_attribute(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<Symbol> {
-        if !matches!(expression.kind, ExprKind::Path(_)) {
-            return None;
-        }
         let callsite = expression.span.source_callsite();
-        let prefix =
-            Span::with_root_ctxt(BytePos(callsite.lo().0.saturating_sub(128)), callsite.lo());
-
-        let source = match cx.sess().source_map().span_to_snippet(prefix) {
-            Ok(source) => source,
-            Err(_error) => return None,
-        };
-        let source = source.trim_end();
+        let source_file = cx.sess().source_map().lookup_source_file(callsite.lo());
+        let source = source_file.src.as_deref()?;
+        let offset = usize::try_from(callsite.lo().0.checked_sub(source_file.start_pos.0)?).ok()?;
+        let source = source.get(..offset)?.trim_end();
         let tag = source.rsplit_once('<')?.1.split_ascii_whitespace().next()?;
 
         if !matches!(tag, "input" | "select" | "textarea") {
             return None;
         }
 
+        let before_equals = source.strip_suffix('=')?.trim_end();
         for attribute in ["value", "checked"] {
-            let Some(before) = source
-                .strip_suffix('=')
-                .and_then(|value| value.strip_suffix(attribute))
-            else {
+            let Some(before) = before_equals.strip_suffix(attribute) else {
                 continue;
             };
-            if !before.ends_with(':') {
+            if before
+                .chars()
+                .next_back()
+                .is_none_or(|character| character == '<' || character.is_ascii_whitespace())
+            {
                 return Some(Symbol::intern(attribute));
             }
         }
@@ -125,13 +125,18 @@ impl<'tcx> LateLintPass<'tcx> for LeptosAttributeBoundControlledInputs {
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
         let ty = cx.tcx.typeck(owner).expr_ty(expression);
 
-        if !ReactiveCapability::carries_write(cx, owner, ty) {
+        if !ReactiveCapability::carries_mutation(cx, owner, ty) {
+            return;
+        }
+
+        let span = expression.span.source_callsite();
+        if !self.reported.insert((span.lo(), span.hi())) {
             return;
         }
 
         Violation {
             owner: expression.hir_id,
-            span: expression.span.source_callsite(),
+            span,
             attribute,
         }
         .emit(cx);

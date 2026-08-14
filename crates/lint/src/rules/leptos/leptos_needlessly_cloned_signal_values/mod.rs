@@ -8,7 +8,7 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{Expr, ExprKind};
 use rustc_lint::{LateContext, LateLintPass};
-use rustc_middle::ty::TypingEnv;
+use rustc_middle::ty::{self, TypingEnv};
 use rustc_span::{Span, Symbol};
 
 use crate::utils::diagnostic::LateViolation;
@@ -110,18 +110,40 @@ impl LeptosNeedlesslyClonedSignalValues {
             .type_is_copy_modulo_regions(TypingEnv::post_analysis(cx.tcx, owner), ty)
     }
 
-    /// Accepts only operations whose receiver is borrowed for the duration of the call.
-    fn borrowing_operation(name: &str, argument_count: usize) -> bool {
+    /// Recognizes the deliberately narrow family of inspection method names.
+    fn borrowing_operation_name(name: &str, argument_count: usize) -> bool {
         matches!((name, argument_count), ("len" | "is_empty", 0))
+    }
+
+    /// Accepts only resolved operations whose receiver is shared-borrowed for the call.
+    fn is_borrowing_operation(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        let ExprKind::MethodCall(segment, _, arguments, _) = expression.kind else {
+            return false;
+        };
+        if !Self::borrowing_operation_name(segment.ident.name.as_str(), arguments.len()) {
+            return false;
+        }
+        let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+        let Some(method) = cx
+            .tcx
+            .typeck(owner)
+            .type_dependent_def_id(expression.hir_id)
+        else {
+            return false;
+        };
+        let signature = cx.tcx.fn_sig(method).instantiate_identity().skip_binder();
+        signature.inputs().first().is_some_and(|receiver| {
+            matches!(receiver.kind(), ty::Ref(_, _, rustc_hir::Mutability::Not))
+        })
     }
 }
 
 impl<'tcx> LateLintPass<'tcx> for LeptosNeedlesslyClonedSignalValues {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
-        let ExprKind::MethodCall(segment, receiver, arguments, _) = expression.kind else {
+        let ExprKind::MethodCall(segment, receiver, _, _) = expression.kind else {
             return;
         };
-        if !Self::borrowing_operation(segment.ident.name.as_str(), arguments.len())
+        if !Self::is_borrowing_operation(cx, expression)
             || !Self::is_reactive_get(cx, receiver)
             || Self::is_copy(cx, receiver)
         {
@@ -147,15 +169,8 @@ mod tests {
 
     #[test]
     fn recognizes_borrow_only_operations() {
-        assert!(LeptosNeedlesslyClonedSignalValues::borrowing_operation(
-            "len", 0
-        ));
-        assert!(LeptosNeedlesslyClonedSignalValues::borrowing_operation(
-            "is_empty", 0
-        ));
-        assert!(!LeptosNeedlesslyClonedSignalValues::borrowing_operation(
-            "into_iter",
-            0
-        ));
+        assert!(LeptosNeedlesslyClonedSignalValues::borrowing_operation_name("len", 0));
+        assert!(LeptosNeedlesslyClonedSignalValues::borrowing_operation_name("is_empty", 0));
+        assert!(!LeptosNeedlesslyClonedSignalValues::borrowing_operation_name("into_iter", 0));
     }
 }

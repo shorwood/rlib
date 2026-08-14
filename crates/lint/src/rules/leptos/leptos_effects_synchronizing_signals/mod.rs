@@ -144,6 +144,14 @@ impl<'tcx> Visitor<'tcx> for ReactiveOperations<'_, 'tcx> {
 /// Late lint pass that keeps reactive-to-reactive synchronization out of effects.
 struct LeptosEffectsSynchronizingSignals;
 
+/// Closure layout used by one effect constructor.
+enum EffectOperation {
+    /// A single callback both tracks dependencies and performs the effect.
+    Callback,
+    /// Separate dependency and handler callbacks supplied to a watch operation.
+    Watch,
+}
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_EFFECTS_SYNCHRONIZING_SIGNALS,
@@ -153,8 +161,8 @@ dylint_linting::impl_late_lint! {
 }
 
 impl LeptosEffectsSynchronizingSignals {
-    /// Returns the framework effect operation selected by an associated call.
-    fn effect_operation(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<String> {
+    /// Returns the framework effect operation selected by a resolved call.
+    fn effect_operation(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<EffectOperation> {
         let ExprKind::Call(callee, _) = expression.kind else {
             return None;
         };
@@ -165,17 +173,33 @@ impl LeptosEffectsSynchronizingSignals {
         let Res::Def(_, method) = cx.qpath_res(&path, callee.hir_id) else {
             return None;
         };
-        let implementation = cx.tcx.impl_of_assoc(method)?;
+        if cx.tcx.crate_name(method.krate).as_str() != "reactive_graph" {
+            return None;
+        }
 
-        let definition = cx
-            .tcx
-            .type_of(implementation)
-            .instantiate_identity()
-            .ty_adt_def()?;
+        let method_name = cx.tcx.item_name(method);
+        if let Some(implementation) = cx.tcx.impl_of_assoc(method) {
+            let definition = cx
+                .tcx
+                .type_of(implementation)
+                .instantiate_identity()
+                .ty_adt_def()?;
+            if cx.tcx.item_name(definition.did()).as_str() != "Effect" {
+                return None;
+            }
 
-        (cx.tcx.crate_name(method.krate).as_str() == "reactive_graph"
-            && cx.tcx.item_name(definition.did()).as_str() == "Effect")
-            .then(|| cx.tcx.item_name(method).as_str().to_owned())
+            return match method_name.as_str() {
+                "new" | "new_sync" | "new_isomorphic" => Some(EffectOperation::Callback),
+                "watch" | "watch_sync" => Some(EffectOperation::Watch),
+                _ => None,
+            };
+        }
+
+        match method_name.as_str() {
+            "create_effect" => Some(EffectOperation::Callback),
+            "watch" => Some(EffectOperation::Watch),
+            _ => None,
+        }
     }
 
     /// Visits one direct closure argument and returns its reactive operations.
@@ -207,10 +231,9 @@ impl<'tcx> LateLintPass<'tcx> for LeptosEffectsSynchronizingSignals {
 
         let mut read_span = None;
         let mut write_span = None;
-        let closure_count = match operation.as_str() {
-            "new" => 1,
-            "watch" => WATCH_CLOSURE_COUNT,
-            _ => return,
+        let closure_count = match operation {
+            EffectOperation::Callback => 1,
+            EffectOperation::Watch => WATCH_CLOSURE_COUNT,
         };
 
         for argument in arguments.iter().take(closure_count) {

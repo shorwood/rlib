@@ -6,9 +6,10 @@ use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::def::Res;
-use rustc_hir::{Expr, ExprKind, Node, StmtKind};
+use rustc_hir::{Expr, ExprKind, Node, PatKind, StmtKind};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
+use rustc_span::symbol::sym;
 
 use crate::utils::diagnostic::LateViolation;
 
@@ -100,12 +101,44 @@ impl LeptosManualResourceRefetchSignals {
 
     /// Returns whether this expression is a complete semicolon-terminated statement.
     fn is_discarded(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
-        cx.tcx
-            .hir_parent_iter(expression.hir_id)
-            .next()
-            .is_some_and(|(_, node)| {
-                matches!(node, Node::Stmt(statement) if matches!(statement.kind, StmtKind::Semi(value) if value.hir_id == expression.hir_id))
-            })
+        let mut discarded = expression.hir_id;
+        for (_, node) in cx.tcx.hir_parent_iter(expression.hir_id) {
+            match node {
+                Node::Expr(parent) => {
+                    let ExprKind::Call(callee, [argument]) = parent.kind else {
+                        return false;
+                    };
+                    let ExprKind::Path(path) = callee.kind else {
+                        return false;
+                    };
+                    let Res::Def(_, definition) = cx.qpath_res(&path, callee.hir_id) else {
+                        return false;
+                    };
+                    if argument.hir_id != discarded
+                        || !cx.tcx.is_diagnostic_item(sym::mem_drop, definition)
+                    {
+                        return false;
+                    }
+                    discarded = parent.hir_id;
+                }
+                Node::Stmt(statement) => {
+                    return match statement.kind {
+                        StmtKind::Semi(value) => value.hir_id == discarded,
+                        StmtKind::Let(local) => {
+                            matches!(local.pat.kind, PatKind::Wild)
+                                && local.init.is_some_and(|value| value.hir_id == discarded)
+                        }
+                        StmtKind::Expr(_) | StmtKind::Item(_) => false,
+                    };
+                }
+                Node::LetStmt(local) => {
+                    return matches!(local.pat.kind, PatKind::Wild)
+                        && local.init.is_some_and(|value| value.hir_id == discarded);
+                }
+                _ => return false,
+            }
+        }
+        false
     }
 
     /// Returns whether the call resolves to `leptos_server::LocalResource::new`.
@@ -134,7 +167,10 @@ impl LeptosManualResourceRefetchSignals {
         };
         cx.tcx.crate_name(method.krate).as_str() == "leptos_server"
             && cx.tcx.item_name(method).as_str() == "new"
-            && cx.tcx.item_name(definition.did()).as_str() == "LocalResource"
+            && matches!(
+                cx.tcx.item_name(definition.did()).as_str(),
+                "LocalResource" | "ArcLocalResource"
+            )
     }
 
     /// Proves the discarded read belongs directly to the local resource fetcher closure.

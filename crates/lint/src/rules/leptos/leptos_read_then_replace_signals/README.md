@@ -3,7 +3,8 @@
 ## What it does
 
 Checks for a writable signal that reads its current value to calculate the value passed back to
-`set()`.
+`set()` or `try_set()`. Tracked, untracked, fallible, borrowed, and closure-based read operations
+all represent the same read-then-replace pattern.
 
 ## Why is this bad?
 

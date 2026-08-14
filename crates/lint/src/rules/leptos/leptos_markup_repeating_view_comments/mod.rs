@@ -74,24 +74,33 @@ fn heading_repeats_node(content: &str, node: &ViewNode) -> bool {
     let Some(name) = node.name.as_deref() else {
         return false;
     };
-    let node_name = heading_normalize(name);
+    let terminal_name = name
+        .rsplit([':', '/'])
+        .find(|segment| !segment.trim().is_empty())
+        .unwrap_or(name);
+    let node_names = [heading_normalize(name), heading_normalize(terminal_name)];
 
-    if heading == node_name {
+    if node_names.iter().any(|node_name| heading == *node_name) {
         return true;
     }
 
-    if matches!(
-        (heading.as_str(), node_name.as_str()),
-        ("navigation", "nav")
-    ) {
+    if node_names.iter().any(|node_name| {
+        matches!(
+            (heading.as_str(), node_name.as_str()),
+            ("navigation", "nav")
+        )
+    }) {
         return true;
     }
 
-    node_name == "button"
-        && node.literal.as_deref().is_some_and(|literal| {
-            let literal = heading_normalize(literal);
-            heading == format!("{literal} button") || heading == format!("button {literal}")
-        })
+    node.literal.as_deref().is_some_and(|literal| {
+        let literal = heading_normalize(literal);
+        heading == literal
+            || node_names.iter().any(|node_name| {
+                heading == format!("{literal} {node_name}")
+                    || heading == format!("{node_name} {literal}")
+            })
+    })
 }
 
 // -----------------------------------------------------------------------------
@@ -175,6 +184,14 @@ mod tests {
         assert!(heading_repeats_node(
             "Submit button",
             &node("button", Some("Submit"))
+        ));
+        assert!(heading_repeats_node(
+            "Navigation",
+            &node("components::Navigation", None)
+        ));
+        assert!(heading_repeats_node(
+            "Account status",
+            &node("h2", Some("Account status"))
         ));
         assert!(!heading_repeats_node(
             "Account navigation",

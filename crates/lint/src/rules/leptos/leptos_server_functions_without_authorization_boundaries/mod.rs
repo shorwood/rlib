@@ -9,6 +9,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 use serde::Deserialize;
+use syn::visit::{self, Visit};
 
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::EarlyViolation;
@@ -87,21 +88,53 @@ impl LeptosServerAuthorizationConfig {
 // Violation: Sensitive server endpoint without authorization evidence
 // -----------------------------------------------------------------------------
 
-/// Names the source text and call term used by one search.
-#[derive(Clone, Copy)]
-struct CallSearch<'source> {
-    /// Function source being searched.
-    source: &'source str,
-    /// Configured call term to locate.
-    term: &'source str,
+/// One parsed function or method call in authored order.
+struct CallObservation {
+    /// Terminal callable name.
+    name: String,
+    /// Lexical block depth, with the function body at depth one.
+    block_depth: usize,
 }
 
-/// Locates the first configured sensitive operation in a function body.
-struct SensitiveCall {
-    /// Byte offset of the operation.
-    position: usize,
-    /// Configured operation term that matched.
-    operation: String,
+/// Collects actual Rust calls without confusing comments or literals for executable code.
+#[derive(Default)]
+struct CallCollector {
+    /// Current lexical block depth.
+    block_depth: usize,
+    /// Calls in authored traversal order.
+    calls: Vec<CallObservation>,
+}
+
+impl CallCollector {
+    /// Records one terminal callable name.
+    fn record(&mut self, name: impl ToString) {
+        self.calls.push(CallObservation {
+            name: name.to_string(),
+            block_depth: self.block_depth,
+        });
+    }
+}
+
+impl<'ast> Visit<'ast> for CallCollector {
+    fn visit_block(&mut self, block: &'ast syn::Block) {
+        self.block_depth += 1;
+        visit::visit_block(self, block);
+        self.block_depth -= 1;
+    }
+
+    fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
+        if let syn::Expr::Path(path) = &*call.func
+            && let Some(segment) = path.path.segments.last()
+        {
+            self.record(&segment.ident);
+        }
+        visit::visit_expr_call(self, call);
+    }
+
+    fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
+        self.record(&call.method);
+        visit::visit_expr_method_call(self, call);
+    }
 }
 
 /// Sensitive server operation reached before an authorization boundary.
@@ -176,28 +209,6 @@ impl LeptosServerFunctionsWithoutAuthorizationBoundaries {
         })
     }
 
-    /// Locates an observed call within the authored function body.
-    fn call_position(search: CallSearch<'_>) -> Option<usize> {
-        search
-            .source
-            .match_indices(search.term)
-            .find_map(|(position, _)| {
-                search.source[position + search.term.len()..]
-                    .trim_start()
-                    .starts_with('(')
-                    .then_some(position)
-            })
-    }
-
-    /// Computes lexical nesting at a source offset while ignoring quoted braces.
-    fn brace_depth(source: &str) -> usize {
-        source.bytes().fold(0_usize, |depth, byte| match byte {
-            b'{' => depth + 1,
-            b'}' => depth.saturating_sub(1),
-            _ => depth,
-        })
-    }
-
     /// Returns whether an endpoint carries one configured policy attribute.
     fn has_marker(&self, item: &Item) -> bool {
         self.config
@@ -211,32 +222,28 @@ impl LeptosServerFunctionsWithoutAuthorizationBoundaries {
             })
     }
 
-    /// Finds the earliest configured sensitive operation in the endpoint body.
-    fn first_sensitive_call(&self, body: &str) -> Option<SensitiveCall> {
-        self.config
-            .sensitive_call_terms
-            .iter()
-            .filter_map(|term| {
-                Self::call_position(CallSearch { source: body, term })
-                    .map(|position| (position, term))
-            })
-            .min_by_key(|(position, _)| *position)
-            .map(|(position, term)| SensitiveCall {
-                position,
-                operation: term.clone(),
-            })
+    /// Finds the earliest configured sensitive operation among parsed calls.
+    fn first_sensitive_call<'calls>(
+        &self,
+        calls: &'calls [CallObservation],
+    ) -> Option<(usize, &'calls CallObservation)> {
+        calls.iter().enumerate().find(|(_, call)| {
+            self.config
+                .sensitive_call_terms
+                .iter()
+                .any(|term| term == &call.name)
+        })
     }
 
     /// Proves that an authorization call occurs earlier in the same lexical scope.
-    fn authorization_precedes(&self, body: &str, sensitive: usize) -> bool {
-        self.config.authorization_functions.iter().any(|helper| {
-            Self::call_position(CallSearch {
-                source: body,
-                term: helper,
-            })
-            .is_some_and(|position| {
-                position < sensitive && Self::brace_depth(&body[..position]) == 1
-            })
+    fn authorization_precedes(&self, calls: &[CallObservation], sensitive: usize) -> bool {
+        calls[..sensitive].iter().any(|call| {
+            call.block_depth == 1
+                && self
+                    .config
+                    .authorization_functions
+                    .iter()
+                    .any(|helper| helper == &call.name)
         })
     }
 }
@@ -265,25 +272,22 @@ impl EarlyLintPass for LeptosServerFunctionsWithoutAuthorizationBoundaries {
             return;
         }
 
-        let Some(body_start) = source.find('{') else {
+        let Ok(function) = syn::parse_str::<syn::ItemFn>(&source) else {
             return;
         };
-        let body = &source[body_start..];
-        let Some(SensitiveCall {
-            position,
-            operation,
-        }) = self.first_sensitive_call(body)
-        else {
+        let mut collector = CallCollector::default();
+        collector.visit_block(&function.block);
+        let Some((position, sensitive)) = self.first_sensitive_call(&collector.calls) else {
             return;
         };
 
-        if self.authorization_precedes(body, position) {
+        if self.authorization_precedes(&collector.calls, position) {
             return;
         }
 
         Violation {
             span: item.span,
-            operation,
+            operation: sensitive.name.clone(),
         }
         .emit(cx);
     }

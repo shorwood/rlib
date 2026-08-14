@@ -95,7 +95,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosWritableSignalComponentProps {
             let owner_def_id = property.owner.owner.def_id;
 
             // Establish both capability and escape evidence before constructing a diagnostic.
-            if !ReactiveCapability::carries_write(cx, owner_def_id, property.ty)
+            if !ReactiveCapability::carries_mutation(cx, owner_def_id, property.ty)
                 || ViewBindings::exclusively_forwards_to_native_bind(
                     cx,
                     owner_def_id,

@@ -98,7 +98,9 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMissingViewSectionComments {
         };
         for scope in &view.scopes {
             let complexity = scope.complexity();
-            let first_is_named = scope.headings.iter().any(|heading| heading.node == Some(0));
+            let first_is_named = scope.headings.iter().any(|heading| {
+                heading.node == Some(0) && heading.canonical_content(&self.config).is_some()
+            });
             if complexity <= self.config.max_unnamed_view_complexity || first_is_named {
                 continue;
             }
