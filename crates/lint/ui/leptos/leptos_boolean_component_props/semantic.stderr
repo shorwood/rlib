@@ -71,5 +71,14 @@ LL |     nested: Option<Signal<bool>>,
    = note: component props form a declarative UI vocabulary, while true and false leave their domain meaning and future states implicit
    = help: replace the boolean with a domain enum whose variants name the component states
 
-warning: 8 warnings emitted
+warning: boolean component prop `active` hides the state selected by its value
+  --> $DIR/semantic.rs:76:17
+   |
+LL |     fn Repeated(active: bool) -> impl IntoView {
+   |                 ^^^^^^ resolves to boolean-bearing type `bool`
+   |
+   = note: component props form a declarative UI vocabulary, while true and false leave their domain meaning and future states implicit
+   = help: replace the boolean with a domain enum whose variants name the component states
+
+warning: 9 warnings emitted
 

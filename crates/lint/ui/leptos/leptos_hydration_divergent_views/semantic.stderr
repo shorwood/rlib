@@ -8,9 +8,48 @@ LL | |         view! { <ServerPlaceholder/> }.into_any()
 LL | |     }
    | |_____^ this environment branch changes the authored node shape
    |
-   = note: hydration expects the server DOM shape ["ServerPlaceholder"] to match the browser shape ["ClientToolbar"]
+   = note: hydration expects the server DOM shape ["<ServerPlaceholder>", "</ServerPlaceholder>"] to match the browser shape ["<ClientToolbar>", "</ClientToolbar>"]
    = help: render one stable initial element shape and defer browser-only changes until after hydration
    = note: `#[warn(leptos_hydration_divergent_views)]` on by default
 
-warning: 1 warning emitted
+warning: server and browser branches produce different initial view shapes
+  --> $DIR/semantic.rs:25:5
+   |
+LL | /     if cfg!(feature = "hydrate") {
+LL | |         view! { <main><span/></main> }.into_any()
+LL | |     } else {
+LL | |         view! { <main/><span/> }.into_any()
+LL | |     }
+   | |_____^ this environment branch changes the authored node shape
+   |
+   = note: hydration expects the server DOM shape ["<main>", "</main>", "<span>", "</span>"] to match the browser shape ["<main>", "<span>", "</span>", "</main>"]
+   = help: render one stable initial element shape and defer browser-only changes until after hydration
+
+warning: server and browser branches produce different initial view shapes
+  --> $DIR/semantic.rs:34:5
+   |
+LL | /     if cfg!(feature = "ssr") {
+LL | |         view! { <main/> }.into_any()
+LL | |     } else {
+LL | |         view! { <main>"Browser"</main> }.into_any()
+LL | |     }
+   | |_____^ this environment branch changes the authored node shape
+   |
+   = note: hydration expects the server DOM shape ["<main>", "</main>"] to match the browser shape ["<main>", "#text", "</main>"]
+   = help: render one stable initial element shape and defer browser-only changes until after hydration
+
+warning: server and browser branches produce different initial view shapes
+  --> $DIR/semantic.rs:43:5
+   |
+LL | /     if !cfg!(target_arch = "wasm32") {
+LL | |         view! { <ServerPlaceholder/> }.into_any()
+LL | |     } else {
+LL | |         view! { <ClientToolbar/> }.into_any()
+LL | |     }
+   | |_____^ this environment branch changes the authored node shape
+   |
+   = note: hydration expects the server DOM shape ["<ServerPlaceholder>", "</ServerPlaceholder>"] to match the browser shape ["<ClientToolbar>", "</ClientToolbar>"]
+   = help: render one stable initial element shape and defer browser-only changes until after hydration
+
+warning: 4 warnings emitted
 

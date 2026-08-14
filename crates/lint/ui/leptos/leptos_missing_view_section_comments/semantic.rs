@@ -1,5 +1,5 @@
 #![feature(register_tool)]
-#![allow(dead_code, unknown_lints)]
+#![allow(dead_code, leptos_malformed_view_section_comments, unknown_lints)]
 #![register_tool(rlib_lint)]
 
 use leptos::prelude::*;
@@ -18,6 +18,33 @@ fn unnamed_complex_scope() -> impl IntoView {
 
 fn exact_threshold_is_allowed() -> impl IntoView {
     view! { <><header/><nav/><main/><footer/></> }
+}
+
+fn malformed_heading_does_not_name_the_region() -> impl IntoView {
+    view! {
+        <main>
+            // ACCOUNT REGION:
+            <header/>
+            <nav/>
+            <section/>
+            <article/>
+            <footer/>
+        </main>
+    }
+}
+
+fn later_heading_does_not_name_the_first_region() -> impl IntoView {
+    view! {
+        <main>
+            <header/>
+
+            // Remaining content
+            <nav/>
+            <section/>
+            <article/>
+            <footer/>
+        </main>
+    }
 }
 
 fn named_complex_scope() -> impl IntoView {

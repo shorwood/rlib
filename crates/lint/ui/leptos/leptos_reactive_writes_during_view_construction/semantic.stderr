@@ -17,5 +17,35 @@ LL |                 set_count.update(|value| *value += 1);
    = note: view construction may run again when asynchronous or reactive inputs change, so this write can reset newer user state and trigger another render
    = help: initialize the state during component setup, or move the loaded data into a child component whose setup owns that state
 
-warning: 2 warnings emitted
+warning: reactive state is written while constructing a view
+  --> $DIR/semantic.rs:25:25
+   |
+LL |                 let _ = set_count.try_set(4);
+   |                         ^^^^^^^^^^^^^^^^^^^^ this write runs as the suspended view resolves
+   |
+   = note: view construction may run again when asynchronous or reactive inputs change, so this write can reset newer user state and trigger another render
+   = help: initialize the state during component setup, or move the loaded data into a child component whose setup owns that state
+
+warning: reactive state is written while constructing a view
+  --> $DIR/semantic.rs:26:17
+   |
+LL | /                 set_count.maybe_update(|value| {
+LL | |                     *value += 1;
+LL | |                     true
+LL | |                 });
+   | |__________________^ this write runs as the suspended view resolves
+   |
+   = note: view construction may run again when asynchronous or reactive inputs change, so this write can reset newer user state and trigger another render
+   = help: initialize the state during component setup, or move the loaded data into a child component whose setup owns that state
+
+warning: reactive state is written while constructing a view
+  --> $DIR/semantic.rs:30:17
+   |
+LL |                 set_count.update_untracked(|value| *value += 1);
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this write runs as the suspended view resolves
+   |
+   = note: view construction may run again when asynchronous or reactive inputs change, so this write can reset newer user state and trigger another render
+   = help: initialize the state during component setup, or move the loaded data into a child component whose setup owns that state
+
+warning: 5 warnings emitted
 

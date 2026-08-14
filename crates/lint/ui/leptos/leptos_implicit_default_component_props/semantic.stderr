@@ -1,5 +1,5 @@
 warning: component prop `count` has an implicit default
-  --> $DIR/semantic.rs:16:23
+  --> $DIR/semantic.rs:17:23
    |
 LL |     #[prop(optional)] count: usize,
    |                       ^^^^^ omission selects this type's generic default
@@ -9,21 +9,22 @@ LL |     #[prop(optional)] count: usize,
    = note: `#[warn(leptos_implicit_default_component_props)]` on by default
 
 warning: component prop `label` has an implicit default
-  --> $DIR/semantic.rs:17:23
+  --> $DIR/semantic.rs:20:5
    |
-LL |     #[prop(optional)] label: String,
-   |                       ^^^^^ omission selects this type's generic default
+LL |     label: String,
+   |     ^^^^^ omission selects this type's generic default
    |
    = note: a component default is part of its public UI contract, while `optional` silently inherits `Default::default()` from the property type
    = help: replace `#[prop(optional)]` with `#[prop(default = ...)]`, or use `Option<T>` when absence itself is meaningful
 
 warning: component prop `width` has an implicit default
-  --> $DIR/semantic.rs:18:23
+  --> $DIR/semantic.rs:21:29
    |
-LL |     #[prop(optional)] width: DrawerWidth,
-   |                       ^^^^^ omission selects this type's generic default
+LL |     #[prop(into, optional)] width: DrawerWidth,
+   |                             ^^^^^ omission selects this type's generic default
    |
    = note: a component default is part of its public UI contract, while `optional` silently inherits `Default::default()` from the property type
    = help: replace `#[prop(optional)]` with `#[prop(default = ...)]`, or use `Option<T>` when absence itself is meaningful
 
 warning: 3 warnings emitted
+

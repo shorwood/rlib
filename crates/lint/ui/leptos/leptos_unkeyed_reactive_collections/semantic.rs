@@ -40,6 +40,71 @@ fn Static() -> impl IntoView {
     }
 }
 
+#[component]
+fn FallibleFiltered() -> impl IntoView {
+    let (names, _) = signal(vec![String::from("Ada")]);
+    view! {
+        {move || names.try_get()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|name| (!name.is_empty()).then(|| view! { <span>{name}</span> }))
+            .collect_view()}
+    }
+}
+
+#[component]
+fn BorrowedClone() -> impl IntoView {
+    let (names, _) = signal(vec![String::from("Ada")]);
+    view! {
+        {move || names.with(Clone::clone)
+            .into_iter()
+            .map(|name| view! { <span>{name}</span> })
+            .collect_view()}
+    }
+}
+
+#[component]
+fn ExplicitlyUntracked() -> impl IntoView {
+    let (names, _) = signal(vec![String::from("Ada")]);
+    view! {
+        {names.get_untracked()
+            .into_iter()
+            .map(|name| view! { <span>{name}</span> })
+            .collect_view()}
+    }
+}
+
+struct Wrapped<I>(I);
+
+impl<I: Iterator> Wrapped<I> {
+    fn map<B, F>(self, transform: F) -> std::iter::Map<I, F>
+    where
+        F: FnMut(I::Item) -> B,
+    {
+        self.0.map(transform)
+    }
+}
+
+trait WrapIterator: Iterator + Sized {
+    fn wrapped(self) -> Wrapped<Self> {
+        Wrapped(self)
+    }
+}
+
+impl<I: Iterator> WrapIterator for I {}
+
+#[component]
+fn InherentMapIsNotIteratorMap() -> impl IntoView {
+    let (names, _) = signal(vec![String::from("Ada")]);
+    view! {
+        {move || names.get()
+            .into_iter()
+            .wrapped()
+            .map(|name| view! { <span>{name}</span> })
+            .collect_view()}
+    }
+}
+
 #[allow(leptos_unkeyed_reactive_collections)]
 #[component]
 fn Suppressed() -> impl IntoView {

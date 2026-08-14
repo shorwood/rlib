@@ -16,6 +16,14 @@ async fn authorize_account_admin(_: u64) -> Result<(), ServerFnError> {
     Ok(())
 }
 
+struct Accounts;
+
+impl Accounts {
+    async fn delete_account(&self, _: u64) -> Result<(), ServerFnError> {
+        Ok(())
+    }
+}
+
 #[server]
 async fn unguarded(account: u64) -> Result<(), ServerFnError> {
     delete_account(account).await
@@ -32,6 +40,19 @@ async fn conditionally_guarded(account: u64) -> Result<(), ServerFnError> {
     if account == 1 {
         authorize_account_admin(account).await?;
     }
+    delete_account(account).await
+}
+
+#[server]
+async fn unguarded_method(account: u64) -> Result<(), ServerFnError> {
+    Accounts.delete_account(account).await
+}
+
+#[server]
+async fn guarded_after_non_code(account: u64) -> Result<(), ServerFnError> {
+    let _documentation = "{ delete_account( is an example, not a call";
+    // delete_account( in a comment is not a call either.
+    authorize_account_admin(account).await?;
     delete_account(account).await
 }
 

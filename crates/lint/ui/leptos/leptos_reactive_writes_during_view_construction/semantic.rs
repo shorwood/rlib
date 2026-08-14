@@ -22,6 +22,12 @@ fn SuspendedWrite() -> impl IntoView {
             {move || Suspend::new(async move {
                 set_count.set(2);
                 set_count.update(|value| *value += 1);
+                let _ = set_count.try_set(4);
+                set_count.maybe_update(|value| {
+                    *value += 1;
+                    true
+                });
+                set_count.update_untracked(|value| *value += 1);
 
                 view! {
                     <button on:click=move |_| set_count.set(3)>

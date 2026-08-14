@@ -25,5 +25,53 @@ LL | |     });
    = note: a separate read can clone the stored value and lets the replacement depend on an older snapshot
    = help: perform the change with `update(...)` so the mutation stays within one write
 
-warning: 2 warnings emitted
+warning: signal is read and then replaced
+  --> $DIR/semantic.rs:37:13
+   |
+LL |     let _ = count.try_set(count.try_get_untracked().unwrap_or_default() + 1);
+   |             ^^^^^^^^^^^^^^-------------------------^^^^^^^^^^^^^^^^^^^^^^^^^
+   |             |             |
+   |             |             the same signal is read here
+   |             this replacement depends on the current value
+   |
+   = note: a separate read can clone the stored value and lets the replacement depend on an older snapshot
+   = help: perform the change with `update(...)` so the mutation stays within one write
+
+warning: signal is read and then replaced
+  --> $DIR/semantic.rs:42:5
+   |
+LL |     (&count).set(*(&count).read() + 1);
+   |     ^^^^^^^^^^^^^^---------------^^^^^
+   |     |             |
+   |     |             the same signal is read here
+   |     this replacement depends on the current value
+   |
+   = note: a separate read can clone the stored value and lets the replacement depend on an older snapshot
+   = help: perform the change with `update(...)` so the mutation stays within one write
+
+warning: signal is read and then replaced
+  --> $DIR/semantic.rs:55:5
+   |
+LL |     state.count.set(state.count.with(|count| count + 1));
+   |     ^^^^^^^^^^^^^^^^-----------------------------------^
+   |     |               |
+   |     |               the same signal is read here
+   |     this replacement depends on the current value
+   |
+   = note: a separate read can clone the stored value and lets the replacement depend on an older snapshot
+   = help: perform the change with `update(...)` so the mutation stays within one write
+
+warning: signal is read and then replaced
+  --> $DIR/semantic.rs:60:5
+   |
+LL |     count.set((|| count.get() + 1)());
+   |     ^^^^^^^^^^^^^^-----------^^^^^^^^
+   |     |             |
+   |     |             the same signal is read here
+   |     this replacement depends on the current value
+   |
+   = note: a separate read can clone the stored value and lets the replacement depend on an older snapshot
+   = help: perform the change with `update(...)` so the mutation stays within one write
+
+warning: 6 warnings emitted
 

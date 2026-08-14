@@ -32,6 +32,34 @@ fn collection_replacement() {
     });
 }
 
+fn fallible_untracked_replacement() {
+    let count = RwSignal::new(0);
+    let _ = count.try_set(count.try_get_untracked().unwrap_or_default() + 1);
+}
+
+fn borrowed_guard_replacement() {
+    let count = RwSignal::new(0);
+    (&count).set(*(&count).read() + 1);
+}
+
+struct State {
+    count: RwSignal<i32>,
+    other: RwSignal<i32>,
+}
+
+fn projected_signal_replacement() {
+    let state = State {
+        count: RwSignal::new(0),
+        other: RwSignal::new(0),
+    };
+    state.count.set(state.count.with(|count| count + 1));
+}
+
+fn immediately_invoked_read() {
+    let count = RwSignal::new(0);
+    count.set((|| count.get() + 1)());
+}
+
 fn independent_replacement() {
     let count = RwSignal::new(0);
     count.set(42);
@@ -42,10 +70,19 @@ fn bounded_update() {
     count.update(|count| *count += 1);
 }
 
-fn nested_callback_is_independent() {
+fn different_signal_is_independent() {
+    let state = State {
+        count: RwSignal::new(0),
+        other: RwSignal::new(1),
+    };
+    state.count.set(state.other.get());
+}
+
+fn deferred_callback_is_independent() {
     let count = RwSignal::new(0);
     let callback = move || count.get();
-    count.set(callback());
+    count.set(42);
+    let _ = callback;
 }
 
 #[allow(leptos_read_then_replace_signals)]

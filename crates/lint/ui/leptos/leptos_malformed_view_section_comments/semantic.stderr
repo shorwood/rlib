@@ -19,6 +19,14 @@ LL |             // Account content
 warning: this view section comment is not canonical
   --> $DIR/semantic.rs:15:13
    |
+LL |             // Account   preferences
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^ help: render this view heading canonically: `// Account preferences`
+   |
+   = note: consistent headings make view boundaries predictable for readers and related lints
+
+warning: this view section comment is not canonical
+  --> $DIR/semantic.rs:18:13
+   |
 LL |             /* Account actions */
    |             ^^^^^^^^^^^^^^^^^^^^^
    |
@@ -26,7 +34,7 @@ LL |             /* Account actions */
    = help: use concise sentence-style prose immediately before the first owned node
 
 warning: this view section comment must immediately precede its region
-  --> $DIR/semantic.rs:19:13
+  --> $DIR/semantic.rs:22:13
    |
 LL |             // Stranded heading
    |             ^^^^^^^^^^^^^^^^^^^
@@ -34,5 +42,5 @@ LL |             // Stranded heading
    = note: consistent headings make view boundaries predictable for readers and related lints
    = help: use concise sentence-style prose immediately before the first owned node
 
-warning: 4 warnings emitted
+warning: 5 warnings emitted
 

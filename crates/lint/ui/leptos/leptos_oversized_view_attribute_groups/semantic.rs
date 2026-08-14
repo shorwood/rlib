@@ -1,4 +1,4 @@
-#![allow(dead_code, unknown_lints)]
+#![allow(dead_code, leptos_missing_view_section_comments, unknown_lints)]
 
 use leptos::prelude::*;
 
@@ -25,6 +25,23 @@ fn OversizedGroup() -> impl IntoView {
             style:color="gray"
         >
             "Cancel"
+        </button>
+        <button
+            // Interaction handlers
+            on:click=move |_| {}
+            on:focus=move |_| {}
+            on:blur=move |_| {}
+        >
+            "Weighted event complexity"
+        </button>
+        <button
+            // Boundary contract
+            id="boundary"
+            class="secondary"
+            disabled=false
+            aria-label="Boundary"
+        >
+            "Exactly at the boundary"
         </button>
     }
 }

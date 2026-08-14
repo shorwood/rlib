@@ -8,5 +8,14 @@ LL |             on:click=move |_| {}
    = help: move this attribute to a matching group or rename a genuinely shared responsibility
    = note: `#[warn(leptos_mismatched_view_attribute_groups)]` on by default
 
-warning: 1 warning emitted
+warning: attribute `class` contradicts group heading `Accessibility`
+  --> $DIR/semantic.rs:24:13
+   |
+LL |             class="primary"
+   |             ^^^^^^^^^^^^^^^ this attribute has a different responsibility
+   |
+   = note: attribute-group headings must accurately describe the responsibility they own
+   = help: move this attribute to a matching group or rename a genuinely shared responsibility
+
+warning: 2 warnings emitted
 

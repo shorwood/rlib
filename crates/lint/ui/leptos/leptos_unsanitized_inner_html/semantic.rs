@@ -25,8 +25,17 @@ fn DynamicBorrowed(markup: &'static str) -> impl IntoView {
 }
 
 #[component]
+fn DynamicReactive(markup: String) -> impl IntoView {
+    let markup = RwSignal::new(markup);
+    view! { <article inner_html=move || markup.get()/> }
+}
+
+#[component]
 fn StaticMarkup() -> impl IntoView {
-    view! { <article inner_html="<strong>Reviewed</strong>"/> }
+    view! {
+        <article inner_html="<strong>Reviewed</strong>"/>
+        <article inner_html=move || "<small>Reviewed</small>".to_owned()/>
+    }
 }
 
 #[allow(leptos_unsanitized_inner_html)]

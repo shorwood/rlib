@@ -21,6 +21,42 @@ fn Stable() -> impl IntoView {
 }
 
 #[component]
+fn DivergentNesting() -> impl IntoView {
+    if cfg!(feature = "hydrate") {
+        view! { <main><span/></main> }.into_any()
+    } else {
+        view! { <main/><span/> }.into_any()
+    }
+}
+
+#[component]
+fn DivergentTextNodes() -> impl IntoView {
+    if cfg!(feature = "ssr") {
+        view! { <main/> }.into_any()
+    } else {
+        view! { <main>"Browser"</main> }.into_any()
+    }
+}
+
+#[component]
+fn NegatedEnvironment() -> impl IntoView {
+    if !cfg!(target_arch = "wasm32") {
+        view! { <ServerPlaceholder/> }.into_any()
+    } else {
+        view! { <ClientToolbar/> }.into_any()
+    }
+}
+
+#[component]
+fn MarkupInsideAttributesIsNotStructure() -> impl IntoView {
+    if cfg!(feature = "hydrate") {
+        view! { <main data-label="<BrowserOnly/>"/> }.into_any()
+    } else {
+        view! { <main data-label="<ServerOnly/>"/> }.into_any()
+    }
+}
+
+#[component]
 fn ClientToolbar() -> impl IntoView {
     view! { <nav/> }
 }

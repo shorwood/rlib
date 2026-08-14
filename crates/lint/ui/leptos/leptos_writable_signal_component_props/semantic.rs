@@ -9,6 +9,7 @@
 )]
 #![register_tool(rlib_lint)]
 
+use std::marker::PhantomData;
 use std::ops::DerefMut;
 use std::panic::Location;
 
@@ -48,6 +49,18 @@ impl<T: 'static> Write for CustomWriter<T> {
     }
 }
 
+struct CustomSetter<T>(PhantomData<T>);
+
+impl<T> Set for CustomSetter<T> {
+    type Value = T;
+
+    fn set(&self, _: Self::Value) {}
+
+    fn try_set(&self, value: Self::Value) -> Option<Self::Value> {
+        Some(value)
+    }
+}
+
 #[component]
 fn Concrete(
     write: WriteSignal<String>,
@@ -57,6 +70,8 @@ fn Concrete(
     alias: Writer<String>,
     store: Store<String>,
     custom: CustomWriter<String>,
+    setter: SignalSetter<String>,
+    custom_setter: CustomSetter<String>,
     optional: Option<Option<RwSignal<String>>>,
 ) -> impl IntoView {
     view! { <span/> }
@@ -66,6 +81,14 @@ fn Concrete(
 fn Generic<W>(writer: W) -> impl IntoView
 where
     W: Write + Send + Sync + 'static,
+{
+    view! { <span/> }
+}
+
+#[component]
+fn GenericSetter<S>(setter: S) -> impl IntoView
+where
+    S: Set<Value = String> + 'static,
 {
     view! { <span/> }
 }

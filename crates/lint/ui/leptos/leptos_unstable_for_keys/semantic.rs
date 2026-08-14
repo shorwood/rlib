@@ -28,10 +28,35 @@ fn index_key() -> impl IntoView {
     }
 }
 
+fn renamed_index_key() -> impl IntoView {
+    let items = RwSignal::new(Vec::<Item>::new());
+    view! {
+        <For
+            each=move || items.get().into_iter().enumerate()
+            key=|(offset, _)| *offset
+            children=|(_, item)| item.name
+        />
+    }
+}
+
+fn constant_string_key() -> impl IntoView {
+    let items = RwSignal::new(Vec::<Item>::new());
+    view! {
+        <For each=move || items.get() key = |item| { let _ = item.id; "same" } children=|item| item.name/>
+    }
+}
+
 fn stable_key() -> impl IntoView {
     let items = RwSignal::new(Vec::<Item>::new());
     view! {
         <For each=move || items.get() key=|item| item.id children=|item| item.name/>
+    }
+}
+
+fn domain_value_named_index() -> impl IntoView {
+    let items = RwSignal::new(Vec::<Item>::new());
+    view! {
+        <For each=move || items.get() key=|index| index.id children=|item| item.name/>
     }
 }
 

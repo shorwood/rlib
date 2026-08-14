@@ -17,5 +17,14 @@ LL |     view! { <article inner_html=markup/> }
    = note: Leptos does not escape `inner_html`, so an ordinary string carries no evidence that its markup has been audited or sanitized
    = help: introduce a trusted HTML wrapper and confine any lint allowance to the component that unwraps it
 
-warning: 2 warnings emitted
+warning: runtime text is passed directly to `inner_html`
+  --> $DIR/semantic.rs:30:41
+   |
+LL |     view! { <article inner_html=move || markup.get()/> }
+   |                                         ^^^^^^^^^^^^ this value has an ordinary textual type
+   |
+   = note: Leptos does not escape `inner_html`, so an ordinary string carries no evidence that its markup has been audited or sanitized
+   = help: introduce a trusted HTML wrapper and confine any lint allowance to the component that unwraps it
+
+warning: 3 warnings emitted
 

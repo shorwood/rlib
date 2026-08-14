@@ -1,11 +1,11 @@
 warning: effect synchronizes one reactive value into another
-  --> $DIR/semantic.rs:22:9
+  --> $DIR/semantic.rs:23:9
    |
 LL |         target.set(source.get() * 2);
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this effect writes reactive state
    |
 note: the same effect tracks reactive state here
-  --> $DIR/semantic.rs:22:20
+  --> $DIR/semantic.rs:23:20
    |
 LL |         target.set(source.get() * 2);
    |                    ^^^^^^^^^^^^
@@ -14,13 +14,13 @@ LL |         target.set(source.get() * 2);
    = note: `#[warn(leptos_effects_synchronizing_signals)]` on by default
 
 warning: effect synchronizes one reactive value into another
-  --> $DIR/semantic.rs:35:9
+  --> $DIR/semantic.rs:36:9
    |
 LL |         target.set(selected);
    |         ^^^^^^^^^^^^^^^^^^^^ this effect writes reactive state
    |
 note: the same effect tracks reactive state here
-  --> $DIR/semantic.rs:30:24
+  --> $DIR/semantic.rs:31:24
    |
 LL |           let selected = source
    |  ________________________^
@@ -30,18 +30,88 @@ LL | |             .get()
    = help: derive the value with a closure or `Memo`, or update related state together at the originating event
 
 warning: effect synchronizes one reactive value into another
-  --> $DIR/semantic.rs:44:28
+  --> $DIR/semantic.rs:45:28
    |
 LL |         move |value, _, _| target.set(*value),
    |                            ^^^^^^^^^^^^^^^^^^ this effect writes reactive state
    |
 note: the same effect tracks reactive state here
-  --> $DIR/semantic.rs:43:17
+  --> $DIR/semantic.rs:44:17
    |
 LL |         move || source.get(),
    |                 ^^^^^^^^^^^^
    = note: derived state stored by an effect creates a second source of truth, an extra propagation step, and a possible reactive cycle
    = help: derive the value with a closure or `Memo`, or update related state together at the originating event
 
-warning: 3 warnings emitted
+warning: effect synchronizes one reactive value into another
+  --> $DIR/semantic.rs:53:31
+   |
+LL |     Effect::new_sync(move |_| target.set(source.get() * 2));
+   |                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this effect writes reactive state
+   |
+note: the same effect tracks reactive state here
+  --> $DIR/semantic.rs:53:42
+   |
+LL |     Effect::new_sync(move |_| target.set(source.get() * 2));
+   |                                          ^^^^^^^^^^^^
+   = note: derived state stored by an effect creates a second source of truth, an extra propagation step, and a possible reactive cycle
+   = help: derive the value with a closure or `Memo`, or update related state together at the originating event
+
+warning: effect synchronizes one reactive value into another
+  --> $DIR/semantic.rs:59:37
+   |
+LL |     Effect::new_isomorphic(move |_| target.set(source.get() * 2));
+   |                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this effect writes reactive state
+   |
+note: the same effect tracks reactive state here
+  --> $DIR/semantic.rs:59:48
+   |
+LL |     Effect::new_isomorphic(move |_| target.set(source.get() * 2));
+   |                                                ^^^^^^^^^^^^
+   = note: derived state stored by an effect creates a second source of truth, an extra propagation step, and a possible reactive cycle
+   = help: derive the value with a closure or `Memo`, or update related state together at the originating event
+
+warning: effect synchronizes one reactive value into another
+  --> $DIR/semantic.rs:67:28
+   |
+LL |         move |value, _, _| target.set(*value),
+   |                            ^^^^^^^^^^^^^^^^^^ this effect writes reactive state
+   |
+note: the same effect tracks reactive state here
+  --> $DIR/semantic.rs:66:17
+   |
+LL |         move || source.get(),
+   |                 ^^^^^^^^^^^^
+   = note: derived state stored by an effect creates a second source of truth, an extra propagation step, and a possible reactive cycle
+   = help: derive the value with a closure or `Memo`, or update related state together at the originating event
+
+warning: effect synchronizes one reactive value into another
+  --> $DIR/semantic.rs:75:28
+   |
+LL |     create_effect(move |_| target.set(source.get()));
+   |                            ^^^^^^^^^^^^^^^^^^^^^^^^ this effect writes reactive state
+   |
+note: the same effect tracks reactive state here
+  --> $DIR/semantic.rs:75:39
+   |
+LL |     create_effect(move |_| target.set(source.get()));
+   |                                       ^^^^^^^^^^^^
+   = note: derived state stored by an effect creates a second source of truth, an extra propagation step, and a possible reactive cycle
+   = help: derive the value with a closure or `Memo`, or update related state together at the originating event
+
+warning: effect synchronizes one reactive value into another
+  --> $DIR/semantic.rs:81:28
+   |
+LL |         move |value, _, _| target.set(*value),
+   |                            ^^^^^^^^^^^^^^^^^^ this effect writes reactive state
+   |
+note: the same effect tracks reactive state here
+  --> $DIR/semantic.rs:80:17
+   |
+LL |         move || source.get(),
+   |                 ^^^^^^^^^^^^
+   = note: derived state stored by an effect creates a second source of truth, an extra propagation step, and a possible reactive cycle
+   = help: derive the value with a closure or `Memo`, or update related state together at the originating event
+
+warning: 8 warnings emitted
 

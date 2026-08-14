@@ -1,5 +1,5 @@
 warning: this view section heading only repeats its markup
-  --> $DIR/semantic.rs:20:13
+  --> $DIR/semantic.rs:24:13
    |
 LL |             // Navigation
    |             ^^^^^^^^^^^^^ repeats this node
@@ -11,7 +11,7 @@ LL |             <Navigation/>
    = note: `#[warn(leptos_markup_repeating_view_comments)]` on by default
 
 warning: this view section heading only repeats its markup
-  --> $DIR/semantic.rs:23:13
+  --> $DIR/semantic.rs:27:13
    |
 LL |             // Submit button
    |             ^^^^^^^^^^^^^^^^ repeats this node
@@ -22,7 +22,7 @@ LL |             <button>"Submit"</button>
    = help: remove the heading, or name the user-facing responsibility of this region
 
 warning: this view section heading only repeats its markup
-  --> $DIR/semantic.rs:26:13
+  --> $DIR/semantic.rs:30:13
    |
 LL |             // Navigation
    |             ^^^^^^^^^^^^^ repeats this node
@@ -32,5 +32,27 @@ LL |             <nav/>
    = note: a heading should explain the region's role rather than translate its tag
    = help: remove the heading, or name the user-facing responsibility of this region
 
-warning: 3 warnings emitted
+warning: this view section heading only repeats its markup
+  --> $DIR/semantic.rs:33:13
+   |
+LL |             // Navigation
+   |             ^^^^^^^^^^^^^ repeats this node
+LL |             <components::Navigation/>
+   |             ------------------------- the markup already says this
+   |
+   = note: a heading should explain the region's role rather than translate its tag
+   = help: remove the heading, or name the user-facing responsibility of this region
+
+warning: this view section heading only repeats its markup
+  --> $DIR/semantic.rs:36:13
+   |
+LL |             // Account status
+   |             ^^^^^^^^^^^^^^^^^ repeats this node
+LL |             <h2>"Account status"</h2>
+   |             ------------------------- the markup already says this
+   |
+   = note: a heading should explain the region's role rather than translate its tag
+   = help: remove the heading, or name the user-facing responsibility of this region
+
+warning: 5 warnings emitted
 

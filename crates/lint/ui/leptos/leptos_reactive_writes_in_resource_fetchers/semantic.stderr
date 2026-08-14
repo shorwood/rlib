@@ -17,5 +17,23 @@ LL |             selected.set(value);
    = note: resource fetchers do not necessarily execute in every server-rendering, hydration, and client-rendering stage, so this mutation has stage-dependent behavior
    = help: return the loaded state as part of the resource value, or move event-driven mutation to the event that initiated the load
 
-warning: 2 warnings emitted
+warning: resource fetcher writes unrelated reactive state
+  --> $DIR/semantic.rs:44:13
+   |
+LL |             status.update_untracked(|status| *status = true);
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this write depends on the fetcher executing
+   |
+   = note: resource fetchers do not necessarily execute in every server-rendering, hydration, and client-rendering stage, so this mutation has stage-dependent behavior
+   = help: return the loaded state as part of the resource value, or move event-driven mutation to the event that initiated the load
+
+warning: resource fetcher writes unrelated reactive state
+  --> $DIR/semantic.rs:56:17
+   |
+LL |                 status.try_set(true);
+   |                 ^^^^^^^^^^^^^^^^^^^^ this write depends on the fetcher executing
+   |
+   = note: resource fetchers do not necessarily execute in every server-rendering, hydration, and client-rendering stage, so this mutation has stage-dependent behavior
+   = help: return the loaded state as part of the resource value, or move event-driven mutation to the event that initiated the load
+
+warning: 4 warnings emitted
 

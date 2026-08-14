@@ -43,11 +43,13 @@ fn Wrapped(
 #[component]
 fn Valid(
     status: AccountStatus,
+    disabled: bool,
+    invalid: Option<bool>,
     predicate: Callback<u8, bool>,
     event: Callback<bool>,
     custom: CustomState<bool>,
 ) -> impl IntoView {
-    let _ = (status, predicate, event, custom);
+    let _ = (status, disabled, invalid, predicate, event, custom);
     view! { <button disabled=true/> }
 }
 
@@ -55,6 +57,25 @@ fn Valid(
 #[component]
 fn Suppressed(active: bool) -> impl IntoView {
     view! { <span>{active}</span> }
+}
+
+mod first {
+    use super::*;
+
+    #[allow(leptos_boolean_component_props)]
+    #[component]
+    fn Repeated(active: bool) -> impl IntoView {
+        view! { <span>{active}</span> }
+    }
+}
+
+mod second {
+    use super::*;
+
+    #[component]
+    fn Repeated(active: bool) -> impl IntoView {
+        view! { <span>{active}</span> }
+    }
 }
 
 fn main() {}

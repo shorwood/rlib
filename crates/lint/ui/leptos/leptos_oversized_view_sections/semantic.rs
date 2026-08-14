@@ -4,6 +4,10 @@
 
 use leptos::prelude::*;
 
+mod controls {
+    pub(super) use leptos::prelude::Show;
+}
+
 fn oversized_section() -> impl IntoView {
     view! {
         <main>
@@ -24,6 +28,17 @@ fn bounded_sections() -> impl IntoView {
 
             // Account content
             <Show when=move || true><section/></Show>
+        </main>
+    }
+}
+
+fn qualified_control_section() -> impl IntoView {
+    view! {
+        <main>
+            // Qualified account workspace
+            <header on:click=move |_| {}/>
+            <nav/>
+            <controls::Show when=move || true><section/></controls::Show>
         </main>
     }
 }

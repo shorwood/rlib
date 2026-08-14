@@ -13,10 +13,40 @@
 
 use leptos::prelude::*;
 
+#[derive(Clone)]
+struct Consuming(Vec<u8>);
+
+impl Consuming {
+    fn len(self) -> usize {
+        self.0.len()
+    }
+}
+
+#[derive(Clone)]
+struct Mutating(Vec<u8>);
+
+impl Mutating {
+    fn is_empty(&mut self) -> bool {
+        self.0.clear();
+        self.0.is_empty()
+    }
+}
+
+#[derive(Clone)]
+struct Borrowing(Vec<u8>);
+
+impl Borrowing {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
 fn cloned_for_inspection() {
     let (names, _) = signal(vec![String::from("Ada")]);
     let _ = names.get().len();
     let _ = names.get().is_empty();
+    let borrowing = RwSignal::new(Borrowing(vec![1]));
+    let _ = borrowing.get().len();
 }
 
 fn valid_reads() {
@@ -26,6 +56,10 @@ fn valid_reads() {
     let _ = names.get().into_iter().next();
     let _ = names.read().len();
     let _ = names.with(Vec::len);
+    let consuming = RwSignal::new(Consuming(vec![1]));
+    let mutating = RwSignal::new(Mutating(vec![1]));
+    let _ = consuming.get().len();
+    let _ = mutating.get().is_empty();
 }
 
 #[allow(leptos_needlessly_cloned_signal_values)]

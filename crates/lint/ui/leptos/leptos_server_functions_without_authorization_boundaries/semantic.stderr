@@ -1,5 +1,5 @@
 warning: Leptos server endpoint reaches sensitive `delete_account` without an authorization boundary
-  --> $DIR/semantic.rs:20:1
+  --> $DIR/semantic.rs:28:1
    |
 LL | / async fn unguarded(account: u64) -> Result<(), ServerFnError> {
 LL | |     delete_account(account).await
@@ -11,7 +11,7 @@ LL | | }
    = note: `#[warn(leptos_server_functions_without_authorization_boundaries)]` on by default
 
 warning: Leptos server endpoint reaches sensitive `delete_account` without an authorization boundary
-  --> $DIR/semantic.rs:31:1
+  --> $DIR/semantic.rs:39:1
    |
 LL | / async fn conditionally_guarded(account: u64) -> Result<(), ServerFnError> {
 LL | |     if account == 1 {
@@ -23,5 +23,16 @@ LL | | }
    = note: server functions are public API endpoints, so local-looking calls still require explicit application security policy
    = help: invoke a configured authorization helper first or add a configured protected/public endpoint marker
 
-warning: 2 warnings emitted
+warning: Leptos server endpoint reaches sensitive `delete_account` without an authorization boundary
+  --> $DIR/semantic.rs:47:1
+   |
+LL | / async fn unguarded_method(account: u64) -> Result<(), ServerFnError> {
+LL | |     Accounts.delete_account(account).await
+LL | | }
+   | |_^ this endpoint has no configured policy evidence
+   |
+   = note: server functions are public API endpoints, so local-looking calls still require explicit application security policy
+   = help: invoke a configured authorization helper first or add a configured protected/public endpoint marker
+
+warning: 3 warnings emitted
 

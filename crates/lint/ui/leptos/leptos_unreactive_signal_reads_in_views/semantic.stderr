@@ -1,5 +1,5 @@
 warning: tracked signal value is frozen into the initial view
-  --> $DIR/semantic.rs:25:16
+  --> $DIR/semantic.rs:26:16
    |
 LL |         <span>{count.get()}</span>
    |                ^^^^^^^^^^^ this read happens only during view construction
@@ -9,7 +9,7 @@ LL |         <span>{count.get()}</span>
    = note: `#[warn(leptos_unreactive_signal_reads_in_views)]` on by default
 
 warning: tracked signal value is frozen into the initial view
-  --> $DIR/semantic.rs:26:20
+  --> $DIR/semantic.rs:27:20
    |
 LL |         <div class=count.get().to_string()>"value"</div>
    |                    ^^^^^^^^^^^ this read happens only during view construction
@@ -17,5 +17,32 @@ LL |         <div class=count.get().to_string()>"value"</div>
    = note: component setup runs once, so an eagerly read value is no longer reactive when the source changes
    = help: pass the signal directly, or wrap the derived read in a `move ||` closure
 
-warning: 2 warnings emitted
+warning: tracked signal value is frozen into the initial view
+  --> $DIR/semantic.rs:35:16
+   |
+LL |         <span>{count.try_get().unwrap_or_default()}</span>
+   |                ^^^^^^^^^^^^^^^ this read happens only during view construction
+   |
+   = note: component setup runs once, so an eagerly read value is no longer reactive when the source changes
+   = help: pass the signal directly, or wrap the derived read in a `move ||` closure
+
+warning: tracked signal value is frozen into the initial view
+  --> $DIR/semantic.rs:36:17
+   |
+LL |         <span>{*count.try_read().expect("live signal")}</span>
+   |                 ^^^^^^^^^^^^^^^^ this read happens only during view construction
+   |
+   = note: component setup runs once, so an eagerly read value is no longer reactive when the source changes
+   = help: pass the signal directly, or wrap the derived read in a `move ||` closure
+
+warning: tracked signal value is frozen into the initial view
+  --> $DIR/semantic.rs:37:16
+   |
+LL |         <span>{count.try_with(|count| count * 2).unwrap_or_default()}</span>
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this read happens only during view construction
+   |
+   = note: component setup runs once, so an eagerly read value is no longer reactive when the source changes
+   = help: pass the signal directly, or wrap the derived read in a `move ||` closure
+
+warning: 5 warnings emitted
 

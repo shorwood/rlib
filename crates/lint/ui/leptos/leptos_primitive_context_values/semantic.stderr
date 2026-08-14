@@ -17,5 +17,50 @@ LL |     let _ambiguous = use_context::<WriteSignal<bool>>();
    = note: context lookup is type-based, so broad types can collide and do not name the capability descendants depend on
    = help: wrap this value in a local domain type and expose the narrowest capability descendants require
 
-warning: 2 warnings emitted
+warning: Leptos context type `leptos::prelude::WriteSignal<bool>` has no domain identity
+  --> $DIR/semantic.rs:12:21
+   |
+LL |     let _expected = expect_context::<WriteSignal<bool>>();
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: context lookup is type-based, so broad types can collide and do not name the capability descendants depend on
+   = help: wrap this value in a local domain type and expose the narrowest capability descendants require
+
+warning: Leptos context type `leptos::prelude::WriteSignal<bool>` has no domain identity
+  --> $DIR/semantic.rs:13:18
+   |
+LL |     let _taken = take_context::<WriteSignal<bool>>();
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: context lookup is type-based, so broad types can collide and do not name the capability descendants depend on
+   = help: wrap this value in a local domain type and expose the narrowest capability descendants require
+
+warning: Leptos context type `leptos::prelude::WriteSignal<bool>` has no domain identity
+  --> $DIR/semantic.rs:14:21
+   |
+LL |     let _borrowed = with_context::<WriteSignal<bool>, _>(|_| ());
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: context lookup is type-based, so broad types can collide and do not name the capability descendants depend on
+   = help: wrap this value in a local domain type and expose the narrowest capability descendants require
+
+warning: Leptos context type `leptos::prelude::WriteSignal<bool>` has no domain identity
+  --> $DIR/semantic.rs:15:20
+   |
+LL |     let _updated = update_context::<WriteSignal<bool>, _>(|_| ());
+   |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: context lookup is type-based, so broad types can collide and do not name the capability descendants depend on
+   = help: wrap this value in a local domain type and expose the narrowest capability descendants require
+
+warning: Leptos context type `leptos::prelude::WriteSignal<bool>` has no domain identity
+  --> $DIR/semantic.rs:17:26
+   |
+LL |     let _bidirectional = owner.use_context_bidirectional::<WriteSignal<bool>>();
+   |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: context lookup is type-based, so broad types can collide and do not name the capability descendants depend on
+   = help: wrap this value in a local domain type and expose the narrowest capability descendants require
+
+warning: 7 warnings emitted
 

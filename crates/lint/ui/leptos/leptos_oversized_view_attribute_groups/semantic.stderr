@@ -13,5 +13,17 @@ LL | |             disabled=false
    = help: split this group by stable responsibility or extract a narrower component interface
    = note: `#[warn(leptos_oversized_view_attribute_groups)]` on by default
 
-warning: 1 warning emitted
+warning: attribute group complexity 6 exceeds configured maximum 4
+  --> $DIR/semantic.rs:30:13
+   |
+LL | /             // Interaction handlers
+LL | |             on:click=move |_| {}
+LL | |             on:focus=move |_| {}
+LL | |             on:blur=move |_| {}
+   | |_______________________________^ this named group still owns too much complexity
+   |
+   = note: oversized groups make a heading decorative instead of a bounded navigation aid
+   = help: split this group by stable responsibility or extract a narrower component interface
+
+warning: 2 warnings emitted
 

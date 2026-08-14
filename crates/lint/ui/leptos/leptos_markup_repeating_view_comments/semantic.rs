@@ -14,6 +14,10 @@ fn Divider() -> impl IntoView {
     view! { <hr/> }
 }
 
+mod components {
+    pub(super) use super::Navigation;
+}
+
 fn repeated_markup() -> impl IntoView {
     view! {
         <main>
@@ -25,6 +29,12 @@ fn repeated_markup() -> impl IntoView {
 
             // Navigation
             <nav/>
+
+            // Navigation
+            <components::Navigation/>
+
+            // Account status
+            <h2>"Account status"</h2>
         </main>
     }
 }

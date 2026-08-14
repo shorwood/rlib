@@ -1,5 +1,5 @@
 warning: this view section has complexity 5, exceeding the configured maximum of 4
-  --> $DIR/semantic.rs:10:13
+  --> $DIR/semantic.rs:14:13
    |
 LL |             // Account workspace
    |             ^^^^^^^^^^^^^^^^^^^^ this heading owns the oversized region
@@ -8,5 +8,14 @@ LL |             // Account workspace
    = help: split this region with another concise section heading
    = note: `#[warn(leptos_oversized_view_sections)]` on by default
 
-warning: 1 warning emitted
+warning: this view section has complexity 5, exceeding the configured maximum of 4
+  --> $DIR/semantic.rs:38:13
+   |
+LL |             // Qualified account workspace
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this heading owns the oversized region
+   |
+   = note: large named regions still force readers to navigate too much markup at once
+   = help: split this region with another concise section heading
+
+warning: 2 warnings emitted
 

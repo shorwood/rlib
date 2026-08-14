@@ -8,5 +8,32 @@ LL |         move |_| async move { load_users(organization_id.get()).await },
    = help: name the fetcher argument and use it as the resource's complete input
    = note: `#[warn(leptos_resource_fetchers_rereading_sources)]` on by default
 
-warning: 1 warning emitted
+warning: resource fetcher rereads its tracked source
+  --> $DIR/semantic.rs:32:58
+   |
+LL |         move |tracked| async move { load_users(tracked + organization_id.get()).await },
+   |                                                          ^^^^^^^^^^^^^^^^^^^^^ this read bypasses the tracked source value
+   |
+   = note: reactive reads in the source closure are tracked, while fetcher reads are not and may observe a different value
+   = help: name the fetcher argument and use it as the resource's complete input
+
+warning: resource fetcher rereads its tracked source
+  --> $DIR/semantic.rs:40:42
+   |
+LL |         move |_| async move { load_users(organization_id.get_untracked()).await },
+   |                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this read bypasses the tracked source value
+   |
+   = note: reactive reads in the source closure are tracked, while fetcher reads are not and may observe a different value
+   = help: name the fetcher argument and use it as the resource's complete input
+
+warning: resource fetcher rereads its tracked source
+  --> $DIR/semantic.rs:57:42
+   |
+LL |         move |_| async move { load_users(sources.organization_id.try_get().unwrap_or(0)).await },
+   |                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this read bypasses the tracked source value
+   |
+   = note: reactive reads in the source closure are tracked, while fetcher reads are not and may observe a different value
+   = help: name the fetcher argument and use it as the resource's complete input
+
+warning: 4 warnings emitted
 

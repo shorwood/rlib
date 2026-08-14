@@ -5,6 +5,7 @@
     leptos_effects_synchronizing_signals,
     leptos_implicit_default_component_props,
     leptos_manual_resource_refetch_signals,
+    leptos_missing_view_section_comments,
     leptos_needlessly_cloned_signal_values,
     leptos_read_then_replace_signals,
     leptos_reactive_writes_during_view_construction,
@@ -28,13 +29,30 @@ fn Frozen() -> impl IntoView {
 }
 
 #[component]
+fn FallibleFrozen() -> impl IntoView {
+    let count = RwSignal::new(1);
+    view! {
+        <span>{count.try_get().unwrap_or_default()}</span>
+        <span>{*count.try_read().expect("live signal")}</span>
+        <span>{count.try_with(|count| count * 2).unwrap_or_default()}</span>
+    }
+}
+
+#[component]
 fn Reactive() -> impl IntoView {
     let count = RwSignal::new(1);
     view! {
         <span>{count}</span>
         <span>{move || count.get() * 2}</span>
+        <span>{move /* still an authored closure */ || count.get() * 3}</span>
         <button on:click=move |_| count.set(count.get() + 1)>"increment"</button>
     }
+}
+
+#[component]
+fn ExplicitSnapshot() -> impl IntoView {
+    let count = RwSignal::new(1);
+    view! { <span>{count.try_get_untracked().unwrap_or_default()}</span> }
 }
 
 fn outside_view() {

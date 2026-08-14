@@ -27,9 +27,46 @@ fn manual_refetch() {
     let _ = resource;
 }
 
+fn explicit_discards() {
+    let (revision, _) = signal(0_u32);
+    let wildcard = LocalResource::new(move || {
+        let _ = revision.get();
+        load(0)
+    });
+
+    let (revision, _) = signal(String::new());
+    let dropped = LocalResource::new(move || {
+        drop(revision.get());
+        load(0)
+    });
+    let _ = (wildcard, dropped);
+}
+
+fn arc_local_resource() {
+    let revision = ArcRwSignal::new(0_u32);
+    let resource = ArcLocalResource::new(move || {
+        revision.get();
+        load(0)
+    });
+    let _ = resource;
+}
+
 fn meaningful_dependency() {
     let (user_id, _) = signal(1_u32);
     let resource = LocalResource::new(move || load(user_id.get()));
+    let _ = resource;
+}
+
+fn non_trigger_reads() {
+    let (revision, _) = signal(0_u32);
+    revision.get();
+
+    let resource = LocalResource::new(move || {
+        revision.get_untracked();
+        let callback = move || revision.get();
+        let _ = callback;
+        load(0)
+    });
     let _ = resource;
 }
 

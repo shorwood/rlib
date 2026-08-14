@@ -16,6 +16,30 @@ fn duplicate_headings() -> impl IntoView {
     }
 }
 
+fn fragments_share_the_parent_scope() -> impl IntoView {
+    view! {
+        <>
+            // Primary navigation
+            <nav/>
+        </>
+
+        // Primary navigation
+        <aside/>
+    }
+}
+
+fn separate_view_calls() -> impl IntoView {
+    let first = view! {
+        // Account content
+        <header/>
+    };
+    let second = view! {
+        // Account content
+        <section/>
+    };
+    (first, second)
+}
+
 fn separate_nested_scopes() -> impl IntoView {
     view! {
         <main>

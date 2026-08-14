@@ -1,6 +1,7 @@
 #![feature(register_tool)]
 #![allow(
     dead_code,
+    deprecated,
     leptos_boolean_component_props,
     leptos_implicit_default_component_props,
     leptos_manual_resource_refetch_signals,
@@ -46,6 +47,42 @@ fn watched() {
     );
 }
 
+fn synchronized_sync() {
+    let source = ArcRwSignal::new(1);
+    let target = ArcRwSignal::new(2);
+    Effect::new_sync(move |_| target.set(source.get() * 2));
+}
+
+fn synchronized_isomorphic() {
+    let source = ArcRwSignal::new(1);
+    let target = ArcRwSignal::new(2);
+    Effect::new_isomorphic(move |_| target.set(source.get() * 2));
+}
+
+fn watched_sync() {
+    let source = ArcRwSignal::new(1);
+    let target = ArcRwSignal::new(2);
+    Effect::watch_sync(
+        move || source.get(),
+        move |value, _, _| target.set(*value),
+        false,
+    );
+}
+
+fn deprecated_effect_functions() {
+    let source = RwSignal::new(1);
+    let target = RwSignal::new(2);
+    create_effect(move |_| target.set(source.get()));
+
+    let source = RwSignal::new(1);
+    let target = RwSignal::new(2);
+    watch(
+        move || source.get(),
+        move |value, _, _| target.set(*value),
+        false,
+    );
+}
+
 fn external_effect() {
     let source = RwSignal::new(1);
     Effect::new(move |_| {
@@ -60,6 +97,12 @@ fn event_callback() {
         let callback = move || target.set(source.get());
         let _ = callback;
     });
+}
+
+fn untracked_read() {
+    let source = RwSignal::new(1);
+    let target = RwSignal::new(2);
+    Effect::new(move |_| target.set(source.get_untracked()));
 }
 
 #[allow(leptos_effects_synchronizing_signals)]

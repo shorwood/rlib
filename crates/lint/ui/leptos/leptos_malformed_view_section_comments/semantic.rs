@@ -1,5 +1,5 @@
 #![feature(register_tool)]
-#![allow(dead_code, unknown_lints)]
+#![allow(dead_code, leptos_missing_view_section_comments, unknown_lints)]
 #![register_tool(rlib_lint)]
 
 use leptos::prelude::*;
@@ -11,6 +11,9 @@ fn malformed_headings() -> impl IntoView {
             <header/>
             // Account content
             <section/>
+
+            // Account   preferences
+            <article/>
 
             /* Account actions */
             <footer/>

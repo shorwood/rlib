@@ -36,6 +36,31 @@ fn resource_write() {
     );
 }
 
+fn blocking_resource_write() {
+    let status = RwSignal::new(false);
+    let _resource = Resource::new_blocking(
+        || (),
+        move |()| async move {
+            status.update_untracked(|status| *status = true);
+        },
+    );
+}
+
+fn arc_resource_with_options_write() {
+    let status = ArcRwSignal::new(false);
+    let _resource: ArcResource<bool> = ArcResource::new_with_options(
+        || (),
+        move |()| {
+            let status = status.clone();
+            async move {
+                status.try_set(true);
+                true
+            }
+        },
+        false,
+    );
+}
+
 fn pure_resource() {
     let source = RwSignal::new(1);
     let _resource = Resource::new(move || source.get(), |value| async move { value * 2 });

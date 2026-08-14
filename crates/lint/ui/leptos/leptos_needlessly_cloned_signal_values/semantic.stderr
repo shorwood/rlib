@@ -1,5 +1,5 @@
 warning: signal value is cloned only to call `len`
-  --> $DIR/semantic.rs:18:13
+  --> $DIR/semantic.rs:46:13
    |
 LL |     let _ = names.get().len();
    |             ^^^^^^^^^^^ this tracked read clones the stored value
@@ -9,7 +9,7 @@ LL |     let _ = names.get().len();
    = note: `#[warn(leptos_needlessly_cloned_signal_values)]` on by default
 
 warning: signal value is cloned only to call `is_empty`
-  --> $DIR/semantic.rs:19:13
+  --> $DIR/semantic.rs:47:13
    |
 LL |     let _ = names.get().is_empty();
    |             ^^^^^^^^^^^ this tracked read clones the stored value
@@ -17,5 +17,14 @@ LL |     let _ = names.get().is_empty();
    = note: tracked `get()` clones the complete stored value, while this operation only needs a temporary shared borrow
    = help: borrow the signal value with `read()` or a bounded `with(...)` closure
 
-warning: 2 warnings emitted
+warning: signal value is cloned only to call `len`
+  --> $DIR/semantic.rs:49:13
+   |
+LL |     let _ = borrowing.get().len();
+   |             ^^^^^^^^^^^^^^^ this tracked read clones the stored value
+   |
+   = note: tracked `get()` clones the complete stored value, while this operation only needs a temporary shared borrow
+   = help: borrow the signal value with `read()` or a bounded `with(...)` closure
+
+warning: 3 warnings emitted
 
