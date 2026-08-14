@@ -45,8 +45,23 @@ enum Message {
 }
 
 impl Message {
-    fn is_write(&self) -> bool {
+    pub fn is_write(&self) -> bool {
         matches!(self, Self::Write(_))
+    }
+
+    pub fn is_quit(&self) -> bool {
+        matches!(self, Self::Quit)
+    }
+}
+
+enum PrivateMessage {
+    Write,
+    Quit,
+}
+
+impl PrivateMessage {
+    fn is_write(&self) -> bool {
+        matches!(self, Self::Write)
     }
 
     fn is_quit(&self) -> bool {
