@@ -10,5 +10,16 @@ LL | | }
    = help: return a public thiserror domain type and keep dynamic errors behind explicit source variants
    = note: `#[warn(thiserror_dynamic_errors_in_library_interfaces)]` on by default
 
-warning: 1 warning emitted
+warning: public library API `erased_method` returns dynamic error `Box<dyn Error>`
+  --> $DIR/semantic.rs:20:5
+   |
+LL | /     pub fn erased_method() -> Result<(), Box<dyn Error + Send + Sync>> {
+LL | |         Ok(())
+LL | |     }
+   | |_____^ this public boundary erases its error vocabulary
+   |
+   = note: callers cannot exhaustively classify or recover from failures through a stable concrete contract
+   = help: return a public thiserror domain type and keep dynamic errors behind explicit source variants
+
+warning: 2 warnings emitted
 

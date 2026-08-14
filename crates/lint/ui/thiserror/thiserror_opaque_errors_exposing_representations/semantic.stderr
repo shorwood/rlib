@@ -4,10 +4,12 @@ warning: public thiserror enum exposes foreign error representations
 LL | / pub enum ApiError {
 LL | |     #[error("I/O failed")]
 LL | |     Io(#[from] std::io::Error),
+LL | |     #[error(transparent)]
+LL | |     Format(std::fmt::Error),
 LL | | }
    | |_^ this public enum leaks dependency-specific error shapes
    |
-   = note: source-bearing variant becomes part of downstream pattern matching: `Io(std::io::Error)`
+   = note: source-bearing variants become part of downstream pattern matching: `Io(std::io::Error)`, `Format(std::fmt::Error)`
    = help: use an opaque public wrapper or stable owned variants, keeping foreign errors behind a private source boundary
    = note: `#[warn(thiserror_opaque_errors_exposing_representations)]` on by default
 

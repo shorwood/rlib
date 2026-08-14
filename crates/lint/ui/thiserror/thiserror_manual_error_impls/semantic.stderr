@@ -19,5 +19,23 @@ LL | | }
    = note: the authored implementations only provide a static message and conventional source forwarding
    = help: derive `thiserror::Error`, add `#[error("load failed")]` and mark `source` with `#[source]`, and remove both implementations
 
-warning: 2 warnings emitted
+warning: manual `Display` and `Error` implementations for `ContextError` are derivable with thiserror
+  --> $DIR/semantic.rs:35:1
+   |
+LL | struct ContextError;
+   | ^^^^^^^^^^^^^^^^^^^^ this complete error contract is derivable
+   |
+   = note: the authored implementations only provide a static message and conventional source forwarding
+   = help: derive `thiserror::Error`, add `#[error("context")]`, and remove both implementations
+
+warning: manual `Display` and `Error` implementations for `GenericError` are derivable with thiserror
+  --> $DIR/semantic.rs:50:1
+   |
+LL | struct GenericError<T>(std::marker::PhantomData<T>);
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this complete error contract is derivable
+   |
+   = note: the authored implementations only provide a static message and conventional source forwarding
+   = help: derive `thiserror::Error`, add `#[error("generic")]`, and remove both implementations
+
+warning: 4 warnings emitted
 

@@ -17,5 +17,32 @@ LL |     source: Inner,
    = note: thiserror only delegates generic backtrace requests through a source field marked `#[backtrace]`
    = help: mark the source field with `#[backtrace]` to forward the original
 
-warning: 2 warnings emitted
+warning: wrapper captures a backtrace despite its source already providing one
+  --> $DIR/semantic.rs:41:9
+   |
+LL |         backtrace: Backtrace,
+   |         ^^^^^^^^^^^^^^^^^^^^ backtrace continuity breaks here
+   |
+   = note: capturing again at the wrapper duplicates allocation and can hide the original failure location
+   = help: remove the wrapper capture and mark the source field with `#[backtrace]`
+
+warning: source field `0` does not forward its existing backtrace
+  --> $DIR/semantic.rs:44:23
+   |
+LL |     Missing(#[source] Inner),
+   |                       ^^^^^ backtrace continuity breaks here
+   |
+   = note: thiserror only delegates generic backtrace requests through a source field marked `#[backtrace]`
+   = help: mark the source field with `#[backtrace]` to forward the original
+
+warning: source field `source` does not forward its existing backtrace
+  --> $DIR/semantic.rs:58:9
+   |
+LL |         source: Inner,
+   |         ^^^^^^^^^^^^^ backtrace continuity breaks here
+   |
+   = note: thiserror only delegates generic backtrace requests through a source field marked `#[backtrace]`
+   = help: mark the source field with `#[backtrace]` to forward the original
+
+warning: 5 warnings emitted
 

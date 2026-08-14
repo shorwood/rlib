@@ -12,5 +12,18 @@ LL | | }
    = help: remove the implementation and mark the variant field `#[from]`
    = note: `#[warn(thiserror_manual_from_error_variants)]` on by default
 
-warning: 1 warning emitted
+warning: manual conversion into `NamedLoadError::Io` is derivable with thiserror
+  --> $DIR/semantic.rs:23:1
+   |
+LL | / impl From<io::Error> for NamedLoadError {
+LL | |     fn from(source: io::Error) -> Self {
+LL | |         Self::Io { source }
+LL | |     }
+LL | | }
+   | |_^ this conversion is exact error-variant wrapping
+   |
+   = note: the implementation only wraps the source in the variant, duplicating thiserror's source and conversion policy
+   = help: remove the implementation and mark the variant field `#[from]`
+
+warning: 2 warnings emitted
 

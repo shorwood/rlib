@@ -8,6 +8,14 @@ enum LookupError {
     Project,
     #[error("permission denied")]
     Permission,
+    #[error("invalid {{input}}")]
+    InvalidUserInput,
+    #[error("invalid {{input}}")]
+    InvalidProjectInput,
+    #[error("lookup failed for {0}")]
+    DynamicUser(String),
+    #[error("lookup failed for {0}")]
+    DynamicProject(String),
 }
 
 fn main() {}

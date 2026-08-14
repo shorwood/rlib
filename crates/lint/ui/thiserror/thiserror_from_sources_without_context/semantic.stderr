@@ -1,15 +1,21 @@
 warning: thiserror `#[from]` variant `Io` erases operation context
-  --> $DIR/semantic.rs:6:1
+  --> $DIR/semantic.rs:8:5
    |
-LL | / enum LoadError {
-LL | |     #[error(transparent)]
-LL | |     Io(#[from] io::Error),
-LL | | }
-   | |_^ this transparent conversion merges distinct operations
+LL |     Io(#[from] io::Error),
+   |     ^^^^^^^^^^^^^^^^^^^^^ this transparent conversion merges distinct operations
    |
    = note: automatic conversion receives `?` failures from distinct operations `read_body`, `read_header` without recording which one failed
    = help: use contextual variants or explicit `map_err` at each operation boundary
    = note: `#[warn(thiserror_from_sources_without_context)]` on by default
 
-warning: 1 warning emitted
+warning: thiserror `#[from]` variant `Parse` erases operation context
+  --> $DIR/semantic.rs:10:5
+   |
+LL |     Parse(#[from] std::num::ParseIntError),
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this transparent conversion merges distinct operations
+   |
+   = note: automatic conversion receives `?` failures from distinct operations `parse_port`, `parse_timeout` without recording which one failed
+   = help: use contextual variants or explicit `map_err` at each operation boundary
+
+warning: 2 warnings emitted
 

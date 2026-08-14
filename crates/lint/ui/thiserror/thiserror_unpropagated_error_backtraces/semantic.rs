@@ -32,4 +32,33 @@ struct Forwarded {
     source: Inner,
 }
 
+#[derive(Debug, thiserror::Error)]
+enum EnumWrapper {
+    #[error("duplicate enum")]
+    Duplicate {
+        #[source]
+        source: Inner,
+        backtrace: Backtrace,
+    },
+    #[error("missing enum")]
+    Missing(#[source] Inner),
+    #[error("forwarded enum")]
+    Forwarded(
+        #[source]
+        #[backtrace]
+        Inner,
+    ),
+}
+
+#[derive(Debug, thiserror::Error)]
+enum SplitWrapper {
+    #[error("source variant")]
+    Source {
+        #[source]
+        source: Inner,
+    },
+    #[error("capture variant")]
+    Capture { backtrace: Backtrace },
+}
+
 fn main() {}

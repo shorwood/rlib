@@ -10,5 +10,23 @@ LL | | }
    = help: mark the field `#[source]`, or use `#[from]` when automatic conversion is intended
    = note: `#[warn(thiserror_unreported_error_sources)]` on by default
 
-warning: 1 warning emitted
+warning: nested error `read_error` is omitted from the thiserror source chain
+  --> $DIR/semantic.rs:29:5
+   |
+LL |     Read { read_error: TransportError },
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this derived error drops a provable cause from its chain
+   |
+   = note: this is the sole causal-looking field with a local thiserror type, but `Error::source` will not expose it
+   = help: mark the field `#[source]`, or use `#[from]` when automatic conversion is intended
+
+warning: nested error `write_error` is omitted from the thiserror source chain
+  --> $DIR/semantic.rs:31:5
+   |
+LL |     Write { write_error: TransportError },
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this derived error drops a provable cause from its chain
+   |
+   = note: this is the sole causal-looking field with a local thiserror type, but `Error::source` will not expose it
+   = help: mark the field `#[source]`, or use `#[from]` when automatic conversion is intended
+
+warning: 3 warnings emitted
 

@@ -14,6 +14,30 @@ pub fn typed_load() -> Result<(), LoadError> {
     Ok(())
 }
 
+pub struct Loader;
+
+impl Loader {
+    pub fn erased_method() -> Result<(), Box<dyn Error + Send + Sync>> {
+        Ok(())
+    }
+}
+
+mod internal {
+    use std::error::Error;
+
+    pub fn erased_but_unexported() -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+}
+
+pub mod lookalike {
+    pub struct Result<T, E>(pub T, pub E);
+
+    pub fn custom_result() -> Result<(), Box<dyn std::error::Error>> {
+        unimplemented!()
+    }
+}
+
 fn private_load() -> Result<(), Box<dyn Error>> {
     Ok(())
 }

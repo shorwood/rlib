@@ -46,4 +46,15 @@ impl Error for ContextError {
     }
 }
 
+#[derive(Debug)]
+struct GenericError<T>(std::marker::PhantomData<T>);
+
+impl<T: fmt::Debug> fmt::Display for GenericError<T> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("generic")
+    }
+}
+
+impl<T: fmt::Debug> Error for GenericError<T> {}
+
 fn main() {}

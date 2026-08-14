@@ -1,3 +1,19 @@
+warning: thiserror variants render the same static message `invalid {input}`
+  --> $DIR/semantic.rs:4:1
+   |
+LL | / enum LookupError {
+LL | |     #[error("not found")]
+LL | |     User,
+LL | |     #[error("not found")]
+...  |
+LL | |     DynamicProject(String),
+LL | | }
+   | |_^ these variants lose their distinction when displayed
+   |
+   = note: variants `InvalidUserInput`, `InvalidProjectInput` carry distinct typed meanings but become indistinguishable in error presentation
+   = help: add semantic context to each message or distinguish them with stable diagnostic codes
+   = note: `#[warn(thiserror_duplicate_error_messages)]` on by default
+
 warning: thiserror variants render the same static message `not found`
   --> $DIR/semantic.rs:4:1
    |
@@ -6,13 +22,12 @@ LL | |     #[error("not found")]
 LL | |     User,
 LL | |     #[error("not found")]
 ...  |
-LL | |     Permission,
+LL | |     DynamicProject(String),
 LL | | }
    | |_^ these variants lose their distinction when displayed
    |
    = note: variants `User`, `Project` carry distinct typed meanings but become indistinguishable in error presentation
    = help: add semantic context to each message or distinguish them with stable diagnostic codes
-   = note: `#[warn(thiserror_duplicate_error_messages)]` on by default
 
-warning: 1 warning emitted
+warning: 2 warnings emitted
 

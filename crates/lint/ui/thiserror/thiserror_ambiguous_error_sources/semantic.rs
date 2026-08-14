@@ -24,4 +24,25 @@ struct OperationError {
     secondary_error: CleanupError,
 }
 
+#[derive(Debug, thiserror::Error)]
+enum AlternativeError {
+    #[error("read failed")]
+    Read { source: ReadError },
+    #[error("cleanup failed")]
+    Cleanup {
+        #[source]
+        cleanup_error: CleanupError,
+    },
+}
+
+#[derive(Debug, thiserror::Error)]
+enum EnumOperationError {
+    #[error("operation failed")]
+    Failed {
+        #[source]
+        primary_error: ReadError,
+        secondary_error: CleanupError,
+    },
+}
+
 fn main() {}

@@ -17,4 +17,25 @@ struct ChainedRequestError {
     cause: TransportError,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+struct TransparentRequestError {
+    cause: TransportError,
+}
+
+#[derive(Debug, thiserror::Error)]
+enum RoutedError {
+    #[error("read failed")]
+    Read { read_error: TransportError },
+    #[error("write failed")]
+    Write { write_error: TransportError },
+    #[error("connected")]
+    Connected {
+        #[source]
+        cause: TransportError,
+    },
+    #[error(transparent)]
+    Transparent { cause: TransportError },
+}
+
 fn main() {}

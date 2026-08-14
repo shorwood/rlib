@@ -8,5 +8,32 @@ LL |     error.to_string() == "not found"
    = help: match the typed error variant or introduce an explicit stable diagnostic code
    = note: `#[warn(thiserror_error_messages_used_as_identifiers)]` on by default
 
-warning: 1 warning emitted
+warning: thiserror display text is used as machine identity
+  --> $DIR/semantic.rs:14:5
+   |
+LL |     "not found" == error.to_string().as_str()
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this decision parses error presentation
+   |
+   = note: this string comparison makes control flow depend on presentation text instead of the error's typed identity
+   = help: match the typed error variant or introduce an explicit stable diagnostic code
+
+warning: thiserror display text is used as machine identity
+  --> $DIR/semantic.rs:18:5
+   |
+LL |     error.to_string().starts_with("not")
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this decision parses error presentation
+   |
+   = note: this string-pattern check makes control flow depend on presentation text instead of the error's typed identity
+   = help: match the typed error variant or introduce an explicit stable diagnostic code
+
+warning: thiserror display text is used as machine identity
+  --> $DIR/semantic.rs:22:5
+   |
+LL |     error.to_string().contains("found")
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this decision parses error presentation
+   |
+   = note: this string-pattern check makes control flow depend on presentation text instead of the error's typed identity
+   = help: match the typed error variant or introduce an explicit stable diagnostic code
+
+warning: 4 warnings emitted
 
