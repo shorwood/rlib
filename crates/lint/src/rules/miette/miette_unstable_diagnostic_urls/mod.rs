@@ -3,6 +3,7 @@ extern crate rustc_hir;
 extern crate rustc_span;
 
 use std::borrow::Cow;
+use std::net::IpAddr;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::Item;
@@ -76,14 +77,78 @@ dylint_linting::impl_late_lint! {
 }
 
 impl MietteUnstableDiagnosticUrls {
+    /// Returns whether a host is externally routable enough for durable documentation.
+    fn public_host(authority: &str) -> bool {
+        if authority.is_empty() || authority.contains('@') {
+            return false;
+        }
+        let host = if let Some(bracketed) = authority.strip_prefix('[') {
+            let Some((host, suffix)) = bracketed.split_once(']') else {
+                return false;
+            };
+            if !suffix.is_empty()
+                && !suffix.strip_prefix(':').is_some_and(|port| {
+                    !port.is_empty() && port.chars().all(|c| c.is_ascii_digit())
+                })
+            {
+                return false;
+            }
+            host
+        } else if let Some((host, port)) = authority.rsplit_once(':') {
+            if port.is_empty() || !port.chars().all(|c| c.is_ascii_digit()) {
+                return false;
+            }
+            host
+        } else {
+            authority
+        };
+
+        if let Ok(address) = host.parse::<IpAddr>() {
+            return match address {
+                IpAddr::V4(address) => {
+                    !(address.is_loopback()
+                        || address.is_private()
+                        || address.is_link_local()
+                        || address.is_unspecified())
+                }
+                IpAddr::V6(address) => {
+                    !(address.is_loopback()
+                        || address.is_unspecified()
+                        || address.is_unique_local()
+                        || address.is_unicast_link_local())
+                }
+            };
+        }
+
+        let host = host.to_ascii_lowercase();
+        let labels = host.split('.').collect::<Vec<_>>();
+        labels.len() >= 2
+            && host != "localhost"
+            && !host.ends_with(".localhost")
+            && labels.iter().all(|label| {
+                !label.is_empty()
+                    && !label.starts_with('-')
+                    && !label.ends_with('-')
+                    && label
+                        .chars()
+                        .all(|character| character.is_ascii_alphanumeric() || character == '-')
+            })
+    }
+
     /// Returns whether a URL is a static public HTTPS address.
     fn stable_url(url: &str) -> bool {
-        url.starts_with("https://")
-            && !url.contains('{')
-            && !url.contains('}')
-            && !url.contains("localhost")
-            && !url.contains("127.0.0.1")
-            && url[8..].contains('.')
+        let Some(remainder) = url.strip_prefix("https://") else {
+            return false;
+        };
+        if url.contains('{') || url.contains('}') {
+            return false;
+        }
+        let authority_end = remainder.find(['/', '?', '#']).unwrap_or(remainder.len());
+        let (authority, location) = remainder.split_at(authority_end);
+        let path = location.split(['?', '#']).next().unwrap_or_default();
+        Self::public_host(authority)
+            && path.starts_with('/')
+            && path.chars().any(|character| character != '/')
     }
 
     /// Reports a present URL that is unsuitable for durable documentation.

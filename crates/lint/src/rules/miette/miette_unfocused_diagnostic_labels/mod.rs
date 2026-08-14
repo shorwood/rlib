@@ -87,7 +87,10 @@ impl MietteUnfocusedDiagnosticLabels {
             .collect::<Vec<_>>();
 
         // A single label needs no ranking; an explicit primary resolves competition.
-        if labels.len() < Violation::MINIMUM_COMPETING_LABELS
+        if (labels.len() < Violation::MINIMUM_COMPETING_LABELS
+            && !labels
+                .iter()
+                .any(|field| field.roles.contains(DiagnosticFieldRole::Collection)))
             || labels
                 .iter()
                 .any(|field| field.roles.contains(DiagnosticFieldRole::Primary))

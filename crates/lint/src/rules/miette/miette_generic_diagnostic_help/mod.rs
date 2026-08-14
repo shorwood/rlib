@@ -81,8 +81,23 @@ impl MietteGenericDiagnosticHelp {
     fn new() -> Self {
         Self {
             catalog: DiagnosticCatalog::default(),
-            generic_phrases: LibraryConfig::load().miette_help.generic_phrases,
+            generic_phrases: LibraryConfig::load()
+                .miette_help
+                .generic_phrases
+                .iter()
+                .map(|phrase| Self::normalize(phrase))
+                .collect(),
         }
+    }
+
+    /// Normalizes presentation-only casing, whitespace, and terminal punctuation.
+    fn normalize(text: &str) -> String {
+        text.trim()
+            .trim_end_matches(['.', '!', '?', ':', ';'])
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_ascii_lowercase()
     }
 }
 impl LateLintPass<'_> for MietteGenericDiagnosticHelp {
@@ -105,16 +120,13 @@ impl MietteGenericDiagnosticHelp {
         let Some(help) = help else {
             return;
         };
-        let normalized = help
-            .trim()
-            .trim_end_matches(['.', '!'])
-            .to_ascii_lowercase();
+        let normalized = Self::normalize(help);
 
         // Specific guidance is outside this lint's policy boundary.
         if !(self
             .generic_phrases
             .iter()
-            .any(|phrase| normalized == phrase.trim().to_ascii_lowercase()))
+            .any(|phrase| normalized == *phrase))
         {
             return;
         }

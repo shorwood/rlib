@@ -1,3 +1,4 @@
+extern crate rustc_ast;
 extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_middle;
@@ -5,13 +6,14 @@ extern crate rustc_span;
 use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{Item, ItemKind};
+use rustc_hir::def::{CtorOf, DefKind, Res};
+use rustc_hir::{Body, Expr, ExprKind, ImplItemKind, Item, ItemKind, Mutability, PatKind};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty;
 use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::source_provenance::AuthoredItemSource;
+use crate::utils::direct_forwarding::DirectForwarding;
 
 // -----------------------------------------------------------------------------
 // Violation: Derivable manual Diagnostic implementation
@@ -88,62 +90,128 @@ dylint_linting::impl_late_lint! {
 }
 
 impl MietteManualDiagnosticImpls {
-    /// Extracts the sole value wrapped by `Some`.
-    fn some_argument(expression: &syn::Expr) -> Option<&syn::Expr> {
-        let syn::Expr::Call(call) = expression else {
+    /// Extracts the sole value wrapped by standard `Option::Some`.
+    fn some_argument<'hir>(
+        cx: &LateContext<'_>,
+        expression: &'hir Expr<'hir>,
+    ) -> Option<&'hir Expr<'hir>> {
+        let ExprKind::Call(callee, [argument]) = expression.kind else {
             return None;
         };
-        if !matches!(call.func.as_ref(), syn::Expr::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "Some"))
-            || call.args.len() != 1
-        {
+        let ExprKind::Path(path) = callee.kind else {
             return None;
-        }
-        call.args.first()
+        };
+        let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
+            cx.qpath_res(&path, callee.hir_id)
+        else {
+            return None;
+        };
+        let variant = cx.tcx.parent(constructor);
+        (cx.tcx.item_name(variant).as_str() == "Some"
+            && cx
+                .tcx
+                .is_diagnostic_item(rustc_span::symbol::sym::Option, cx.tcx.parent(variant)))
+        .then_some(argument)
     }
 
     /// Recognizes boxed static text used by code, help, and URL methods.
-    fn static_box(expression: &syn::Expr) -> bool {
-        let Some(syn::Expr::Call(boxed)) = Self::some_argument(expression) else {
+    fn static_box(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        let Some(expression) = Self::some_argument(cx, expression) else {
             return false;
         };
-        matches!(boxed.func.as_ref(), syn::Expr::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "new"))
-            && matches!(boxed.args.first(), Some(syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(_), .. })) if boxed.args.len() == 1)
+        let ExprKind::Call(callee, [value]) = expression.kind else {
+            return false;
+        };
+        let ExprKind::Path(path) = callee.kind else {
+            return false;
+        };
+        let Res::Def(DefKind::AssocFn, method) = cx.qpath_res(&path, callee.hir_id) else {
+            return false;
+        };
+        let Some(implementation) = cx.tcx.impl_of_assoc(method) else {
+            return false;
+        };
+        let Some(box_type) = cx
+            .tcx
+            .type_of(implementation)
+            .instantiate_identity()
+            .ty_adt_def()
+        else {
+            return false;
+        };
+        cx.tcx.item_name(method).as_str() == "new"
+            && cx.tcx.crate_name(box_type.did().krate).as_str() == "alloc"
+            && cx.tcx.item_name(box_type.did()).as_str() == "Box"
+            && matches!(value.kind, ExprKind::Lit(literal) if matches!(literal.node, rustc_ast::LitKind::Str(..)))
     }
 
     /// Recognizes a static Miette severity variant wrapped by `Some`.
-    fn static_severity(expression: &syn::Expr) -> bool {
-        matches!(Self::some_argument(expression), Some(syn::Expr::Path(path)) if path.path.segments.last().is_some_and(|segment| matches!(segment.ident.to_string().as_str(), "Error" | "Warning" | "Advice")))
+    fn static_severity(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        let Some(Expr {
+            kind: ExprKind::Path(path),
+            hir_id,
+            ..
+        }) = Self::some_argument(cx, expression)
+        else {
+            return false;
+        };
+        let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) = cx.qpath_res(path, *hir_id)
+        else {
+            return false;
+        };
+        let variant = cx.tcx.parent(constructor);
+        let severity = cx.tcx.parent(variant);
+        cx.tcx.crate_name(severity.krate).as_str() == "miette"
+            && cx.tcx.item_name(severity).as_str() == "Severity"
+            && matches!(
+                cx.tcx.item_name(variant).as_str(),
+                "Error" | "Warning" | "Advice"
+            )
     }
 
     /// Recognizes a direct reference to one field on `self`.
-    fn direct_reference(expression: &syn::Expr) -> bool {
-        let Some(syn::Expr::Reference(reference)) = Self::some_argument(expression) else {
+    fn direct_reference(cx: &LateContext<'_>, body: &Body<'_>, expression: &Expr<'_>) -> bool {
+        let Some(Expr {
+            kind: ExprKind::AddrOf(_, Mutability::Not, field),
+            ..
+        }) = Self::some_argument(cx, expression)
+        else {
             return false;
         };
-        matches!(reference.expr.as_ref(), syn::Expr::Field(field) if matches!(field.base.as_ref(), syn::Expr::Path(path) if path.path.is_ident("self")))
+        let ExprKind::Field(base, _) = field.kind else {
+            return false;
+        };
+        let ExprKind::Path(path) = base.kind else {
+            return false;
+        };
+        let Some(parameter) = body.params.first() else {
+            return false;
+        };
+        let PatKind::Binding(_, receiver, _, None) = parameter.pat.kind else {
+            return false;
+        };
+        matches!(cx.qpath_res(&path, base.hir_id), Res::Local(binding) if binding == receiver)
     }
 
     /// Returns all methods when the complete implementation is derive-equivalent.
     fn derivable_methods(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Vec<String>> {
-        let source = AuthoredItemSource::for_item(cx, item)?;
-        let implementation = match syn::parse_str::<syn::ItemImpl>(&source) {
-            Ok(implementation) => implementation,
-            Err(_error) => return None,
+        let ItemKind::Impl(implementation) = item.kind else {
+            return None;
         };
         let mut names = Vec::new();
-        for member in implementation.items {
-            let syn::ImplItem::Fn(method) = member else {
+        for reference in implementation.items {
+            let method = cx.tcx.hir_impl_item(*reference);
+            let ImplItemKind::Fn(_, body_id) = method.kind else {
                 return None;
             };
-            let name = method.sig.ident.to_string();
-            let [syn::Stmt::Expr(expression, _)] = method.block.stmts.as_slice() else {
-                return None;
-            };
+            let body = cx.tcx.hir_body(body_id);
+            let expression = DirectForwarding::single_body_expression(body.value)?;
+            let name = method.ident.name.to_string();
 
             let derivable = match name.as_str() {
-                "code" | "help" | "url" => Self::static_box(expression),
-                "severity" => Self::static_severity(expression),
-                "source_code" | "diagnostic_source" => Self::direct_reference(expression),
+                "code" | "help" | "url" => Self::static_box(cx, expression),
+                "severity" => Self::static_severity(cx, expression),
+                "source_code" | "diagnostic_source" => Self::direct_reference(cx, body, expression),
                 _ => false,
             };
 
@@ -160,7 +228,7 @@ impl LateLintPass<'_> for MietteManualDiagnosticImpls {
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
-        if item.span.from_expansion() || !cx.tcx.hir_attrs(item.hir_id()).is_empty() {
+        if item.span.from_expansion() {
             return;
         }
 
@@ -185,9 +253,7 @@ impl LateLintPass<'_> for MietteManualDiagnosticImpls {
             return;
         };
 
-        if definition.did().as_local().is_none()
-            || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
-        {
+        if definition.did().as_local().is_none() {
             return;
         }
 

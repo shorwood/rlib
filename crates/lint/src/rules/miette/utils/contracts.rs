@@ -1,11 +1,13 @@
 extern crate rustc_hir;
 extern crate rustc_lint;
+extern crate rustc_middle;
 extern crate rustc_span;
 
 use std::collections::{HashMap, HashSet};
 
 use rustc_hir::{Item, ItemKind};
 use rustc_lint::LateContext;
+use rustc_middle::ty::{self, Ty};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
@@ -18,6 +20,8 @@ use crate::utils::source_provenance::AuthoredItemSource;
 /// Miette presentation behavior assigned to a diagnostic field.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub enum DiagnosticFieldRole {
+    /// Expands one field into a collection of rendered labels.
+    Collection,
     /// Forwards another diagnostic's structured metadata.
     DiagnosticSource,
     /// Selects a span within source code.
@@ -58,7 +62,7 @@ impl DiagnosticFieldRoles {
                 roles.insert(DiagnosticFieldRole::DiagnosticSource);
             } else if attribute.path().is_ident("related") {
                 roles.insert(DiagnosticFieldRole::Related);
-            } else if attribute.path().is_ident("source") {
+            } else if attribute.path().is_ident("source") || attribute.path().is_ident("from") {
                 roles.insert(DiagnosticFieldRole::Source);
             } else if attribute.path().is_ident("source_code") {
                 roles.insert(DiagnosticFieldRole::SourceCode);
@@ -67,6 +71,8 @@ impl DiagnosticFieldRoles {
                 let parsing = attribute.parse_nested_meta(|nested| {
                     if nested.path.is_ident("primary") {
                         roles.insert(DiagnosticFieldRole::Primary);
+                    } else if nested.path.is_ident("collection") {
+                        roles.insert(DiagnosticFieldRole::Collection);
                     }
                     Ok(())
                 });
@@ -88,11 +94,32 @@ pub struct DiagnosticField {
     pub name: String,
     /// Presentation roles assigned to the field.
     pub roles: DiagnosticFieldRoles,
-    /// Local named type referenced directly by the field, when available.
+    /// Local named type represented directly or through a standard owning pointer.
     pub target: Option<LocalDefId>,
 }
 
 impl DiagnosticField {
+    /// Resolves a local field subject through transparent standard pointer wrappers.
+    fn local_target(cx: &LateContext<'_>, ty: Ty<'_>) -> Option<LocalDefId> {
+        let ty::Adt(definition, arguments) = ty.kind() else {
+            return None;
+        };
+        if let Some(local) = definition.did().as_local() {
+            return Some(local);
+        }
+        let crate_name = cx.tcx.crate_name(definition.did().krate);
+        let is_transparent_container = (crate_name.as_str() == "alloc"
+            && matches!(
+                cx.tcx.item_name(definition.did()).as_str(),
+                "Box" | "Rc" | "Arc" | "Vec"
+            ))
+            || (crate_name.as_str() == "core"
+                && cx.tcx.item_name(definition.did()).as_str() == "Option");
+        (is_transparent_container && !arguments.is_empty())
+            .then(|| Self::local_target(cx, arguments.type_at(0)))
+            .flatten()
+    }
+
     /// Correlates authored field attributes with resolved HIR field types.
     fn from_fields(
         cx: &LateContext<'_>,
@@ -116,12 +143,10 @@ impl DiagnosticField {
                     span: hir_field.span,
                     name,
                     roles,
-                    target: cx
-                        .tcx
-                        .type_of(hir_field.def_id)
-                        .instantiate_identity()
-                        .ty_adt_def()
-                        .and_then(|definition| definition.did().as_local()),
+                    target: Self::local_target(
+                        cx,
+                        cx.tcx.type_of(hir_field.def_id).instantiate_identity(),
+                    ),
                 }
             })
             .collect()
@@ -156,7 +181,7 @@ impl DiagnosticMetadata {
             .filter(|attribute| attribute.path().is_ident("diagnostic"))
         {
             let parsing = attribute.parse_nested_meta(|nested| {
-                if nested.path.is_ident("is_transparent") {
+                if nested.path.is_ident("transparent") || nested.path.is_ident("is_transparent") {
                     metadata.is_transparent = true;
                     return Ok(());
                 }

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::mem;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{Item, ItemKind};
+use rustc_hir::{ImplItem, ImplItemKind, Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty;
 use rustc_span::def_id::LocalDefId;
@@ -97,6 +97,55 @@ struct MietteIncoherentDiagnosticSeverity {
     uses: HashMap<LocalDefId, Vec<ViolationUse>>,
 }
 
+impl MietteIncoherentDiagnosticSeverity {
+    /// Resolves a local diagnostic through transparent standard pointer wrappers.
+    fn local_error_type(cx: &LateContext<'_>, ty: ty::Ty<'_>) -> Option<LocalDefId> {
+        let ty::Adt(definition, arguments) = ty.kind() else {
+            return None;
+        };
+        if let Some(local) = definition.did().as_local() {
+            return Some(local);
+        }
+        let is_pointer = cx.tcx.crate_name(definition.did().krate).as_str() == "alloc"
+            && matches!(
+                cx.tcx.item_name(definition.did()).as_str(),
+                "Box" | "Rc" | "Arc"
+            );
+        (is_pointer && !arguments.is_empty())
+            .then(|| Self::local_error_type(cx, arguments.type_at(0)))
+            .flatten()
+    }
+
+    /// Records one function-like boundary whose `Result` error resolves locally.
+    fn record_boundary(
+        &mut self,
+        cx: &LateContext<'_>,
+        definition: LocalDefId,
+        span: Span,
+        function: String,
+    ) {
+        let output = cx
+            .tcx
+            .fn_sig(definition)
+            .instantiate_identity()
+            .skip_binder()
+            .output();
+        let ty::Adt(result, arguments) = output.kind() else {
+            return;
+        };
+        if !cx.tcx.is_diagnostic_item(sym::Result, result.did()) || arguments.len() != 2 {
+            return;
+        }
+        let Some(error) = Self::local_error_type(cx, arguments.type_at(1)) else {
+            return;
+        };
+        self.uses
+            .entry(error)
+            .or_default()
+            .push(ViolationUse { span, function });
+    }
+}
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MIETTE_INCOHERENT_DIAGNOSTIC_SEVERITY,
@@ -107,69 +156,56 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for MietteIncoherentDiagnosticSeverity {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        /// Success and error arguments carried by `Result`.
-        // Fix the expected shape before inspecting a function's result type.
-        const RESULT_TYPE_ARGUMENT_COUNT: usize = 2;
-
         // Record the diagnostic declaration before inspecting function signatures.
         self.catalog.check_item(cx, item);
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Fn { .. }) {
             return;
         }
 
-        let output = cx
-            .tcx
-            .fn_sig(item.owner_id.def_id)
-            .instantiate_identity()
-            .skip_binder()
-            .output();
+        self.record_boundary(
+            cx,
+            item.owner_id.def_id,
+            item.span,
+            cx.tcx.item_name(item.owner_id.def_id).to_string(),
+        );
+    }
 
-        let ty::Adt(result, arguments) = output.kind() else {
-            return;
-        };
-        if !cx.tcx.is_diagnostic_item(sym::Result, result.did())
-            || arguments.len() != RESULT_TYPE_ARGUMENT_COUNT
-        {
+    fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        if item.span.from_expansion() || !matches!(item.kind, ImplItemKind::Fn(..)) {
             return;
         }
-
-        let Some(error) = arguments
-            .type_at(1)
-            .ty_adt_def()
-            .and_then(|definition| definition.did().as_local())
-        else {
-            return;
-        };
-
-        self.uses.entry(error).or_default().push(ViolationUse {
-            span: item.span,
-            function: cx.tcx.item_name(item.owner_id.def_id).to_string(),
-        });
+        self.record_boundary(
+            cx,
+            item.owner_id.def_id,
+            item.span,
+            cx.tcx.def_path_str(item.owner_id.def_id),
+        );
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        for (definition, uses) in mem::take(&mut self.uses) {
+        let mut violations = Vec::new();
+        for (definition, mut uses) in mem::take(&mut self.uses) {
             let Some(contract) = self.catalog.derived_type(definition) else {
                 continue;
             };
-            if !contract.members.is_empty() {
-                continue;
-            }
-
             let Some(severity) = contract.metadata.severity.as_deref() else {
                 continue;
             };
             if !matches!(severity, "Warning" | "Advice") {
                 continue;
             }
+            uses.sort_by_key(|usage| usage.span.lo());
 
-            Violation {
+            violations.push(Violation {
                 span: contract.span,
                 diagnostic: contract.name.clone(),
                 severity: severity.to_owned(),
                 uses,
-            }
-            .emit(cx);
+            });
+        }
+        violations.sort_by_key(|violation| violation.span.lo());
+        for violation in violations {
+            violation.emit(cx);
         }
     }
 }

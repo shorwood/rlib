@@ -94,11 +94,20 @@ dylint_linting::impl_late_lint! {
 impl MietteSensitiveDiagnosticSource {
     /// Matches exact and qualified sensitive field names.
     fn sensitive_name(name: &str) -> bool {
-        let name = name.to_ascii_lowercase();
+        let name = name.strip_prefix("r#").unwrap_or(name).to_ascii_lowercase();
+        if name
+            .split('_')
+            .any(|component| matches!(component, "masked" | "redacted" | "sanitized" | "scrubbed"))
+        {
+            return false;
+        }
 
-        SENSITIVE_TERMS
-            .iter()
-            .any(|term| name == *term || name.ends_with(&format!("_{term}")))
+        SENSITIVE_TERMS.iter().any(|term| {
+            name == *term
+                || name.starts_with(&format!("{term}_"))
+                || name.ends_with(&format!("_{term}"))
+                || name.contains(&format!("_{term}_"))
+        })
     }
 
     /// Reports sensitive fields exposed through Miette's source rendering.

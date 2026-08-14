@@ -38,7 +38,7 @@ impl LateViolation for Violation {
 
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
-            "add `#[diagnostic_source]` while retaining `#[source]` for the standard error chain",
+            "add `#[diagnostic_source]` while retaining `#[source]`; boxed concrete diagnostics may need direct storage or a boxed `Diagnostic` trait object",
         )
     }
 

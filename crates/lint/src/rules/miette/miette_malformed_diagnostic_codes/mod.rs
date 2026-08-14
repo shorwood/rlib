@@ -89,6 +89,8 @@ impl MietteMalformedDiagnosticCodes {
         if segments.len() >= MINIMUM_QUALIFIED_CODE_SEGMENTS {
             return segments.iter().all(|segment| {
                 !segment.is_empty()
+                    && !segment.ends_with('_')
+                    && !segment.contains("__")
                     && segment
                         .chars()
                         .next()

@@ -4,6 +4,8 @@
 
 Finds the same static ad-hoc Miette diagnostic or context message propagated by multiple functions
 when at least one occurrence crosses a public API boundary.
+Both eager and lazy resolved `WrapErr` contexts are included; unrelated methods with the same name
+are excluded.
 
 ## Why is this bad?
 

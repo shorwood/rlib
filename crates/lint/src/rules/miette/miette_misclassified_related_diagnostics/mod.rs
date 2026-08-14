@@ -101,7 +101,19 @@ impl MietteMisclassifiedRelatedDiagnostics {
     fn causal_name(name: &str) -> bool {
         matches!(
             name,
-            "source" | "cause" | "error" | "root_error" | "source_error" | "source_errors"
+            "source"
+                | "cause"
+                | "causes"
+                | "error"
+                | "errors"
+                | "root_cause"
+                | "root_causes"
+                | "root_error"
+                | "root_errors"
+                | "source_error"
+                | "source_errors"
+                | "underlying_error"
+                | "underlying_errors"
         )
     }
 
@@ -109,14 +121,33 @@ impl MietteMisclassifiedRelatedDiagnostics {
     fn sibling_name(name: &str) -> bool {
         matches!(
             name,
-            "related" | "findings" | "warnings" | "suppressed" | "alternatives"
+            "related"
+                | "related_diagnostic"
+                | "related_diagnostics"
+                | "finding"
+                | "findings"
+                | "warning"
+                | "warnings"
+                | "suppressed"
+                | "suppressed_error"
+                | "suppressed_errors"
+                | "alternative"
+                | "alternatives"
+                | "issue"
+                | "issues"
+                | "notice"
+                | "notices"
         )
     }
 
     /// Reports field names and Miette roles that point in opposite directions.
     fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
         for field in fields {
-            let name = field.name.to_ascii_lowercase();
+            let name = field
+                .name
+                .strip_prefix("r#")
+                .unwrap_or(&field.name)
+                .to_ascii_lowercase();
             let kind =
                 if field.roles.contains(DiagnosticFieldRole::Related) && Self::causal_name(&name) {
                     Some(ViolationKind::CauseAsRelated)

@@ -2,8 +2,8 @@
 
 ## What it does
 
-Finds public APIs in library crate types that return `miette::Report` directly or through
-`miette::Result`.
+Finds exported functions and methods in library crate types that return `miette::Report` directly
+or through `miette::Result`, including behind standard owning pointers.
 
 ## Why is this bad?
 

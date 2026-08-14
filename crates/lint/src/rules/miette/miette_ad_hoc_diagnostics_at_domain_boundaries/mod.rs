@@ -1,3 +1,4 @@
+extern crate rustc_ast;
 extern crate rustc_errors;
 extern crate rustc_hir;
 extern crate rustc_middle;
@@ -8,13 +9,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::mem;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{ImplItem, ImplItemKind, Item, ItemKind};
+use rustc_hir::intravisit::{self, Visitor as HirVisitor};
+use rustc_hir::{BodyId, Expr, ExprKind, ImplItem, ImplItemKind, Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, sym};
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
-use syn::visit::{Visit, visit_expr_method_call};
+use syn::visit::Visit;
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
@@ -126,8 +128,22 @@ impl MietteAdHocDiagnosticsAtDomainBoundaries {
             return None;
         };
 
-        let value = literal.value();
-        (!value.contains('{') && !value.contains('}')).then_some(value)
+        Self::static_format_text(&literal.value())
+    }
+
+    /// Resolves escaped braces while rejecting actual format replacement fields.
+    fn static_format_text(value: &str) -> Option<String> {
+        let mut characters = value.chars().peekable();
+        let mut rendered = String::with_capacity(value.len());
+        while let Some(character) = characters.next() {
+            if matches!(character, '{' | '}') {
+                if characters.next_if_eq(&character).is_none() {
+                    return None;
+                }
+            }
+            rendered.push(character);
+        }
+        Some(rendered)
     }
 
     /// Finds a Miette report directly or in a result error position.
@@ -170,6 +186,11 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
         };
         let mut visitor = StaticMessageVisitor::default();
         visitor.visit_item_fn(&function);
+        if let ItemKind::Fn { body, .. } = item.kind {
+            let mut contexts = SemanticContextVisitor::new(cx);
+            contexts.visit_body(cx.tcx.hir_body(body));
+            visitor.messages.extend(contexts.messages);
+        }
 
         self.record_messages(
             visitor.messages,
@@ -205,6 +226,11 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
         };
         let mut visitor = StaticMessageVisitor::default();
         visitor.visit_impl_item_fn(&method);
+        if let ImplItemKind::Fn(_, body) = item.kind {
+            let mut contexts = SemanticContextVisitor::new(cx);
+            contexts.visit_body(cx.tcx.hir_body(body));
+            visitor.messages.extend(contexts.messages);
+        }
 
         self.record_messages(
             visitor.messages,
@@ -282,17 +308,69 @@ impl<'ast> Visit<'ast> for StaticMessageVisitor {
         }
         self.messages.insert(literals[0].clone());
     }
+}
 
-    fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
-        if call.method == "wrap_err"
-            && call.args.len() == 1
-            && let Some(message) = call
-                .args
-                .first()
-                .and_then(MietteAdHocDiagnosticsAtDomainBoundaries::static_string)
-        {
-            self.messages.insert(message);
+/// Finds literal context messages on resolved Miette `WrapErr` methods.
+struct SemanticContextVisitor<'analysis, 'tcx> {
+    /// Compiler context used for method identity and nested closure bodies.
+    cx: &'analysis LateContext<'tcx>,
+    /// Distinct static context messages in the function.
+    messages: BTreeSet<String>,
+}
+
+impl<'analysis, 'tcx> SemanticContextVisitor<'analysis, 'tcx> {
+    /// Starts semantic context collection.
+    fn new(cx: &'analysis LateContext<'tcx>) -> Self {
+        Self {
+            cx,
+            messages: BTreeSet::new(),
         }
-        visit_expr_method_call(self, call);
+    }
+
+    /// Extracts a literal string directly or from a lazy context closure.
+    fn literal_message(&self, expression: &'tcx Expr<'tcx>) -> Option<String> {
+        let expression = match expression.kind {
+            ExprKind::Closure(closure) => self.cx.tcx.hir_body(closure.body).value,
+            _ => expression,
+        };
+        let ExprKind::Lit(literal) = expression.kind else {
+            return None;
+        };
+        let rustc_ast::LitKind::Str(message, _) = literal.node else {
+            return None;
+        };
+        Some(message.to_string())
+    }
+}
+
+impl<'tcx> HirVisitor<'tcx> for SemanticContextVisitor<'_, 'tcx> {
+    fn visit_nested_body(&mut self, body: BodyId) {
+        self.visit_body(self.cx.tcx.hir_body(body));
+    }
+
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if let ExprKind::MethodCall(_, _, [argument], _) = expression.kind {
+            let owner = self.cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+            if let Some(method) = self
+                .cx
+                .tcx
+                .typeck(owner)
+                .type_dependent_def_id(expression.hir_id)
+                && self.cx.tcx.crate_name(method.krate).as_str() == "miette"
+                && matches!(
+                    self.cx.tcx.item_name(method).as_str(),
+                    "wrap_err" | "wrap_err_with"
+                )
+                && self
+                    .cx
+                    .tcx
+                    .trait_of_assoc(method)
+                    .is_some_and(|trait_id| self.cx.tcx.item_name(trait_id).as_str() == "WrapErr")
+                && let Some(message) = self.literal_message(argument)
+            {
+                self.messages.insert(message);
+            }
+        }
+        intravisit::walk_expr(self, expression);
     }
 }

@@ -3,11 +3,13 @@ extern crate rustc_hir;
 extern crate rustc_span;
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 
 use rustc_errors::DiagDecorator;
 use rustc_hir::Item;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
+use rustc_span::def_id::LocalDefId;
 
 use super::utils::contracts::{
     DiagnosticCatalog, DiagnosticField, DiagnosticFieldRole, DiagnosticMetadata,
@@ -115,9 +117,39 @@ dylint_linting::impl_late_lint! {
 }
 
 impl MietteSourceCodeWithoutLabels {
+    /// Returns whether a local nested diagnostic can select a source location.
+    fn nested_focus(
+        catalog: &DiagnosticCatalog,
+        target: LocalDefId,
+        visited: &mut HashSet<LocalDefId>,
+    ) -> bool {
+        if !visited.insert(target) {
+            return false;
+        }
+        let Some(contract) = catalog.derived_type(target) else {
+            return true;
+        };
+        if contract.metadata.is_transparent {
+            return true;
+        }
+        contract
+            .fields
+            .iter()
+            .chain(contract.members.iter().flat_map(|member| &member.fields))
+            .any(|field| {
+                field.roles.contains(DiagnosticFieldRole::Label)
+                    || ((field.roles.contains(DiagnosticFieldRole::Related)
+                        || field.roles.contains(DiagnosticFieldRole::DiagnosticSource))
+                        && field
+                            .target
+                            .is_none_or(|target| Self::nested_focus(catalog, target, visited)))
+            })
+    }
+
     /// Reports source storage with no label or nested diagnostic to focus it.
     fn check_fields(
         cx: &LateContext<'_>,
+        catalog: &DiagnosticCatalog,
         span: Span,
         fields: &[DiagnosticField],
         transparency: Transparency,
@@ -132,8 +164,11 @@ impl MietteSourceCodeWithoutLabels {
             || transparency.is_transparent()
             || fields.iter().any(|field| {
                 field.roles.contains(DiagnosticFieldRole::Label)
-                    || field.roles.contains(DiagnosticFieldRole::Related)
-                    || field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
+                    || ((field.roles.contains(DiagnosticFieldRole::Related)
+                        || field.roles.contains(DiagnosticFieldRole::DiagnosticSource))
+                        && field.target.is_none_or(|target| {
+                            Self::nested_focus(catalog, target, &mut HashSet::new())
+                        }))
             })
         {
             return;
@@ -158,6 +193,7 @@ impl LateLintPass<'_> for MietteSourceCodeWithoutLabels {
         for contract in self.catalog.derived_contracts() {
             Self::check_fields(
                 cx,
+                &self.catalog,
                 contract.span,
                 &contract.fields,
                 Transparency::for_contract(&contract.metadata),
@@ -165,6 +201,7 @@ impl LateLintPass<'_> for MietteSourceCodeWithoutLabels {
             for member in &contract.members {
                 Self::check_fields(
                     cx,
+                    &self.catalog,
                     member.span,
                     &member.fields,
                     Transparency::for_member(&member.metadata, &contract.metadata),
