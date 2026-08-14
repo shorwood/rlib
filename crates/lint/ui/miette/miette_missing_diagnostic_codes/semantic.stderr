@@ -8,5 +8,23 @@ LL |     Invalid,
    = help: add a unique namespaced `#[diagnostic(code(...))]` to this variant
    = note: `#[warn(miette_missing_diagnostic_codes)]` on by default
 
-warning: 1 warning emitted
+warning: diagnostic `MultipleMissing::FirstMissing` has no stable code
+  --> $DIR/semantic.rs:36:5
+   |
+LL |     FirstMissing,
+   |     ^^^^^^^^^^^^ this variant breaks the family's code policy
+   |
+   = note: sibling variants establish codes as this diagnostic family's machine identity, but this variant cannot be filtered or tracked equivalently
+   = help: add a unique namespaced `#[diagnostic(code(...))]` to this variant
+
+warning: diagnostic `MultipleMissing::SecondMissing` has no stable code
+  --> $DIR/semantic.rs:38:5
+   |
+LL |     SecondMissing,
+   |     ^^^^^^^^^^^^^ this variant breaks the family's code policy
+   |
+   = note: sibling variants establish codes as this diagnostic family's machine identity, but this variant cannot be filtered or tracked equivalently
+   = help: add a unique namespaced `#[diagnostic(code(...))]` to this variant
+
+warning: 3 warnings emitted
 

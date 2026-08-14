@@ -8,5 +8,32 @@ LL |     request_body: miette::NamedSource<String>,
    = help: store a redacted source representation or keep sensitive content outside the diagnostic
    = note: `#[warn(miette_sensitive_diagnostic_source)]` on by default
 
-warning: 1 warning emitted
+warning: sensitive field `customer_access_token_payload` is exposed as diagnostic source code
+  --> $DIR/semantic.rs:25:5
+   |
+LL |     customer_access_token_payload: String,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this source can disclose sensitive content
+   |
+   = note: Miette reporters may print labeled excerpts and surrounding text from this field to terminals, logs, or serialized reports
+   = help: store a redacted source representation or keep sensitive content outside the diagnostic
+
+warning: sensitive field `password_excerpt` is exposed as diagnostic source code
+  --> $DIR/semantic.rs:35:9
+   |
+LL |         password_excerpt: String,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^ this source can disclose sensitive content
+   |
+   = note: Miette reporters may print labeled excerpts and surrounding text from this field to terminals, logs, or serialized reports
+   = help: store a redacted source representation or keep sensitive content outside the diagnostic
+
+warning: sensitive field `r#private_content` is exposed as diagnostic source code
+  --> $DIR/semantic.rs:42:9
+   |
+LL |         r#private_content: String,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^ this source can disclose sensitive content
+   |
+   = note: Miette reporters may print labeled excerpts and surrounding text from this field to terminals, logs, or serialized reports
+   = help: store a redacted source representation or keep sensitive content outside the diagnostic
+
+warning: 4 warnings emitted
 

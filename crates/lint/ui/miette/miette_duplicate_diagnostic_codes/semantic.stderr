@@ -11,5 +11,29 @@ LL |     Invalid,
    = help: assign a unique stable code to each distinct diagnostic contract
    = note: `#[warn(miette_duplicate_diagnostic_codes)]` on by default
 
-warning: 1 warning emitted
+warning: diagnostic code `protocol::shared` identifies distinct diagnostics
+  --> $DIR/semantic.rs:35:5
+   |
+LL |     Disconnected,
+   |     ^^^^^^^^^^^^ `ProtocolError::Disconnected` uses this code
+LL |     #[error("timed out")]
+LL |     TimedOut,
+   |     -------- `ProtocolError::TimedOut` uses this code
+   |
+   = note: the code is shared by `ProtocolError::Disconnected`, `ProtocolError::TimedOut`
+   = help: assign a unique stable code to each distinct diagnostic contract
+
+warning: diagnostic code `storage::shared` identifies distinct diagnostics
+  --> $DIR/semantic.rs:19:1
+   |
+LL | struct PrimaryStorage;
+   | ^^^^^^^^^^^^^^^^^^^^^^ `PrimaryStorage` uses this code
+...
+LL | struct FallbackStorage;
+   | ----------------------- `FallbackStorage` uses this code
+   |
+   = note: the code is shared by `PrimaryStorage`, `FallbackStorage`
+   = help: assign a unique stable code to each distinct diagnostic contract
+
+warning: 3 warnings emitted
 

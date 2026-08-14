@@ -18,4 +18,40 @@ struct Redacted {
     span: miette::SourceSpan,
 }
 
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[error("invalid credential")]
+struct QualifiedNames {
+    #[source_code]
+    customer_access_token_payload: String,
+    #[label]
+    span: miette::SourceSpan,
+}
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+enum VariantSources {
+    #[error("password rejected")]
+    Password {
+        #[source_code]
+        password_excerpt: String,
+        #[label]
+        span: miette::SourceSpan,
+    },
+    #[error("private content rejected")]
+    Private {
+        #[source_code]
+        r#private_content: String,
+        #[label]
+        span: miette::SourceSpan,
+    },
+}
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[error("redacted")]
+struct ExplicitlyRedacted {
+    #[source_code]
+    redacted_api_key: String,
+    #[label]
+    span: miette::SourceSpan,
+}
+
 fn main() {}

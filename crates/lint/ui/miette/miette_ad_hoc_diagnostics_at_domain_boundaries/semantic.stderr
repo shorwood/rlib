@@ -33,6 +33,22 @@ LL | | }
    = note: the same anonymous failure is propagated by `load_primary`, `load_fallback`
    = help: introduce one typed error deriving `thiserror::Error` and `miette::Diagnostic`, then reuse it at each boundary
 
+warning: ad-hoc Miette diagnostic `configuration {default} is missing` is repeated at domain boundaries
+  --> $DIR/semantic.rs:57:1
+   |
+LL | / pub fn escaped_primary() -> miette::Result<()> {
+LL | |     Err(miette::miette!("configuration {{default}} is missing"))
+LL | | }
+   | |_^ `escaped_primary` constructs this anonymous failure
+LL |
+LL | / pub fn escaped_fallback() -> miette::Result<()> {
+LL | |     Err(miette::miette!("configuration {{default}} is missing"))
+LL | | }
+   | |_- `escaped_fallback` constructs this anonymous failure
+   |
+   = note: the same anonymous failure is propagated by `escaped_primary`, `escaped_fallback`
+   = help: introduce one typed error deriving `thiserror::Error` and `miette::Diagnostic`, then reuse it at each boundary
+
 warning: ad-hoc Miette diagnostic `input is invalid` is repeated at domain boundaries
   --> $DIR/semantic.rs:25:1
    |
@@ -53,6 +69,24 @@ LL | | }
    = note: the same anonymous failure is propagated by `validate_primary`, `validate_fallback`
    = help: introduce one typed error deriving `thiserror::Error` and `miette::Diagnostic`, then reuse it at each boundary
 
+warning: ad-hoc Miette diagnostic `lazy configuration context` is repeated at domain boundaries
+  --> $DIR/semantic.rs:47:1
+   |
+LL | / pub fn lazy_read_primary() -> miette::Result<()> {
+LL | |     Err::<(), _>(miette::miette!("lazy primary source is unavailable"))
+LL | |         .wrap_err_with(|| "lazy configuration context")
+LL | | }
+   | |_^ `lazy_read_primary` constructs this anonymous failure
+LL |
+LL | / pub fn lazy_read_fallback() -> miette::Result<()> {
+LL | |     Err::<(), _>(miette::miette!("lazy fallback source is unavailable"))
+LL | |         .wrap_err_with(|| "lazy configuration context")
+LL | | }
+   | |_- `lazy_read_fallback` constructs this anonymous failure
+   |
+   = note: the same anonymous failure is propagated by `lazy_read_primary`, `lazy_read_fallback`
+   = help: introduce one typed error deriving `thiserror::Error` and `miette::Diagnostic`, then reuse it at each boundary
+
 warning: ad-hoc Miette diagnostic `loader is unavailable` is repeated at domain boundaries
   --> $DIR/semantic.rs:8:5
    |
@@ -69,5 +103,5 @@ LL | |     }
    = note: the same anonymous failure is propagated by `Loader::primary`, `Loader::fallback`
    = help: introduce one typed error deriving `thiserror::Error` and `miette::Diagnostic`, then reuse it at each boundary
 
-warning: 4 warnings emitted
+warning: 6 warnings emitted
 

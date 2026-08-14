@@ -8,5 +8,41 @@ LL | struct Bad;
    = help: use a static HTTPS documentation URL with a stable path
    = note: `#[warn(miette_unstable_diagnostic_urls)]` on by default
 
-warning: 1 warning emitted
+warning: diagnostic URL `https://192.168.1.20/errors/bad` is not a stable external link
+  --> $DIR/semantic.rs:16:1
+   |
+LL | struct PrivateNetwork;
+   | ^^^^^^^^^^^^^^^^^^^^^^ this diagnostic exposes an unstable URL
+   |
+   = note: local, insecure, relative, or presentation-derived links are unsuitable as durable diagnostic metadata
+   = help: use a static HTTPS documentation URL with a stable path
+
+warning: diagnostic URL `https://docs.example.com` is not a stable external link
+  --> $DIR/semantic.rs:21:1
+   |
+LL | struct MissingStablePath;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^ this diagnostic exposes an unstable URL
+   |
+   = note: local, insecure, relative, or presentation-derived links are unsuitable as durable diagnostic metadata
+   = help: use a static HTTPS documentation URL with a stable path
+
+warning: diagnostic URL `https://.example.com/errors/bad` is not a stable external link
+  --> $DIR/semantic.rs:26:1
+   |
+LL | struct MalformedHost;
+   | ^^^^^^^^^^^^^^^^^^^^^ this diagnostic exposes an unstable URL
+   |
+   = note: local, insecure, relative, or presentation-derived links are unsuitable as durable diagnostic metadata
+   = help: use a static HTTPS documentation URL with a stable path
+
+warning: diagnostic URL `docs/errors/relative` is not a stable external link
+  --> $DIR/semantic.rs:32:5
+   |
+LL |     Relative,
+   |     ^^^^^^^^ this diagnostic exposes an unstable URL
+   |
+   = note: local, insecure, relative, or presentation-derived links are unsuitable as durable diagnostic metadata
+   = help: use a static HTTPS documentation URL with a stable path
+
+warning: 5 warnings emitted
 

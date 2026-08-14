@@ -44,6 +44,42 @@ pub fn read_fallback() -> miette::Result<()> {
         .wrap_err("configuration could not be read")
 }
 
+pub fn lazy_read_primary() -> miette::Result<()> {
+    Err::<(), _>(miette::miette!("lazy primary source is unavailable"))
+        .wrap_err_with(|| "lazy configuration context")
+}
+
+pub fn lazy_read_fallback() -> miette::Result<()> {
+    Err::<(), _>(miette::miette!("lazy fallback source is unavailable"))
+        .wrap_err_with(|| "lazy configuration context")
+}
+
+pub fn escaped_primary() -> miette::Result<()> {
+    Err(miette::miette!("configuration {{default}} is missing"))
+}
+
+pub fn escaped_fallback() -> miette::Result<()> {
+    Err(miette::miette!("configuration {{default}} is missing"))
+}
+
+struct FakeContext;
+
+impl FakeContext {
+    fn wrap_err(self, _: &str) -> Self {
+        self
+    }
+}
+
+pub fn misleading_primary() -> miette::Result<()> {
+    let _ = FakeContext.wrap_err("not Miette context");
+    Ok(())
+}
+
+pub fn misleading_fallback() -> miette::Result<()> {
+    let _ = FakeContext.wrap_err("not Miette context");
+    Ok(())
+}
+
 pub fn coded_primary() -> miette::Result<()> {
     Err(miette::miette!(
         code = "configuration::coded",

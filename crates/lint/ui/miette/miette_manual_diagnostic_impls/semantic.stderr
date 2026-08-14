@@ -13,7 +13,7 @@ warning: manual `Diagnostic` implementation for `Coded` is derivable
    |
 LL | / impl miette::Diagnostic for Coded {
 LL | |     fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
-LL | |         Some(Box::new("domain::coded"))
+LL | |         std::option::Option::Some(Box::new("domain::coded"))
 LL | |     }
 LL | | }
    | |_^ this complete diagnostic contract is derivable
@@ -21,5 +21,49 @@ LL | | }
    = note: methods `code` contain only static metadata or direct field forwarding
    = help: replace the implementation with `#[derive(miette::Diagnostic)]` and equivalent diagnostic or field attributes
 
-warning: 2 warnings emitted
+warning: manual `Diagnostic` implementation for `Documented` is derivable
+  --> $DIR/semantic.rs:24:1
+   |
+LL | impl miette::Diagnostic for Documented {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this complete diagnostic contract is derivable
+   |
+   = note: the implementation uses only `Diagnostic` defaults
+   = help: replace the implementation with `#[derive(miette::Diagnostic)]` and equivalent diagnostic or field attributes
+
+warning: manual `Diagnostic` implementation for `Generic` is derivable
+  --> $DIR/semantic.rs:30:1
+   |
+LL | impl<T: std::fmt::Debug + Send + Sync + 'static> miette::Diagnostic for Generic<T> {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this complete diagnostic contract is derivable
+   |
+   = note: the implementation uses only `Diagnostic` defaults
+   = help: replace the implementation with `#[derive(miette::Diagnostic)]` and equivalent diagnostic or field attributes
+
+warning: manual `Diagnostic` implementation for `StaticSeverity` is derivable
+  --> $DIR/semantic.rs:36:1
+   |
+LL | / impl miette::Diagnostic for StaticSeverity {
+LL | |     fn severity(&self) -> Option<miette::Severity> {
+LL | |         Some(miette::Severity::Warning)
+LL | |     }
+LL | | }
+   | |_^ this complete diagnostic contract is derivable
+   |
+   = note: methods `severity` contain only static metadata or direct field forwarding
+   = help: replace the implementation with `#[derive(miette::Diagnostic)]` and equivalent diagnostic or field attributes
+
+warning: manual `Diagnostic` implementation for `ForwardedSource` is derivable
+  --> $DIR/semantic.rs:48:1
+   |
+LL | / impl miette::Diagnostic for ForwardedSource {
+LL | |     fn source_code(&self) -> Option<&dyn miette::SourceCode> {
+LL | |         Some(&self.input)
+LL | |     }
+LL | | }
+   | |_^ this complete diagnostic contract is derivable
+   |
+   = note: methods `source_code` contain only static metadata or direct field forwarding
+   = help: replace the implementation with `#[derive(miette::Diagnostic)]` and equivalent diagnostic or field attributes
+
+warning: 6 warnings emitted
 

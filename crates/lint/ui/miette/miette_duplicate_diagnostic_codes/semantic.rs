@@ -13,4 +13,28 @@ enum ConfigError {
     Unavailable,
 }
 
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[error("primary storage failure")]
+#[diagnostic(code(storage::shared))]
+struct PrimaryStorage;
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[error("fallback storage failure")]
+#[diagnostic(code("storage::shared"))]
+struct FallbackStorage;
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[error("unique storage failure")]
+#[diagnostic(code(storage::unique))]
+struct UniqueStorage;
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[diagnostic(code(protocol::shared))]
+enum ProtocolError {
+    #[error("disconnected")]
+    Disconnected,
+    #[error("timed out")]
+    TimedOut,
+}
+
 fn main() {}

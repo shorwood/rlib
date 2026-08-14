@@ -4,14 +4,52 @@ warning: diagnostic `DeprecatedInput` declares `Warning` severity but is returne
 LL |   struct DeprecatedInput;
    |   ^^^^^^^^^^^^^^^^^^^^^^^ this severity contradicts propagation
 ...
+LL | /     fn validate_boxed(&self) -> Result<(), Box<DeprecatedInput>> {
+LL | |         Err(Box::new(DeprecatedInput))
+LL | |     }
+   | |_____- `Validator::validate_boxed` returns it as an error
+...
 LL | / fn validate() -> Result<(), DeprecatedInput> {
 LL | |     Err(DeprecatedInput)
 LL | | }
    | |_- `validate` returns it as an error
    |
-   = note: the type is the error channel of `validate`
+   = note: the type is the error channel of `Validator::validate_boxed`, `validate`
    = help: use error severity, or return this diagnostic through an advisory collection instead of `Result::Err`
    = note: `#[warn(miette_incoherent_diagnostic_severity)]` on by default
 
-warning: 1 warning emitted
+warning: diagnostic `MigrationAdvice` declares `Advice` severity but is returned as an error
+  --> $DIR/semantic.rs:16:1
+   |
+LL |   struct MigrationAdvice;
+   |   ^^^^^^^^^^^^^^^^^^^^^^^ this severity contradicts propagation
+...
+LL | / fn advise() -> Result<(), std::sync::Arc<MigrationAdvice>> {
+LL | |     Err(std::sync::Arc::new(MigrationAdvice))
+LL | | }
+   | |_- `advise` returns it as an error
+   |
+   = note: the type is the error channel of `advise`
+   = help: use error severity, or return this diagnostic through an advisory collection instead of `Result::Err`
+
+warning: diagnostic `ProtocolWarning` declares `Warning` severity but is returned as an error
+  --> $DIR/semantic.rs:20:1
+   |
+LL | / enum ProtocolWarning {
+LL | |     #[error("legacy protocol")]
+LL | |     Legacy,
+LL | |     #[error("deprecated protocol")]
+LL | |     Deprecated,
+LL | | }
+   | |_^ this severity contradicts propagation
+...
+LL | / fn warn_protocol() -> Result<(), ProtocolWarning> {
+LL | |     Err(ProtocolWarning::Legacy)
+LL | | }
+   | |_- `warn_protocol` returns it as an error
+   |
+   = note: the type is the error channel of `warn_protocol`
+   = help: use error severity, or return this diagnostic through an advisory collection instead of `Result::Err`
+
+warning: 3 warnings emitted
 

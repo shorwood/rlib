@@ -8,5 +8,23 @@ LL | struct Generic;
    = help: replace the generic phrase with a specific action, expected value, path, or alternative
    = note: `#[warn(miette_generic_diagnostic_help)]` on by default
 
-warning: 1 warning emitted
+warning: diagnostic help `  TRY   AGAIN?!  ` is not actionable
+  --> $DIR/semantic.rs:11:1
+   |
+LL | struct DecoratedGeneric;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^ this help text lacks a concrete remediation
+   |
+   = note: generic advice does not tell the reader which concrete action can resolve this diagnostic
+   = help: replace the generic phrase with a specific action, expected value, path, or alternative
+
+warning: diagnostic help `Contact support...` is not actionable
+  --> $DIR/semantic.rs:16:1
+   |
+LL | struct PunctuatedGeneric;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^ this help text lacks a concrete remediation
+   |
+   = note: generic advice does not tell the reader which concrete action can resolve this diagnostic
+   = help: replace the generic phrase with a specific action, expected value, path, or alternative
+
+warning: 3 warnings emitted
 

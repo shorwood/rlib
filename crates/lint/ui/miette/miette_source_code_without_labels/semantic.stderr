@@ -11,5 +11,45 @@ LL | | }
    = help: add focused label metadata or remove source-code storage from this diagnostic
    = note: `#[warn(miette_source_code_without_labels)]` on by default
 
-warning: 1 warning emitted
+warning: diagnostic retains source code without a focus
+  --> $DIR/semantic.rs:32:1
+   |
+LL | / struct UnfocusedRelated {
+LL | |     #[source_code]
+LL | |     input: String,
+LL | |     #[related]
+LL | |     findings: Vec<NestedWithoutFocus>,
+LL | | }
+   | |_^ this source has no diagnostic focus
+   |
+   = note: source fields `input` have no label, related diagnostic, or diagnostic source that can select a relevant location
+   = help: add focused label metadata or remove source-code storage from this diagnostic
+
+warning: diagnostic retains source code without a focus
+  --> $DIR/semantic.rs:50:1
+   |
+LL | / struct UnfocusedDiagnosticSource {
+LL | |     #[source_code]
+LL | |     input: String,
+LL | |     #[diagnostic_source]
+LL | |     nested: NestedWithoutFocus,
+LL | | }
+   | |_^ this source has no diagnostic focus
+   |
+   = note: source fields `input` have no label, related diagnostic, or diagnostic source that can select a relevant location
+   = help: add focused label metadata or remove source-code storage from this diagnostic
+
+warning: diagnostic retains source code without a focus
+  --> $DIR/semantic.rs:60:5
+   |
+LL | /     Unfocused {
+LL | |         #[source_code]
+LL | |         input: String,
+LL | |     },
+   | |_____^ this source has no diagnostic focus
+   |
+   = note: source fields `input` have no label, related diagnostic, or diagnostic source that can select a relevant location
+   = help: add focused label metadata or remove source-code storage from this diagnostic
+
+warning: 4 warnings emitted
 

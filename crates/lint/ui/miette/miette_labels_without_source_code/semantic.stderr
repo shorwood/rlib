@@ -11,5 +11,32 @@ LL | | }
    = help: add a `#[source_code]` field, forward a diagnostic source, or remove the unusable labels
    = note: `#[warn(miette_labels_without_source_code)]` on by default
 
-warning: 1 warning emitted
+warning: diagnostic labels have no source code
+  --> $DIR/semantic.rs:25:1
+   |
+LL | / struct RelatedIsNotSource {
+LL | |     #[label("first")]
+LL | |     first: miette::SourceSpan,
+LL | |     #[label(primary)]
+...  |
+LL | |     findings: Vec<Nested>,
+LL | | }
+   | |_^ these labels cannot resolve against source text
+   |
+   = note: label fields `first`, `second` cannot render excerpts without a local or forwarded source
+   = help: add a `#[source_code]` field, forward a diagnostic source, or remove the unusable labels
+
+warning: diagnostic labels have no source code
+  --> $DIR/semantic.rs:37:5
+   |
+LL | /     Missing {
+LL | |         #[label]
+LL | |         span: miette::SourceSpan,
+LL | |     },
+   | |_____^ these labels cannot resolve against source text
+   |
+   = note: label fields `span` cannot render excerpts without a local or forwarded source
+   = help: add a `#[source_code]` field, forward a diagnostic source, or remove the unusable labels
+
+warning: 3 warnings emitted
 

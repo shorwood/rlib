@@ -17,5 +17,32 @@ LL |     related: Inner,
    = note: the declared Miette relationship contradicts the field's explicit domain role and distorts the rendered diagnostic tree
    = help: model independent findings with `#[related]` and select one actual causal diagnostic source
 
-warning: 2 warnings emitted
+warning: causal field `root_cause` is classified as a related diagnostic
+  --> $DIR/semantic.rs:25:5
+   |
+LL |     root_cause: Vec<Inner>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^ this relationship conflicts with the field role
+   |
+   = note: the declared Miette relationship contradicts the field's explicit domain role and distorts the rendered diagnostic tree
+   = help: model the primary failure with `#[diagnostic_source]` and reserve `#[related]` for sibling findings
+
+warning: causal field `r#underlying_error` is classified as a related diagnostic
+  --> $DIR/semantic.rs:27:5
+   |
+LL |     r#underlying_error: Vec<Inner>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this relationship conflicts with the field role
+   |
+   = note: the declared Miette relationship contradicts the field's explicit domain role and distorts the rendered diagnostic tree
+   = help: model the primary failure with `#[diagnostic_source]` and reserve `#[related]` for sibling findings
+
+warning: sibling field `related_diagnostics` is classified as the diagnostic source
+  --> $DIR/semantic.rs:35:9
+   |
+LL |         related_diagnostics: Inner,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^ this relationship conflicts with the field role
+   |
+   = note: the declared Miette relationship contradicts the field's explicit domain role and distorts the rendered diagnostic tree
+   = help: model independent findings with `#[related]` and select one actual causal diagnostic source
+
+warning: 5 warnings emitted
 

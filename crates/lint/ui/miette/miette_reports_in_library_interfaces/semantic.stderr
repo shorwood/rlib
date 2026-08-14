@@ -10,5 +10,47 @@ LL | | }
    = help: return a public concrete error type, optionally deriving both `thiserror::Error` and `miette::Diagnostic`
    = note: `#[warn(miette_reports_in_library_interfaces)]` on by default
 
-warning: 1 warning emitted
+warning: public library API `boxed_report` returns `miette::Report`
+  --> $DIR/semantic.rs:7:1
+   |
+LL | / pub fn boxed_report() -> Result<(), Box<miette::Report>> {
+LL | |     Ok(())
+LL | | }
+   | |_^ this library boundary exposes an application report
+   |
+   = note: a report is an application rendering boundary and erases the concrete failure vocabulary library callers need
+   = help: return a public concrete error type, optionally deriving both `thiserror::Error` and `miette::Diagnostic`
+
+warning: public library API `async_report` returns `miette::Report`
+  --> $DIR/semantic.rs:11:1
+   |
+LL | / pub async fn async_report() -> miette::Result<()> {
+LL | |     Ok(())
+LL | | }
+   | |_^ this library boundary exposes an application report
+   |
+   = note: a report is an application rendering boundary and erases the concrete failure vocabulary library callers need
+   = help: return a public concrete error type, optionally deriving both `thiserror::Error` and `miette::Diagnostic`
+
+warning: public library API `Service::load` returns `miette::Report`
+  --> $DIR/semantic.rs:18:5
+   |
+LL | /     pub fn load(&self) -> miette::Result<()> {
+LL | |         Ok(())
+LL | |     }
+   | |_____^ this library boundary exposes an application report
+   |
+   = note: a report is an application rendering boundary and erases the concrete failure vocabulary library callers need
+   = help: return a public concrete error type, optionally deriving both `thiserror::Error` and `miette::Diagnostic`
+
+warning: public library API `PublicService::check` returns `miette::Report`
+  --> $DIR/semantic.rs:24:5
+   |
+LL |     fn check(&self) -> miette::Result<()>;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this library boundary exposes an application report
+   |
+   = note: a report is an application rendering boundary and erases the concrete failure vocabulary library callers need
+   = help: return a public concrete error type, optionally deriving both `thiserror::Error` and `miette::Diagnostic`
+
+warning: 5 warnings emitted
 

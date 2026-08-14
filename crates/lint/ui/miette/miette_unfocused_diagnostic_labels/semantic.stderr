@@ -14,5 +14,34 @@ LL | | }
    = help: mark the causal label `#[label(primary)]`; do not infer importance from field order
    = note: `#[warn(miette_unfocused_diagnostic_labels)]` on by default
 
-warning: 1 warning emitted
+warning: multi-label diagnostic has no primary location
+  --> $DIR/semantic.rs:27:1
+   |
+LL | / struct CollectionOnly {
+LL | |     #[source_code]
+LL | |     input: String,
+LL | |     #[label(collection, "supporting location")]
+LL | |     spans: Vec<miette::SourceSpan>,
+LL | | }
+   | |_^ this label set has no explicit focus
+   |
+   = note: labels `spans` are presented without identifying the causal span
+   = help: mark the causal label `#[label(primary)]`; do not infer importance from field order
+
+warning: multi-label diagnostic has no primary location
+  --> $DIR/semantic.rs:48:5
+   |
+LL | /     Ambiguous {
+LL | |         #[source_code]
+LL | |         input: String,
+LL | |         #[label]
+...  |
+LL | |         second: miette::SourceSpan,
+LL | |     },
+   | |_____^ this label set has no explicit focus
+   |
+   = note: labels `first`, `second` are presented without identifying the causal span
+   = help: mark the causal label `#[label(primary)]`; do not infer importance from field order
+
+warning: 3 warnings emitted
 

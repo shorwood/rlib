@@ -19,6 +19,29 @@ struct InvertedSource {
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[error("inverted")]
+struct ExpandedCausalVocabulary {
+    #[related]
+    root_cause: Vec<Inner>,
+    #[related]
+    r#underlying_error: Vec<Inner>,
+}
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+enum ExpandedSiblingVocabulary {
+    #[error("inverted")]
+    Inverted {
+        #[diagnostic_source]
+        related_diagnostics: Inner,
+    },
+    #[error("coherent")]
+    Coherent {
+        #[related]
+        related_diagnostics: Vec<Inner>,
+    },
+}
+
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[error("coherent")]
 struct Coherent {
     #[diagnostic_source]

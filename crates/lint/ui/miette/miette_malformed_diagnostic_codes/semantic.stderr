@@ -8,5 +8,32 @@ LL | struct Bad;
    = help: use a namespaced lowercase path such as `config::invalid_value` or a letter-number code
    = note: `#[warn(miette_malformed_diagnostic_codes)]` on by default
 
-warning: 1 warning emitted
+warning: diagnostic code `config::invalid__value` has an unstable shape
+  --> $DIR/semantic.rs:26:1
+   |
+LL | struct RepeatedSeparator;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^ this code does not use a stable accepted form
+   |
+   = note: codes should be stable machine identifiers, while mixed casing and presentation-like words tend to drift with user-facing text
+   = help: use a namespaced lowercase path such as `config::invalid_value` or a letter-number code
+
+warning: diagnostic code `config::invalid_` has an unstable shape
+  --> $DIR/semantic.rs:31:1
+   |
+LL | struct TrailingSeparator;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^ this code does not use a stable accepted form
+   |
+   = note: codes should be stable machine identifiers, while mixed casing and presentation-like words tend to drift with user-facing text
+   = help: use a namespaced lowercase path such as `config::invalid_value` or a letter-number code
+
+warning: diagnostic code `E10A` has an unstable shape
+  --> $DIR/semantic.rs:37:5
+   |
+LL |     MixedNumber,
+   |     ^^^^^^^^^^^ this code does not use a stable accepted form
+   |
+   = note: codes should be stable machine identifiers, while mixed casing and presentation-like words tend to drift with user-facing text
+   = help: use a namespaced lowercase path such as `config::invalid_value` or a letter-number code
+
+warning: 4 warnings emitted
 

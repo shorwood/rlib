@@ -5,8 +5,35 @@ LL |     source: ParseError,
    |     ^^^^^^^^^^^^^^^^^^ structured diagnostic metadata stops here
    |
    = note: the inner type implements `miette::Diagnostic`, but only its standard error source chain is forwarded, losing codes, labels, help, and related diagnostics
-   = help: add `#[diagnostic_source]` while retaining `#[source]` for the standard error chain
+   = help: add `#[diagnostic_source]` while retaining `#[source]`; boxed concrete diagnostics may need direct storage or a boxed `Diagnostic` trait object
    = note: `#[warn(miette_plain_error_diagnostic_sources)]` on by default
 
-warning: 1 warning emitted
+warning: diagnostic source `nested` is exposed only as a plain error
+  --> $DIR/semantic.rs:26:5
+   |
+LL |     nested: Box<ParseError>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^ structured diagnostic metadata stops here
+   |
+   = note: the inner type implements `miette::Diagnostic`, but only its standard error source chain is forwarded, losing codes, labels, help, and related diagnostics
+   = help: add `#[diagnostic_source]` while retaining `#[source]`; boxed concrete diagnostics may need direct storage or a boxed `Diagnostic` trait object
+
+warning: diagnostic source `source` is exposed only as a plain error
+  --> $DIR/semantic.rs:32:5
+   |
+LL |     source: Box<ParseError>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^ structured diagnostic metadata stops here
+   |
+   = note: the inner type implements `miette::Diagnostic`, but only its standard error source chain is forwarded, losing codes, labels, help, and related diagnostics
+   = help: add `#[diagnostic_source]` while retaining `#[source]`; boxed concrete diagnostics may need direct storage or a boxed `Diagnostic` trait object
+
+warning: diagnostic source `nested` is exposed only as a plain error
+  --> $DIR/semantic.rs:39:5
+   |
+LL |     nested: ParseError,
+   |     ^^^^^^^^^^^^^^^^^^ structured diagnostic metadata stops here
+   |
+   = note: the inner type implements `miette::Diagnostic`, but only its standard error source chain is forwarded, losing codes, labels, help, and related diagnostics
+   = help: add `#[diagnostic_source]` while retaining `#[source]`; boxed concrete diagnostics may need direct storage or a boxed `Diagnostic` trait object
+
+warning: 4 warnings emitted
 
