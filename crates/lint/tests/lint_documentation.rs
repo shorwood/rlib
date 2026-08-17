@@ -125,10 +125,13 @@ fn lint_documentation_is_canonical_for_active_lints() {
     lint_documentation_collect_directories(&rules.join("thiserror"), &mut lint_directories);
     #[cfg(feature = "leptos")]
     lint_documentation_collect_directories(&rules.join("leptos"), &mut lint_directories);
+    #[cfg(feature = "leptos_styling")]
+    lint_documentation_collect_directories(&rules.join("leptos_styling"), &mut lint_directories);
 
     let expected = 63
         + 14 * usize::from(cfg!(feature = "bon"))
-        + 26 * usize::from(cfg!(feature = "leptos"))
+        + 27 * usize::from(cfg!(feature = "leptos"))
+        + 6 * usize::from(cfg!(feature = "leptos_styling"))
         + 20 * usize::from(cfg!(feature = "derive_more"))
         + usize::from(cfg!(feature = "framework"))
         + 15 * usize::from(cfg!(feature = "miette"))

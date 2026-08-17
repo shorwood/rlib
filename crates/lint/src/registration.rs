@@ -170,6 +170,7 @@ define_lint_registration! {
         leptos_effects_synchronizing_signals,
         leptos_hydration_divergent_views,
         leptos_implicit_default_component_props,
+        leptos_noncanonical_view_formatting,
         leptos_manual_resource_refetch_signals,
         leptos_malformed_view_section_comments,
         leptos_markup_repeating_view_comments,
@@ -190,6 +191,15 @@ define_lint_registration! {
         leptos_unreactive_signal_reads_in_views,
         leptos_unstable_for_keys,
         leptos_writable_signal_component_props,
+    }
+    #[cfg(feature = "leptos_styling")]
+    leptos_styling {
+        leptos_styling_inline_style_properties,
+        leptos_styling_non_colocated_component_styles,
+        leptos_styling_noncanonical_css,
+        leptos_styling_unscoped_component_selectors,
+        leptos_styling_unused_stylesheet_classes,
+        leptos_styling_untyped_component_classes,
     }
     #[cfg(feature = "miette")]
     miette {

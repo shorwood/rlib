@@ -5,6 +5,8 @@ pub mod core;
 pub mod derive_more;
 #[cfg(feature = "leptos")]
 pub mod leptos;
+#[cfg(feature = "leptos_styling")]
+pub mod leptos_styling;
 #[cfg(feature = "miette")]
 pub mod miette;
 #[cfg(feature = "serde")]

@@ -1,0 +1,18 @@
+warning: styled component declares 0 external stylesheets instead of exactly one
+  --> $DIR/semantic.rs:1:1
+   |
+LL | / #![allow(
+LL | |     leptos_noncanonical_view_formatting,
+LL | |     leptos_styling_inline_style_properties,
+LL | |     leptos_styling_noncanonical_css,
+...  |
+LL | |     let _ = view! { <main class="page">"Page"</main> };
+LL | | }
+   | |__^ stylesheet ownership is not local and one-to-one
+   |
+   = note: colocated one-to-one ownership makes a component's styling dependencies explicit
+   = help: declare exactly `style_sheet!(style, "<module>.css", ...)` in the styled component module
+   = note: `#[warn(leptos_styling_non_colocated_component_styles)]` on by default
+
+warning: 1 warning emitted
+

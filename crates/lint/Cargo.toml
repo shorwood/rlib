@@ -12,7 +12,8 @@ default = ["leptos"]
 framework = []
 bon = []
 derive_more = ["framework", "dep:quote", "dep:syn"]
-leptos = ["dep:proc-macro2", "dep:quote", "dep:rstml", "dep:syn"]
+leptos = ["dep:leptosfmt-formatter", "dep:proc-macro2", "dep:quote", "dep:rstml", "dep:syn"]
+leptos_styling = ["leptos", "dep:malva", "dep:raffia"]
 miette = ["dep:syn"]
 serde = ["dep:syn"]
 strum = ["framework", "dep:syn"]
@@ -23,8 +24,11 @@ convert_case = "0.11"
 dylint_linting = { version = "=6.0.1", features = ["constituent"] }
 derive_more = { version = "=2.1.1", features = ["full"] }
 heck = "0.5"
+leptosfmt-formatter = { version = "=0.1.33", optional = true }
+malva = { version = "=0.16.0", optional = true }
 proc-macro2 = { version = "1", features = ["span-locations"], optional = true }
 quote = { version = "1", optional = true }
+raffia = { version = "=0.12.0", optional = true }
 rstml = { version = "=0.12.1", optional = true }
 serde = { version = "1", features = ["derive"] }
 strum = { version = "=0.28.0", features = ["derive"] }
@@ -548,6 +552,41 @@ required-features = ["leptos"]
 name = "leptos_unreactive_signal_reads_in_views"
 path = "ui/leptos/leptos_unreactive_signal_reads_in_views/semantic.rs"
 required-features = ["leptos"]
+
+[[example]]
+name = "leptos_noncanonical_view_formatting"
+path = "ui/leptos/leptos_noncanonical_view_formatting/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "leptos_styling_non_colocated_component_styles"
+path = "ui/leptos_styling/leptos_styling_non_colocated_component_styles/semantic.rs"
+required-features = ["leptos_styling"]
+
+[[example]]
+name = "leptos_styling_untyped_component_classes"
+path = "ui/leptos_styling/leptos_styling_untyped_component_classes/semantic.rs"
+required-features = ["leptos_styling"]
+
+[[example]]
+name = "leptos_styling_inline_style_properties"
+path = "ui/leptos_styling/leptos_styling_inline_style_properties/semantic.rs"
+required-features = ["leptos_styling"]
+
+[[example]]
+name = "leptos_styling_unused_stylesheet_classes"
+path = "ui/leptos_styling/leptos_styling_unused_stylesheet_classes/semantic.rs"
+required-features = ["leptos_styling"]
+
+[[example]]
+name = "leptos_styling_unscoped_component_selectors"
+path = "ui/leptos_styling/leptos_styling_unscoped_component_selectors/semantic.rs"
+required-features = ["leptos_styling"]
+
+[[example]]
+name = "leptos_styling_noncanonical_css"
+path = "ui/leptos_styling/leptos_styling_noncanonical_css/semantic.rs"
+required-features = ["leptos_styling"]
 
 [[example]]
 name = "framework_resolution_required"

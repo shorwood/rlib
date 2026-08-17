@@ -1,0 +1,40 @@
+warning: Leptos view markup is not canonically formatted
+  --> $DIR/semantic.rs:1:1
+   |
+LL | / #![allow(
+LL | |     leptos_styling_inline_style_properties,
+LL | |     leptos_styling_non_colocated_component_styles,
+LL | |     leptos_styling_noncanonical_css,
+...  |
+LL | |     let _ = view! { <main><h1>"Dashboard"</h1><p>"Ready"</p></main> };
+LL | | }
+   | |__^
+   |
+   = note: one deterministic view layout keeps component markup easy to scan
+   = note: `#[warn(leptos_noncanonical_view_formatting)]` on by default
+help: format every `view!` macro in this file
+   |
+LL + #![allow(
+LL +     leptos_styling_inline_style_properties,
+LL +     leptos_styling_non_colocated_component_styles,
+LL +     leptos_styling_noncanonical_css,
+LL +     leptos_styling_unscoped_component_selectors,
+LL +     leptos_styling_unused_stylesheet_classes,
+LL +     leptos_styling_untyped_component_classes,
+LL +     unknown_lints
+LL + )]
+LL + 
+LL + use leptos::prelude::*;
+LL + 
+LL + fn main() {
+LL +     let _ = view! {
+LL +         <main>
+LL +             <h1>"Dashboard"</h1>
+LL +             <p>"Ready"</p>
+LL +         </main>
+LL +     };
+LL + }
+   |
+
+warning: 1 warning emitted
+

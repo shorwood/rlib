@@ -9,7 +9,11 @@ use crate::rules::framework::utils::config::DeriveResolutionConfig;
 #[cfg(feature = "leptos")]
 use crate::rules::leptos::leptos_server_functions_without_authorization_boundaries::LeptosServerAuthorizationConfig;
 #[cfg(feature = "leptos")]
+use crate::rules::leptos::utils::view_formatting::LeptosViewFormattingConfig;
+#[cfg(feature = "leptos")]
 use crate::rules::leptos::utils::view_structure::LeptosViewStructureConfig;
+#[cfg(feature = "leptos_styling")]
+use crate::rules::leptos_styling::utils::config::LeptosStylingCssFormattingConfig;
 #[cfg(feature = "miette")]
 use crate::rules::miette::utils::config::MietteHelpConfig;
 
@@ -32,6 +36,12 @@ pub struct LibraryConfig {
     /// Complexity and heading policy used by Leptos view-structure lints.
     #[cfg(feature = "leptos")]
     pub(crate) leptos_view_structure: LeptosViewStructureConfig,
+    /// Canonical rendering policy for authored Leptos views.
+    #[cfg(feature = "leptos")]
+    pub(crate) leptos_view_formatting: LeptosViewFormattingConfig,
+    /// Canonical rendering policy for component CSS.
+    #[cfg(feature = "leptos_styling")]
+    pub(crate) leptos_styling_css_formatting: LeptosStylingCssFormattingConfig,
     /// Explicit application vocabulary used to audit Leptos server endpoints.
     #[cfg(feature = "leptos")]
     pub(crate) leptos_server_authorization: LeptosServerAuthorizationConfig,

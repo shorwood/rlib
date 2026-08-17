@@ -1,0 +1,21 @@
+warning: class value is not composed from local `style::CONSTANT` values
+  --> $DIR/semantic.rs:28:27
+   |
+LL |     let _ = view! { <main class="root">{view! { <span class="nested">"Page"</span> }}</main> };
+   |                           ^^^^^^^^^^^^ this class source is not locally typed
+   |
+   = note: raw or opaque classes are not rewritten by Turf and cannot prove local stylesheet ownership
+   = help: compose the class from this module's `style::CONSTANT` values; an empty conditional fallback is allowed
+   = note: `#[warn(leptos_styling_untyped_component_classes)]` on by default
+
+warning: class value is not composed from local `style::CONSTANT` values
+  --> $DIR/semantic.rs:28:55
+   |
+LL |     let _ = view! { <main class="root">{view! { <span class="nested">"Page"</span> }}</main> };
+   |                                                       ^^^^^^^^^^^^^^ this class source is not locally typed
+   |
+   = note: raw or opaque classes are not rewritten by Turf and cannot prove local stylesheet ownership
+   = help: compose the class from this module's `style::CONSTANT` values; an empty conditional fallback is allowed
+
+warning: 2 warnings emitted
+
