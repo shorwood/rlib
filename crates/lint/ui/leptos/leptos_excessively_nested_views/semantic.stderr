@@ -1,0 +1,12 @@
+warning: component `DeepView` has view depth 8 and embedded control depth 0; limits are 7 and 3
+  --> $DIR/semantic.rs:6:4
+   |
+LL | fn DeepView() -> impl IntoView {
+   |    ^^^^^^^^
+   |
+   = note: deep markup and control layers conceal the component's visual hierarchy and states
+   = help: flatten redundant wrappers and extract a cohesive named child component at a semantic boundary
+   = note: `#[warn(leptos_excessively_nested_views)]` on by default
+
+warning: 1 warning emitted
+

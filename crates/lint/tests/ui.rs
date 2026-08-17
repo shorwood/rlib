@@ -227,9 +227,46 @@ const FIXTURE_LEPTOS_GENERATED_CORE_LINT_ALLOWS: [&str; 20] = [
 
 /// New source-wide policies excluded from the pre-existing Leptos fixture snapshots.
 #[cfg(feature = "leptos")]
-const FIXTURE_LEPTOS_SOURCE_POLICY_ALLOWS: [&str; 14] = [
+const FIXTURE_LEPTOS_SOURCE_POLICY_ALLOWS: [&str; 34] = [
     "-A",
     "leptos_noncanonical_view_formatting",
+    "-A",
+    "leptos_excessive_component_composition_depth",
+    "-A",
+    "leptos_excessive_component_props",
+    "-A",
+    "leptos_excessively_nested_views",
+    "-A",
+    "leptos_fragmented_reactive_state",
+    "-A",
+    "leptos_overpopulated_component_modules",
+    "-A",
+    "leptos_oversized_event_handlers",
+    "-A",
+    "leptos_oversized_reactive_setups",
+    "-A",
+    "leptos_repeated_view_fragments",
+    "-A",
+    "leptos_unnamed_composables",
+    "-A",
+    "leptos_unscoped_spawned_tasks",
+    "-A",
+    "leptos_styling_inline_style_properties",
+    "-A",
+    "leptos_styling_non_colocated_component_styles",
+    "-A",
+    "leptos_styling_noncanonical_css",
+    "-A",
+    "leptos_styling_unscoped_component_selectors",
+    "-A",
+    "leptos_styling_unused_stylesheet_classes",
+    "-A",
+    "leptos_styling_untyped_component_classes",
+];
+
+/// Styling policies excluded while each Leptos architecture fixture isolates its target lint.
+#[cfg(feature = "leptos")]
+const FIXTURE_LEPTOS_STYLING_POLICY_ALLOWS: [&str; 12] = [
     "-A",
     "leptos_styling_inline_style_properties",
     "-A",
@@ -771,6 +808,31 @@ fn fixture_run_leptos() {
         .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
         .rustc_flags(FIXTURE_LEPTOS_GENERATED_CORE_LINT_ALLOWS)
         .run();
+    }
+
+    for example in [
+        "leptos_excessive_component_composition_depth",
+        "leptos_excessive_component_props",
+        "leptos_excessively_nested_views",
+        "leptos_fragmented_reactive_state",
+        "leptos_overpopulated_component_modules",
+        "leptos_oversized_event_handlers",
+        "leptos_oversized_reactive_setups",
+        "leptos_repeated_view_fragments",
+        "leptos_unnamed_composables",
+        "leptos_unscoped_spawned_tasks",
+    ] {
+        if selected
+            .as_deref()
+            .is_some_and(|selected| selected != example)
+        {
+            continue;
+        }
+        Test::example(env!("CARGO_PKG_NAME"), example)
+            .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
+            .rustc_flags(FIXTURE_LEPTOS_GENERATED_CORE_LINT_ALLOWS)
+            .rustc_flags(FIXTURE_LEPTOS_STYLING_POLICY_ALLOWS)
+            .run();
     }
 
     // Selective UI runs skip this authorization fixture unless its lint was requested.

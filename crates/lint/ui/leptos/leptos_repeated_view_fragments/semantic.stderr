@@ -1,0 +1,14 @@
+warning: repeated view fragment has 6 meaningful nodes across 2 occurrences
+  --> $DIR/semantic.rs:11:9
+   |
+LL |         <label class="field"><span>"Name"</span><input prop:value=name /><small>"Required"</small></label>
+   |         -------------------------------------------------------------------------------------------------- first normalized occurrence is here
+LL |         <label class="field"><span>"Email"</span><input prop:value=email /><small>"Required"</small></label>
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: copied RSX drifts independently and makes the shared interface or visual concept implicit
+   = help: extract the maximal repeated fragment into a named component with explicit props
+   = note: `#[warn(leptos_repeated_view_fragments)]` on by default
+
+warning: 1 warning emitted
+

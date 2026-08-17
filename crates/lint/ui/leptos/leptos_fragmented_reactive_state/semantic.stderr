@@ -1,0 +1,12 @@
+warning: `Fragmented` directly creates 5 reactive primitives; the limit is 4
+  --> $DIR/semantic.rs:10:4
+   |
+LL | fn Fragmented() -> impl IntoView {
+   |    ^^^^^^^^^^
+   |
+   = note: fragmented primitives obscure the cohesive state transitions owned by a component or composable
+   = help: model related state as one domain draft or split independent responsibilities across focused `use_*` composables
+   = note: `#[warn(leptos_fragmented_reactive_state)]` on by default
+
+warning: 1 warning emitted
+

@@ -559,6 +559,56 @@ path = "ui/leptos/leptos_noncanonical_view_formatting/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
+name = "leptos_oversized_reactive_setups"
+path = "ui/leptos/leptos_oversized_reactive_setups/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "leptos_fragmented_reactive_state"
+path = "ui/leptos/leptos_fragmented_reactive_state/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "leptos_oversized_event_handlers"
+path = "ui/leptos/leptos_oversized_event_handlers/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "leptos_unscoped_spawned_tasks"
+path = "ui/leptos/leptos_unscoped_spawned_tasks/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "leptos_excessively_nested_views"
+path = "ui/leptos/leptos_excessively_nested_views/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "leptos_excessive_component_composition_depth"
+path = "ui/leptos/leptos_excessive_component_composition_depth/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "leptos_repeated_view_fragments"
+path = "ui/leptos/leptos_repeated_view_fragments/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "leptos_excessive_component_props"
+path = "ui/leptos/leptos_excessive_component_props/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "leptos_overpopulated_component_modules"
+path = "ui/leptos/leptos_overpopulated_component_modules/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "leptos_unnamed_composables"
+path = "ui/leptos/leptos_unnamed_composables/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_styling_non_colocated_component_styles"
 path = "ui/leptos_styling/leptos_styling_non_colocated_component_styles/semantic.rs"
 required-features = ["leptos_styling"]

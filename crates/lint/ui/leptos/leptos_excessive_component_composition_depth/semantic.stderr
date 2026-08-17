@@ -1,0 +1,12 @@
+warning: component `C00` begins a composition chain of depth 11; the limit is 10
+  --> $DIR/semantic.rs:10:4
+   |
+LL | fn C00() -> impl IntoView {
+   |    ^^^
+   |
+   = note: long chains of single-purpose wrappers scatter one screen's structure across too many navigation hops
+   = help: collapse pass-through layers or combine children that do not own an independent UI responsibility
+   = note: `#[warn(leptos_excessive_component_composition_depth)]` on by default
+
+warning: 1 warning emitted
+

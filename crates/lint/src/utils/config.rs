@@ -9,6 +9,8 @@ use crate::rules::framework::utils::config::DeriveResolutionConfig;
 #[cfg(feature = "leptos")]
 use crate::rules::leptos::leptos_server_functions_without_authorization_boundaries::LeptosServerAuthorizationConfig;
 #[cfg(feature = "leptos")]
+use crate::rules::leptos::utils::component_architecture::LeptosArchitectureConfig;
+#[cfg(feature = "leptos")]
 use crate::rules::leptos::utils::view_formatting::LeptosViewFormattingConfig;
 #[cfg(feature = "leptos")]
 use crate::rules::leptos::utils::view_structure::LeptosViewStructureConfig;
@@ -36,6 +38,9 @@ pub struct LibraryConfig {
     /// Complexity and heading policy used by Leptos view-structure lints.
     #[cfg(feature = "leptos")]
     pub(crate) leptos_view_structure: LeptosViewStructureConfig,
+    /// Complexity and extraction policy for authored Leptos components.
+    #[cfg(feature = "leptos")]
+    pub(crate) leptos_architecture: LeptosArchitectureConfig,
     /// Canonical rendering policy for authored Leptos views.
     #[cfg(feature = "leptos")]
     pub(crate) leptos_view_formatting: LeptosViewFormattingConfig,

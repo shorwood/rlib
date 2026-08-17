@@ -130,7 +130,7 @@ fn lint_documentation_is_canonical_for_active_lints() {
 
     let expected = 63
         + 14 * usize::from(cfg!(feature = "bon"))
-        + 27 * usize::from(cfg!(feature = "leptos"))
+        + 37 * usize::from(cfg!(feature = "leptos"))
         + 6 * usize::from(cfg!(feature = "leptos_styling"))
         + 20 * usize::from(cfg!(feature = "derive_more"))
         + usize::from(cfg!(feature = "framework"))

@@ -1,0 +1,12 @@
+warning: module `semantic` defines 9 components; the limit is 8
+  --> $DIR/semantic.rs:6:4
+   |
+LL | fn One() -> impl IntoView {
+   |    ^^^
+   |
+   = note: crowded component modules blur ownership and make unrelated UI responsibilities change together
+   = help: split the module along cohesive feature or visual responsibilities
+   = note: `#[warn(leptos_overpopulated_component_modules)]` on by default
+
+warning: 1 warning emitted
+
