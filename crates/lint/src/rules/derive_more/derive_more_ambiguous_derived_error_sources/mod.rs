@@ -29,7 +29,7 @@ struct Candidate {
     competing_field: String,
 }
 
-/// Explicit source role attached to one derive_more error field.
+/// Explicit source role attached to one `derive_more` error field.
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum SourcePolicy {
     /// The field is the selected causal source.
@@ -120,7 +120,7 @@ impl LateLintPass<'_> for DeriveMoreAmbiguousDerivedErrorSources {
         };
         match declaration {
             syn::Item::Struct(structure) => {
-                self.collect_candidate(item.owner_id.def_id, item.span, &structure.fields)
+                self.collect_candidate(item.owner_id.def_id, item.span, &structure.fields);
             }
             syn::Item::Enum(enumeration) => {
                 for variant in &enumeration.variants {
@@ -148,6 +148,27 @@ impl LateLintPass<'_> for DeriveMoreAmbiguousDerivedErrorSources {
 }
 
 impl DeriveMoreAmbiguousDerivedErrorSources {
+    /// Parses the exact `derive_more` source helper attached to one field.
+    fn source_policy(field: &syn::Field) -> Option<SourcePolicy> {
+        field.attrs.iter().find_map(|attribute| {
+            if !attribute.path().is_ident("error") {
+                return None;
+            }
+            let compact: String = attribute
+                .meta
+                .to_token_stream()
+                .to_string()
+                .chars()
+                .filter(|character| !character.is_whitespace())
+                .collect();
+            match compact.as_str() {
+                "error(source)" => Some(SourcePolicy::Source),
+                "error(not(source))" => Some(SourcePolicy::NotSource),
+                _ => None,
+            }
+        })
+    }
+
     /// Collects one struct or enum-variant field scope with unresolved source competition.
     fn collect_candidate(&mut self, definition: LocalDefId, span: Span, fields: &syn::Fields) {
         if fields
@@ -178,26 +199,5 @@ impl DeriveMoreAmbiguousDerivedErrorSources {
             span,
             competing_field,
         });
-    }
-
-    /// Parses the exact derive_more source helper attached to one field.
-    fn source_policy(field: &syn::Field) -> Option<SourcePolicy> {
-        field.attrs.iter().find_map(|attribute| {
-            if !attribute.path().is_ident("error") {
-                return None;
-            }
-            let compact: String = attribute
-                .meta
-                .to_token_stream()
-                .to_string()
-                .chars()
-                .filter(|character| !character.is_whitespace())
-                .collect();
-            match compact.as_str() {
-                "error(source)" => Some(SourcePolicy::Source),
-                "error(not(source))" => Some(SourcePolicy::NotSource),
-                _ => None,
-            }
-        })
     }
 }

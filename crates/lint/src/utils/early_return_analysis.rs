@@ -8,7 +8,7 @@ use rustc_hir::{Block, Expr, ExprKind, HirId, Node, Stmt, StmtKind};
 use rustc_lint::LateContext;
 use rustc_span::Span;
 
-use super::function_layout_comments::has_phase_comment_candidate_before;
+use super::function_layout_comments::FunctionLayoutCommentSpanExt;
 use super::function_layout_source::FunctionLayoutPositionExt;
 use super::function_structure_config::FunctionStructureConfig;
 
@@ -133,13 +133,10 @@ impl<'analysis, 'tcx> EarlyReturnAnalyzer<'analysis, 'tcx> {
 
     /// Returns whether either the preferred guard or fallback return owns a phase comment.
     fn is_documented(&self, return_: Span, boundary: Span) -> bool {
-        has_phase_comment_candidate_before(self.cx, boundary, &self.config.phase_comment_prefix)
+        boundary.has_phase_comment_candidate_before(self.cx, &self.config.phase_comment_prefix)
             || (boundary != return_
-                && has_phase_comment_candidate_before(
-                    self.cx,
-                    return_,
-                    &self.config.phase_comment_prefix,
-                ))
+                && return_
+                    .has_phase_comment_candidate_before(self.cx, &self.config.phase_comment_prefix))
     }
 
     /// Returns whether the exit bypasses enough source to make its effect nonlocal.

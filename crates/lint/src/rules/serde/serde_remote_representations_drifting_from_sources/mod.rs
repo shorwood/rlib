@@ -157,11 +157,17 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
             return;
         };
 
+        // Collect compatibility documentation that explains an intentional remote projection.
         let documentation = structure
             .attrs
             .iter()
             .filter(|attribute| attribute.path().is_ident("doc"))
-            .filter_map(|attribute| attribute.meta.require_name_value().ok())
+            .filter_map(|attribute| {
+                let Ok(value) = attribute.meta.require_name_value() else {
+                    return None;
+                };
+                Some(value)
+            })
             .filter_map(|value| match &value.value {
                 syn::Expr::Lit(expression) => match &expression.lit {
                     syn::Lit::Str(value) => Some(value.value().to_ascii_lowercase()),
@@ -169,8 +175,10 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
                 },
                 _ => None,
             })
-            .collect::<Vec<_>>()
-            .join(" ");
+            .collect::<Vec<_>>();
+        let documentation = documentation.join(" ");
+
+        // Exempt explicitly documented projection and reconstruction contracts.
         if ["projection", "versioned"]
             .iter()
             .any(|term| documentation.contains(term))
@@ -191,9 +199,10 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
             if !attributes.has(SerdeFlag::SkipSerialize) {
                 serialize_fields.insert(name.clone());
             }
-            if !attributes.has(SerdeFlag::SkipDeserialize) {
-                deserialize_fields.insert(name);
+            if attributes.has(SerdeFlag::SkipDeserialize) {
+                continue;
             }
+            deserialize_fields.insert(name);
         }
 
         self.candidates.push(RemoteCandidate {
@@ -224,6 +233,7 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
                 continue;
             }
 
+            // Resolve the remote path relative to its authored module and compare matching sources.
             let relative = candidate
                 .source
                 .strip_prefix("self::")
@@ -233,6 +243,8 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
             } else {
                 format!("{}::{relative}", candidate.scope)
             };
+
+            // Prefer an exact scoped source match before falling back to suffix resolution.
             let mut matches = self
                 .sources
                 .iter()
@@ -244,6 +256,7 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
                 })
                 .collect::<Vec<_>>();
             if matches.is_empty() {
+                // Resolve imported or fully qualified source paths as a conservative fallback.
                 matches = self
                     .sources
                     .iter()

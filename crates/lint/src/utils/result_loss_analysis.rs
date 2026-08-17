@@ -246,6 +246,18 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
                 .is_diagnostic_item(sym::Default, trait_definition)
     }
 
+    /// Recognizes an explicit call to standard `drop` with a Result argument.
+    pub(crate) fn dropped_result(&self, expression: &Expr<'_>) -> Option<ResultContract<'tcx>> {
+        let ExprKind::Call(callee, [argument]) = expression.kind else {
+            return None;
+        };
+        let definition = self.resolved_path_definition(callee)?;
+        if !self.cx.tcx.is_diagnostic_item(sym::mem_drop, definition) {
+            return None;
+        }
+        self.contract(argument)
+    }
+
     /// Returns whether an expression is exactly one resolved local binding.
     fn is_binding_path(&self, expression: &Expr<'_>, binding: HirId) -> bool {
         matches!(
@@ -306,18 +318,6 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
                 .all(|statement| self.discards_binding(statement, binding)),
             _ => false,
         }
-    }
-
-    /// Recognizes an explicit call to standard `drop` with a Result argument.
-    pub(crate) fn dropped_result(&self, expression: &Expr<'_>) -> Option<ResultContract<'tcx>> {
-        let ExprKind::Call(callee, [argument]) = expression.kind else {
-            return None;
-        };
-        let definition = self.resolved_path_definition(callee)?;
-        if !self.cx.tcx.is_diagnostic_item(sym::mem_drop, definition) {
-            return None;
-        }
-        self.contract(argument)
     }
 
     /// Returns whether a direct path resolves to standard Option's absent variant.

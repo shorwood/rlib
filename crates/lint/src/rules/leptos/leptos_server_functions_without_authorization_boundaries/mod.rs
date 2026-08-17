@@ -96,6 +96,14 @@ struct CallObservation {
     block_depth: usize,
 }
 
+/// Sensitive call selected from an ordered function-body traversal.
+struct SensitiveCall<'calls> {
+    /// Position used to inspect preceding authorization calls.
+    position: usize,
+    /// Parsed call carrying the operation name and lexical depth.
+    call: &'calls CallObservation,
+}
+
 /// Collects actual Rust calls without confusing comments or literals for executable code.
 #[derive(Default)]
 struct CallCollector {
@@ -107,7 +115,7 @@ struct CallCollector {
 
 impl CallCollector {
     /// Records one terminal callable name.
-    fn record(&mut self, name: impl ToString) {
+    fn record(&mut self, name: &impl ToString) {
         self.calls.push(CallObservation {
             name: name.to_string(),
             block_depth: self.block_depth,
@@ -226,13 +234,17 @@ impl LeptosServerFunctionsWithoutAuthorizationBoundaries {
     fn first_sensitive_call<'calls>(
         &self,
         calls: &'calls [CallObservation],
-    ) -> Option<(usize, &'calls CallObservation)> {
-        calls.iter().enumerate().find(|(_, call)| {
-            self.config
-                .sensitive_call_terms
-                .iter()
-                .any(|term| term == &call.name)
-        })
+    ) -> Option<SensitiveCall<'calls>> {
+        calls
+            .iter()
+            .enumerate()
+            .find(|(_, call)| {
+                self.config
+                    .sensitive_call_terms
+                    .iter()
+                    .any(|term| term == &call.name)
+            })
+            .map(|(position, call)| SensitiveCall { position, call })
     }
 
     /// Proves that an authorization call occurs earlier in the same lexical scope.
@@ -277,7 +289,11 @@ impl EarlyLintPass for LeptosServerFunctionsWithoutAuthorizationBoundaries {
         };
         let mut collector = CallCollector::default();
         collector.visit_block(&function.block);
-        let Some((position, sensitive)) = self.first_sensitive_call(&collector.calls) else {
+        let Some(SensitiveCall {
+            position,
+            call: sensitive,
+        }) = self.first_sensitive_call(&collector.calls)
+        else {
             return;
         };
 

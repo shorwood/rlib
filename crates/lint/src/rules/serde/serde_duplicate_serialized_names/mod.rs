@@ -35,6 +35,32 @@ struct Candidate {
     members: Vec<String>,
 }
 
+/// One Rust declaration name and the Serde attributes governing its wire name.
+struct WireMember {
+    /// Authored Rust field or variant name.
+    rust_name: String,
+    /// Effective local Serde attributes.
+    attributes: Vec<syn::Attribute>,
+}
+
+/// Named fields governed by one enum variant's rename-all contract.
+struct WireFieldGroup {
+    /// Variant attributes controlling its fields.
+    attributes: Vec<syn::Attribute>,
+    /// Named fields declared by the variant.
+    members: Vec<WireMember>,
+}
+
+/// Container members and nested field groups recovered from authored syntax.
+struct WireGroups {
+    /// Container-level Serde attributes.
+    attributes: Vec<syn::Attribute>,
+    /// Direct struct fields or enum variants.
+    members: Vec<WireMember>,
+    /// Per-variant named field groups.
+    field_groups: Vec<WireFieldGroup>,
+}
+
 /// Two members that resolve to the same serialized wire name.
 struct Violation {
     /// Authored declaration or expression range used as the diagnostic anchor.
@@ -95,20 +121,86 @@ struct SerdeDuplicateSerializedNames {
 }
 
 impl SerdeDuplicateSerializedNames {
+    /// Recovers direct named fields from one authored struct.
+    fn struct_groups(source: &str) -> Option<WireGroups> {
+        let structure = match syn::parse_str::<syn::ItemStruct>(source) {
+            Ok(structure) => structure,
+            Err(_error) => return None,
+        };
+        let members = structure
+            .fields
+            .iter()
+            .filter_map(|field| {
+                Some(WireMember {
+                    rust_name: field.ident.as_ref()?.to_string(),
+                    attributes: field.attrs.clone(),
+                })
+            })
+            .collect();
+        Some(WireGroups {
+            attributes: structure.attrs,
+            members,
+            field_groups: Vec::new(),
+        })
+    }
+
+    /// Recovers variants and per-variant named fields from one authored enum.
+    fn enum_groups(source: &str) -> Option<WireGroups> {
+        let enumeration = match syn::parse_str::<syn::ItemEnum>(source) {
+            Ok(enumeration) => enumeration,
+            Err(_error) => return None,
+        };
+        let field_groups = enumeration
+            .variants
+            .iter()
+            .filter_map(|variant| {
+                let members = variant
+                    .fields
+                    .iter()
+                    .filter_map(|field| {
+                        Some(WireMember {
+                            rust_name: field.ident.as_ref()?.to_string(),
+                            attributes: field.attrs.clone(),
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                (!members.is_empty()).then(|| WireFieldGroup {
+                    attributes: variant.attrs.clone(),
+                    members,
+                })
+            })
+            .collect();
+        let members = enumeration
+            .variants
+            .iter()
+            .map(|variant| WireMember {
+                rust_name: variant.ident.to_string(),
+                attributes: variant.attrs.clone(),
+            })
+            .collect();
+        Some(WireGroups {
+            attributes: enumeration.attrs,
+            members,
+            field_groups,
+        })
+    }
+
+    /// Records wire-name collisions for both serialization directions.
     fn record_group(
         &mut self,
         definition: LocalDefId,
         span: Span,
         cases: [Option<&str>; 2],
-        members: &[(String, Vec<syn::Attribute>)],
+        members: &[WireMember],
     ) {
         for (direction, case) in [SerdeDirection::Serialize, SerdeDirection::Deserialize]
             .into_iter()
             .zip(cases)
         {
             let mut names: HashMap<String, Vec<String>> = HashMap::new();
-            for (rust_name, attributes) in members {
-                let attributes = SerdeAttributes::from_attributes(attributes);
+            for member in members {
+                let rust_name = &member.rust_name;
+                let attributes = SerdeAttributes::from_attributes(&member.attributes);
                 if match direction {
                     SerdeDirection::Serialize => attributes.has(SerdeFlag::SkipSerialize),
                     SerdeDirection::Deserialize => attributes.has(SerdeFlag::SkipDeserialize),
@@ -124,10 +216,11 @@ impl SerdeDuplicateSerializedNames {
                     explicit.map_or_else(|| SerdeCase::apply(rust_name, case), ToOwned::to_owned);
                 names.entry(effective).or_default().push(rust_name.clone());
 
-                if matches!(direction, SerdeDirection::Deserialize) {
-                    for alias in attributes.aliases {
-                        names.entry(alias).or_default().push(rust_name.clone());
-                    }
+                if !matches!(direction, SerdeDirection::Deserialize) {
+                    continue;
+                }
+                for alias in attributes.aliases {
+                    names.entry(alias).or_default().push(rust_name.clone());
                 }
             }
 
@@ -166,52 +259,22 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
             return;
         };
 
-        let (attributes, members, field_groups) = match item.kind {
+        let WireGroups {
+            attributes,
+            members,
+            field_groups,
+        } = match item.kind {
             ItemKind::Struct(..) => {
-                let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
+                let Some(groups) = Self::struct_groups(&source) else {
                     return;
                 };
-
-                (
-                    structure.attrs,
-                    structure
-                        .fields
-                        .iter()
-                        .filter_map(|field| {
-                            Some((field.ident.as_ref()?.to_string(), field.attrs.clone()))
-                        })
-                        .collect::<Vec<_>>(),
-                    Vec::new(),
-                )
+                groups
             }
             ItemKind::Enum(..) => {
-                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
+                let Some(groups) = Self::enum_groups(&source) else {
                     return;
                 };
-
-                let field_groups = enumeration
-                    .variants
-                    .iter()
-                    .filter_map(|variant| {
-                        let members = variant
-                            .fields
-                            .iter()
-                            .filter_map(|field| {
-                                Some((field.ident.as_ref()?.to_string(), field.attrs.clone()))
-                            })
-                            .collect::<Vec<_>>();
-                        (!members.is_empty()).then(|| (variant.attrs.clone(), members))
-                    })
-                    .collect::<Vec<_>>();
-                (
-                    enumeration.attrs,
-                    enumeration
-                        .variants
-                        .iter()
-                        .map(|variant| (variant.ident.to_string(), variant.attrs.clone()))
-                        .collect::<Vec<_>>(),
-                    field_groups,
-                )
+                groups
             }
             _ => return,
         };
@@ -227,7 +290,11 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
             ],
             &members,
         );
-        for (attributes, members) in field_groups {
+        for WireFieldGroup {
+            attributes,
+            members,
+        } in field_groups
+        {
             let variant = SerdeAttributes::from_attributes(&attributes);
             self.record_group(
                 item.owner_id.def_id,

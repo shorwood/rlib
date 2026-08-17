@@ -99,27 +99,6 @@ pub struct DiagnosticField {
 }
 
 impl DiagnosticField {
-    /// Resolves a local field subject through transparent standard pointer wrappers.
-    fn local_target(cx: &LateContext<'_>, ty: Ty<'_>) -> Option<LocalDefId> {
-        let ty::Adt(definition, arguments) = ty.kind() else {
-            return None;
-        };
-        if let Some(local) = definition.did().as_local() {
-            return Some(local);
-        }
-        let crate_name = cx.tcx.crate_name(definition.did().krate);
-        let is_transparent_container = (crate_name.as_str() == "alloc"
-            && matches!(
-                cx.tcx.item_name(definition.did()).as_str(),
-                "Box" | "Rc" | "Arc" | "Vec"
-            ))
-            || (crate_name.as_str() == "core"
-                && cx.tcx.item_name(definition.did()).as_str() == "Option");
-        (is_transparent_container && !arguments.is_empty())
-            .then(|| Self::local_target(cx, arguments.type_at(0)))
-            .flatten()
-    }
-
     /// Correlates authored field attributes with resolved HIR field types.
     fn from_fields(
         cx: &LateContext<'_>,
@@ -150,6 +129,27 @@ impl DiagnosticField {
                 }
             })
             .collect()
+    }
+
+    /// Resolves a local field subject through transparent standard pointer wrappers.
+    fn local_target(cx: &LateContext<'_>, ty: Ty<'_>) -> Option<LocalDefId> {
+        let ty::Adt(definition, arguments) = ty.kind() else {
+            return None;
+        };
+        if let Some(local) = definition.did().as_local() {
+            return Some(local);
+        }
+        let crate_name = cx.tcx.crate_name(definition.did().krate);
+        let is_transparent_container = (crate_name.as_str() == "alloc"
+            && matches!(
+                cx.tcx.item_name(definition.did()).as_str(),
+                "Box" | "Rc" | "Arc" | "Vec"
+            ))
+            || (crate_name.as_str() == "core"
+                && cx.tcx.item_name(definition.did()).as_str() == "Option");
+        (is_transparent_container && !arguments.is_empty())
+            .then(|| Self::local_target(cx, arguments.type_at(0)))
+            .flatten()
     }
 }
 

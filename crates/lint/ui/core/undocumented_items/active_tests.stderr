@@ -1,0 +1,16 @@
+warning: this function is missing documentation
+  --> $DIR/active_tests.rs:5:4
+   |
+LL | fn helper() {}
+   |    ^^^^^^
+   |
+   = note: without documentation, readers and agents must infer this function's purpose, invariants, and contract from implementation details
+   = help: document its purpose, contract, or semantic role
+note: the lint level is defined here
+  --> $DIR/active_tests.rs:3:9
+   |
+LL | #![warn(undocumented_items)]
+   |         ^^^^^^^^^^^^^^^^^^
+
+warning: 1 warning emitted
+

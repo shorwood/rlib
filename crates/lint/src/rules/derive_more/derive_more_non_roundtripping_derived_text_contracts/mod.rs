@@ -77,6 +77,15 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 
 /// Correlates generated display grammars with transparent parsing behavior.
+/// Numeric format text paired with the wrapper field it references.
+struct NumericFormat<'format> {
+    /// Authored format string.
+    format: &'format str,
+    /// Sole wrapper field name.
+    field_name: &'format str,
+}
+
+/// Correlates authored display formats with generated parsing implementations.
 #[derive(Default)]
 struct DeriveMoreNonRoundtrippingDerivedTextContracts {
     /// Authored type contracts and `derive_more` expansions consulted by this rule.
@@ -117,11 +126,17 @@ impl DeriveMoreNonRoundtrippingDerivedTextContracts {
             .as_ref()
             .map_or_else(|| "_0".to_owned(), ToString::to_string);
         let format = format.value();
-        (!Self::numeric_format_roundtrips(&format, &field_name)).then_some(format)
+        (!Self::numeric_format_roundtrips(&NumericFormat {
+            format: &format,
+            field_name: &field_name,
+        }))
+        .then_some(format)
     }
 
     /// Returns whether one whole-value placeholder remains accepted by numeric `FromStr`.
-    fn numeric_format_roundtrips(format: &str, field_name: &str) -> bool {
+    fn numeric_format_roundtrips(contract: &NumericFormat<'_>) -> bool {
+        let format = contract.format;
+        let field_name = contract.field_name;
         let Some(inner) = format
             .strip_prefix('{')
             .and_then(|value| value.strip_suffix('}'))

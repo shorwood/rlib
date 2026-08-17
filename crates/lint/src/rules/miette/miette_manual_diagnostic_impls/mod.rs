@@ -10,7 +10,7 @@ use rustc_hir::def::{CtorOf, DefKind, Res};
 use rustc_hir::{Body, Expr, ExprKind, ImplItemKind, Item, ItemKind, Mutability, PatKind};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty;
-use rustc_span::Span;
+use rustc_span::{Span, sym};
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
@@ -110,7 +110,7 @@ impl MietteManualDiagnosticImpls {
         (cx.tcx.item_name(variant).as_str() == "Some"
             && cx
                 .tcx
-                .is_diagnostic_item(rustc_span::symbol::sym::Option, cx.tcx.parent(variant)))
+                .is_diagnostic_item(sym::Option, cx.tcx.parent(variant)))
         .then_some(argument)
     }
 

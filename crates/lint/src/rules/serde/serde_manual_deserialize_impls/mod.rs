@@ -106,6 +106,7 @@ impl SerdeManualDeserializeImpls {
             return false;
         };
 
+        // Match a successful single-field construction around one direct deserialize call.
         let [syn::Stmt::Expr(syn::Expr::Call(ok), _)] = method.block.stmts.as_slice() else {
             return false;
         };
@@ -115,6 +116,8 @@ impl SerdeManualDeserializeImpls {
         {
             return false;
         }
+
+        // Extract the single-field construction nested beneath the successful Result.
         let decoded = match ok.args.first() {
             Some(syn::Expr::Call(construction))
                 if matches!(construction.func.as_ref(), syn::Expr::Path(path)
@@ -135,6 +138,8 @@ impl SerdeManualDeserializeImpls {
         let Some(syn::Expr::Try(decoded)) = decoded else {
             return false;
         };
+
+        // Require direct forwarding to the standard deserialize operation.
         let syn::Expr::Call(decode) = decoded.expr.as_ref() else {
             return false;
         };

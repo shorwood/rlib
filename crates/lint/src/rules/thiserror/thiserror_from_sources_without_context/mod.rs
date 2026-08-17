@@ -91,6 +91,18 @@ struct ContextCandidateUse {
 }
 
 // -----------------------------------------------------------------------------
+// SourceOperation: Authored fallible call
+// -----------------------------------------------------------------------------
+
+/// Authored fallible operation and the concrete error type it returns.
+struct SourceOperation {
+    /// Concrete error definition returned by the operation.
+    source: DefId,
+    /// Authored function or method name.
+    name: String,
+}
+
+// -----------------------------------------------------------------------------
 // TryOperationVisitor: Propagated call discovery
 // -----------------------------------------------------------------------------
 
@@ -106,7 +118,7 @@ struct TryOperationVisitor<'cx, 'tcx> {
 
 impl TryOperationVisitor<'_, '_> {
     /// Resolves one authored call beneath a compiler-generated try desugaring.
-    fn operation(&self, expression: &Expr<'_>) -> Option<(DefId, String)> {
+    fn operation(&self, expression: &Expr<'_>) -> Option<SourceOperation> {
         if expression.span.from_expansion() {
             return None;
         }
@@ -131,7 +143,7 @@ impl TryOperationVisitor<'_, '_> {
             return None;
         }
         let source = arguments.type_at(1).ty_adt_def()?.did();
-        Some((source, name))
+        Some(SourceOperation { source, name })
     }
 }
 
@@ -143,7 +155,7 @@ impl<'tcx> Visitor<'tcx> for TryOperationVisitor<'_, 'tcx> {
                 operation: None,
             };
             finder.visit_expr(scrutinee);
-            if let Some((source, name)) = finder.operation {
+            if let Some(SourceOperation { source, name }) = finder.operation {
                 self.operations.entry(source).or_default().insert(name);
             }
         }
@@ -153,10 +165,16 @@ impl<'tcx> Visitor<'tcx> for TryOperationVisitor<'_, 'tcx> {
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
 }
 
+// -----------------------------------------------------------------------------
+// AuthoredOperationFinder: Desugaring boundary recovery
+// -----------------------------------------------------------------------------
+
 /// Finds the authored call wrapped by one try desugaring.
 struct AuthoredOperationFinder<'visitor, 'cx, 'tcx> {
+    /// Parent visitor used to classify candidate operations.
     visitor: &'visitor TryOperationVisitor<'cx, 'tcx>,
-    operation: Option<(DefId, String)>,
+    /// First source-producing operation found beneath the try desugaring.
+    operation: Option<SourceOperation>,
 }
 
 impl<'tcx> Visitor<'tcx> for AuthoredOperationFinder<'_, '_, 'tcx> {

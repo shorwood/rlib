@@ -76,16 +76,16 @@ impl Candidate {
                 return None;
             };
             (call.target, *argument)
-        } else if let ExprKind::Struct(path, [field], StructTailExpr::None) =
-            forwarding.forwarded.kind
-        {
+        } else {
+            let ExprKind::Struct(path, [field], StructTailExpr::None) = forwarding.forwarded.kind
+            else {
+                return None;
+            };
             (
-                cx.qpath_res(&path, forwarding.forwarded.hir_id)
+                cx.qpath_res(path, forwarding.forwarded.hir_id)
                     .opt_def_id()?,
                 field.expr,
             )
-        } else {
-            return None;
         };
         if !DirectForwarding::is_binding(cx, argument, *binding) {
             return None;
@@ -101,12 +101,17 @@ impl Candidate {
                     .is_some_and(|field| field.ty(cx.tcx, arguments) == source)
                 && (target == variant.def_id || cx.tcx.opt_parent(target) == Some(variant.def_id))
         })?;
-        let enum_item = match cx.tcx.hir_node_by_def_id(definition.did().as_local()?) {
-            Node::Item(item) => item,
-            _ => return None,
+
+        // Recover the authored variant field so derive attributes can be compared precisely.
+        let Node::Item(enum_item) = cx.tcx.hir_node_by_def_id(definition.did().as_local()?) else {
+            return None;
         };
         let source_text = AuthoredItemSource::for_item(cx, enum_item)?;
-        let enumeration = syn::parse_str::<syn::ItemEnum>(&source_text).ok()?;
+        let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source_text) else {
+            return None;
+        };
+
+        // Match the resolved compiler variant to its authored field declaration.
         let authored_variant = enumeration
             .variants
             .iter()
@@ -115,6 +120,8 @@ impl Candidate {
         let [authored_field] = authored_fields.as_slice() else {
             return None;
         };
+
+        // Require the wrapped field to participate in the error source chain.
         let is_source = authored_field
             .ident
             .as_ref()

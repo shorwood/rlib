@@ -10,7 +10,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::attributes::BonAttributeAnalysis;
+use super::utils::attributes::{BonAttributeAnalysis, BuilderOption};
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -75,6 +75,18 @@ struct ConversionMember {
 }
 
 // -----------------------------------------------------------------------------
+// BuilderMember: Authored member input
+// -----------------------------------------------------------------------------
+
+/// Authored builder member attributes paired with its type span.
+struct BuilderMember<'member> {
+    /// Attributes controlling conversion behavior.
+    attributes: &'member [rustc_ast::Attribute],
+    /// Authored member type used for grouping.
+    type_span: Span,
+}
+
+// -----------------------------------------------------------------------------
 // BonInconsistentBuilderConversions: Same-type conversion policy
 // -----------------------------------------------------------------------------
 
@@ -96,20 +108,28 @@ impl BonInconsistentBuilderConversions {
     /// Compares conversion policy for one collection of builder members.
     fn check_members<'member>(
         cx: &EarlyContext<'_>,
-        members: impl IntoIterator<Item = (&'member [rustc_ast::Attribute], Span)>,
+        members: impl IntoIterator<Item = BuilderMember<'member>>,
     ) {
         let source_map = cx.sess().source_map();
         let mut groups = HashMap::<String, Vec<ConversionMember>>::new();
-        for (attributes, span) in members {
-            let Ok(ty) = source_map.span_to_snippet(span) else {
+        for BuilderMember {
+            attributes,
+            type_span,
+        } in members
+        {
+            let Ok(ty) = source_map.span_to_snippet(type_span) else {
                 continue;
             };
-            if BonAttributeAnalysis::builder_has_option(cx, attributes, "with") {
+            if BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::WITH) {
                 continue;
             }
             groups.entry(ty).or_default().push(ConversionMember {
-                has_into: BonAttributeAnalysis::builder_has_option(cx, attributes, "into"),
-                span,
+                has_into: BonAttributeAnalysis::builder_has_option(
+                    cx,
+                    attributes,
+                    BuilderOption::INTO,
+                ),
+                span: type_span,
             });
         }
         for (ty, members) in groups {
@@ -141,7 +161,10 @@ impl BonInconsistentBuilderConversions {
                 .decl
                 .inputs
                 .iter()
-                .map(|parameter| (parameter.attrs.as_slice(), parameter.ty.span)),
+                .map(|parameter| BuilderMember {
+                    attributes: parameter.attrs.as_slice(),
+                    type_span: parameter.ty.span,
+                }),
         );
     }
 
@@ -158,9 +181,10 @@ impl BonInconsistentBuilderConversions {
         }
         Self::check_members(
             cx,
-            data.fields()
-                .iter()
-                .map(|field| (field.attrs.as_slice(), field.ty.span)),
+            data.fields().iter().map(|field| BuilderMember {
+                attributes: field.attrs.as_slice(),
+                type_span: field.ty.span,
+            }),
         );
     }
 }

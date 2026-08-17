@@ -621,21 +621,13 @@ impl ConstructionAnalysis {
 
 /// Finds an explicit standard `Err` result or authored `?` propagation in a constructor body.
 struct ConstructionFailureCollector<'analysis, 'tcx> {
+    /// Compiler context used to resolve standard result variants and operations.
     cx: &'analysis LateContext<'tcx>,
+    /// Whether the constructor contains an explicit failure path.
     has_failure_path: bool,
 }
 
 impl<'analysis, 'tcx> ConstructionFailureCollector<'analysis, 'tcx> {
-    fn collect(cx: &'analysis LateContext<'tcx>, expression: &'tcx Expr<'tcx>) -> bool {
-        let mut collector = Self {
-            cx,
-            has_failure_path: false,
-        };
-        collector.visit_result_expr(expression);
-        collector.visit_expr(expression);
-        collector.has_failure_path
-    }
-
     /// Returns whether one expression directly constructs the standard `Result::Err` variant.
     fn is_result_variant(&self, expression: &Expr<'_>, expected: &str) -> bool {
         let ExprKind::Call(callee, _) = expression.kind else {
@@ -696,6 +688,17 @@ impl<'analysis, 'tcx> ConstructionFailureCollector<'analysis, 'tcx> {
             _ => {}
         }
     }
+
+    /// Returns whether a constructor body contains concrete failure evidence.
+    fn collect(cx: &'analysis LateContext<'tcx>, expression: &'tcx Expr<'tcx>) -> bool {
+        let mut collector = Self {
+            cx,
+            has_failure_path: false,
+        };
+        collector.visit_result_expr(expression);
+        collector.visit_expr(expression);
+        collector.has_failure_path
+    }
 }
 
 impl<'tcx> Visitor<'tcx> for ConstructionFailureCollector<'_, 'tcx> {
@@ -709,9 +712,10 @@ impl<'tcx> Visitor<'tcx> for ConstructionFailureCollector<'_, 'tcx> {
         if let ExprKind::Ret(Some(value)) = expression.kind {
             self.visit_result_expr(value);
         }
-        if !matches!(expression.kind, ExprKind::Closure(_)) {
-            intravisit::walk_expr(self, expression);
+        if matches!(expression.kind, ExprKind::Closure(_)) {
+            return;
         }
+        intravisit::walk_expr(self, expression);
     }
 
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
@@ -812,9 +816,10 @@ impl<'tcx> Visitor<'tcx> for ConstructionEvidence<'_, 'tcx> {
         }
         self.has_constructed_target |=
             self.returned_targets.contains(&expression.hir_id) && self.produces_target(expression);
-        if !matches!(expression.kind, ExprKind::Closure(_)) {
-            intravisit::walk_expr(self, expression);
+        if matches!(expression.kind, ExprKind::Closure(_)) {
+            return;
         }
+        intravisit::walk_expr(self, expression);
     }
 
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
@@ -826,28 +831,18 @@ impl<'tcx> Visitor<'tcx> for ConstructionEvidence<'_, 'tcx> {
 
 /// Finds target constructions contributing to tail values and explicit returns.
 struct ConstructionResultCollector<'analysis, 'tcx> {
+    /// Compiler context used to resolve construction expressions.
     cx: &'analysis LateContext<'tcx>,
+    /// Type whose returned constructions are collected.
     target: LocalDefId,
+    /// Expressions known to contribute the target type to the function result.
     returned_targets: HashSet<HirId>,
+    /// Local bindings mapped to the target-producing expressions they retain.
     bindings: HashMap<HirId, HashSet<HirId>>,
 }
 
 impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
-    fn collect(
-        cx: &'analysis LateContext<'tcx>,
-        target: LocalDefId,
-        expression: &'tcx Expr<'tcx>,
-    ) -> HashSet<HirId> {
-        let mut collector = Self {
-            cx,
-            target,
-            returned_targets: HashSet::new(),
-            bindings: HashMap::new(),
-        };
-        collector.visit_result_expr(expression);
-        collector.returned_targets
-    }
-
+    /// Returns whether an expression directly constructs the target type.
     fn produces_target(&self, expression: &Expr<'_>) -> bool {
         let operation = matches!(
             expression.kind,
@@ -862,6 +857,7 @@ impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
                 == Some(self.target)
     }
 
+    /// Collects target-producing expressions nested beneath one expression.
     fn targets_in(&self, expression: &'tcx Expr<'tcx>) -> HashSet<HirId> {
         struct TargetFinder<'collector, 'analysis, 'tcx> {
             collector: &'collector ConstructionResultCollector<'analysis, 'tcx>,
@@ -882,9 +878,10 @@ impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
                     self.targets.extend(targets);
                     return;
                 }
-                if !matches!(expression.kind, ExprKind::Closure(_)) {
-                    intravisit::walk_expr(self, expression);
+                if matches!(expression.kind, ExprKind::Closure(_)) {
+                    return;
                 }
+                intravisit::walk_expr(self, expression);
             }
 
             fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
@@ -898,6 +895,7 @@ impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
         finder.targets
     }
 
+    /// Follows expressions that can contribute to the callable's returned value.
     fn visit_result_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         if self.produces_target(expression) {
             self.returned_targets.insert(expression.hir_id);
@@ -956,6 +954,22 @@ impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
             }
             _ => self.visit_expr(expression),
         }
+    }
+
+    /// Collects every target construction contributing to a callable result.
+    fn collect(
+        cx: &'analysis LateContext<'tcx>,
+        target: LocalDefId,
+        expression: &'tcx Expr<'tcx>,
+    ) -> HashSet<HirId> {
+        let mut collector = Self {
+            cx,
+            target,
+            returned_targets: HashSet::new(),
+            bindings: HashMap::new(),
+        };
+        collector.visit_result_expr(expression);
+        collector.returned_targets
     }
 }
 

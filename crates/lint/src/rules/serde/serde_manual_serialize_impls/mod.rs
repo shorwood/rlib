@@ -172,6 +172,8 @@ impl LateLintPass<'_> for SerdeManualSerializeImpls {
         {
             return;
         }
+
+        // Require a transparent single-field wrapper serialized by direct field forwarding.
         let trait_ref = cx
             .tcx
             .impl_trait_ref(item.owner_id.def_id)
@@ -180,6 +182,8 @@ impl LateLintPass<'_> for SerdeManualSerializeImpls {
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return;
         };
+
+        // Verify the nominal wrapper shape and its exact serializer forwarding body.
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
             || !Self::exact_transparent_serializer(

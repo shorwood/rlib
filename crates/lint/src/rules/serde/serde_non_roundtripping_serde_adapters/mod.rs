@@ -10,7 +10,9 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
+use super::utils::contracts::{
+    SerdeAttributes, SerdeAuthoredField, SerdeAuthoredFieldSet, SerdeContractCatalog, SerdeFlag,
+};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -181,54 +183,17 @@ impl LateLintPass<'_> for SerdeNonRoundtrippingSerdeAdapters {
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
-        let fields = match item.kind {
-            ItemKind::Struct(..) => {
-                let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
-                    return;
-                };
-                structure
-                    .fields
-                    .iter()
-                    .enumerate()
-                    .map(|(index, field)| {
-                        (
-                            field
-                                .ident
-                                .as_ref()
-                                .map_or_else(|| format!("field {index}"), ToString::to_string),
-                            field.attrs.clone(),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-            }
-            ItemKind::Enum(..) => {
-                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
-                    return;
-                };
-                enumeration
-                    .variants
-                    .iter()
-                    .flat_map(|variant| {
-                        variant
-                            .fields
-                            .iter()
-                            .enumerate()
-                            .map(move |(index, field)| {
-                                let field_name = field
-                                    .ident
-                                    .as_ref()
-                                    .map_or_else(|| index.to_string(), ToString::to_string);
-                                (
-                                    format!("{}.{field_name}", variant.ident),
-                                    field.attrs.clone(),
-                                )
-                            })
-                    })
-                    .collect::<Vec<_>>()
-            }
-            _ => return,
+        let Some(SerdeAuthoredFieldSet { fields, .. }) =
+            SerdeAuthoredFieldSet::for_item(item, &source)
+        else {
+            return;
         };
-        for (field, authored_attributes) in fields {
+        for SerdeAuthoredField {
+            name: field,
+            attributes: authored_attributes,
+            ..
+        } in fields
+        {
             let attributes = SerdeAttributes::from_attributes(&authored_attributes);
             if attributes.has(SerdeFlag::SkipSerialize)
                 || attributes.has(SerdeFlag::SkipDeserialize)

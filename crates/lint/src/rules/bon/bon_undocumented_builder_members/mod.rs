@@ -10,7 +10,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::attributes::{BonAttributeAnalysis, OptionType};
+use super::utils::attributes::{BonAttributeAnalysis, BuilderOption, OptionType};
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -49,18 +49,18 @@ impl Violation {
             Err(_error) => return None,
         };
         let behavior = if OptionType::is_option(&ty)
-            && !BonAttributeAnalysis::builder_has_option(cx, attributes, "required")
+            && !BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::REQUIRED)
         {
             "optional"
-        } else if BonAttributeAnalysis::builder_has_option(cx, attributes, "default") {
+        } else if BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::DEFAULT) {
             "default"
-        } else if BonAttributeAnalysis::builder_has_option(cx, attributes, "into")
-            || BonAttributeAnalysis::builder_has_option(cx, attributes, "with")
+        } else if BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::INTO)
+            || BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::WITH)
         {
             "conversion"
         } else {
-            if !BonAttributeAnalysis::builder_has_option(cx, attributes, "skip")
-                && !BonAttributeAnalysis::builder_has_option(cx, attributes, "field")
+            if !BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::SKIP)
+                && !BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::FIELD)
             {
                 return None;
             }
@@ -90,18 +90,17 @@ impl Violation {
         while let Some(relative) = source[search..].find("doc") {
             let start = search + relative;
             let end = start + 3;
-            let left_boundary =
-                start == 0 || !bytes[start - 1].is_ascii_alphanumeric() && bytes[start - 1] != b'_';
+            let left_boundary = start == 0
+                || (!bytes[start - 1].is_ascii_alphanumeric() && bytes[start - 1] != b'_');
             let right_boundary =
-                end == bytes.len() || !bytes[end].is_ascii_alphanumeric() && bytes[end] != b'_';
+                end == bytes.len() || (!bytes[end].is_ascii_alphanumeric() && bytes[end] != b'_');
             if left_boundary && right_boundary {
                 let tail = source[end..].trim_start();
-                if let Some(payload) = tail.strip_prefix('{') {
-                    if let Some(close) = payload.find('}') {
-                        if !payload[..close].trim().is_empty() {
-                            return true;
-                        }
-                    }
+                if let Some(payload) = tail.strip_prefix('{')
+                    && let Some(close) = payload.find('}')
+                    && !payload[..close].trim().is_empty()
+                {
+                    return true;
                 }
             }
             search = end;
@@ -145,6 +144,18 @@ impl EarlyViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
+// AssociatedViolation: Deferred nominal-owner finding
+// -----------------------------------------------------------------------------
+
+/// Deferred associated setter finding paired with its nominal owner.
+struct AssociatedViolation {
+    /// Authored owner name resolved after all type declarations are known.
+    owner: String,
+    /// Setter documentation violation awaiting visibility confirmation.
+    violation: Violation,
+}
+
+// -----------------------------------------------------------------------------
 // BonUndocumentedBuilderMembers: Public setter documentation policy
 // -----------------------------------------------------------------------------
 
@@ -156,7 +167,7 @@ struct BonUndocumentedBuilderMembers {
     /// Public nominal types that can expose associated builder setters.
     public_types: HashSet<String>,
     /// Associated member findings deferred until all type declarations are known.
-    associated: Vec<(String, Violation)>,
+    associated: Vec<AssociatedViolation>,
 }
 
 dylint_linting::impl_pre_expansion_lint! {
@@ -186,6 +197,39 @@ impl BonUndocumentedBuilderMembers {
             &field.ident?.name.to_string(),
         )
     }
+
+    /// Defers undocumented public builder methods until their owner visibility is known.
+    fn record_implementation(&mut self, cx: &EarlyContext<'_>, implementation: &rustc_ast::Impl) {
+        let Ok(owner) = cx
+            .sess()
+            .source_map()
+            .span_to_snippet(implementation.self_ty.span)
+        else {
+            return;
+        };
+        let owner = owner.split('<').next().unwrap_or(&owner);
+        let owner = owner.trim();
+        let owner = owner.rsplit("::").next().unwrap_or_default().to_owned();
+        for associated in &implementation.items {
+            let AssocItemKind::Fn(function) = &associated.kind else {
+                continue;
+            };
+            if !matches!(associated.vis.kind, VisibilityKind::Public)
+                || BonAttributeAnalysis::builder(&associated.attrs).is_none()
+            {
+                continue;
+            }
+            for parameter in &function.sig.decl.inputs {
+                let Some(violation) = Self::parameter_violation(cx, parameter) else {
+                    continue;
+                };
+                self.associated.push(AssociatedViolation {
+                    owner: owner.clone(),
+                    violation,
+                });
+            }
+        }
+    }
 }
 impl EarlyLintPass for BonUndocumentedBuilderMembers {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
@@ -202,10 +246,9 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
             item.kind,
             ItemKind::Struct(..) | ItemKind::Enum(..) | ItemKind::Union(..)
         ) && matches!(item.vis.kind, VisibilityKind::Public)
+            && let Some(identifier) = item.kind.ident()
         {
-            if let Some(identifier) = item.kind.ident() {
-                self.public_types.insert(identifier.name.to_string());
-            }
+            self.public_types.insert(identifier.name.to_string());
         }
         match &item.kind {
             ItemKind::Fn(function)
@@ -230,57 +273,26 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
                     violation.emit(cx);
                 }
             }
-            ItemKind::Impl(implementation) => {
-                let Ok(owner) = cx
-                    .sess()
-                    .source_map()
-                    .span_to_snippet(implementation.self_ty.span)
-                else {
-                    return;
-                };
-                let owner = owner
-                    .split('<')
-                    .next()
-                    .unwrap_or(&owner)
-                    .trim()
-                    .rsplit("::")
-                    .next()
-                    .unwrap_or_default()
-                    .to_owned();
-                for associated in &implementation.items {
-                    let AssocItemKind::Fn(function) = &associated.kind else {
-                        continue;
-                    };
-                    if !matches!(associated.vis.kind, VisibilityKind::Public)
-                        || BonAttributeAnalysis::builder(&associated.attrs).is_none()
-                    {
-                        continue;
-                    }
-                    for parameter in &function.sig.decl.inputs {
-                        let Some(violation) = Self::parameter_violation(cx, parameter) else {
-                            continue;
-                        };
-                        self.associated.push((owner.clone(), violation));
-                    }
-                }
-            }
+            ItemKind::Impl(implementation) => self.record_implementation(cx, implementation),
             _ => {}
         }
     }
 
     fn check_item_post(&mut self, _: &EarlyContext<'_>, item: &Item) {
-        if matches!(item.kind, ItemKind::Mod(..))
-            && !matches!(item.vis.kind, VisibilityKind::Public)
+        if !matches!(item.kind, ItemKind::Mod(..))
+            || matches!(item.vis.kind, VisibilityKind::Public)
         {
-            self.private_module_depth -= 1;
+            return;
         }
+        self.private_module_depth -= 1;
     }
 
     fn check_crate_post(&mut self, cx: &EarlyContext<'_>, _: &rustc_ast::Crate) {
-        for (owner, violation) in self.associated.drain(..) {
-            if self.public_types.contains(&owner) {
-                violation.emit(cx);
+        for AssociatedViolation { owner, violation } in self.associated.drain(..) {
+            if !self.public_types.contains(&owner) {
+                continue;
             }
+            violation.emit(cx);
         }
     }
 }

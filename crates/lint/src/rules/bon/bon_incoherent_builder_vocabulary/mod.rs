@@ -139,24 +139,25 @@ impl BonIncoherentBuilderVocabulary {
         };
 
         // Diagnose generic entry and finish names that discard the operation vocabulary.
-        if let Ok(source) = BonAttributeAnalysis::source(cx, attribute) {
-            for key in ["start_fn", "finish_fn"] {
-                if let Some(configured) = (ConfiguredIdentifier {
-                    source: &source,
-                    key,
-                })
-                .parse()
-                    && Self::generic_operation_name(&configured)
-                    && !operation.split('_').any(|word| word == configured)
-                {
-                    Violation {
-                        span: attribute.span,
-                        configured,
-                        established: operation.to_owned(),
-                    }
-                    .emit(cx);
-                    break;
+        let Ok(source) = BonAttributeAnalysis::source(cx, attribute) else {
+            return;
+        };
+        for key in ["start_fn", "finish_fn"] {
+            if let Some(configured) = (ConfiguredIdentifier {
+                source: &source,
+                key,
+            })
+            .parse()
+                && Self::generic_operation_name(&configured)
+                && !operation.split('_').any(|word| word == configured)
+            {
+                Violation {
+                    span: attribute.span,
+                    configured,
+                    established: operation.to_owned(),
                 }
+                .emit(cx);
+                break;
             }
         }
     }

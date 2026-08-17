@@ -5,11 +5,109 @@ extern crate rustc_span;
 use std::collections::{HashMap, HashSet};
 
 use convert_case::{Case, Casing};
-use rustc_hir::{Item, ItemKind};
+use rustc_hir::{EnumDef, Item, ItemKind, VariantData};
 use rustc_lint::LateContext;
 use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, Symbol};
 use strum::EnumProperty as _;
+
+// -----------------------------------------------------------------------------
+// SerdeAuthoredField: Synchronized syntax and HIR field data
+// -----------------------------------------------------------------------------
+
+/// One authored field paired with its compiler identity.
+pub struct SerdeAuthoredField {
+    /// Diagnostic-facing field path.
+    pub name: String,
+    /// Authored attributes controlling the field contract.
+    pub attributes: Vec<syn::Attribute>,
+    /// Compiler identity used for semantic type queries.
+    pub definition: LocalDefId,
+}
+
+/// Fields recovered from one authored struct or enum declaration.
+pub struct SerdeAuthoredFieldSet {
+    /// Whether the container has public authored visibility.
+    pub is_public: bool,
+    /// Authored attributes controlling the container contract.
+    pub attributes: Vec<syn::Attribute>,
+    /// Fields in authored declaration order.
+    pub fields: Vec<SerdeAuthoredField>,
+}
+
+impl SerdeAuthoredFieldSet {
+    /// Pairs parsed struct or enum fields with their HIR definitions.
+    pub fn for_item(item: &Item<'_>, source: &str) -> Option<Self> {
+        match item.kind {
+            ItemKind::Struct(_, _, data) => Self::for_struct(&data, source),
+            ItemKind::Enum(_, _, definition) => Self::for_enum(&definition, source),
+            _ => None,
+        }
+    }
+
+    /// Pairs parsed struct fields with their HIR definitions.
+    fn for_struct(data: &VariantData<'_>, source: &str) -> Option<Self> {
+        let structure = match syn::parse_str::<syn::ItemStruct>(source) {
+            Ok(structure) => structure,
+            Err(_error) => return None,
+        };
+        let fields = structure
+            .fields
+            .iter()
+            .zip(data.fields())
+            .enumerate()
+            .map(|(index, (field, hir_field))| SerdeAuthoredField {
+                name: field
+                    .ident
+                    .as_ref()
+                    .map_or_else(|| format!("field {index}"), ToString::to_string),
+                attributes: field.attrs.clone(),
+                definition: hir_field.def_id,
+            })
+            .collect();
+        Some(Self {
+            is_public: matches!(structure.vis, syn::Visibility::Public(_)),
+            attributes: structure.attrs,
+            fields,
+        })
+    }
+
+    /// Pairs parsed enum fields with their HIR definitions.
+    fn for_enum(definition: &EnumDef<'_>, source: &str) -> Option<Self> {
+        let enumeration = match syn::parse_str::<syn::ItemEnum>(source) {
+            Ok(enumeration) => enumeration,
+            Err(_error) => return None,
+        };
+        let fields = enumeration
+            .variants
+            .iter()
+            .zip(definition.variants)
+            .flat_map(|(variant, hir_variant)| {
+                variant
+                    .fields
+                    .iter()
+                    .zip(hir_variant.data.fields())
+                    .enumerate()
+                    .map(move |(index, (field, hir_field))| {
+                        let field_name = field
+                            .ident
+                            .as_ref()
+                            .map_or_else(|| index.to_string(), ToString::to_string);
+                        SerdeAuthoredField {
+                            name: format!("{}.{field_name}", variant.ident),
+                            attributes: field.attrs.clone(),
+                            definition: hir_field.def_id,
+                        }
+                    })
+            })
+            .collect();
+        Some(Self {
+            is_public: matches!(enumeration.vis, syn::Visibility::Public(_)),
+            attributes: enumeration.attrs,
+            fields,
+        })
+    }
+}
 
 // -----------------------------------------------------------------------------
 // Serde: Authored wire policy recovery
@@ -105,7 +203,7 @@ pub struct SerdeAttributes {
     /// Wire type converted through a fallible deserialization boundary.
     pub try_from: Option<String>,
     /// Wire type converted through an infallible deserialization boundary.
-    pub from: Option<String>,
+    from: Option<String>,
 }
 
 impl SerdeAttributes {

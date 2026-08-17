@@ -67,6 +67,18 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
+// AggregationNames: Compared aggregation identity
+// -----------------------------------------------------------------------------
+
+/// Derive and wrapper names used to compare an authored aggregation implementation.
+struct AggregationNames<'name> {
+    /// Standard aggregation trait name.
+    derive: &'name str,
+    /// Authored wrapper type name.
+    type_name: &'name str,
+}
+
+// -----------------------------------------------------------------------------
 // DeriveMoreManualAggregationImpls: Declarative aggregation policy
 // -----------------------------------------------------------------------------
 
@@ -86,10 +98,10 @@ impl DeriveMoreManualAggregationImpls {
     fn exact_aggregation_source(
         cx: &LateContext<'_>,
         item: &Item<'_>,
-        derive: &str,
-        type_name: &str,
+        names: &AggregationNames<'_>,
         field_name: Option<&str>,
     ) -> bool {
+        let AggregationNames { derive, type_name } = names;
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return false;
         };
@@ -114,6 +126,7 @@ impl DeriveMoreManualAggregationImpls {
             return false;
         };
 
+        // Match a single-field construction that forwards the aggregation input unchanged.
         let [syn::Stmt::Expr(construction, _)] = method.block.stmts.as_slice() else {
             return false;
         };
@@ -132,6 +145,8 @@ impl DeriveMoreManualAggregationImpls {
             }
             _ => None,
         };
+
+        // Require the aggregation call to select the expected iterator operation.
         let Some(syn::Expr::MethodCall(aggregation)) = aggregation else {
             return false;
         };
@@ -192,6 +207,7 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
             return;
         }
 
+        // Require an aggregation implementation over the same single-field wrapper type.
         let trait_ref = cx
             .tcx
             .impl_trait_ref(item.owner_id.def_id)
@@ -203,6 +219,8 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
         if trait_ref.args.type_at(1) != self_ty {
             return;
         }
+
+        // Resolve the wrapper and its sole field for authored source comparison.
         let name = cx.tcx.item_name(definition.did()).to_string();
         if !definition.is_struct() || definition.non_enum_variant().fields.len() != 1 {
             return;
@@ -220,7 +238,15 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
             .all(|character| character.is_ascii_digit()))
         .then(|| field.name.as_str());
 
-        if !Self::exact_aggregation_source(cx, item, derive, &name, field_name) {
+        if !Self::exact_aggregation_source(
+            cx,
+            item,
+            &AggregationNames {
+                derive,
+                type_name: &name,
+            },
+            field_name,
+        ) {
             return;
         }
 

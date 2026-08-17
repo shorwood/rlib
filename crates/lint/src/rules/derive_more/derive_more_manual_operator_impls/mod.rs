@@ -143,6 +143,18 @@ impl Operator {
 }
 
 // -----------------------------------------------------------------------------
+// ConstructedArgument: Reconstructed result input
+// -----------------------------------------------------------------------------
+
+/// Newtype construction recovered from an authored operator method.
+struct ConstructedArgument<'expression> {
+    /// Expression forwarded into the reconstructed result.
+    expression: &'expression syn::Expr,
+    /// Field selected by the construction syntax.
+    field: String,
+}
+
+// -----------------------------------------------------------------------------
 // DeriveMoreManualOperatorImpls: Declarative operator policy
 // -----------------------------------------------------------------------------
 
@@ -159,7 +171,7 @@ dylint_linting::impl_late_lint! {
 
 impl DeriveMoreManualOperatorImpls {
     /// Extracts the sole expression used to reconstruct a newtype result.
-    fn constructed_argument(method: &syn::ImplItemFn) -> Option<(&syn::Expr, String)> {
+    fn constructed_argument(method: &syn::ImplItemFn) -> Option<ConstructedArgument<'_>> {
         if !method.attrs.is_empty() {
             return None;
         }
@@ -171,7 +183,10 @@ impl DeriveMoreManualOperatorImpls {
                 if matches!(construction.func.as_ref(), syn::Expr::Path(path) if path.path.is_ident("Self"))
                     && construction.args.len() == 1 =>
             {
-                Some((construction.args.first()?, "0".to_owned()))
+                Some(ConstructedArgument {
+                    expression: construction.args.first()?,
+                    field: "0".to_owned(),
+                })
             }
             syn::Expr::Struct(construction)
                 if construction.path.is_ident("Self")
@@ -179,7 +194,10 @@ impl DeriveMoreManualOperatorImpls {
                     && construction.fields.len() == 1 =>
             {
                 let field = construction.fields.first()?;
-                Some((&field.expr, field.member.to_token_stream().to_string()))
+                Some(ConstructedArgument {
+                    expression: &field.expr,
+                    field: field.member.to_token_stream().to_string(),
+                })
             }
             _ => None,
         }
@@ -253,7 +271,11 @@ impl DeriveMoreManualOperatorImpls {
                     return false;
                 };
 
-                let Some((argument, constructed_field)) = Self::constructed_argument(method) else {
+                let Some(ConstructedArgument {
+                    expression: argument,
+                    field: constructed_field,
+                }) = Self::constructed_argument(method)
+                else {
                     return false;
                 };
 
@@ -266,7 +288,11 @@ impl DeriveMoreManualOperatorImpls {
                 let Some(method) = Self::output_method(&implementation.items, derive) else {
                     return false;
                 };
-                let Some((argument, constructed_field)) = Self::constructed_argument(method) else {
+                let Some(ConstructedArgument {
+                    expression: argument,
+                    field: constructed_field,
+                }) = Self::constructed_argument(method)
+                else {
                     return false;
                 };
                 matches!(argument, syn::Expr::Unary(operation)

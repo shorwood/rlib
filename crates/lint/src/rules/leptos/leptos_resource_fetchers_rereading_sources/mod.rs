@@ -123,12 +123,15 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
             return false;
         };
 
+        // Resolve tracked and fetcher-specific untracked reactive read interfaces.
         if self.cx.tcx.crate_name(method.krate).as_str() != "reactive_graph" {
             return false;
         }
         let Some(trait_id) = self.cx.tcx.trait_of_assoc(method) else {
             return false;
         };
+
+        // Classify the resolved trait method against tracked reactive reads.
         let trait_name = self.cx.tcx.item_name(trait_id);
         let method_name = self.cx.tcx.item_name(method);
         let identity = (trait_name.as_str(), method_name.as_str(), arguments.len());
@@ -138,14 +141,16 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
                 | ("Read", "read" | "try_read", 0)
                 | ("With", "with" | "try_with", 1)
         );
+
+        // Extend accepted reads with untracked operations used inside resource fetchers.
         tracked
-            || matches!(self.collection, ReactiveReadCollection::Fetcher)
+            || (matches!(self.collection, ReactiveReadCollection::Fetcher)
                 && matches!(
                     identity,
                     ("GetUntracked", "get_untracked" | "try_get_untracked", 0)
                         | ("ReadUntracked", "read_untracked" | "try_read_untracked", 0)
                         | ("WithUntracked", "with_untracked" | "try_with_untracked", 1)
-                )
+                ))
     }
 }
 

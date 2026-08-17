@@ -169,9 +169,8 @@ impl UnencapsulatedBinaryEnumClassification {
         let [statement] = block.stmts else {
             return expression;
         };
-        let returned = match statement.kind {
-            StmtKind::Expr(returned) | StmtKind::Semi(returned) => returned,
-            _ => return expression,
+        let (StmtKind::Expr(returned) | StmtKind::Semi(returned)) = statement.kind else {
+            return expression;
         };
         let ExprKind::Ret(Some(returned)) = returned.kind else {
             return expression;

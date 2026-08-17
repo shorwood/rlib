@@ -168,7 +168,7 @@ impl DeriveMoreManualErrorImpls {
         }
     }
 
-    /// Returns whether derive_more would add source or backtrace behavior to an empty impl.
+    /// Returns whether `derive_more` would add source or backtrace behavior to an empty impl.
     fn derive_adds_behavior(cx: &LateContext<'_>, definition: ty::AdtDef<'_>) -> bool {
         let fields = &definition.non_enum_variant().fields;
         let is_tuple = fields

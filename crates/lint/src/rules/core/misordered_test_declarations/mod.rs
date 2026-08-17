@@ -11,7 +11,7 @@ use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::ItemProvenanceExt;
-use crate::utils::test_module::TestModuleExt;
+use crate::utils::test_module::CanonicalTestExt;
 
 // -----------------------------------------------------------------------------
 // ViolationKind: Test-module topology failure

@@ -107,20 +107,6 @@ pub struct ViewNode {
     pub(crate) literal: Option<String>,
 }
 
-#[cfg(test)]
-impl ViewNode {
-    /// Builds a minimal node for lint behavior tests.
-    pub(crate) fn for_test(name: &str, literal: Option<&str>) -> Self {
-        Self {
-            span: rustc_span::DUMMY_SP,
-            range: 0..1,
-            complexity: 1,
-            name: Some(name.to_owned()),
-            literal: literal.map(str::to_owned),
-        }
-    }
-}
-
 /// One ordinary comment positioned at a direct-child boundary.
 #[derive(Clone)]
 pub struct ViewHeading {
@@ -766,8 +752,7 @@ fn is_control_component(name: &str) -> bool {
     let terminal = name
         .rsplit([':', '/'])
         .find(|segment| !segment.trim().is_empty())
-        .map(str::trim)
-        .unwrap_or(name);
+        .map_or(name, str::trim);
     matches!(terminal, "For" | "Show" | "Suspense" | "ErrorBoundary")
 }
 
@@ -823,27 +808,34 @@ impl ViewSourceComment {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::rustc_hir::CRATE_HIR_ID;
     use super::rustc_span::{BytePos, Span};
     use super::{LeptosViewStructureConfig, ViewStructureAnalysis};
 
-    fn parse(source: &str) -> ViewStructureAnalysis {
-        ViewStructureAnalysis::parse(
-            Span::with_root_ctxt(
-                BytePos(0),
-                BytePos(u32::try_from(source.len()).expect("test view fits in a source span")),
-            ),
-            CRATE_HIR_ID,
-            source,
-        )
-        .expect("representative Leptos view should parse")
+    impl FromStr for ViewStructureAnalysis {
+        type Err = &'static str;
+
+        fn from_str(source: &str) -> Result<Self, Self::Err> {
+            Self::parse(
+                Span::with_root_ctxt(
+                    BytePos(0),
+                    BytePos(u32::try_from(source.len()).expect("test view fits in a source span")),
+                ),
+                CRATE_HIR_ID,
+                source,
+            )
+            .ok_or("representative Leptos view should parse")
+        }
     }
 
     #[test]
     fn delegates_nested_elements_blocks_and_attributes_to_rstml() {
-        let parsed = parse(
-            "view! { <main><Header/><Show when=yes on:click=run><Body/></Show>{value}</main> }",
-        );
+        let parsed =
+            "view! { <main><Header/><Show when=yes on:click=run><Body/></Show>{value}</main> }"
+                .parse::<ViewStructureAnalysis>()
+                .expect("representative view should parse");
         let complexities = parsed
             .scopes
             .iter()
@@ -856,14 +848,18 @@ mod tests {
 
     #[test]
     fn fragments_are_transparent_and_comments_attach_to_nodes() {
-        let parsed = parse("view! { <>// Account navigation\n<Nav/><Crumbs/></> }");
+        let parsed = "view! { <>// Account navigation\n<Nav/><Crumbs/></> }"
+            .parse::<ViewStructureAnalysis>()
+            .expect("representative view should parse");
         assert_eq!(parsed.scopes[0].nodes.len(), 2);
         assert_eq!(parsed.scopes[0].headings[0].node, Some(0));
     }
 
     #[test]
     fn retains_stranded_direct_boundary_comments() {
-        let parsed = parse("view! { <main><Content/> // Stranded heading\n</main> }");
+        let parsed = "view! { <main><Content/> // Stranded heading\n</main> }"
+            .parse::<ViewStructureAnalysis>()
+            .expect("representative view should parse");
         let scope = &parsed.scopes[1];
         assert_eq!(scope.headings.len(), 1);
         assert_eq!(scope.headings[0].node, None);
@@ -872,7 +868,9 @@ mod tests {
 
     #[test]
     fn rust_blocks_can_contain_markup_like_strings_and_nested_macros() {
-        let parsed = parse(r#"view! { {format!("<Fake/>")} <Real value=move || call()/> }"#);
+        let parsed = r#"view! { {format!("<Fake/>")} <Real value=move || call()/> }"#
+            .parse::<ViewStructureAnalysis>()
+            .expect("representative view should parse");
         assert_eq!(parsed.scopes[0].nodes.len(), 2);
         assert_eq!(parsed.scopes[0].nodes[1].name.as_deref(), Some("Real"));
     }
@@ -880,7 +878,9 @@ mod tests {
     #[test]
     fn mirrors_global_class_prelude_and_preserves_source_spans() {
         let source = r#"view! { class="shell", <main><Child/></main> }"#;
-        let parsed = parse(source);
+        let parsed = source
+            .parse::<ViewStructureAnalysis>()
+            .expect("representative view should parse");
         let main = &parsed.scopes[0].nodes[0];
         assert_eq!(&source[main.range.clone()], "<main><Child/></main>");
     }

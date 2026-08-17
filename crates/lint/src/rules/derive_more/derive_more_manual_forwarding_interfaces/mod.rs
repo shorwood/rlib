@@ -136,6 +136,12 @@ const INDEX_BINDING_COUNT: usize = 2;
 // DeriveMoreManualForwardingInterfaces: Declarative forwarding policy
 // -----------------------------------------------------------------------------
 
+/// Validated indexing derive name passed to direct syntax analysis.
+struct IndexDerive(
+    /// Validated `Index` or `IndexMut` derive spelling.
+    &'static str,
+);
+
 /// Groups transparent forwarding implementations by their wrapper type.
 #[derive(Default)]
 struct DeriveMoreManualForwardingInterfaces {
@@ -206,12 +212,12 @@ impl DeriveMoreManualForwardingInterfaces {
         expression: &Expr<'_>,
         bindings: &[rustc_hir::HirId],
         trait_id: DefId,
-        derive: &'static str,
+        derive: &IndexDerive,
     ) -> bool {
         let ExprKind::AddrOf(_, mutability, indexed) = expression.kind else {
             return false;
         };
-        if mutability != Self::expected_mutability(derive) {
+        if mutability != Self::expected_mutability(derive.0) {
             return false;
         }
         let ExprKind::Index(container, index, _) = indexed.kind else {
@@ -393,7 +399,7 @@ impl ContractTarget {
                 forwarding.forwarded,
                 &forwarding.bindings,
                 trait_id,
-                derive,
+                &IndexDerive(derive),
             )
         {
             return Some(Self {

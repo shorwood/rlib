@@ -10,7 +10,9 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::def_id::LocalDefId;
 use rustc_span::{Span, sym};
 
-use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
+use super::utils::contracts::{
+    SerdeAttributes, SerdeAuthoredField, SerdeAuthoredFieldSet, SerdeContractCatalog, SerdeFlag,
+};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -117,59 +119,17 @@ impl LateLintPass<'_> for SerdeLossyConditionalSerialization {
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
-        let fields = match item.kind {
-            ItemKind::Struct(_, _, data) => {
-                let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
-                    return;
-                };
-                structure
-                    .fields
-                    .iter()
-                    .zip(data.fields())
-                    .enumerate()
-                    .map(|(index, (field, hir_field))| {
-                        (
-                            field
-                                .ident
-                                .as_ref()
-                                .map_or_else(|| format!("field {index}"), ToString::to_string),
-                            field.attrs.clone(),
-                            hir_field.def_id,
-                        )
-                    })
-                    .collect::<Vec<_>>()
-            }
-            ItemKind::Enum(_, _, definition) => {
-                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
-                    return;
-                };
-                enumeration
-                    .variants
-                    .iter()
-                    .zip(definition.variants)
-                    .flat_map(|(variant, hir_variant)| {
-                        variant
-                            .fields
-                            .iter()
-                            .zip(hir_variant.data.fields())
-                            .enumerate()
-                            .map(move |(index, (field, hir_field))| {
-                                let field_name = field
-                                    .ident
-                                    .as_ref()
-                                    .map_or_else(|| index.to_string(), ToString::to_string);
-                                (
-                                    format!("{}.{}", variant.ident, field_name),
-                                    field.attrs.clone(),
-                                    hir_field.def_id,
-                                )
-                            })
-                    })
-                    .collect::<Vec<_>>()
-            }
-            _ => return,
+        let Some(SerdeAuthoredFieldSet { fields, .. }) =
+            SerdeAuthoredFieldSet::for_item(item, &source)
+        else {
+            return;
         };
-        for (field, authored_attributes, field_definition) in fields {
+        for SerdeAuthoredField {
+            name: field,
+            attributes: authored_attributes,
+            definition: field_definition,
+        } in fields
+        {
             let attributes = SerdeAttributes::from_attributes(&authored_attributes);
             let has_deserialization_fallback =
                 attributes.has(SerdeFlag::HasDefault) || attributes.has(SerdeFlag::SkipDeserialize);

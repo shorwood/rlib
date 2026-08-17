@@ -7,12 +7,12 @@ use rustc_lint::{LateContext, LintContext};
 use rustc_span::Pos;
 
 /// Canonical authored in-source test-module recognition shared by topology lints.
-pub trait TestModuleExt {
+pub trait CanonicalTestExt {
     /// Returns whether this is a direct `#[cfg(test)] mod test` or `mod tests` declaration.
     fn is_canonical_in_source_test_module(&self, cx: &LateContext<'_>) -> bool;
 }
 
-impl TestModuleExt for Item<'_> {
+impl CanonicalTestExt for Item<'_> {
     fn is_canonical_in_source_test_module(&self, cx: &LateContext<'_>) -> bool {
         if !cx.sess().opts.test
             || self.span.from_expansion()

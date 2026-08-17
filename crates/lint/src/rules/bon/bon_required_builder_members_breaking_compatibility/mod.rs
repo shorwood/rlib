@@ -9,7 +9,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::attributes::{BonAttributeAnalysis, OptionType};
+use super::utils::attributes::{BonAttributeAnalysis, BuilderOption, OptionType};
 use super::utils::config::{BonApiBaselineConfig, BonMemberPath};
 use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::EarlyViolation;
@@ -40,9 +40,9 @@ impl Violation {
         // Existing, defaulted, skipped, and privately initialized members remain compatible.
         if !baseline.contains_builder(member_path.builder)
             || baseline.contains_member(member_path)
-            || BonAttributeAnalysis::builder_has_option(cx, attributes, "default")
-            || BonAttributeAnalysis::builder_has_option(cx, attributes, "skip")
-            || BonAttributeAnalysis::builder_has_option(cx, attributes, "field")
+            || BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::DEFAULT)
+            || BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::SKIP)
+            || BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::FIELD)
         {
             return None;
         }
@@ -52,7 +52,7 @@ impl Violation {
         };
 
         let required = !OptionType::is_option(&ty)
-            || BonAttributeAnalysis::builder_has_option(cx, attributes, "required");
+            || BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::REQUIRED);
         required.then_some(Self {
             span: ty_span,
             builder: member_path.builder.to_owned(),
@@ -173,12 +173,37 @@ impl BonRequiredBuilderMembersBreakingCompatibility {
     /// Checks required parameters on one public builder function.
     fn check_function(&self, cx: &EarlyContext<'_>, builder: &str, function: &rustc_ast::Fn) {
         for parameter in &function.sig.decl.inputs {
-            let Some(violation) =
-                Self::parameter_violation(cx, &self.baseline, &builder, parameter)
+            let Some(violation) = Self::parameter_violation(cx, &self.baseline, builder, parameter)
             else {
                 continue;
             };
             violation.emit(cx);
+        }
+    }
+
+    /// Checks public builder methods declared in one inherent implementation.
+    fn check_implementation(&self, cx: &EarlyContext<'_>, implementation: &rustc_ast::Impl) {
+        let Ok(owner) = cx
+            .sess()
+            .source_map()
+            .span_to_snippet(implementation.self_ty.span)
+        else {
+            return;
+        };
+        for associated in &implementation.items {
+            let AssocItemKind::Fn(function) = &associated.kind else {
+                continue;
+            };
+            if !matches!(associated.vis.kind, VisibilityKind::Public)
+                || BonAttributeAnalysis::builder(&associated.attrs).is_none()
+            {
+                continue;
+            }
+            let Some(identifier) = associated.kind.ident() else {
+                continue;
+            };
+            let builder = format!("{}::{}", owner.trim(), identifier.name);
+            self.check_function(cx, &builder, function);
         }
     }
 }
@@ -208,30 +233,7 @@ impl EarlyLintPass for BonRequiredBuilderMembersBreakingCompatibility {
                     violation.emit(cx);
                 }
             }
-            ItemKind::Impl(implementation) => {
-                let Ok(owner) = cx
-                    .sess()
-                    .source_map()
-                    .span_to_snippet(implementation.self_ty.span)
-                else {
-                    return;
-                };
-                for associated in &implementation.items {
-                    let AssocItemKind::Fn(function) = &associated.kind else {
-                        continue;
-                    };
-                    if !matches!(associated.vis.kind, VisibilityKind::Public)
-                        || BonAttributeAnalysis::builder(&associated.attrs).is_none()
-                    {
-                        continue;
-                    }
-                    let Some(identifier) = associated.kind.ident() else {
-                        continue;
-                    };
-                    let builder = format!("{}::{}", owner.trim(), identifier.name);
-                    self.check_function(cx, &builder, function);
-                }
-            }
+            ItemKind::Impl(implementation) => self.check_implementation(cx, implementation),
             _ => {}
         }
     }

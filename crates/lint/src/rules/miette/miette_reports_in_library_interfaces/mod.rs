@@ -73,26 +73,23 @@ impl LateViolation for Violation {
 // MietteReportsInLibraryInterfaces: Concrete library error vocabulary
 // -----------------------------------------------------------------------------
 
-/// Rejects application-oriented reports at public library boundaries.
-struct MietteReportsInLibraryInterfaces;
-
 /// Resolves the explicitly authored return type hidden by async lowering.
 struct AuthoredReportTypeVisitor<'analysis, 'tcx> {
     /// Compiler context used to resolve type paths and aliases.
     cx: &'analysis LateContext<'tcx>,
     /// Whether a Miette report has been found.
-    found: bool,
+    is_found: bool,
 }
 
 impl<'hir> Visitor<'hir> for AuthoredReportTypeVisitor<'_, '_> {
     fn visit_ty(&mut self, ty: &'hir HirTy<'hir, AmbigArg>) {
-        if self.found {
+        if self.is_found {
             return;
         }
         if let TyKind::Path(path) = ty.kind
             && let Res::Def(kind, definition) = self.cx.qpath_res(&path, ty.hir_id)
         {
-            self.found = (self.cx.tcx.crate_name(definition.krate).as_str() == "miette"
+            self.is_found = (self.cx.tcx.crate_name(definition.krate).as_str() == "miette"
                 && matches!(
                     self.cx.tcx.item_name(definition).as_str(),
                     "Report" | "Result"
@@ -103,11 +100,15 @@ impl<'hir> Visitor<'hir> for AuthoredReportTypeVisitor<'_, '_> {
                         self.cx.tcx.type_of(definition).instantiate_identity(),
                     ));
         }
-        if !self.found {
-            intravisit::walk_ty(self, ty);
+        if self.is_found {
+            return;
         }
+        intravisit::walk_ty(self, ty);
     }
 }
+
+/// Rejects application-oriented reports at public library boundaries.
+struct MietteReportsInLibraryInterfaces;
 
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
@@ -168,11 +169,14 @@ impl MietteReportsInLibraryInterfaces {
             .skip_binder()
             .output();
         let authored_report = declared_output.is_some_and(|output| {
-            let mut visitor = AuthoredReportTypeVisitor { cx, found: false };
+            let mut visitor = AuthoredReportTypeVisitor {
+                cx,
+                is_found: false,
+            };
             if let Some(output) = output.try_as_ambig_ty() {
                 visitor.visit_ty(output);
             }
-            visitor.found
+            visitor.is_found
         });
         if !Self::contains_report(cx, output) && !authored_report {
             return;

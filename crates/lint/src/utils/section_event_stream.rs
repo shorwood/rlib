@@ -17,7 +17,7 @@ use crate::utils::section_analysis::{
     SectionAnalysis, SectionAnalyzer, SectionEventDivider, SectionFinding, SectionParticipant,
 };
 use crate::utils::source_provenance::ItemProvenanceExt;
-use crate::utils::test_module::TestModuleExt;
+use crate::utils::test_module::CanonicalTestExt;
 
 /// Smallest declaration group that can contain more than one responsibility.
 const MINIMUM_MULTIPLE_FAMILY_SIZE: usize = 2;
@@ -273,21 +273,6 @@ impl SectionEventStreamCandidates {
             .join(", ")
     }
 
-    /// Returns whether the declarations expose several independent naming families.
-    pub(super) fn has_multiple_conceptual_families(
-        &self,
-        namespace: Option<&ModuleNamespace>,
-    ) -> bool {
-        let names = self.family_names();
-        if names.len() < MINIMUM_MULTIPLE_FAMILY_SIZE {
-            return false;
-        }
-        let Some(prefix) = identifier_case::longest_common_pascal_prefix(&names) else {
-            return true;
-        };
-        namespace.is_some_and(|namespace| namespace.contains(&prefix))
-    }
-
     /// Returns whether all authored declarations reveal several naming families.
     ///
     /// Prefix diagnostics privilege nominal declarations because values often support a nearby
@@ -303,6 +288,18 @@ impl SectionEventStreamCandidates {
             .filter(|participant| !participant.is_opaque_macro)
             .map(|participant| participant.name.as_str())
             .collect::<Vec<_>>();
+        if names.len() < MINIMUM_MULTIPLE_FAMILY_SIZE {
+            return false;
+        }
+        let Some(prefix) = identifier_case::longest_common_pascal_prefix(&names) else {
+            return true;
+        };
+        namespace.is_some_and(|namespace| namespace.contains(&prefix))
+    }
+
+    /// Returns whether the declarations expose several independent naming families.
+    fn has_multiple_conceptual_families(&self, namespace: Option<&ModuleNamespace>) -> bool {
+        let names = self.family_names();
         if names.len() < MINIMUM_MULTIPLE_FAMILY_SIZE {
             return false;
         }

@@ -124,6 +124,7 @@ impl MietteIncoherentDiagnosticSeverity {
         span: Span,
         function: String,
     ) {
+        const RESULT_TYPE_ARGUMENTS: usize = 2;
         let output = cx
             .tcx
             .fn_sig(definition)
@@ -133,7 +134,9 @@ impl MietteIncoherentDiagnosticSeverity {
         let ty::Adt(result, arguments) = output.kind() else {
             return;
         };
-        if !cx.tcx.is_diagnostic_item(sym::Result, result.did()) || arguments.len() != 2 {
+        if !cx.tcx.is_diagnostic_item(sym::Result, result.did())
+            || arguments.len() != RESULT_TYPE_ARGUMENTS
+        {
             return;
         }
         let Some(error) = Self::local_error_type(cx, arguments.type_at(1)) else {

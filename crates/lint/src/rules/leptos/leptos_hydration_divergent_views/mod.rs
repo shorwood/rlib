@@ -3,6 +3,7 @@ extern crate rustc_hir;
 extern crate rustc_span;
 
 use std::borrow::Cow;
+use std::mem::discriminant;
 
 use rstml::node::{Node, NodeFragment};
 use rustc_errors::DiagDecorator;
@@ -72,9 +73,6 @@ impl LateViolation for Violation {
 // LeptosHydrationDivergentViews: Initial view parity policy
 // -----------------------------------------------------------------------------
 
-/// Rejects environment branches that produce incompatible hydration structures.
-struct LeptosHydrationDivergentViews;
-
 /// Environment selected when a compile-time predicate evaluates to true.
 #[derive(Clone, Copy)]
 enum TrueEnvironment {
@@ -98,7 +96,7 @@ impl TrueEnvironment {
 #[derive(Default)]
 struct ViewShape {
     /// Whether at least one Leptos view macro was parsed.
-    found: bool,
+    is_found: bool,
     /// Preorder node stream with explicit element boundaries.
     nodes: Vec<String>,
 }
@@ -138,13 +136,16 @@ impl<'ast> Visit<'ast> for ViewShape {
                 .parse_recoverable(expression.mac.tokens.clone())
                 .split_vec();
             if errors.is_empty() {
-                self.found = true;
+                self.is_found = true;
                 self.collect_nodes(&nodes);
             }
         }
         visit::visit_expr_macro(self, expression);
     }
 }
+
+/// Rejects environment branches that produce incompatible hydration structures.
+struct LeptosHydrationDivergentViews;
 
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
@@ -155,39 +156,46 @@ dylint_linting::impl_late_lint! {
 }
 
 impl LeptosHydrationDivergentViews {
+    /// Classifies one name-value `cfg!` predicate by its true environment.
+    fn name_value_environment(name_value: &syn::MetaNameValue) -> Option<TrueEnvironment> {
+        let syn::Expr::Lit(value) = &name_value.value else {
+            return None;
+        };
+        let syn::Lit::Str(value) = &value.lit else {
+            return None;
+        };
+        match (
+            name_value
+                .path
+                .get_ident()
+                .map(ToString::to_string)
+                .as_deref(),
+            value.value().as_str(),
+        ) {
+            (Some("target_arch"), "wasm32") | (Some("feature"), "hydrate") => {
+                Some(TrueEnvironment::Browser)
+            }
+            (Some("feature"), "ssr") => Some(TrueEnvironment::Server),
+            _ => None,
+        }
+    }
+
     /// Classifies one supported `cfg!` predicate by its true environment.
     fn environment_meta(meta: &Meta) -> Option<TrueEnvironment> {
         match meta {
-            Meta::NameValue(name_value) => {
-                let syn::Expr::Lit(value) = &name_value.value else {
-                    return None;
-                };
-                let syn::Lit::Str(value) = &value.lit else {
-                    return None;
-                };
-                match (
-                    name_value
-                        .path
-                        .get_ident()
-                        .map(ToString::to_string)
-                        .as_deref(),
-                    value.value().as_str(),
-                ) {
-                    (Some("target_arch"), "wasm32") | (Some("feature"), "hydrate") => {
-                        Some(TrueEnvironment::Browser)
-                    }
-                    (Some("feature"), "ssr") => Some(TrueEnvironment::Server),
-                    _ => None,
-                }
-            }
+            Meta::NameValue(name_value) => Self::name_value_environment(name_value),
             Meta::List(list) if list.path.is_ident("not") => {
-                let nested = syn::parse2::<Meta>(list.tokens.clone()).ok()?;
+                let Ok(nested) = syn::parse2::<Meta>(list.tokens.clone()) else {
+                    return None;
+                };
                 Self::environment_meta(&nested).map(TrueEnvironment::inverted)
             }
             Meta::List(list) if list.path.is_ident("all") || list.path.is_ident("any") => {
-                let nested = Punctuated::<Meta, Token![,]>::parse_terminated
-                    .parse2(list.tokens.clone())
-                    .ok()?;
+                let Ok(nested) =
+                    Punctuated::<Meta, Token![,]>::parse_terminated.parse2(list.tokens.clone())
+                else {
+                    return None;
+                };
                 let classified = nested
                     .iter()
                     .map(Self::environment_meta)
@@ -195,9 +203,7 @@ impl LeptosHydrationDivergentViews {
                 let mut environments = classified.into_iter();
                 let environment = environments.next()?;
                 environments
-                    .all(|candidate| {
-                        std::mem::discriminant(&candidate) == std::mem::discriminant(&environment)
-                    })
+                    .all(|candidate| discriminant(&candidate) == discriminant(&environment))
                     .then_some(environment)
             }
             _ => None,
@@ -209,7 +215,9 @@ impl LeptosHydrationDivergentViews {
         fn classify(expression: &syn::Expr) -> Option<TrueEnvironment> {
             match expression {
                 syn::Expr::Macro(expression) if expression.mac.path.is_ident("cfg") => {
-                    let meta = syn::parse2::<Meta>(expression.mac.tokens.clone()).ok()?;
+                    let Ok(meta) = syn::parse2::<Meta>(expression.mac.tokens.clone()) else {
+                        return None;
+                    };
                     LeptosHydrationDivergentViews::environment_meta(&meta)
                 }
                 syn::Expr::Unary(expression) if matches!(expression.op, UnOp::Not(_)) => {
@@ -221,15 +229,20 @@ impl LeptosHydrationDivergentViews {
             }
         }
 
-        classify(&syn::parse_str(source).ok()?)
+        let Ok(expression) = syn::parse_str(source) else {
+            return None;
+        };
+        classify(&expression)
     }
 
     /// Reduces one branch to the element and text structure relevant to hydration.
     fn view_shape(source: &str) -> Option<Vec<String>> {
-        let expression = syn::parse_str::<syn::Expr>(source).ok()?;
+        let Ok(expression) = syn::parse_str::<syn::Expr>(source) else {
+            return None;
+        };
         let mut shape = ViewShape::default();
         shape.visit_expr(&expression);
-        shape.found.then_some(shape.nodes)
+        shape.is_found.then_some(shape.nodes)
     }
 }
 

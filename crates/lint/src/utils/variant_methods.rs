@@ -157,6 +157,58 @@ impl AccessorFamily {
     }
 }
 
+/// Authored Strum metadata inspection for enum variants.
+pub struct VariantMetadata;
+
+impl VariantMetadata {
+    /// Returns whether one variant is excluded by canonical `#[strum(disabled)]` metadata.
+    pub fn is_strum_disabled(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> bool {
+        let span = cx.tcx.hir_span(hir_id);
+        let source_map = cx.tcx.sess.source_map();
+        let location = source_map.lookup_char_pos(span.lo());
+        let Some(file_source) = location.file.src.as_deref() else {
+            return false;
+        };
+        let Some(raw_offset) = span.lo().0.checked_sub(location.file.start_pos.0) else {
+            return false;
+        };
+        let Ok(offset) = usize::try_from(raw_offset) else {
+            return false;
+        };
+        let bytes = file_source.as_bytes();
+        let mut start = offset;
+        loop {
+            while start > 0 && bytes[start - 1].is_ascii_whitespace() {
+                start -= 1;
+            }
+            if start == 0 || bytes[start - 1] != b']' {
+                break;
+            }
+            let mut cursor = start - 1;
+            let mut depth = 1_u32;
+            while cursor > 0 && depth > 0 {
+                cursor -= 1;
+                match bytes[cursor] {
+                    b']' => depth += 1,
+                    b'[' => depth -= 1,
+                    _ => {}
+                }
+            }
+            if depth != 0 || cursor == 0 || bytes[cursor - 1] != b'#' {
+                break;
+            }
+            start = cursor - 1;
+        }
+
+        file_source[start..offset].split("#[").any(|attribute| {
+            attribute.trim_start().starts_with("strum")
+                && attribute
+                    .split(|character: char| !(character.is_alphanumeric() || character == '_'))
+                    .any(|component| component == "disabled")
+        })
+    }
+}
+
 /// Resolves a positive integer literal pattern.
 #[cfg(feature = "strum")]
 fn integer_pattern(pattern: &Pat<'_>) -> Option<u128> {
@@ -356,54 +408,7 @@ fn enum_has_strum_disabled_variant(cx: &LateContext<'_>, enum_def: LocalDefId) -
     definition
         .variants
         .iter()
-        .any(|variant| variant_is_strum_disabled(cx, variant.hir_id))
-}
-
-/// Returns whether one variant is excluded by canonical `#[strum(disabled)]` metadata.
-pub(crate) fn variant_is_strum_disabled(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> bool {
-    let span = cx.tcx.hir_span(hir_id);
-    let source_map = cx.tcx.sess.source_map();
-    let location = source_map.lookup_char_pos(span.lo());
-    let Some(file_source) = location.file.src.as_deref() else {
-        return false;
-    };
-    let Some(raw_offset) = span.lo().0.checked_sub(location.file.start_pos.0) else {
-        return false;
-    };
-    let Ok(offset) = usize::try_from(raw_offset) else {
-        return false;
-    };
-    let bytes = file_source.as_bytes();
-    let mut start = offset;
-    loop {
-        while start > 0 && bytes[start - 1].is_ascii_whitespace() {
-            start -= 1;
-        }
-        if start == 0 || bytes[start - 1] != b']' {
-            break;
-        }
-        let mut cursor = start - 1;
-        let mut depth = 1_u32;
-        while cursor > 0 && depth > 0 {
-            cursor -= 1;
-            match bytes[cursor] {
-                b']' => depth += 1,
-                b'[' => depth -= 1,
-                _ => {}
-            }
-        }
-        if depth != 0 || cursor == 0 || bytes[cursor - 1] != b'#' {
-            break;
-        }
-        start = cursor - 1;
-    }
-
-    file_source[start..offset].split("#[").any(|attribute| {
-        attribute.trim_start().starts_with("strum")
-            && attribute
-                .split(|character: char| !(character.is_alphanumeric() || character == '_'))
-                .any(|component| component == "disabled")
-    })
+        .any(|variant| VariantMetadata::is_strum_disabled(cx, variant.hir_id))
 }
 
 /// Returns every variant when Strum attributes cannot change generated coverage.
@@ -427,7 +432,7 @@ fn eligible_variants(
             .iter()
             .filter(|variant| {
                 provider != Some(PredicateProvider::StrumEnumIs)
-                    || !variant_is_strum_disabled(cx, variant.hir_id)
+                    || !VariantMetadata::is_strum_disabled(cx, variant.hir_id)
             })
             .map(|variant| variant.def_id)
             .collect(),
@@ -655,6 +660,7 @@ impl PredicateMethod {
             return None;
         };
 
+        // Require a public, synchronous, undocumented accessor with no generic parameters.
         if signature.decl.inputs.len() != 1
             || signature.header.is_unsafe()
             || signature.header.is_async()
@@ -668,6 +674,8 @@ impl PredicateMethod {
         {
             return None;
         }
+
+        // Resolve the exact enum variant and receiver field returned by the accessor.
         let enum_def = enclosing_inherent_enum(cx, item.hir_id())?;
         if !shared_receiver(cx, item.owner_id.def_id, enum_def) {
             return None;
@@ -958,6 +966,7 @@ impl AccessorMethod {
             return None;
         };
 
+        // Require a public, synchronous, undocumented accessor with no generic parameters.
         if signature.decl.inputs.len() != 1
             || signature.header.is_unsafe()
             || signature.header.is_async()
@@ -975,6 +984,8 @@ impl AccessorMethod {
         {
             return None;
         }
+
+        // Resolve the enum receiver and verify that the accessor returns an Option.
         let enum_def = enclosing_inherent_enum(cx, item.hir_id())?;
         let mode = AccessorMode::receiver_mode(cx, item.owner_id.def_id, enum_def)?;
         option_output(cx, item.owner_id.def_id)?;

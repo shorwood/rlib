@@ -144,9 +144,9 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
                     .as_ref()
                     .is_some_and(|identifier| identifier == "source");
 
-                if !attributes.is_source
-                    && !conventional_source
-                    && !(is_transparent && variant.fields.len() == 1)
+                if !(attributes.is_source
+                    || conventional_source
+                    || (is_transparent && variant.fields.len() == 1))
                 {
                     continue;
                 }

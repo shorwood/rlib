@@ -27,6 +27,10 @@ struct ReactiveMethodIdentity {
     method_name: &'static str,
 }
 
+// -----------------------------------------------------------------------------
+// SignalPlace: Writable reactive location
+// -----------------------------------------------------------------------------
+
 /// Authored place that identifies one writable signal without relying on its concrete wrapper.
 #[derive(Clone, PartialEq, Eq)]
 struct SignalPlace {

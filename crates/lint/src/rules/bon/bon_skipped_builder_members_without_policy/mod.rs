@@ -9,7 +9,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::attributes::BonAttributeAnalysis;
+use super::utils::attributes::{BonAttributeAnalysis, BuilderOption};
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -30,7 +30,7 @@ impl Violation {
         let attribute = BonAttributeAnalysis::builder(&field.attrs)?;
 
         // Documentation and marker fields make the implicit default intentional.
-        if !BonAttributeAnalysis::builder_has_bare_option(cx, &field.attrs, "skip")
+        if !BonAttributeAnalysis::builder_has_bare_option(cx, &field.attrs, BuilderOption::SKIP)
             || field.attrs.iter().any(|attribute| {
                 attribute
                     .doc_str()

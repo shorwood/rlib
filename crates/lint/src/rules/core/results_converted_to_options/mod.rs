@@ -8,6 +8,7 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::Expr;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
+use strum::EnumMessage;
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::result_loss_analysis::{ResolvedResultCall, ResultLossAnalyzer, ResultOperation};
@@ -17,32 +18,33 @@ use crate::utils::result_loss_analysis::{ResolvedResultCall, ResultLossAnalyzer,
 // -----------------------------------------------------------------------------
 
 /// Standard Result operation that directly replaces failure with Option absence.
+#[derive(EnumMessage)]
 enum OptionConversion {
     /// Dedicated Result-to-Option conversion.
+    #[strum(message = "`ok` conversion")]
     Ok,
     /// Eager absence supplied to `map_or`.
+    #[strum(message = "`map_or` absence fallback")]
     MapOr,
     /// Error-ignoring absence closure supplied to `map_or_else`.
+    #[strum(message = "`map_or_else` absence fallback")]
     MapOrElse,
     /// Eager absence supplied to `unwrap_or`.
+    #[strum(message = "`unwrap_or` absence fallback")]
     UnwrapOr,
     /// Error-ignoring absence closure supplied to `unwrap_or_else`.
+    #[strum(message = "`unwrap_or_else` absence fallback")]
     UnwrapOrElse,
     /// Option's default absence supplied by `unwrap_or_default`.
+    #[strum(message = "`unwrap_or_default` Option fallback")]
     UnwrapOrDefault,
 }
 
 impl OptionConversion {
     /// Describes the precise syntax collapsing failure into absence.
-    const fn description(&self) -> &'static str {
-        match self {
-            Self::Ok => "`ok` conversion",
-            Self::MapOr => "`map_or` absence fallback",
-            Self::MapOrElse => "`map_or_else` absence fallback",
-            Self::UnwrapOr => "`unwrap_or` absence fallback",
-            Self::UnwrapOrElse => "`unwrap_or_else` absence fallback",
-            Self::UnwrapOrDefault => "`unwrap_or_default` Option fallback",
-        }
+    fn description(&self) -> &'static str {
+        self.get_message()
+            .expect("every option conversion variant has a message")
     }
 }
 

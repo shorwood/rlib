@@ -17,11 +17,7 @@ use super::function_structure_config::FunctionStructureConfig;
 /// Blank lines are tolerated here so the malformed-comment lint can own a detached comment without
 /// a second missing-comment diagnostic. Code between the comment and boundary still stops the
 /// search because that comment belongs to the preceding operation.
-pub(super) fn has_phase_comment_candidate_before(
-    cx: &LateContext<'_>,
-    boundary: Span,
-    prefix: &str,
-) -> bool {
+fn has_phase_comment_candidate_before(cx: &LateContext<'_>, boundary: Span, prefix: &str) -> bool {
     if boundary.from_expansion() {
         return false;
     }
@@ -57,6 +53,18 @@ pub(super) fn has_phase_comment_candidate_before(
         line = lines.next();
     }
     first_comment.is_some_and(|comment| comment.starts_with(prefix))
+}
+
+/// Extension behavior for locating phase comments attached to authored spans.
+pub(super) trait FunctionLayoutCommentSpanExt {
+    /// Returns whether this boundary has an attached phase-comment candidate.
+    fn has_phase_comment_candidate_before(self, cx: &LateContext<'_>, prefix: &str) -> bool;
+}
+
+impl FunctionLayoutCommentSpanExt for Span {
+    fn has_phase_comment_candidate_before(self, cx: &LateContext<'_>, prefix: &str) -> bool {
+        has_phase_comment_candidate_before(cx, self, prefix)
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -102,11 +110,12 @@ impl Block {
 
         // Validate the header content and every natural continuation line.
         let content = remainder.strip_prefix(' ');
-        let is_canonical = FunctionLayoutProse::is_canonical(content)
-            && Self::continuations_are_canonical(&comments[1..]);
 
         // Suggest only transformations that cannot damage protected authored terms.
         let replacement = FunctionLayoutProse::replacement(content, prefix);
+        let is_canonical = (FunctionLayoutProse::is_canonical(content)
+            || replacement.as_deref() == Some(first.text.as_str()))
+            && Self::continuations_are_canonical(&comments[1..]);
         let last = comments.last().expect("comment blocks are nonempty");
 
         // Retain both the complete block and its independently repairable first line.

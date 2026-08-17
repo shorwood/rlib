@@ -10,9 +10,7 @@ use rustc_hir::{Expr, HirId};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 
-use crate::rules::leptos::utils::view_structure::{
-    LeptosViewStructureConfig, ViewCallSites, ViewNode,
-};
+use crate::rules::leptos::utils::view_structure::{LeptosViewStructureConfig, ViewCallSites};
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -58,6 +56,15 @@ impl LateViolation for Violation {
     }
 }
 
+/// Authored node text relevant to heading repetition.
+#[derive(Clone, Copy)]
+struct NodeText<'a> {
+    /// Opening-tag name.
+    name: &'a str,
+    /// Directly owned literal text.
+    literal: Option<&'a str>,
+}
+
 /// Normalizes a short authored name without fuzzy matching.
 fn heading_normalize(value: &str) -> String {
     value
@@ -69,18 +76,16 @@ fn heading_normalize(value: &str) -> String {
 }
 
 /// Returns whether one heading exactly translates its only structural node.
-fn heading_repeats_node(content: &str, node: &ViewNode) -> bool {
+fn heading_repeats_node(content: &str, node: NodeText<'_>) -> bool {
     let heading = heading_normalize(content);
-    let Some(name) = node.name.as_deref() else {
-        return false;
-    };
+    let name = node.name;
     let terminal_name = name
         .rsplit([':', '/'])
         .find(|segment| !segment.trim().is_empty())
         .unwrap_or(name);
     let node_names = [heading_normalize(name), heading_normalize(terminal_name)];
 
-    if node_names.iter().any(|node_name| heading == *node_name) {
+    if node_names.contains(&heading) {
         return true;
     }
 
@@ -93,7 +98,7 @@ fn heading_repeats_node(content: &str, node: &ViewNode) -> bool {
         return true;
     }
 
-    node.literal.as_deref().is_some_and(|literal| {
+    node.literal.is_some_and(|literal| {
         let literal = heading_normalize(literal);
         heading == literal
             || node_names.iter().any(|node_name| {
@@ -143,7 +148,16 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMarkupRepeatingViewComments {
                 .canonical_content(&self.config)
                 .expect("sections have canonical headings");
 
-            if !heading_repeats_node(content, node) {
+            let Some(name) = node.name.as_deref() else {
+                continue;
+            };
+            if !heading_repeats_node(
+                content,
+                NodeText {
+                    name,
+                    literal: node.literal.as_deref(),
+                },
+            ) {
                 continue;
             }
 
@@ -167,39 +181,58 @@ dylint_linting::impl_late_lint! {
 
 #[cfg(test)]
 mod tests {
-    use super::heading_repeats_node;
-    use crate::rules::leptos::utils::view_structure::ViewNode;
-
-    fn node(name: &str, literal: Option<&str>) -> ViewNode {
-        ViewNode::for_test(name, literal)
-    }
+    use super::{NodeText, heading_repeats_node};
 
     #[test]
     fn recognizes_only_exact_structural_restatements() {
         assert!(heading_repeats_node(
             "Navigation",
-            &node("Navigation", None)
-        ));
-        assert!(heading_repeats_node("Navigation", &node("nav", None)));
-        assert!(heading_repeats_node(
-            "Submit button",
-            &node("button", Some("Submit"))
+            NodeText {
+                name: "Navigation",
+                literal: None,
+            }
         ));
         assert!(heading_repeats_node(
             "Navigation",
-            &node("components::Navigation", None)
+            NodeText {
+                name: "nav",
+                literal: None,
+            }
+        ));
+        assert!(heading_repeats_node(
+            "Submit button",
+            NodeText {
+                name: "button",
+                literal: Some("Submit"),
+            }
+        ));
+        assert!(heading_repeats_node(
+            "Navigation",
+            NodeText {
+                name: "components::Navigation",
+                literal: None,
+            }
         ));
         assert!(heading_repeats_node(
             "Account status",
-            &node("h2", Some("Account status"))
+            NodeText {
+                name: "h2",
+                literal: Some("Account status"),
+            }
         ));
         assert!(!heading_repeats_node(
             "Account navigation",
-            &node("Navigation", None)
+            NodeText {
+                name: "Navigation",
+                literal: None,
+            }
         ));
         assert!(!heading_repeats_node(
             "Submit button",
-            &node("button", None)
+            NodeText {
+                name: "button",
+                literal: None,
+            }
         ));
     }
 }

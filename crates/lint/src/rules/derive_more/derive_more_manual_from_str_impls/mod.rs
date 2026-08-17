@@ -158,6 +158,7 @@ impl DeriveMoreManualFromStrImpls {
         arguments: ty::GenericArgsRef<'tcx>,
         trait_id: DefId,
     ) -> bool {
+        // Resolve the input binding and the callable's single forwarding expression.
         let body = cx.tcx.hir_body(body_id);
         let [parameter] = body.params else {
             return false;
@@ -165,6 +166,8 @@ impl DeriveMoreManualFromStrImpls {
         let PatKind::Binding(_, binding, _, None) = parameter.pat.kind else {
             return false;
         };
+
+        // Resolve the direct parse-and-map forwarding shape and its standard Result contract.
         let Some(expression) = DirectForwarding::single_body_expression(body.value) else {
             return false;
         };
@@ -175,6 +178,8 @@ impl DeriveMoreManualFromStrImpls {
         let Some(map) = typeck.type_dependent_def_id(expression.hir_id) else {
             return false;
         };
+
+        // Verify the standard Result mapping contract and the exact wrapper field type.
         let ty::Adt(result, result_arguments) = typeck.expr_ty(parsed).kind() else {
             return false;
         };

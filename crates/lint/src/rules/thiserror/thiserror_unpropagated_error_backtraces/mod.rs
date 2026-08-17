@@ -191,6 +191,30 @@ impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
+        let enum_shapes = |definition: &rustc_hir::EnumDef<'_>| {
+            let enumeration = match syn::parse_str::<syn::ItemEnum>(&source) {
+                Ok(enumeration) => enumeration,
+                Err(_error) => return None,
+            };
+            let shapes = enumeration
+                .variants
+                .iter()
+                .zip(definition.variants)
+                .map(|(variant, hir_variant)| {
+                    let mut shape = BacktraceShape::default();
+                    for (index, (field, hir_field)) in variant
+                        .fields
+                        .iter()
+                        .zip(hir_variant.data.fields())
+                        .enumerate()
+                    {
+                        shape.record_field(cx, index, field, hir_field);
+                    }
+                    shape
+                })
+                .collect();
+            Some(shapes)
+        };
         let shapes = match item.kind {
             ItemKind::Struct(_, _, data) => {
                 let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
@@ -205,26 +229,10 @@ impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
                 vec![shape]
             }
             ItemKind::Enum(_, _, definition) => {
-                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
+                let Some(shapes) = enum_shapes(&definition) else {
                     return;
                 };
-                enumeration
-                    .variants
-                    .iter()
-                    .zip(definition.variants)
-                    .map(|(variant, hir_variant)| {
-                        let mut shape = BacktraceShape::default();
-                        for (index, (field, hir_field)) in variant
-                            .fields
-                            .iter()
-                            .zip(hir_variant.data.fields())
-                            .enumerate()
-                        {
-                            shape.record_field(cx, index, field, hir_field);
-                        }
-                        shape
-                    })
-                    .collect()
+                shapes
             }
             _ => return,
         };

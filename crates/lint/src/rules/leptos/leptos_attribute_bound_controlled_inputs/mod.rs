@@ -13,6 +13,15 @@ use rustc_span::{BytePos, Span, Symbol};
 use super::utils::reactive_capability::ReactiveCapability;
 use crate::utils::diagnostic::LateViolation;
 
+/// Stable source coordinates used to deduplicate macro-expanded findings.
+#[derive(Eq, Hash, PartialEq)]
+struct SourceRange {
+    /// First byte in the authored value.
+    start: BytePos,
+    /// Byte immediately after the authored value.
+    end: BytePos,
+}
+
 // -----------------------------------------------------------------------------
 // Violation: Attribute bound control diagnostic
 // -----------------------------------------------------------------------------
@@ -74,7 +83,7 @@ impl LateViolation for Violation {
 #[derive(Default)]
 struct LeptosAttributeBoundControlledInputs {
     /// Authored value ranges already reported through macro-expanded HIR nodes.
-    reported: HashSet<(BytePos, BytePos)>,
+    reported: HashSet<SourceRange>,
 }
 
 dylint_linting::impl_late_lint! {
@@ -91,7 +100,10 @@ impl LeptosAttributeBoundControlledInputs {
         let callsite = expression.span.source_callsite();
         let source_file = cx.sess().source_map().lookup_source_file(callsite.lo());
         let source = source_file.src.as_deref()?;
-        let offset = usize::try_from(callsite.lo().0.checked_sub(source_file.start_pos.0)?).ok()?;
+        let Ok(offset) = usize::try_from(callsite.lo().0.checked_sub(source_file.start_pos.0)?)
+        else {
+            return None;
+        };
         let source = source.get(..offset)?.trim_end();
         let tag = source.rsplit_once('<')?.1.split_ascii_whitespace().next()?;
 
@@ -130,7 +142,10 @@ impl<'tcx> LateLintPass<'tcx> for LeptosAttributeBoundControlledInputs {
         }
 
         let span = expression.span.source_callsite();
-        if !self.reported.insert((span.lo(), span.hi())) {
+        if !self.reported.insert(SourceRange {
+            start: span.lo(),
+            end: span.hi(),
+        }) {
             return;
         }
 

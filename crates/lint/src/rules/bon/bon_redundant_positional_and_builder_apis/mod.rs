@@ -9,7 +9,7 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
-use super::utils::attributes::BonAttributeAnalysis;
+use super::utils::attributes::{BonAttributeAnalysis, BuilderOption};
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -118,8 +118,15 @@ impl EarlyLintPass for BonRedundantPositionalAndBuilderApis {
             .inputs
             .iter()
             .filter(|parameter| {
-                BonAttributeAnalysis::builder_has_option(cx, &parameter.attrs, "start_fn")
-                    || BonAttributeAnalysis::builder_has_option(cx, &parameter.attrs, "finish_fn")
+                BonAttributeAnalysis::builder_has_option(
+                    cx,
+                    &parameter.attrs,
+                    BuilderOption::START_FN,
+                ) || BonAttributeAnalysis::builder_has_option(
+                    cx,
+                    &parameter.attrs,
+                    BuilderOption::FINISH_FN,
+                )
             })
             .count();
 
@@ -139,10 +146,11 @@ impl EarlyLintPass for BonRedundantPositionalAndBuilderApis {
     }
 
     fn check_item_post(&mut self, _: &EarlyContext<'_>, item: &Item) {
-        if matches!(item.kind, ItemKind::Mod(..))
-            && !matches!(item.vis.kind, VisibilityKind::Public)
+        if !matches!(item.kind, ItemKind::Mod(..))
+            || matches!(item.vis.kind, VisibilityKind::Public)
         {
-            self.private_module_depth -= 1;
+            return;
         }
+        self.private_module_depth -= 1;
     }
 }

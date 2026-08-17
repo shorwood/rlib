@@ -48,24 +48,3 @@ impl LibraryConfig {
         dylint_linting::config_or_default(env!("CARGO_PKG_NAME"))
     }
 }
-
-// -----------------------------------------------------------------------------
-// Tests: Unit tests
-// -----------------------------------------------------------------------------
-
-#[cfg(test)]
-mod tests {
-    use super::LibraryConfig;
-
-    #[test]
-    fn parses_custom_extension_trait_limit() {
-        let config = toml::from_str::<LibraryConfig>(
-            r"
-                [extension_traits]
-                max_methods = 5
-            ",
-        )
-        .expect("custom extension trait limit should parse");
-        assert_eq!(config.extension_traits.max_methods(), 5);
-    }
-}

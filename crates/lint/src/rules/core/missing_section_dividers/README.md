@@ -5,7 +5,9 @@
 Requires section dividers when a module contains several independently named concepts or
 more declarations than one configured section may hold. A conventional in-source
 `#[cfg(test)] mod test` or `mod tests` also gets an explicit divider so production code and
-tests have a clear boundary.
+tests have a clear boundary. The canonical test module body is treated as one declaration
+family: this rule owns the divider before the module, while test ordering inside it belongs
+to test-specific topology rules. Integration-test crate roots remain ordinary modules.
 
 ## Why is this bad?
 

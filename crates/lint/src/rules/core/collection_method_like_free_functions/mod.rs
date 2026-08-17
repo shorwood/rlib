@@ -253,6 +253,38 @@ impl<'tcx> Candidate<'tcx> {
         (element.is_struct() && element.did().is_local()).then_some(arguments.type_at(0))
     }
 
+    /// Compares generic argument lists while preserving parameter-position equivalence.
+    fn same_generic_arguments<'analysis>(
+        expected: ty::GenericArgsRef<'analysis>,
+        actual: ty::GenericArgsRef<'analysis>,
+    ) -> bool {
+        expected.len() == actual.len()
+            && expected
+                .iter()
+                .zip(actual.iter())
+                .all(|(expected, actual)| {
+                    match (expected.as_type(), actual.as_type()) {
+                        (Some(expected), Some(actual)) => {
+                            return Self::same_type_shape(expected, actual);
+                        }
+                        (Some(_), None) | (None, Some(_)) => return false,
+                        (None, None) => {}
+                    }
+                    match (expected.as_const(), actual.as_const()) {
+                        (Some(expected), Some(actual)) => match (expected.kind(), actual.kind()) {
+                            (ty::ConstKind::Param(expected), ty::ConstKind::Param(actual)) => {
+                                expected.index == actual.index
+                            }
+                            _ => expected == actual,
+                        },
+                        (Some(_), None) | (None, Some(_)) => false,
+                        (None, None) => {
+                            expected == actual || (expected.has_param() && actual.has_param())
+                        }
+                    }
+                })
+    }
+
     /// Compares generic instantiations while treating same-position parameters as alpha-equivalent.
     fn same_type_shape<'analysis>(expected: Ty<'analysis>, actual: Ty<'analysis>) -> bool {
         match (expected.kind(), actual.kind()) {
@@ -262,34 +294,7 @@ impl<'tcx> Candidate<'tcx> {
                 ty::Adt(actual_definition, actual_arguments),
             ) => {
                 expected_definition.did() == actual_definition.did()
-                    && expected_arguments.len() == actual_arguments.len()
-                    && expected_arguments.iter().zip(actual_arguments.iter()).all(
-                        |(expected, actual)| {
-                            match (expected.as_type(), actual.as_type()) {
-                                (Some(expected), Some(actual)) => {
-                                    return Self::same_type_shape(expected, actual);
-                                }
-                                (Some(_), None) | (None, Some(_)) => return false,
-                                (None, None) => {}
-                            }
-                            match (expected.as_const(), actual.as_const()) {
-                                (Some(expected), Some(actual)) => {
-                                    match (expected.kind(), actual.kind()) {
-                                        (
-                                            ty::ConstKind::Param(expected),
-                                            ty::ConstKind::Param(actual),
-                                        ) => expected.index == actual.index,
-                                        _ => expected == actual,
-                                    }
-                                }
-                                (Some(_), None) | (None, Some(_)) => false,
-                                (None, None) => {
-                                    expected == actual
-                                        || (expected.has_param() && actual.has_param())
-                                }
-                            }
-                        },
-                    )
+                    && Self::same_generic_arguments(expected_arguments, actual_arguments)
             }
             (ty::Ref(_, expected, expected_mutability), ty::Ref(_, actual, actual_mutability)) => {
                 expected_mutability == actual_mutability
@@ -471,7 +476,7 @@ impl<'tcx> Candidate<'tcx> {
             function_name: self.function.name,
             element_name: self.element.name,
             wrapper_name: self.wrapper_name,
-            wrapper_is_conflicting: matches!(wrapper, CandidateWrapperState::Conflicting),
+            has_conflicting_wrapper: matches!(wrapper, CandidateWrapperState::Conflicting),
             remediation_message,
         }
     }
@@ -502,14 +507,14 @@ struct Violation {
     /// Canonical or proposed wrapper name.
     wrapper_name: Symbol,
     /// Whether that canonical name is already occupied by an incompatible type.
-    wrapper_is_conflicting: bool,
+    has_conflicting_wrapper: bool,
     /// Namespace-aware wrapper construction or migration recipe.
     remediation_message: String,
 }
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
-        if self.wrapper_is_conflicting {
+        if self.has_conflicting_wrapper {
             return Cow::Owned(format!(
                 "free function `{}` needs a dedicated collection wrapper for `{}`",
                 self.function_name, self.element_name

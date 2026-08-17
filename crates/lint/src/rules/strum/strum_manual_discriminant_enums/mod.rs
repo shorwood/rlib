@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 
 use rustc_errors::DiagDecorator;
+use rustc_hir::def_id::LocalDefId;
 use rustc_hir::{ImplItem, Item, ItemKind};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::{Span, Symbol};
@@ -74,7 +75,7 @@ struct StrumManualDiscriminantEnums {
     /// Exact manual mirrors awaiting crate-wide schema evidence.
     candidates: Vec<DiscriminantMirrorCandidate>,
     /// Mirror enums with authored or generated Serde contracts.
-    external_schemas: HashSet<rustc_hir::def_id::LocalDefId>,
+    external_schemas: HashSet<LocalDefId>,
 }
 
 dylint_linting::impl_late_lint! {

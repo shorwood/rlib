@@ -214,9 +214,9 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreInconsistentDerivedEquality {
             return;
         }
 
-        let identifier = match item.kind {
-            ItemKind::Struct(identifier, _, _) | ItemKind::Enum(identifier, _, _) => identifier,
-            _ => return,
+        let (ItemKind::Struct(identifier, _, _) | ItemKind::Enum(identifier, _, _)) = item.kind
+        else {
+            return;
         };
         let skipped = Self::skipped_field_count(cx, item);
 

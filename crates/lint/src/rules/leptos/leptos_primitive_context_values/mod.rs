@@ -11,6 +11,7 @@ use rustc_hir::{Expr, ExprKind};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty::{self, Ty};
 use rustc_span::Span;
+use rustc_span::def_id::DefId;
 
 use crate::utils::diagnostic::LateViolation;
 
@@ -73,10 +74,7 @@ enum ContextOperation {
 
 impl ContextOperation {
     /// Classifies one resolved context read or write.
-    fn from_definition(
-        cx: &LateContext<'_>,
-        definition: rustc_span::def_id::DefId,
-    ) -> Option<Self> {
+    fn from_definition(cx: &LateContext<'_>, definition: DefId) -> Option<Self> {
         let path = cx.tcx.def_path_str(definition);
 
         if !path.contains("context")
@@ -161,6 +159,47 @@ fn ambiguous_context_type(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
 /// Rejects context values whose type cannot distinguish one domain service from another.
 struct LeptosPrimitiveContextValues;
 
+impl LeptosPrimitiveContextValues {
+    /// Resolves the consumed context type selected by one method call.
+    fn method_context_type<'tcx>(
+        cx: &LateContext<'tcx>,
+        expression: &Expr<'tcx>,
+    ) -> Option<Ty<'tcx>> {
+        let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+        let definition = cx
+            .tcx
+            .typeck(owner)
+            .type_dependent_def_id(expression.hir_id)?;
+        if !matches!(
+            ContextOperation::from_definition(cx, definition),
+            Some(ContextOperation::Consume)
+        ) {
+            return None;
+        }
+        cx.typeck_results()
+            .node_args(expression.hir_id)
+            .types()
+            .next()
+    }
+
+    /// Resolves the context value type selected by one provider or consumer call.
+    fn context_type<'tcx>(cx: &LateContext<'tcx>, expression: &Expr<'tcx>) -> Option<Ty<'tcx>> {
+        match expression.kind {
+            ExprKind::Call(callee, arguments) => match ContextOperation::from_callee(cx, callee)? {
+                ContextOperation::Provide => {
+                    let [value] = arguments else { return None };
+                    Some(cx.typeck_results().expr_ty(value))
+                }
+                ContextOperation::Consume => {
+                    cx.typeck_results().node_args(callee.hir_id).types().next()
+                }
+            },
+            ExprKind::MethodCall(..) => Self::method_context_type(cx, expression),
+            _ => None,
+        }
+    }
+}
+
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_PRIMITIVE_CONTEXT_VALUES,
@@ -169,52 +208,13 @@ dylint_linting::impl_late_lint! {
     LeptosPrimitiveContextValues
 }
 
-impl LateLintPass<'_> for LeptosPrimitiveContextValues {
-    fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+impl<'tcx> LateLintPass<'tcx> for LeptosPrimitiveContextValues {
+    fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
         if expression.span.from_expansion() {
             return;
         }
-        let ty = match expression.kind {
-            ExprKind::Call(callee, arguments) => {
-                let Some(operation) = ContextOperation::from_callee(cx, callee) else {
-                    return;
-                };
-                match operation {
-                    ContextOperation::Provide => {
-                        let [value] = arguments else { return };
-                        cx.typeck_results().expr_ty(value)
-                    }
-                    ContextOperation::Consume => {
-                        let generic_arguments = cx.typeck_results().node_args(callee.hir_id);
-                        let Some(ty) = generic_arguments.types().next() else {
-                            return;
-                        };
-                        ty
-                    }
-                }
-            }
-            ExprKind::MethodCall(_, _, _, _) => {
-                let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
-                let Some(definition) = cx
-                    .tcx
-                    .typeck(owner)
-                    .type_dependent_def_id(expression.hir_id)
-                else {
-                    return;
-                };
-                if !matches!(
-                    ContextOperation::from_definition(cx, definition),
-                    Some(ContextOperation::Consume)
-                ) {
-                    return;
-                }
-                let generic_arguments = cx.typeck_results().node_args(expression.hir_id);
-                let Some(ty) = generic_arguments.types().next() else {
-                    return;
-                };
-                ty
-            }
-            _ => return,
+        let Some(ty) = Self::context_type(cx, expression) else {
+            return;
         };
 
         if !(ambiguous_context_type(cx, ty)) {

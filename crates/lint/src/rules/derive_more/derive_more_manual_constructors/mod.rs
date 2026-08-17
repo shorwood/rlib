@@ -93,6 +93,33 @@ dylint_linting::impl_late_lint! {
 }
 
 impl DeriveMoreManualConstructors {
+    /// Proves that a struct expression forwards every parameter into its matching field.
+    fn exact_struct_assembly(
+        cx: &LateContext<'_>,
+        definition: DefId,
+        bindings: &[ParameterBinding],
+        path: &rustc_hir::QPath<'_>,
+        fields: &[rustc_hir::ExprField<'_>],
+        expression: &rustc_hir::Expr<'_>,
+    ) -> bool {
+        Self::path_targets(cx, cx.qpath_res(path, expression.hir_id), definition)
+            && fields.len() == bindings.len()
+            && cx
+                .tcx
+                .adt_def(definition)
+                .non_enum_variant()
+                .fields
+                .iter()
+                .zip(bindings)
+                .all(|(field, parameter)| field.name == parameter.name)
+            && fields.iter().all(|field| {
+                bindings.iter().any(|parameter| {
+                    field.ident.name == parameter.name
+                        && DirectForwarding::is_binding(cx, field.expr, parameter.binding)
+                })
+            })
+    }
+
     /// Collects plain constructor parameter names in declaration order.
     fn parameter_bindings(body: &rustc_hir::Body<'_>) -> Option<Vec<ParameterBinding>> {
         body.params
@@ -139,22 +166,7 @@ impl DeriveMoreManualConstructors {
     ) -> bool {
         match expression.kind {
             ExprKind::Struct(path, fields, StructTailExpr::None) => {
-                Self::path_targets(cx, cx.qpath_res(path, expression.hir_id), definition)
-                    && fields.len() == bindings.len()
-                    && cx
-                        .tcx
-                        .adt_def(definition)
-                        .non_enum_variant()
-                        .fields
-                        .iter()
-                        .zip(bindings)
-                        .all(|(field, parameter)| field.name == parameter.name)
-                    && fields.iter().all(|field| {
-                        bindings.iter().any(|parameter| {
-                            field.ident.name == parameter.name
-                                && DirectForwarding::is_binding(cx, field.expr, parameter.binding)
-                        })
-                    })
+                Self::exact_struct_assembly(cx, definition, bindings, path, fields, expression)
             }
             ExprKind::Call(_, arguments) => DirectForwarding::call(cx, owner, expression)
                 .is_some_and(|call| {

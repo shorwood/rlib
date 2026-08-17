@@ -54,6 +54,7 @@ struct StructContract {
 }
 
 impl StructContract {
+    /// Resolves the names contributed by a flattened field graph.
     fn flattened_names(
         target: LocalDefId,
         direction: SerdeDirection,
@@ -75,11 +76,12 @@ impl StructContract {
         let mut names = Vec::new();
         for field in &flattened.fields {
             names.extend(field.directional_names(direction).iter().cloned());
-            if let Some(nested) = field.flatten_target {
-                names.extend(Self::flattened_names(
-                    nested, direction, structs, catalog, visiting,
-                ));
-            }
+            let Some(nested) = field.flatten_target else {
+                continue;
+            };
+            names.extend(Self::flattened_names(
+                nested, direction, structs, catalog, visiting,
+            ));
         }
         visiting.remove(&target);
         names

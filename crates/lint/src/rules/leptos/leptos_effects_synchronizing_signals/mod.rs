@@ -141,9 +141,6 @@ impl<'tcx> Visitor<'tcx> for ReactiveOperations<'_, 'tcx> {
 // LeptosEffectsSynchronizingSignals: Acyclic reactive-state policy
 // -----------------------------------------------------------------------------
 
-/// Late lint pass that keeps reactive-to-reactive synchronization out of effects.
-struct LeptosEffectsSynchronizingSignals;
-
 /// Closure layout used by one effect constructor.
 enum EffectOperation {
     /// A single callback both tracks dependencies and performs the effect.
@@ -151,6 +148,9 @@ enum EffectOperation {
     /// Separate dependency and handler callbacks supplied to a watch operation.
     Watch,
 }
+
+/// Late lint pass that keeps reactive-to-reactive synchronization out of effects.
+struct LeptosEffectsSynchronizingSignals;
 
 dylint_linting::impl_late_lint! {
     #[doc = include_str!("README.md")]

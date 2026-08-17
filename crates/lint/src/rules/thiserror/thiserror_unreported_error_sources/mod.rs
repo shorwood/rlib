@@ -64,7 +64,7 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// Candidate: Causal field evidence
+// CandidateField: Causal field evidence
 // -----------------------------------------------------------------------------
 
 /// Causal-looking field and the local type it stores.
@@ -76,6 +76,44 @@ struct CandidateField {
     /// Whether thiserror places the field in the source chain.
     is_marked_source: bool,
 }
+
+// -----------------------------------------------------------------------------
+// ErrorRepresentation: Transparent forwarding policy
+// -----------------------------------------------------------------------------
+
+/// Error representation used when deciding whether a lone field carries a source implicitly.
+#[derive(Clone, Copy)]
+enum ErrorRepresentation {
+    /// Ordinary error formatting with explicit causal fields.
+    Opaque,
+    /// Transparent forwarding through the sole field.
+    Transparent,
+}
+
+impl ErrorRepresentation {
+    /// Resolves transparent forwarding metadata from authored error attributes.
+    fn from_attributes(attributes: &[syn::Attribute]) -> Self {
+        if attributes.iter().any(|attribute| {
+            attribute.path().is_ident("error")
+                && attribute
+                    .parse_args::<syn::Path>()
+                    .is_ok_and(|path| path.is_ident("transparent"))
+        }) {
+            Self::Transparent
+        } else {
+            Self::Opaque
+        }
+    }
+
+    /// Returns whether the error forwards through its sole field.
+    const fn is_transparent(self) -> bool {
+        matches!(self, Self::Transparent)
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Candidate: Deferred error declaration
+// -----------------------------------------------------------------------------
 
 /// Error declaration retained until all local thiserror contracts are known.
 struct Candidate {
@@ -95,7 +133,7 @@ impl Candidate {
         span: Span,
         syn_fields: &[syn::Field],
         hir_fields: &[rustc_hir::FieldDef<'_>],
-        is_transparent: bool,
+        representation: ErrorRepresentation,
     ) -> Self {
         let fields = syn_fields
             .iter()
@@ -116,7 +154,7 @@ impl Candidate {
                 Some(CandidateField {
                     is_marked_source: attributes.is_source
                         || name == "source"
-                        || (is_transparent && syn_fields.len() == 1),
+                        || (representation.is_transparent() && syn_fields.len() == 1),
                     name,
                     target,
                 })
@@ -127,16 +165,6 @@ impl Candidate {
             span,
             fields,
         }
-    }
-
-    /// Returns whether an error attribute delegates transparently to its sole field.
-    fn is_transparent(attributes: &[syn::Attribute]) -> bool {
-        attributes.iter().any(|attribute| {
-            attribute.path().is_ident("error")
-                && attribute
-                    .parse_args::<syn::Path>()
-                    .is_ok_and(|path| path.is_ident("transparent"))
-        })
     }
 }
 
@@ -189,7 +217,7 @@ impl LateLintPass<'_> for ThiserrorUnreportedErrorSources {
                     item.span,
                     &fields,
                     data.fields(),
-                    Candidate::is_transparent(&structure.attrs),
+                    ErrorRepresentation::from_attributes(&structure.attrs),
                 ));
             }
             ItemKind::Enum(_, _, definition) => {
@@ -204,7 +232,7 @@ impl LateLintPass<'_> for ThiserrorUnreportedErrorSources {
                         hir_variant.span,
                         &fields,
                         hir_variant.data.fields(),
-                        Candidate::is_transparent(&variant.attrs),
+                        ErrorRepresentation::from_attributes(&variant.attrs),
                     ));
                 }
             }

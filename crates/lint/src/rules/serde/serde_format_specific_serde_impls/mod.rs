@@ -71,40 +71,46 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// SerdeFormatSpecificSerdeImpls: Format-neutral data-model policy
+// FormatEvidence: Concrete wire-format coupling
 // -----------------------------------------------------------------------------
 
-/// Rejects generic Serde implementations coupled to a concrete wire format.
-struct SerdeFormatSpecificSerdeImpls;
-
+/// Format-specific operations collected from one Serde implementation.
 struct FormatEvidence<'tcx> {
+    /// Compiler context used to resolve referenced crates and methods.
     tcx: TyCtxt<'tcx>,
+    /// Current nested body owner used for type-dependent method resolution.
     body_owner: Option<LocalDefId>,
+    /// Concrete serialization format referenced by the implementation.
     format: Option<String>,
-    human_readable: bool,
-    string_shape: bool,
-    binary_shape: bool,
+    /// Whether the implementation branches on Serde's readability mode.
+    is_human_readable: bool,
+    /// Whether a string-shaped serialization operation appears.
+    has_string_shape: bool,
+    /// Whether a binary-shaped serialization operation appears.
+    has_binary_shape: bool,
 }
 
 impl<'tcx> FormatEvidence<'tcx> {
-    fn new(tcx: TyCtxt<'tcx>) -> Self {
+    /// Starts collecting format evidence for one implementation.
+    const fn new(tcx: TyCtxt<'tcx>) -> Self {
         Self {
             tcx,
             body_owner: None,
             format: None,
-            human_readable: false,
-            string_shape: false,
-            binary_shape: false,
+            is_human_readable: false,
+            has_string_shape: false,
+            has_binary_shape: false,
         }
     }
 
+    /// Converts accumulated evidence into a diagnostic explanation.
     fn finish(self) -> Option<String> {
         if let Some(format) = self.format {
             return Some(format!(
                 "the generic implementation directly depends on the `{format}` format API"
             ));
         }
-        (self.human_readable && self.string_shape && self.binary_shape).then(|| {
+        (self.is_human_readable && self.has_string_shape && self.has_binary_shape).then(|| {
             "`is_human_readable()` selects different string and binary Serde data-model shapes"
                 .to_owned()
         })
@@ -121,6 +127,7 @@ impl<'tcx> Visitor<'tcx> for FormatEvidence<'tcx> {
     }
 
     fn visit_path(&mut self, path: &Path<'tcx>, _: rustc_hir::HirId) {
+        /// Serialization crates that make a generic Serde implementation format-specific.
         const FORMATS: &[&str] = &[
             "serde_json",
             "serde_yaml",
@@ -151,12 +158,12 @@ impl<'tcx> Visitor<'tcx> for FormatEvidence<'tcx> {
             )
         {
             let operation = segment.ident.name.as_str();
-            self.human_readable |= operation == "is_human_readable";
-            self.string_shape |= matches!(
+            self.is_human_readable |= operation == "is_human_readable";
+            self.has_string_shape |= matches!(
                 operation,
                 "serialize_str" | "deserialize_str" | "deserialize_string"
             );
-            self.binary_shape |= operation.starts_with("serialize_u")
+            self.has_binary_shape |= operation.starts_with("serialize_u")
                 || operation.starts_with("serialize_i")
                 || operation.starts_with("deserialize_u")
                 || operation.starts_with("deserialize_i")
@@ -174,15 +181,15 @@ impl<'tcx> Visitor<'tcx> for FormatEvidence<'tcx> {
     }
 }
 
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub SERDE_FORMAT_SPECIFIC_SERDE_IMPLS,
-    Warn,
-    "finds format-specific behavior hidden in generic Serde implementations",
-    SerdeFormatSpecificSerdeImpls
-}
+// -----------------------------------------------------------------------------
+// SerdeFormatSpecificSerdeImpls: Format-neutral data-model policy
+// -----------------------------------------------------------------------------
+
+/// Rejects generic Serde implementations coupled to a concrete wire format.
+struct SerdeFormatSpecificSerdeImpls;
 
 impl SerdeFormatSpecificSerdeImpls {
+    /// Returns whether documentation establishes an intentional format-specific contract.
     fn documents_format_policy(source: &str) -> bool {
         source
             .lines()
@@ -210,6 +217,7 @@ impl SerdeFormatSpecificSerdeImpls {
             })
     }
 }
+
 impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         let ItemKind::Impl(implementation) = item.kind else {
@@ -269,4 +277,12 @@ impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
         }
         .emit(cx);
     }
+}
+
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub SERDE_FORMAT_SPECIFIC_SERDE_IMPLS,
+    Warn,
+    "finds format-specific behavior hidden in generic Serde implementations",
+    SerdeFormatSpecificSerdeImpls
 }

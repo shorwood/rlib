@@ -5,12 +5,13 @@ extern crate rustc_span;
 use std::borrow::Cow;
 
 use rustc_errors::DiagDecorator;
-use rustc_hir::{HirId, Mod};
+use rustc_hir::{HirId, Mod, Node};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::section_analysis::SectionAnalyzer;
+use crate::utils::test_module::CanonicalTestExt;
 
 // -----------------------------------------------------------------------------
 // Violation: Missing declaration family boundary diagnostic
@@ -83,6 +84,10 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for MissingSectionDividers {
     fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, hir_id: HirId) {
+        if matches!(cx.tcx.hir_node(hir_id), Node::Item(item) if item.is_canonical_in_source_test_module(cx))
+        {
+            return;
+        }
         for finding in self.analyzer.analyze(cx, module, hir_id).missing {
             Violation {
                 span: finding.span,

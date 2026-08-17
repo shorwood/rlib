@@ -78,6 +78,7 @@ dylint_linting::impl_late_lint! {
 impl LeptosUnsanitizedInnerHtml {
     /// Returns whether the selected method is Leptos's semantic inner HTML attribute operation.
     fn is_inner_html(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // Accept only standard conversion methods that preserve already-static markup.
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
         let Some(method) = cx
             .tcx
@@ -115,12 +116,15 @@ impl LeptosUnsanitizedInnerHtml {
             return true;
         }
 
+        // Peel one zero-argument conversion applied to recursively static markup.
         let ExprKind::MethodCall(_, input, [], _) = expression.kind else {
             return false;
         };
         if !Self::is_static_markup(cx, input) {
             return false;
         }
+
+        // Resolve whether the conversion is a standard owned-string operation.
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
         let Some(method) = cx
             .tcx
@@ -129,6 +133,8 @@ impl LeptosUnsanitizedInnerHtml {
         else {
             return false;
         };
+
+        // Accept conversions resolved to the standard allocation traits only.
         if let Some(trait_id) = cx.tcx.trait_of_assoc(method)
             && matches!(
                 (

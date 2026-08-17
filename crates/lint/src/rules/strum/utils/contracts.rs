@@ -19,16 +19,27 @@ use syn::{LitBool, LitStr, Token};
 
 use super::authored_contracts::StringTableCandidate;
 
-/// Returns whether an identifier contains a type name as complete, contiguous name components.
-fn identifier_mentions_type(identifier: &str, type_name: &str) -> bool {
-    let identifier = identifier.trim_start_matches("r#").to_snake_case();
-    let type_name = type_name.trim_start_matches("r#").to_snake_case();
-    let identifier_components = identifier.split('_').collect::<Vec<_>>();
-    let type_components = type_name.split('_').collect::<Vec<_>>();
+/// Identifier and nominal type name compared by component boundaries.
+struct IdentifierTypeNames<'name> {
+    /// Authored identifier being inspected.
+    identifier: &'name str,
+    /// Type name expected as a complete component sequence.
+    type_name: &'name str,
+}
 
-    identifier_components
-        .windows(type_components.len())
-        .any(|window| window == type_components)
+/// Returns whether an identifier contains a type name as complete, contiguous name components.
+impl IdentifierTypeNames<'_> {
+    /// Returns whether the identifier contains the type name as complete components.
+    fn identifier_mentions_type(&self) -> bool {
+        let identifier = self.identifier.trim_start_matches("r#").to_snake_case();
+        let type_name = self.type_name.trim_start_matches("r#").to_snake_case();
+        let identifier_components = identifier.split('_').collect::<Vec<_>>();
+        let type_components = type_name.split('_').collect::<Vec<_>>();
+
+        identifier_components
+            .windows(type_components.len())
+            .any(|window| window == type_components)
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -367,7 +378,11 @@ impl ContractCatalog {
                         .map(|variant| variant.preferred_name.clone())
                         .collect::<Vec<_>>()
                 && (table.enum_def.is_some()
-                    || identifier_mentions_type(table.name.as_str(), contract.name.as_str()))
+                    || IdentifierTypeNames {
+                        identifier: table.name.as_str(),
+                        type_name: contract.name.as_str(),
+                    }
+                    .identifier_mentions_type())
         });
         let first = matches.next()?;
         matches.next().is_none().then_some(first)
@@ -712,14 +727,14 @@ impl SourceAttributes {
                                     return false;
                                 }
                                 let mut found = false;
-                                let _parsing = attribute.parse_nested_meta(|meta| {
+                                let parsing = attribute.parse_nested_meta(|meta| {
                                     if meta.path.is_ident("default_with") {
                                         let _constructor = StrumAttributeValue::string(&meta)?;
                                         found = true;
                                     }
                                     Ok(())
                                 });
-                                found
+                                parsing.is_ok() && found
                             })
                         });
                     }

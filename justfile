@@ -8,4 +8,4 @@ ok:
     cargo-clippy clippy --workspace --lib --tests --all-features -- -D warnings
     cargo build -p rlib-lint --all-features
     cp target/debug/librlib_lint.so target/debug/librlib_lint@nightly-x86_64-unknown-linux-gnu.so
-    DYLINT_LIBRARY_PATH="$PWD/target/debug" DYLINT_RUSTFLAGS="-Dwarnings" cargo dylint --lib rlib_lint --workspace -- --all-features
+    DYLINT_LIBRARY_PATH="$PWD/target/debug" DYLINT_RUSTFLAGS="-Dwarnings" cargo dylint --lib rlib_lint --workspace -- --all-features --tests

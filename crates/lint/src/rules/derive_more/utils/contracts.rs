@@ -25,7 +25,7 @@ pub struct DeriveMoreTypeContract {
     /// Whether field visibility prevents generated construction from widening access.
     pub has_restricted_fields: bool,
     /// Whether every field is less visible than its nominal owner.
-    pub all_fields_restricted: bool,
+    pub has_all_fields_restricted: bool,
 }
 
 /// Correlates authored type declarations with their `derive_more` expansions.
@@ -157,6 +157,7 @@ impl DeriveMoreContractCatalog {
             return;
         }
 
+        // Collect the authored field visibility contract for nominal local types.
         let owner = item.owner_id.def_id;
         let (identifier, fields) = match item.kind {
             ItemKind::Struct(identifier, _, data) => {
@@ -172,10 +173,12 @@ impl DeriveMoreContractCatalog {
             ),
             _ => return,
         };
+
+        // Derive the aggregate visibility guarantees recorded for later lint passes.
         let has_restricted_fields = fields
             .iter()
             .any(|field| Self::field_is_restricted(cx, owner, field.def_id));
-        let all_fields_restricted = fields
+        let has_all_fields_restricted = fields
             .iter()
             .all(|field| Self::field_is_restricted(cx, owner, field.def_id));
         self.types.insert(
@@ -184,7 +187,7 @@ impl DeriveMoreContractCatalog {
                 span: identifier.span,
                 name: identifier.name,
                 has_restricted_fields,
-                all_fields_restricted,
+                has_all_fields_restricted,
             },
         );
     }

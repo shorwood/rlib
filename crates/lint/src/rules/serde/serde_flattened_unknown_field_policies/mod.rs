@@ -10,7 +10,9 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
+use super::utils::contracts::{
+    SerdeAttributes, SerdeAuthoredField, SerdeAuthoredFieldSet, SerdeContractCatalog, SerdeFlag,
+};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -114,62 +116,28 @@ impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
             return;
         };
 
-        let (attributes, fields) = match item.kind {
-            ItemKind::Struct(..) => {
-                let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
-                    return;
-                };
-                let fields = structure
-                    .fields
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, field)| {
-                        let serde = SerdeAttributes::from_attributes(&field.attrs);
-                        (serde.has(SerdeFlag::Flatten) && !serde.has(SerdeFlag::SkipDeserialize))
-                            .then(|| {
-                                field.ident.as_ref().map_or_else(
-                                    || format!("`field {index}`"),
-                                    |name| format!("`{name}`"),
-                                )
-                            })
-                    })
-                    .collect::<Vec<_>>();
-                (structure.attrs, fields)
-            }
-            ItemKind::Enum(..) => {
-                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
-                    return;
-                };
-                let fields = enumeration
-                    .variants
-                    .iter()
-                    .flat_map(|variant| {
-                        variant
-                            .fields
-                            .iter()
-                            .enumerate()
-                            .filter_map(move |(index, field)| {
-                                let serde = SerdeAttributes::from_attributes(&field.attrs);
-                                (serde.has(SerdeFlag::Flatten)
-                                    && !serde.has(SerdeFlag::SkipDeserialize))
-                                .then(|| {
-                                    let field = field
-                                        .ident
-                                        .as_ref()
-                                        .map_or_else(|| index.to_string(), ToString::to_string);
-                                    format!("`{}.{field}`", variant.ident)
-                                })
-                            })
-                    })
-                    .collect::<Vec<_>>();
-                (enumeration.attrs, fields)
-            }
-            _ => return,
+        let Some(SerdeAuthoredFieldSet {
+            attributes, fields, ..
+        }) = SerdeAuthoredFieldSet::for_item(item, &source)
+        else {
+            return;
         };
         if !SerdeAttributes::from_attributes(&attributes).has(SerdeFlag::DenyUnknownFields) {
             return;
         }
 
+        let fields = fields
+            .into_iter()
+            .filter_map(
+                |SerdeAuthoredField {
+                     name, attributes, ..
+                 }| {
+                    let serde = SerdeAttributes::from_attributes(&attributes);
+                    (serde.has(SerdeFlag::Flatten) && !serde.has(SerdeFlag::SkipDeserialize))
+                        .then(|| format!("`{name}`"))
+                },
+            )
+            .collect::<Vec<_>>();
         if fields.is_empty() {
             return;
         }

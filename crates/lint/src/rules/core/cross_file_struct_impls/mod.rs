@@ -12,19 +12,35 @@ use rustc_span::{Span, Symbol};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::impl_target::ImplTargetExt;
 
-/// Returns the shortest stable path suffixes that distinguish two physical files.
-fn distinctive_file_labels(first: &str, second: &str) -> (String, String) {
-    let first = first.split(['/', '\\']).collect::<Vec<_>>();
-    let second = second.split(['/', '\\']).collect::<Vec<_>>();
-    let maximum = first.len().min(second.len());
-    for depth in 1..=maximum {
-        let first_suffix = first[first.len() - depth..].join("/");
-        let second_suffix = second[second.len() - depth..].join("/");
-        if first_suffix != second_suffix {
-            return (first_suffix, second_suffix);
+/// Distinct path suffixes used to label an implementation and its struct definition.
+struct DistinctiveFileLabels {
+    /// Compact implementation-file suffix.
+    implementation: String,
+    /// Compact struct-definition-file suffix.
+    definition: String,
+}
+
+impl DistinctiveFileLabels {
+    /// Returns the shortest stable path suffixes that distinguish two physical files.
+    fn between(first: &str, second: &str) -> Self {
+        let first = first.split(['/', '\\']).collect::<Vec<_>>();
+        let second = second.split(['/', '\\']).collect::<Vec<_>>();
+        let maximum = first.len().min(second.len());
+        for depth in 1..=maximum {
+            let first_suffix = first[first.len() - depth..].join("/");
+            let second_suffix = second[second.len() - depth..].join("/");
+            if first_suffix != second_suffix {
+                return Self {
+                    implementation: first_suffix,
+                    definition: second_suffix,
+                };
+            }
+        }
+        Self {
+            implementation: first.join("/"),
+            definition: second.join("/"),
         }
     }
-    (first.join("/"), second.join("/"))
 }
 
 // -----------------------------------------------------------------------------
@@ -81,19 +97,18 @@ impl Violation {
         let struct_path = struct_file
             .prefer_remapped_unconditionally()
             .to_string_lossy();
-        let (implementation_label, struct_label) =
-            distinctive_file_labels(&implementation_path, &struct_path);
+        let labels = DistinctiveFileLabels::between(&implementation_path, &struct_path);
 
         // Own both physical locations before crossing the diagnostic boundary.
         let implementation = ViolationLocation {
             span: item.span,
-            file: implementation_label,
+            file: labels.implementation,
         };
 
         // Capture the definition independently because it is also the move target.
         let definition = ViolationLocation {
             span: struct_span,
-            file: struct_label,
+            file: labels.definition,
         };
 
         // Preserve the precise source facts needed to explain and repair the violation.

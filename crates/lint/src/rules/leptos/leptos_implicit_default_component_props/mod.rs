@@ -97,6 +97,7 @@ impl LeptosImplicitDefaultComponentProps {
         let Ok(mut source) = cx.sess().source_map().span_to_snippet(prefix) else {
             return false;
         };
+
         // Complete the partial signature with a probe parameter so syn can associate every
         // preceding outer attribute with this exact property, regardless of attribute order.
         source.push_str("__rlib_prop_probe: ()) {}");

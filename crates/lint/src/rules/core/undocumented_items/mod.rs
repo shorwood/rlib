@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use rustc_errors::DiagDecorator;
 use rustc_hir::{FieldDef, HirId, ImplItem, Item, ItemKind, Node, TraitItem, Variant};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
-use rustc_span::Span;
+use rustc_span::{Pos, Span};
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::{FieldProvenanceExt, SpanProvenanceExt};
@@ -99,6 +99,53 @@ dylint_linting::impl_late_lint! {
 }
 
 impl UndocumentedItems {
+    /// Returns whether a function is an executable test case rather than supporting test code.
+    fn is_test_case(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
+        if !cx.sess().opts.test || !matches!(item.kind, ItemKind::Fn { .. }) {
+            return false;
+        }
+
+        // The built-in attribute expands away from the original function before HIR lowering.
+        let source_file = cx.sess().source_map().lookup_source_file(item.span.lo());
+        let Some(source) = source_file.src.as_deref() else {
+            return false;
+        };
+        let Ok(offset) = usize::try_from((item.span.lo() - source_file.start_pos).to_u32()) else {
+            return false;
+        };
+        let Some(prefix) = source.get(..offset) else {
+            return false;
+        };
+        for line in prefix.lines().rev() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            if line == "#[test]" {
+                return true;
+            }
+            if line.starts_with("#[") {
+                continue;
+            }
+            break;
+        }
+        false
+    }
+
+    /// Returns whether a declaration belongs directly to a crate or named module.
+    fn is_module_level(cx: &LateContext<'_>, hir_id: HirId) -> bool {
+        let owner = cx.tcx.hir_get_parent_item(hir_id);
+        let owner_hir_id = cx.tcx.local_def_id_to_hir_id(owner.def_id);
+        matches!(
+            cx.tcx.parent_hir_node(owner_hir_id),
+            Node::Crate(_)
+                | Node::Item(Item {
+                    kind: ItemKind::Mod(..),
+                    ..
+                })
+        )
+    }
+
     /// Classifies module-level declarations governed by this rule.
     fn item_kind(item: &Item<'_>) -> Option<&'static str> {
         Self::type_item_kind(item).or_else(|| Self::value_item_kind(item))
@@ -167,6 +214,9 @@ impl UndocumentedItems {
 
 impl<'tcx> LateLintPass<'tcx> for UndocumentedItems {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        if !Self::is_module_level(cx, item.hir_id()) || Self::is_test_case(cx, item) {
+            return;
+        }
         let Some(kind) = Self::item_kind(item) else {
             return;
         };
@@ -179,7 +229,7 @@ impl<'tcx> LateLintPass<'tcx> for UndocumentedItems {
     }
 
     fn check_field_def(&mut self, cx: &LateContext<'tcx>, field: &'tcx FieldDef<'tcx>) {
-        if field.is_framework_generated(cx) {
+        if !Self::is_module_level(cx, field.hir_id) || field.is_framework_generated(cx) {
             return;
         }
         let span = if field.is_positional() {
@@ -194,6 +244,9 @@ impl<'tcx> LateLintPass<'tcx> for UndocumentedItems {
     }
 
     fn check_variant(&mut self, cx: &LateContext<'tcx>, variant: &'tcx Variant<'tcx>) {
+        if !Self::is_module_level(cx, variant.hir_id) {
+            return;
+        }
         let Some(violation) =
             Violation::from_declaration(cx, variant.hir_id, variant.ident.span, "enum variant")
         else {
@@ -203,6 +256,9 @@ impl<'tcx> LateLintPass<'tcx> for UndocumentedItems {
     }
 
     fn check_trait_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx TraitItem<'tcx>) {
+        if !Self::is_module_level(cx, item.hir_id()) {
+            return;
+        }
         let Some(violation) =
             Violation::from_declaration(cx, item.hir_id(), item.ident.span, "trait item")
         else {
@@ -212,7 +268,8 @@ impl<'tcx> LateLintPass<'tcx> for UndocumentedItems {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
-        if Self::is_trait_implementation_item(cx, item) {
+        if !Self::is_module_level(cx, item.hir_id()) || Self::is_trait_implementation_item(cx, item)
+        {
             return;
         }
         let Some(violation) =

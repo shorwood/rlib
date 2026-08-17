@@ -10,6 +10,7 @@ use rustc_hir::intravisit::{self, Visitor};
 use rustc_hir::{Expr, ExprKind, HirId, PatKind, Stmt, StmtKind};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
+use strum::EnumMessage;
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::result_loss_analysis::{ResultContract, ResultLossAnalyzer};
@@ -19,23 +20,24 @@ use crate::utils::result_loss_analysis::{ResultContract, ResultLossAnalyzer};
 // -----------------------------------------------------------------------------
 
 /// Authored syntax that consumes a complete Result without inspecting either branch.
+#[derive(EnumMessage)]
 enum ResultDiscard {
     /// Wildcard `let` binding that suppresses the Result's must-use contract.
+    #[strum(message = "wildcard binding")]
     WildcardBinding,
     /// Underscore-prefixed binding that advertises the Result will not be used normally.
+    #[strum(message = "underscore-prefixed binding")]
     UnderscoreBinding,
     /// Explicit call to standard `drop` with the Result as its argument.
+    #[strum(message = "explicit `drop` call")]
     DropCall,
 }
 
 impl ResultDiscard {
     /// Describes the concrete syntax responsible for erasing the Result.
-    const fn description(&self) -> &'static str {
-        match self {
-            Self::WildcardBinding => "wildcard binding",
-            Self::UnderscoreBinding => "underscore-prefixed binding",
-            Self::DropCall => "explicit `drop` call",
-        }
+    fn description(&self) -> &'static str {
+        self.get_message()
+            .expect("every discard variant has a message")
     }
 }
 
@@ -145,12 +147,12 @@ impl DiscardedResults {
         struct BindingUse<'analysis, 'tcx> {
             cx: &'analysis LateContext<'tcx>,
             binding: HirId,
-            found: bool,
+            is_found: bool,
         }
 
         impl<'tcx> Visitor<'tcx> for BindingUse<'_, 'tcx> {
             fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-                if self.found {
+                if self.is_found {
                     return;
                 }
                 if let ExprKind::Path(path) = expression.kind
@@ -159,7 +161,7 @@ impl DiscardedResults {
                         Res::Local(binding) if binding == self.binding
                     )
                 {
-                    self.found = true;
+                    self.is_found = true;
                     return;
                 }
                 intravisit::walk_expr(self, expression);
@@ -174,10 +176,10 @@ impl DiscardedResults {
         let mut usage = BindingUse {
             cx,
             binding,
-            found: false,
+            is_found: false,
         };
         usage.visit_body(cx.tcx.hir_body_owned_by(owner));
-        usage.found
+        usage.is_found
     }
 
     /// Classifies one authored wildcard or underscore-prefixed binding of a standard result.

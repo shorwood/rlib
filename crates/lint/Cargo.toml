@@ -14,8 +14,8 @@ bon = []
 derive_more = ["framework", "dep:quote", "dep:syn"]
 leptos = ["dep:proc-macro2", "dep:quote", "dep:rstml", "dep:syn"]
 miette = ["dep:syn"]
-serde = ["dep:strum", "dep:syn"]
-strum = ["framework", "dep:strum", "dep:syn"]
+serde = ["dep:syn"]
+strum = ["framework", "dep:syn"]
 thiserror = ["framework", "dep:syn"]
 
 [dependencies]
@@ -27,7 +27,7 @@ proc-macro2 = { version = "1", features = ["span-locations"], optional = true }
 quote = { version = "1", optional = true }
 rstml = { version = "=0.12.1", optional = true }
 serde = { version = "1", features = ["derive"] }
-strum = { version = "=0.28.0", features = ["derive"], optional = true }
+strum = { version = "=0.28.0", features = ["derive"] }
 syn = { version = "2", features = ["full", "parsing", "visit"], optional = true }
 toml = "0.9"
 

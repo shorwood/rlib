@@ -98,14 +98,18 @@ dylint_linting::impl_late_lint! {
 impl<'tcx> LateLintPass<'tcx> for SerdeDeserializationBypassingInvariants {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.catalog.check_item(cx, item);
+        let parsed = AuthoredItemSource::for_item(cx, item).and_then(|source| {
+            let Ok(input) = syn::parse_str::<syn::DeriveInput>(&source) else {
+                return None;
+            };
+            Some(input)
+        });
         if !item.span.from_expansion()
-            && AuthoredItemSource::for_item(cx, item)
-                .and_then(|source| syn::parse_str::<syn::DeriveInput>(&source).ok())
-                .is_some_and(|input| {
-                    SerdeAttributes::from_attributes(&input.attrs)
-                        .try_from
-                        .is_some()
-                })
+            && parsed.is_some_and(|input| {
+                SerdeAttributes::from_attributes(&input.attrs)
+                    .try_from
+                    .is_some()
+            })
         {
             self.validated_deserialization.insert(item.owner_id.def_id);
         }

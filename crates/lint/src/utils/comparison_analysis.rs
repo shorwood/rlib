@@ -568,9 +568,10 @@ fn comparison_source_uses_total_cmp<'tcx>(cx: &LateContext<'tcx>, body: &Body<'t
             {
                 self.has_found = true;
             }
-            if !matches!(expression.kind, ExprKind::Closure(_)) {
-                intravisit::walk_expr(self, expression);
+            if matches!(expression.kind, ExprKind::Closure(_)) {
+                return;
             }
+            intravisit::walk_expr(self, expression);
         }
 
         fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
@@ -759,6 +760,33 @@ impl<'tcx> RelationEvidenceAnalyzer<'_, 'tcx> {
     }
 }
 
+impl<'tcx> Visitor<'tcx> for RelationEvidenceAnalyzer<'_, 'tcx> {
+    fn visit_stmt(&mut self, statement: &'tcx Stmt<'tcx>) {
+        if let StmtKind::Let(local) = statement.kind {
+            self.record_alias(local.init, local.pat);
+        }
+        intravisit::walk_stmt(self, statement);
+    }
+
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Record built-in binary relations combining both operand families.
+        if let ExprKind::Binary(operator, left, right) = expression.kind
+            && COMPARISON_VOCABULARY_BINARY_OPERATORS.contains(&operator.node)
+        {
+            self.record_relation(expression, left, right);
+        }
+
+        // Record standard-looking method relations with one opposite operand.
+        if let ExprKind::MethodCall(segment, receiver, arguments, _) = expression.kind
+            && let [argument] = arguments
+            && COMPARISON_VOCABULARY_RELATION_METHODS.contains(&segment.ident.name.as_str())
+        {
+            self.record_relation(expression, receiver, argument);
+        }
+        intravisit::walk_expr(self, expression);
+    }
+}
+
 // -----------------------------------------------------------------------------
 // RelationResultCollector: Returned relation ownership
 // -----------------------------------------------------------------------------
@@ -773,13 +801,6 @@ struct RelationResultCollector {
 }
 
 impl RelationResultCollector {
-    /// Collects returned relation expressions from one function body value.
-    fn collect(expression: &Expr<'_>) -> HashSet<HirId> {
-        let mut collector = Self::default();
-        collector.visit_result_expr(expression);
-        collector.relations
-    }
-
     /// Returns whether an expression is comparison syntax recognized by the analyzer.
     fn is_relation(expression: &Expr<'_>) -> bool {
         match expression.kind {
@@ -814,9 +835,10 @@ impl RelationResultCollector {
                     self.relations.extend(relations);
                     return;
                 }
-                if !matches!(expression.kind, ExprKind::Closure(_)) {
-                    intravisit::walk_expr(self, expression);
+                if matches!(expression.kind, ExprKind::Closure(_)) {
+                    return;
                 }
+                intravisit::walk_expr(self, expression);
             }
 
             fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
@@ -890,6 +912,13 @@ impl RelationResultCollector {
             _ => self.visit_expr(expression),
         }
     }
+
+    /// Collects returned relation expressions from one function body value.
+    fn collect(expression: &Expr<'_>) -> HashSet<HirId> {
+        let mut collector = Self::default();
+        collector.visit_result_expr(expression);
+        collector.relations
+    }
 }
 
 impl<'tcx> Visitor<'tcx> for RelationResultCollector {
@@ -930,31 +959,4 @@ impl<'tcx> Visitor<'tcx> for RelationResultCollector {
     }
 
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
-}
-
-impl<'tcx> Visitor<'tcx> for RelationEvidenceAnalyzer<'_, 'tcx> {
-    fn visit_stmt(&mut self, statement: &'tcx Stmt<'tcx>) {
-        if let StmtKind::Let(local) = statement.kind {
-            self.record_alias(local.init, local.pat);
-        }
-        intravisit::walk_stmt(self, statement);
-    }
-
-    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        // Record built-in binary relations combining both operand families.
-        if let ExprKind::Binary(operator, left, right) = expression.kind
-            && COMPARISON_VOCABULARY_BINARY_OPERATORS.contains(&operator.node)
-        {
-            self.record_relation(expression, left, right);
-        }
-
-        // Record standard-looking method relations with one opposite operand.
-        if let ExprKind::MethodCall(segment, receiver, arguments, _) = expression.kind
-            && let [argument] = arguments
-            && COMPARISON_VOCABULARY_RELATION_METHODS.contains(&segment.ident.name.as_str())
-        {
-            self.record_relation(expression, receiver, argument);
-        }
-        intravisit::walk_expr(self, expression);
-    }
 }

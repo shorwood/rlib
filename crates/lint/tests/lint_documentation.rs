@@ -1,59 +1,23 @@
 //! Public lint documentation contract tests.
 
 use std::fs;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 
-const EXPECTED_HEADINGS: [&str; 4] = [
+// -----------------------------------------------------------------------------
+// LintDocumentation: Canonical public lint documentation
+// -----------------------------------------------------------------------------
+
+/// Required second-level headings in every lint README.
+const LINT_DOCUMENTATION_HEADINGS: [&str; 4] = [
     "## What it does",
     "## Why is this bad?",
     "## Example",
     "## Use instead",
 ];
 
-/// Requires every active lint to use the public directory and documentation convention.
-#[test]
-fn active_lints_have_canonical_public_documentation() {
-    let rules = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
-    let mut lint_directories = Vec::new();
-    collect_lint_directories(&rules.join("core"), &mut lint_directories);
-    #[cfg(feature = "bon")]
-    collect_lint_directories(&rules.join("bon"), &mut lint_directories);
-    #[cfg(feature = "framework")]
-    collect_lint_directories(&rules.join("framework"), &mut lint_directories);
-    #[cfg(feature = "derive_more")]
-    collect_lint_directories(&rules.join("derive_more"), &mut lint_directories);
-    #[cfg(feature = "miette")]
-    collect_lint_directories(&rules.join("miette"), &mut lint_directories);
-    #[cfg(feature = "serde")]
-    collect_lint_directories(&rules.join("serde"), &mut lint_directories);
-    #[cfg(feature = "strum")]
-    collect_lint_directories(&rules.join("strum"), &mut lint_directories);
-    #[cfg(feature = "thiserror")]
-    collect_lint_directories(&rules.join("thiserror"), &mut lint_directories);
-    #[cfg(feature = "leptos")]
-    collect_lint_directories(&rules.join("leptos"), &mut lint_directories);
-
-    let expected = 63
-        + 14 * usize::from(cfg!(feature = "bon"))
-        + 26 * usize::from(cfg!(feature = "leptos"))
-        + 20 * usize::from(cfg!(feature = "derive_more"))
-        + usize::from(cfg!(feature = "framework"))
-        + 15 * usize::from(cfg!(feature = "miette"))
-        + 16 * usize::from(cfg!(feature = "serde"))
-        + 19 * usize::from(cfg!(feature = "strum"))
-        + 11 * usize::from(cfg!(feature = "thiserror"));
-    assert_eq!(
-        lint_directories.len(),
-        expected,
-        "update the documented active-lint count"
-    );
-    for directory in lint_directories {
-        verify_lint_documentation(&directory);
-    }
-}
-
 /// Collects direct child directories whose module declares a Dylint lint.
-fn collect_lint_directories(parent: &Path, lint_directories: &mut Vec<PathBuf>) {
+fn lint_documentation_collect_directories(parent: &Path, lint_directories: &mut Vec<PathBuf>) {
     for entry in fs::read_dir(parent).expect("rules directory should be readable") {
         let path = entry.expect("rule entry should be readable").path();
         if path.extension().is_some_and(|extension| extension == "rs") {
@@ -69,14 +33,40 @@ fn collect_lint_directories(parent: &Path, lint_directories: &mut Vec<PathBuf>) 
         let Ok(source) = fs::read_to_string(&module) else {
             continue;
         };
-        if source.contains("dylint_linting::impl_") {
-            lint_directories.push(path);
+        if !source.contains("dylint_linting::impl_") {
+            continue;
         }
+        lint_directories.push(path);
     }
 }
 
+/// Extracts the content between one required heading and the next heading.
+fn lint_documentation_section<'document>(
+    document: &'document str,
+    bounds: Range<&str>,
+) -> &'document str {
+    let start = document
+        .find(bounds.start)
+        .expect("required heading should be present")
+        + bounds.start.len();
+    let remainder = &document[start..];
+    let end = if bounds.end.is_empty() {
+        remainder.len()
+    } else {
+        remainder
+            .find(bounds.end)
+            .expect("required following heading should be present")
+    };
+    &remainder[..end]
+}
+
+/// Returns whether one required README section contains a Rust example.
+fn lint_documentation_section_has_rust_example(document: &str, bounds: Range<&str>) -> bool {
+    lint_documentation_section(document, bounds).contains("```rust")
+}
+
 /// Verifies one lint's canonical README and source inclusion contract.
-fn verify_lint_documentation(directory: &Path) {
+fn lint_documentation_verify(directory: &Path) {
     let name = directory
         .file_name()
         .and_then(|name| name.to_str())
@@ -96,35 +86,61 @@ fn verify_lint_documentation(directory: &Path) {
         .filter(|line| line.starts_with("## "))
         .collect();
     assert_eq!(
-        headings, EXPECTED_HEADINGS,
+        headings, LINT_DOCUMENTATION_HEADINGS,
         "{name} uses a noncanonical heading structure"
     );
 
-    let example = section(&readme, EXPECTED_HEADINGS[2], Some(EXPECTED_HEADINGS[3]));
-    let replacement = section(&readme, EXPECTED_HEADINGS[3], None);
     assert!(
-        example.contains("```rust"),
+        lint_documentation_section_has_rust_example(
+            &readme,
+            LINT_DOCUMENTATION_HEADINGS[2]..LINT_DOCUMENTATION_HEADINGS[3],
+        ),
         "{name} needs a Rust warning example"
     );
     assert!(
-        replacement.contains("```rust"),
+        lint_documentation_section_has_rust_example(&readme, LINT_DOCUMENTATION_HEADINGS[3].."",),
         "{name} needs a Rust replacement example"
     );
 }
 
-/// Extracts the content between one required heading and the next heading.
-fn section<'document>(
-    document: &'document str,
-    heading: &str,
-    next_heading: Option<&str>,
-) -> &'document str {
-    let start = document
-        .find(heading)
-        .expect("required heading should be present")
-        + heading.len();
-    let remainder = &document[start..];
-    let end = next_heading
-        .and_then(|next| remainder.find(next))
-        .unwrap_or(remainder.len());
-    &remainder[..end]
+/// Requires every active lint to use the public directory and documentation convention.
+#[test]
+fn lint_documentation_is_canonical_for_active_lints() {
+    let rules = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+    let mut lint_directories = Vec::new();
+    lint_documentation_collect_directories(&rules.join("core"), &mut lint_directories);
+    #[cfg(feature = "bon")]
+    lint_documentation_collect_directories(&rules.join("bon"), &mut lint_directories);
+    #[cfg(feature = "framework")]
+    lint_documentation_collect_directories(&rules.join("framework"), &mut lint_directories);
+    #[cfg(feature = "derive_more")]
+    lint_documentation_collect_directories(&rules.join("derive_more"), &mut lint_directories);
+    #[cfg(feature = "miette")]
+    lint_documentation_collect_directories(&rules.join("miette"), &mut lint_directories);
+    #[cfg(feature = "serde")]
+    lint_documentation_collect_directories(&rules.join("serde"), &mut lint_directories);
+    #[cfg(feature = "strum")]
+    lint_documentation_collect_directories(&rules.join("strum"), &mut lint_directories);
+    #[cfg(feature = "thiserror")]
+    lint_documentation_collect_directories(&rules.join("thiserror"), &mut lint_directories);
+    #[cfg(feature = "leptos")]
+    lint_documentation_collect_directories(&rules.join("leptos"), &mut lint_directories);
+
+    let expected = 63
+        + 14 * usize::from(cfg!(feature = "bon"))
+        + 26 * usize::from(cfg!(feature = "leptos"))
+        + 20 * usize::from(cfg!(feature = "derive_more"))
+        + usize::from(cfg!(feature = "framework"))
+        + 15 * usize::from(cfg!(feature = "miette"))
+        + 16 * usize::from(cfg!(feature = "serde"))
+        + 19 * usize::from(cfg!(feature = "strum"))
+        + 11 * usize::from(cfg!(feature = "thiserror"));
+    assert_eq!(
+        lint_directories.len(),
+        expected,
+        "update the documented active-lint count"
+    );
+    for directory in lint_directories {
+        lint_documentation_verify(&directory);
+    }
 }

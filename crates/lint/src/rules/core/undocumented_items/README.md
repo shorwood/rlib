@@ -12,6 +12,11 @@ dependency that defined the macro. Items from local macros remain subject to the
 String-valued `doc` attributes count as documentation; metadata-only forms such as
 `#[doc(hidden)]` do not.
 
+Functions marked with the built-in `#[test]` attribute are executable examples rather than
+reusable declarations, so their names may carry the local scenario description. Supporting
+test helpers, types, constants, fields, and ordinary `#[cfg(test)]` functions remain subject
+to the rule.
+
 ## Why is this bad?
 
 Names describe identity, but they rarely capture contracts, invariants, ownership, or the

@@ -40,12 +40,16 @@ struct KeyFinding {
     reason: &'static str,
 }
 
+// -----------------------------------------------------------------------------
+// ParameterUse: Key closure provenance
+// -----------------------------------------------------------------------------
+
 /// Collects closure parameter names used by a key expression.
 struct ParameterUse<'names> {
     /// Closure bindings that could establish row-derived identity.
     names: &'names HashSet<String>,
     /// Whether the key body refers to any such binding.
-    used: bool,
+    is_used: bool,
 }
 
 impl<'ast> Visit<'ast> for ParameterUse<'_> {
@@ -56,11 +60,15 @@ impl<'ast> Visit<'ast> for ParameterUse<'_> {
                 .names
                 .contains(&path.path.segments[0].ident.to_string())
         {
-            self.used = true;
+            self.is_used = true;
         }
         visit::visit_expr_path(self, path);
     }
 }
+
+// -----------------------------------------------------------------------------
+// PatternBindings: Closure parameter names
+// -----------------------------------------------------------------------------
 
 /// Collects identifiers introduced by a closure parameter pattern.
 #[derive(Default)]
@@ -76,17 +84,50 @@ impl<'ast> Visit<'ast> for PatternBindings {
     }
 }
 
+// -----------------------------------------------------------------------------
+// EnumerationUse: Positional traversal evidence
+// -----------------------------------------------------------------------------
+
 /// Finds whether an `each` expression uses positional enumeration.
 #[derive(Default)]
 struct EnumerationUse {
     /// A standard-looking enumerate adapter occurs in the expression.
-    found: bool,
+    is_found: bool,
 }
 
 impl<'ast> Visit<'ast> for EnumerationUse {
     fn visit_expr_method_call(&mut self, call: &'ast syn::ExprMethodCall) {
-        self.found |= call.method == "enumerate" && call.args.is_empty();
+        self.is_found |= call.method == "enumerate" && call.args.is_empty();
         visit::visit_expr_method_call(self, call);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// CollectionIdentity: Traversal identity policy
+// -----------------------------------------------------------------------------
+
+/// Whether collection traversal exposes positional rather than stable identity.
+#[derive(Clone, Copy)]
+enum CollectionIdentity {
+    /// Items retain domain-derived identity.
+    Stable,
+    /// Items are paired with traversal positions.
+    Positional,
+}
+
+impl CollectionIdentity {
+    /// Classifies whether traversal exposes positions as item identity.
+    fn from_traversal(terminal: &str, enumeration: &EnumerationUse) -> Self {
+        if terminal == "ForEnumerate" || enumeration.is_found {
+            Self::Positional
+        } else {
+            Self::Stable
+        }
+    }
+
+    /// Returns whether traversal identity is derived from an item position.
+    const fn is_positional(self) -> bool {
+        matches!(self, Self::Positional)
     }
 }
 
@@ -170,7 +211,7 @@ impl LeptosUnstableForKeys {
     }
 
     /// Classifies parsed key closure semantics against its collection source.
-    fn key_reason(expression: &syn::Expr, position_based: bool) -> Option<&'static str> {
+    fn key_reason(expression: &syn::Expr, identity: CollectionIdentity) -> Option<&'static str> {
         let syn::Expr::Closure(closure) = expression else {
             return None;
         };
@@ -199,10 +240,10 @@ impl LeptosUnstableForKeys {
         }
         let mut usage = ParameterUse {
             names: &bindings.names,
-            used: false,
+            is_used: false,
         };
         usage.visit_expr(&closure.body);
-        if !usage.used {
+        if !usage.is_used {
             return Some("the key does not derive from row identity");
         }
 
@@ -215,7 +256,7 @@ impl LeptosUnstableForKeys {
             }),
             _ => None,
         });
-        (position_based && positional_binding.as_deref() == Some(&returned))
+        (identity.is_positional() && positional_binding.as_deref() == Some(&returned))
             .then_some("the row position changes when the collection is reordered")
     }
 
@@ -257,8 +298,8 @@ impl LeptosUnstableForKeys {
                 if let Some(each) = attribute("each") {
                     enumeration.visit_expr(each);
                 }
-                let position_based = terminal == "ForEnumerate" || enumeration.found;
-                let reason = Self::key_reason(key, position_based)?;
+                let identity = CollectionIdentity::from_traversal(terminal, &enumeration);
+                let reason = Self::key_reason(key, identity)?;
                 let range = key.span().byte_range();
                 Some(KeyFinding {
                     start: range.start,

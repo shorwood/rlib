@@ -89,6 +89,22 @@ impl ChannelNesting {
     const fn is_inside(self) -> bool {
         matches!(self, Self::InsideChannel)
     }
+
+    /// Enters channel payload traversal when the current type is a channel.
+    fn for_definition(self, cx: &LateContext<'_>, definition: ty::AdtDef<'_>) -> Self {
+        let path = cx.tcx.def_path_str(definition.did());
+        let is_standard_channel = cx.tcx.crate_name(definition.did().krate).as_str() == "std"
+            && matches!(
+                cx.tcx.item_name(definition.did()).as_str(),
+                "Sender" | "SyncSender" | "Receiver"
+            )
+            && path.contains("::sync::mpsc::");
+        if self.is_inside() || is_standard_channel {
+            Self::InsideChannel
+        } else {
+            Self::OutsideChannel
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -115,6 +131,25 @@ dylint_linting::impl_late_lint! {
 }
 
 impl ThiserrorNonSendSyncPublicErrors {
+    /// Collects known representations that prevent a value from implementing `Send`.
+    fn collect_send_blockers(cx: &LateContext<'_>, ty: Ty<'_>, blockers: &mut Vec<String>) {
+        let ty::Adt(definition, arguments) = ty.kind() else {
+            return;
+        };
+        let path = cx.tcx.def_path_str(definition.did());
+        if cx.tcx.crate_name(definition.did().krate).as_str() == "alloc"
+            && path.ends_with("::rc::Rc")
+        {
+            let blocker = format!("`{path}`");
+            if !blockers.contains(&blocker) {
+                blockers.push(blocker);
+            }
+        }
+        for nested in arguments.types() {
+            Self::collect_send_blockers(cx, nested, blockers);
+        }
+    }
+
     /// Collects local types nested within channel payloads.
     fn collect_channel_errors(
         cx: &LateContext<'_>,
@@ -125,18 +160,7 @@ impl ThiserrorNonSendSyncPublicErrors {
         let ty::Adt(definition, arguments) = ty.kind() else {
             return;
         };
-        let path = cx.tcx.def_path_str(definition.did());
-        let is_standard_channel = cx.tcx.crate_name(definition.did().krate).as_str() == "std"
-            && matches!(
-                cx.tcx.item_name(definition.did()).as_str(),
-                "Sender" | "SyncSender" | "Receiver"
-            )
-            && path.contains("::sync::mpsc::");
-        let nesting = if nesting.is_inside() || is_standard_channel {
-            ChannelNesting::InsideChannel
-        } else {
-            ChannelNesting::OutsideChannel
-        };
+        let nesting = nesting.for_definition(cx, *definition);
         let channel = nesting.is_inside();
         if channel && let Some(local) = definition.did().as_local() {
             errors.insert(local);
@@ -172,24 +196,19 @@ impl LateLintPass<'_> for ThiserrorNonSendSyncPublicErrors {
                 self.record_error(cx, item, fields);
             }
             ItemKind::Fn { .. } if cx.tcx.visibility(item.owner_id.def_id).is_public() => {
-                self.record_public_channel_boundary(
-                    cx,
-                    item.owner_id.def_id,
-                    cx.tcx.item_name(item.owner_id.def_id).to_string(),
-                );
+                let name = cx.tcx.item_name(item.owner_id.def_id).to_string();
+                self.record_public_channel_boundary(cx, item.owner_id.def_id, &name);
             }
             _ => {}
         }
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
-        if !item.span.from_expansion() && matches!(item.kind, ImplItemKind::Fn(..)) {
-            self.record_public_channel_boundary(
-                cx,
-                item.owner_id.def_id,
-                cx.tcx.item_name(item.owner_id.def_id).to_string(),
-            );
+        if item.span.from_expansion() || !matches!(item.kind, ImplItemKind::Fn(..)) {
+            return;
         }
+        let name = cx.tcx.item_name(item.owner_id.def_id).to_string();
+        self.record_public_channel_boundary(cx, item.owner_id.def_id, &name);
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
@@ -218,7 +237,7 @@ impl ThiserrorNonSendSyncPublicErrors {
         &mut self,
         cx: &LateContext<'_>,
         definition: LocalDefId,
-        name: String,
+        name: &str,
     ) {
         if !cx.tcx.effective_visibilities(()).is_exported(definition) {
             return;
@@ -232,26 +251,7 @@ impl ThiserrorNonSendSyncPublicErrors {
         let mut errors = HashSet::new();
         Self::collect_channel_errors(cx, output, ChannelNesting::OutsideChannel, &mut errors);
         for error in errors {
-            self.boundaries.insert(error, name.clone());
-        }
-    }
-
-    /// Collects known representations that prevent a value from implementing `Send`.
-    fn collect_send_blockers(cx: &LateContext<'_>, ty: Ty<'_>, blockers: &mut Vec<String>) {
-        let ty::Adt(definition, arguments) = ty.kind() else {
-            return;
-        };
-        let path = cx.tcx.def_path_str(definition.did());
-        if cx.tcx.crate_name(definition.did().krate).as_str() == "alloc"
-            && path.ends_with("::rc::Rc")
-        {
-            let blocker = format!("`{path}`");
-            if !blockers.contains(&blocker) {
-                blockers.push(blocker);
-            }
-        }
-        for nested in arguments.types() {
-            Self::collect_send_blockers(cx, nested, blockers);
+            self.boundaries.insert(error, name.to_owned());
         }
     }
 

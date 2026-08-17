@@ -220,17 +220,11 @@ impl TextBodyAnalyzer<'_, '_> {
 /// Finds tail values and explicit returns without entering dormant closures.
 #[derive(Default)]
 struct TextResultCollector {
+    /// Expressions contributing to the callable's returned text.
     expressions: HashSet<HirId>,
 }
 
 impl TextResultCollector {
-    /// Collects every expression that directly supplies a function result.
-    fn collect(expression: &Expr<'_>) -> HashSet<HirId> {
-        let mut collector = Self::default();
-        collector.visit_result_expr(expression);
-        collector.expressions
-    }
-
     /// Follows blocks and branches to the values they return.
     fn visit_result_expr<'tcx>(&mut self, expression: &'tcx Expr<'tcx>) {
         match expression.kind {
@@ -266,6 +260,13 @@ impl TextResultCollector {
                 self.visit_expr(expression);
             }
         }
+    }
+
+    /// Collects every expression that directly supplies a function result.
+    fn collect(expression: &Expr<'_>) -> HashSet<HirId> {
+        let mut collector = Self::default();
+        collector.visit_result_expr(expression);
+        collector.expressions
     }
 }
 

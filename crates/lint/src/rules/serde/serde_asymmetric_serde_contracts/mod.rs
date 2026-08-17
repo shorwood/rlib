@@ -32,6 +32,36 @@ struct Candidate {
     deserialize: String,
 }
 
+/// Direction-specific wire names extracted from one Serde declaration.
+struct DirectionalNames {
+    /// Name emitted during serialization.
+    serialize: String,
+    /// Name accepted during deserialization.
+    deserialize: String,
+}
+
+impl DirectionalNames {
+    /// Extracts unequal directional names that lack an alias or compatibility explanation.
+    fn from_attributes(attributes: &[syn::Attribute]) -> Option<Self> {
+        if has_compatibility_explanation(attributes) {
+            return None;
+        }
+        let attributes = SerdeAttributes::from_attributes(attributes);
+        if attributes.has(SerdeFlag::SkipSerialize) || attributes.has(SerdeFlag::SkipDeserialize) {
+            return None;
+        }
+        let (Some(serialize), Some(deserialize)) =
+            (attributes.rename_serialize, attributes.rename_deserialize)
+        else {
+            return None;
+        };
+        (serialize != deserialize && !attributes.aliases.contains(&serialize)).then_some(Self {
+            serialize,
+            deserialize,
+        })
+    }
+}
+
 /// Public type with incompatible serialization and deserialization contracts.
 struct Violation {
     /// Authored declaration or expression range used as the diagnostic anchor.
@@ -92,55 +122,6 @@ struct SerdeAsymmetricSerdeContracts {
     candidates: Vec<Candidate>,
 }
 
-fn has_compatibility_explanation(attributes: &[syn::Attribute]) -> bool {
-    let documentation = attributes
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("doc"))
-        .filter_map(|attribute| attribute.meta.require_name_value().ok())
-        .filter_map(|value| match &value.value {
-            syn::Expr::Lit(expression) => match &expression.lit {
-                syn::Lit::Str(value) => Some(value.value().to_ascii_lowercase()),
-                _ => None,
-            },
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
-
-    let explains_compatibility = ["compatib", "legacy", "migrat", "backward"]
-        .iter()
-        .any(|term| documentation.contains(term));
-    let explains_direction = ["accept", "deserial", "read", "serial", "write"]
-        .iter()
-        .any(|term| documentation.contains(term));
-    explains_compatibility && explains_direction
-}
-
-fn directional_names(attributes: &[syn::Attribute]) -> Option<(String, String)> {
-    if has_compatibility_explanation(attributes) {
-        return None;
-    }
-    let attributes = SerdeAttributes::from_attributes(attributes);
-    if attributes.has(SerdeFlag::SkipSerialize) || attributes.has(SerdeFlag::SkipDeserialize) {
-        return None;
-    }
-    let (Some(serialize), Some(deserialize)) =
-        (attributes.rename_serialize, attributes.rename_deserialize)
-    else {
-        return None;
-    };
-    (serialize != deserialize && !attributes.aliases.contains(&serialize))
-        .then_some((serialize, deserialize))
-}
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub SERDE_ASYMMETRIC_SERDE_CONTRACTS,
-    Warn,
-    "finds unexplained directional Serde naming contracts",
-    SerdeAsymmetricSerdeContracts::default()
-}
-
 impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -149,6 +130,27 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
         }
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
+        };
+
+        // Recover enum members outside the declaration-kind dispatch.
+        let enum_members = || {
+            let enumeration = match syn::parse_str::<syn::ItemEnum>(&source) {
+                Ok(enumeration) => enumeration,
+                Err(_error) => return None,
+            };
+            let mut members = vec![(enumeration.ident.to_string(), enumeration.attrs)];
+            for variant in enumeration.variants {
+                let variant_name = variant.ident.to_string();
+                members.push((variant_name.clone(), variant.attrs));
+                members.extend(variant.fields.iter().enumerate().map(|(index, field)| {
+                    let field_name = field
+                        .ident
+                        .as_ref()
+                        .map_or_else(|| index.to_string(), ToString::to_string);
+                    (format!("{variant_name}.{field_name}"), field.attrs.clone())
+                }));
+            }
+            Some(members)
         };
 
         let members = match item.kind {
@@ -170,28 +172,20 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
                 members
             }
             ItemKind::Enum(..) => {
-                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
+                let Some(members) = enum_members() else {
                     return;
                 };
-                let mut members = vec![(enumeration.ident.to_string(), enumeration.attrs)];
-                for variant in enumeration.variants {
-                    let variant_name = variant.ident.to_string();
-                    members.push((variant_name.clone(), variant.attrs));
-                    members.extend(variant.fields.iter().enumerate().map(|(index, field)| {
-                        let field_name = field
-                            .ident
-                            .as_ref()
-                            .map_or_else(|| index.to_string(), ToString::to_string);
-                        (format!("{variant_name}.{field_name}"), field.attrs.clone())
-                    }));
-                }
                 members
             }
             _ => return,
         };
 
         for (declaration, attributes) in members {
-            let Some((serialize, deserialize)) = directional_names(&attributes) else {
+            let Some(DirectionalNames {
+                serialize,
+                deserialize,
+            }) = DirectionalNames::from_attributes(&attributes)
+            else {
                 continue;
             };
 
@@ -207,15 +201,15 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for candidate in self.candidates.drain(..) {
-            if self
+            let serializes = self
                 .catalog
                 .derived_type(candidate.definition, "Serialize")
-                .is_none()
-                || self
-                    .catalog
-                    .derived_type(candidate.definition, "Deserialize")
-                    .is_none()
-            {
+                .is_some();
+            let deserializes = self
+                .catalog
+                .derived_type(candidate.definition, "Deserialize")
+                .is_some();
+            if !serializes || !deserializes {
                 continue;
             }
 
@@ -228,4 +222,42 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
             .emit(cx);
         }
     }
+}
+
+/// Returns whether documentation explains an intentionally directional wire contract.
+fn has_compatibility_explanation(attributes: &[syn::Attribute]) -> bool {
+    let documentation = attributes
+        .iter()
+        .filter(|attribute| attribute.path().is_ident("doc"))
+        .filter_map(|attribute| {
+            let Ok(value) = attribute.meta.require_name_value() else {
+                return None;
+            };
+            Some(value)
+        })
+        .filter_map(|value| match &value.value {
+            syn::Expr::Lit(expression) => match &expression.lit {
+                syn::Lit::Str(value) => Some(value.value().to_ascii_lowercase()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let documentation = documentation.join(" ");
+
+    let explains_compatibility = ["compatib", "legacy", "migrat", "backward"]
+        .iter()
+        .any(|term| documentation.contains(term));
+    let explains_direction = ["accept", "deserial", "read", "serial", "write"]
+        .iter()
+        .any(|term| documentation.contains(term));
+    explains_compatibility && explains_direction
+}
+
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub SERDE_ASYMMETRIC_SERDE_CONTRACTS,
+    Warn,
+    "finds unexplained directional Serde naming contracts",
+    SerdeAsymmetricSerdeContracts::default()
 }

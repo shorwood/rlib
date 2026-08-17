@@ -204,7 +204,7 @@ impl SectionAnalyzer {
 }
 
 #[cfg(test)]
-mod config_tests {
+mod tests {
     use crate::utils::config::LibraryConfig;
     use crate::utils::section_divider_config::SectionDividerConfig;
 

@@ -32,12 +32,6 @@ impl Default for ExtensionTraitConfig {
 }
 
 impl ExtensionTraitConfig {
-    /// Returns the configured method limit for configuration tests.
-    #[cfg(test)]
-    pub(crate) const fn max_methods(&self) -> usize {
-        self.max_methods
-    }
-
     /// Rejects configuration that cannot express a coherent policy.
     fn validate(&self) -> Result<(), String> {
         if self.max_methods == 0 {
@@ -180,8 +174,20 @@ impl LateLintPass<'_> for IncoherentExtensionTraits {
 }
 
 #[cfg(test)]
-mod config_tests {
-    use super::ExtensionTraitConfig;
+mod tests {
+    use super::{ExtensionTraitConfig, LibraryConfig};
+
+    #[test]
+    fn parses_custom_method_limit() {
+        let config = toml::from_str::<LibraryConfig>(
+            r"
+                [extension_traits]
+                max_methods = 5
+            ",
+        )
+        .expect("custom extension trait limit should parse");
+        assert_eq!(config.extension_traits.max_methods, 5);
+    }
 
     #[test]
     fn uses_eight_methods_by_default() {

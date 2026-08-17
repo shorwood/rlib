@@ -12,7 +12,9 @@ use rustc_middle::ty::{self, Ty};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::utils::contracts::{SerdeAttributes, SerdeContractCatalog, SerdeFlag};
+use super::utils::contracts::{
+    SerdeAttributes, SerdeAuthoredField, SerdeAuthoredFieldSet, SerdeContractCatalog, SerdeFlag,
+};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -174,54 +176,13 @@ impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
             return;
         };
 
-        let (public, fields) = match item.kind {
-            ItemKind::Struct(_, _, data) => {
-                let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
-                    return;
-                };
-                (
-                    matches!(structure.vis, syn::Visibility::Public(_)),
-                    structure
-                        .fields
-                        .iter()
-                        .zip(data.fields())
-                        .filter_map(|(field, hir_field)| {
-                            Some((
-                                field.ident.as_ref()?.to_string(),
-                                field.attrs.clone(),
-                                hir_field.def_id,
-                            ))
-                        })
-                        .collect::<Vec<_>>(),
-                )
-            }
-            ItemKind::Enum(_, _, definition) => {
-                let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
-                    return;
-                };
-                (
-                    matches!(enumeration.vis, syn::Visibility::Public(_)),
-                    enumeration
-                        .variants
-                        .iter()
-                        .zip(definition.variants)
-                        .flat_map(|(variant, hir_variant)| {
-                            variant
-                                .fields
-                                .iter()
-                                .zip(hir_variant.data.fields())
-                                .filter_map(move |(field, hir_field)| {
-                                    Some((
-                                        format!("{}.{}", variant.ident, field.ident.as_ref()?),
-                                        field.attrs.clone(),
-                                        hir_field.def_id,
-                                    ))
-                                })
-                        })
-                        .collect::<Vec<_>>(),
-                )
-            }
-            _ => return,
+        let Some(SerdeAuthoredFieldSet {
+            is_public: public,
+            fields,
+            ..
+        }) = SerdeAuthoredFieldSet::for_item(item, &source)
+        else {
+            return;
         };
         if !public {
             return;
@@ -229,7 +190,12 @@ impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
 
         let fields = fields
             .into_iter()
-            .filter_map(|(name, authored_attributes, field_definition)| {
+            .filter_map(|field| {
+                let SerdeAuthoredField {
+                    name,
+                    attributes: authored_attributes,
+                    definition: field_definition,
+                } = field;
                 let attributes = SerdeAttributes::from_attributes(&authored_attributes);
                 if attributes.has(SerdeFlag::SkipSerialize)
                     || !Self::sensitive_name(&name)

@@ -9,9 +9,9 @@ use std::collections::{HashMap, HashSet};
 use rustc_abi::ExternAbi;
 use rustc_hir::def::DefKind;
 use rustc_hir::intravisit::FnKind;
-use rustc_hir::{Body, HirId, PatKind, TraitFn, TraitItem, TraitItemKind};
+use rustc_hir::{Body, HirId, Mutability, PatKind, TraitFn, TraitItem, TraitItemKind};
 use rustc_lint::{LateContext, LintContext};
-use rustc_middle::ty::Ty;
+use rustc_middle::ty::{self, Ty};
 use rustc_span::def_id::LocalDefId;
 use rustc_span::symbol::kw;
 use rustc_span::{Span, Symbol};
@@ -25,6 +25,17 @@ const MIN_AMBIGUOUS_PARAMETER_COUNT: usize = 2;
 // -----------------------------------------------------------------------------
 // Parameter: Semantic function parameter analysis
 // -----------------------------------------------------------------------------
+/// Parameter ownership modes that cannot be freely swapped at a call site.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+enum ParameterPassing {
+    /// Parameter is passed by value.
+    Value,
+    /// Parameter is passed through a shared reference.
+    SharedReference,
+    /// Parameter is passed through a mutable reference.
+    MutableReference,
+}
+
 /// One simple authored parameter from a function-like declaration.
 #[derive(Clone)]
 pub struct Parameter {
@@ -42,12 +53,13 @@ pub struct Parameter {
     passing: ParameterPassing,
 }
 
-/// Parameter ownership modes that cannot be freely swapped at a call site.
+/// Hash key for parameters sharing both representation and passing mode.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
-enum ParameterPassing {
-    Value,
-    SharedReference,
-    MutableReference,
+struct ParameterFamily {
+    /// Interchangeable primitive representation.
+    kind: ParameterKind,
+    /// Ownership mode visible at call sites.
+    passing: ParameterPassing,
 }
 
 /// One reportable family of interchangeable parameters.
@@ -191,12 +203,8 @@ impl ParameterSignature {
             ParameterPassing::Value
         } else {
             match ty.kind() {
-                rustc_middle::ty::Ref(_, _, rustc_hir::Mutability::Not) => {
-                    ParameterPassing::SharedReference
-                }
-                rustc_middle::ty::Ref(_, _, rustc_hir::Mutability::Mut) => {
-                    ParameterPassing::MutableReference
-                }
+                ty::Ref(_, _, Mutability::Not) => ParameterPassing::SharedReference,
+                ty::Ref(_, _, Mutability::Mut) => ParameterPassing::MutableReference,
                 _ => ParameterPassing::Value,
             }
         };
@@ -305,20 +313,23 @@ impl ParameterSignature {
 
     /// Groups interchangeable non-boolean primitive parameters by representation.
     pub(crate) fn ambiguous_groups(&self) -> Vec<ParameterGroup<'_>> {
-        let mut grouped = HashMap::<(ParameterKind, ParameterPassing), Vec<&Parameter>>::new();
+        let mut grouped = HashMap::<ParameterFamily, Vec<&Parameter>>::new();
         for parameter in &self.parameters {
             let Some(kind) = parameter.interchangeable else {
                 continue;
             };
             grouped
-                .entry((kind, parameter.passing))
+                .entry(ParameterFamily {
+                    kind,
+                    passing: parameter.passing,
+                })
                 .or_default()
                 .push(parameter);
         }
 
         // Retain only precise, nonconventional role families.
         let mut groups = Vec::new();
-        for ((kind, _), parameters) in grouped {
+        for (ParameterFamily { kind, .. }, parameters) in grouped {
             if parameters.len() < MIN_AMBIGUOUS_PARAMETER_COUNT
                 || !Self::roles_are_distinct(&parameters)
                 || Self::roles_are_conventional(self.name, kind, &parameters)

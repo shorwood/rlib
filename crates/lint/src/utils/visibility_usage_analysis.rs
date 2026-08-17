@@ -19,7 +19,7 @@ use rustc_session::config::CrateType;
 use rustc_span::{Span, Symbol, sym};
 
 use super::source_provenance::{FieldProvenanceExt, ItemProvenanceExt};
-use super::test_module::TestModuleExt;
+use super::test_module::CanonicalTestExt;
 use super::visibility_boundary::VisibilityBoundary;
 use super::visibility_package_policy::VisibilityPackagePolicy;
 

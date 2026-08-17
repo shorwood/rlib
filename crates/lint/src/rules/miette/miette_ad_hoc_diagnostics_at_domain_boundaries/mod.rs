@@ -90,6 +90,75 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
+// SemanticContextVisitor: Resolved context-message discovery
+// -----------------------------------------------------------------------------
+
+/// Finds literal context messages on resolved Miette `WrapErr` methods.
+struct SemanticContextVisitor<'analysis, 'tcx> {
+    /// Compiler context used for method identity and nested closure bodies.
+    cx: &'analysis LateContext<'tcx>,
+    /// Distinct static context messages in the function.
+    messages: BTreeSet<String>,
+}
+
+impl<'analysis, 'tcx> SemanticContextVisitor<'analysis, 'tcx> {
+    /// Starts semantic context collection.
+    const fn new(cx: &'analysis LateContext<'tcx>) -> Self {
+        Self {
+            cx,
+            messages: BTreeSet::new(),
+        }
+    }
+
+    /// Extracts a literal string directly or from a lazy context closure.
+    fn literal_message(&self, expression: &'tcx Expr<'tcx>) -> Option<String> {
+        let expression = match expression.kind {
+            ExprKind::Closure(closure) => self.cx.tcx.hir_body(closure.body).value,
+            _ => expression,
+        };
+        let ExprKind::Lit(literal) = expression.kind else {
+            return None;
+        };
+        let rustc_ast::LitKind::Str(message, _) = literal.node else {
+            return None;
+        };
+        Some(message.to_string())
+    }
+}
+
+impl<'tcx> HirVisitor<'tcx> for SemanticContextVisitor<'_, 'tcx> {
+    fn visit_nested_body(&mut self, body: BodyId) {
+        self.visit_body(self.cx.tcx.hir_body(body));
+    }
+
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if let ExprKind::MethodCall(_, _, [argument], _) = expression.kind {
+            let owner = self.cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+            if let Some(method) = self
+                .cx
+                .tcx
+                .typeck(owner)
+                .type_dependent_def_id(expression.hir_id)
+                && self.cx.tcx.crate_name(method.krate).as_str() == "miette"
+                && matches!(
+                    self.cx.tcx.item_name(method).as_str(),
+                    "wrap_err" | "wrap_err_with"
+                )
+                && self
+                    .cx
+                    .tcx
+                    .trait_of_assoc(method)
+                    .is_some_and(|trait_id| self.cx.tcx.item_name(trait_id).as_str() == "WrapErr")
+                && let Some(message) = self.literal_message(argument)
+            {
+                self.messages.insert(message);
+            }
+        }
+        intravisit::walk_expr(self, expression);
+    }
+}
+
+// -----------------------------------------------------------------------------
 // MietteAdHocDiagnosticsAtDomainBoundaries: Typed domain failure policy
 // -----------------------------------------------------------------------------
 
@@ -137,9 +206,7 @@ impl MietteAdHocDiagnosticsAtDomainBoundaries {
         let mut rendered = String::with_capacity(value.len());
         while let Some(character) = characters.next() {
             if matches!(character, '{' | '}') {
-                if characters.next_if_eq(&character).is_none() {
-                    return None;
-                }
+                characters.next_if_eq(&character)?;
             }
             rendered.push(character);
         }
@@ -307,70 +374,5 @@ impl<'ast> Visit<'ast> for StaticMessageVisitor {
             return;
         }
         self.messages.insert(literals[0].clone());
-    }
-}
-
-/// Finds literal context messages on resolved Miette `WrapErr` methods.
-struct SemanticContextVisitor<'analysis, 'tcx> {
-    /// Compiler context used for method identity and nested closure bodies.
-    cx: &'analysis LateContext<'tcx>,
-    /// Distinct static context messages in the function.
-    messages: BTreeSet<String>,
-}
-
-impl<'analysis, 'tcx> SemanticContextVisitor<'analysis, 'tcx> {
-    /// Starts semantic context collection.
-    fn new(cx: &'analysis LateContext<'tcx>) -> Self {
-        Self {
-            cx,
-            messages: BTreeSet::new(),
-        }
-    }
-
-    /// Extracts a literal string directly or from a lazy context closure.
-    fn literal_message(&self, expression: &'tcx Expr<'tcx>) -> Option<String> {
-        let expression = match expression.kind {
-            ExprKind::Closure(closure) => self.cx.tcx.hir_body(closure.body).value,
-            _ => expression,
-        };
-        let ExprKind::Lit(literal) = expression.kind else {
-            return None;
-        };
-        let rustc_ast::LitKind::Str(message, _) = literal.node else {
-            return None;
-        };
-        Some(message.to_string())
-    }
-}
-
-impl<'tcx> HirVisitor<'tcx> for SemanticContextVisitor<'_, 'tcx> {
-    fn visit_nested_body(&mut self, body: BodyId) {
-        self.visit_body(self.cx.tcx.hir_body(body));
-    }
-
-    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if let ExprKind::MethodCall(_, _, [argument], _) = expression.kind {
-            let owner = self.cx.tcx.hir_enclosing_body_owner(expression.hir_id);
-            if let Some(method) = self
-                .cx
-                .tcx
-                .typeck(owner)
-                .type_dependent_def_id(expression.hir_id)
-                && self.cx.tcx.crate_name(method.krate).as_str() == "miette"
-                && matches!(
-                    self.cx.tcx.item_name(method).as_str(),
-                    "wrap_err" | "wrap_err_with"
-                )
-                && self
-                    .cx
-                    .tcx
-                    .trait_of_assoc(method)
-                    .is_some_and(|trait_id| self.cx.tcx.item_name(trait_id).as_str() == "WrapErr")
-                && let Some(message) = self.literal_message(argument)
-            {
-                self.messages.insert(message);
-            }
-        }
-        intravisit::walk_expr(self, expression);
     }
 }

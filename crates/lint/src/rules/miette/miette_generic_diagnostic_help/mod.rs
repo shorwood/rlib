@@ -92,9 +92,8 @@ impl MietteGenericDiagnosticHelp {
 
     /// Normalizes presentation-only casing, whitespace, and terminal punctuation.
     fn normalize(text: &str) -> String {
-        text.trim()
-            .trim_end_matches(['.', '!', '?', ':', ';'])
-            .split_whitespace()
+        let text = text.trim().trim_end_matches(['.', '!', '?', ':', ';']);
+        text.split_whitespace()
             .collect::<Vec<_>>()
             .join(" ")
             .to_ascii_lowercase()
@@ -123,11 +122,7 @@ impl MietteGenericDiagnosticHelp {
         let normalized = Self::normalize(help);
 
         // Specific guidance is outside this lint's policy boundary.
-        if !(self
-            .generic_phrases
-            .iter()
-            .any(|phrase| normalized == *phrase))
-        {
+        if !self.generic_phrases.contains(&normalized) {
             return;
         }
 

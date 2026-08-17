@@ -20,5 +20,8 @@ mod covered_case {
     mod tests {
         #[test]
         fn works() {}
+
+        #[test]
+        fn covers_an_unrelated_scenario() {}
     }
 }

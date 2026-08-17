@@ -8,6 +8,7 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::Expr;
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
+use strum::EnumMessage;
 
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::result_loss_analysis::{ResolvedResultCall, ResultLossAnalyzer, ResultOperation};
@@ -17,23 +18,24 @@ use crate::utils::result_loss_analysis::{ResolvedResultCall, ResultLossAnalyzer,
 // -----------------------------------------------------------------------------
 
 /// Standard Result operation that replaces its error branch with a default success value.
+#[derive(EnumMessage)]
 enum DefaultFallback {
     /// Dedicated `unwrap_or_default` operation.
+    #[strum(message = "`unwrap_or_default`")]
     Dedicated,
     /// Eager default passed to `unwrap_or`.
+    #[strum(message = "`unwrap_or` with a default value")]
     Eager,
     /// Error-ignoring default closure passed to `unwrap_or_else`.
+    #[strum(message = "`unwrap_or_else` with an error-ignoring default closure")]
     Lazy,
 }
 
 impl DefaultFallback {
     /// Describes the fallback syntax responsible for hiding the failure.
-    const fn description(&self) -> &'static str {
-        match self {
-            Self::Dedicated => "`unwrap_or_default`",
-            Self::Eager => "`unwrap_or` with a default value",
-            Self::Lazy => "`unwrap_or_else` with an error-ignoring default closure",
-        }
+    fn description(&self) -> &'static str {
+        self.get_message()
+            .expect("every fallback variant has a message")
     }
 }
 

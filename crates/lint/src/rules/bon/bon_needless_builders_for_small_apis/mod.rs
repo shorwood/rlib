@@ -60,6 +60,15 @@ impl EarlyViolation for Violation {
 // BonNeedlessBuildersForSmallApis: Small private API policy
 // -----------------------------------------------------------------------------
 
+/// Callable ownership used to account for an associated receiver parameter.
+#[derive(Clone, Copy)]
+enum CallableOwner {
+    /// Free function with no receiver convention.
+    Free,
+    /// Associated function whose first parameter may be a receiver.
+    Associated,
+}
+
 /// Rejects builders that add no optionality or argument disambiguation.
 struct BonNeedlessBuildersForSmallApis;
 
@@ -129,7 +138,7 @@ impl BonNeedlessBuildersForSmallApis {
         visibility: &rustc_ast::Visibility,
         attributes: &[rustc_ast::Attribute],
         function: &Fn,
-        associated: bool,
+        owner: CallableOwner,
     ) {
         if !matches!(visibility.kind, VisibilityKind::Inherited) {
             return;
@@ -138,7 +147,7 @@ impl BonNeedlessBuildersForSmallApis {
             return;
         };
         let inputs = &function.sig.decl.inputs;
-        let inputs = if associated
+        let inputs = if matches!(owner, CallableOwner::Associated)
             && inputs
                 .first()
                 .is_some_and(|input| Self::is_receiver(cx, input))
@@ -161,14 +170,20 @@ impl EarlyLintPass for BonNeedlessBuildersForSmallApis {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         match &item.kind {
             ItemKind::Fn(function) => {
-                Self::check_function(cx, &item.vis, &item.attrs, function, false);
+                Self::check_function(cx, &item.vis, &item.attrs, function, CallableOwner::Free);
             }
             ItemKind::Impl(implementation) => {
                 for associated in &implementation.items {
                     let AssocItemKind::Fn(function) = &associated.kind else {
                         continue;
                     };
-                    Self::check_function(cx, &associated.vis, &associated.attrs, function, true);
+                    Self::check_function(
+                        cx,
+                        &associated.vis,
+                        &associated.attrs,
+                        function,
+                        CallableOwner::Associated,
+                    );
                 }
             }
             _ => {}
