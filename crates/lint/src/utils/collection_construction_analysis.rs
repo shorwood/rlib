@@ -376,8 +376,30 @@ impl CollectionConstructionAnalysis {
 }
 
 // -----------------------------------------------------------------------------
-// CollectionClassification: Storage and signature helpers
+// CollectionClassification: Storage and signature classification helpers
 // -----------------------------------------------------------------------------
+
+/// Context words that make a collection-oriented name specific enough.
+const COLLECTION_CLASSIFICATION_CONTEXTUAL_NAMES: &[&str] = &[
+    "Deduplicate",
+    "Filtered",
+    "First",
+    "Last",
+    "Limited",
+    "Lossy",
+    "Policy",
+    "Sorted",
+    "Strict",
+    "Truncated",
+    "Validated",
+    "With",
+];
+
+/// Generic collection words that cannot establish protocol ownership alone.
+const COLLECTION_CLASSIFICATION_NEUTRAL_NAMES: &[&str] = &[
+    "Add", "All", "Append", "Build", "Collect", "Create", "Entries", "Extend", "From", "Items",
+    "New",
+];
 
 /// Resolves a possibly referenced type to one local nominal definition.
 fn collection_classification_local_adt(ty: Ty<'_>) -> Option<LocalDefId> {
@@ -404,28 +426,7 @@ fn collection_classification_is_trait_method(cx: &LateContext<'_>, def_id: Local
         .is_some_and(|parent| matches!(cx.tcx.def_kind(parent), DefKind::Impl { of_trait: true }))
 }
 
-/// Context words that make a collection-oriented name specific enough.
-const COLLECTION_CONTEXTUAL_NAMES: &[&str] = &[
-    "Deduplicate",
-    "Filtered",
-    "First",
-    "Last",
-    "Limited",
-    "Lossy",
-    "Policy",
-    "Sorted",
-    "Strict",
-    "Truncated",
-    "Validated",
-    "With",
-];
-
-/// Generic collection words that cannot establish protocol ownership alone.
-const COLLECTION_NEUTRAL_NAMES: &[&str] = &[
-    "Add", "All", "Append", "Build", "Collect", "Create", "Entries", "Extend", "From", "Items",
-    "New",
-];
-
+/// Returns whether authored vocabulary claims only a generic collection contract.
 fn collection_classification_has_neutral_name(
     cx: &LateContext<'_>,
     name: Symbol,
@@ -437,13 +438,13 @@ fn collection_classification_has_neutral_name(
     // Contextual vocabulary encodes policy that a standard collection trait cannot express.
     if words
         .iter()
-        .any(|word| COLLECTION_CONTEXTUAL_NAMES.contains(&word.as_str()))
+        .any(|word| COLLECTION_CLASSIFICATION_CONTEXTUAL_NAMES.contains(&word.as_str()))
     {
         return false;
     }
     let target_words = identifier_case::words(cx.tcx.item_name(target.to_def_id()).as_str());
     words.into_iter().all(|word| {
-        COLLECTION_NEUTRAL_NAMES.contains(&word.as_str())
+        COLLECTION_CLASSIFICATION_NEUTRAL_NAMES.contains(&word.as_str())
             || target_words.contains(&word)
             || (contract == CollectionContract::Extend && word == "Insert")
     })
@@ -563,7 +564,7 @@ fn collection_storage_discover<'tcx>(
 }
 
 // -----------------------------------------------------------------------------
-// CollectionEvidence: Complete source to storage flow proof
+// CollectionEvidence: Complete source-to-storage flow proof
 // -----------------------------------------------------------------------------
 
 /// Proven storage operation and its inferred item family.
@@ -585,6 +586,29 @@ struct CollectionEvidenceState {
     has_policy: bool,
     /// Number of enclosing desugared `for` matches whose iterator references the source.
     source_loop_depth: usize,
+}
+
+/// Finds a reference to an iterable source binding.
+struct CollectionEvidenceSourceFinder<'analysis, 'tcx> {
+    /// Compiler context used to resolve local paths.
+    cx: &'analysis LateContext<'tcx>,
+    /// Iterable source parameter binding.
+    source: HirId,
+    /// Whether traversal reached the source binding.
+    has_found: bool,
+}
+
+impl<'tcx> Visitor<'tcx> for CollectionEvidenceSourceFinder<'_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // The first source reference completes this existence query.
+        if let ExprKind::Path(path) = expression.kind
+            && matches!(self.cx.qpath_res(&path, expression.hir_id), Res::Local(binding) if binding == self.source)
+        {
+            self.has_found = true;
+            return;
+        }
+        intravisit::walk_expr(self, expression);
+    }
 }
 
 /// Proves that one source is completely consumed into target-owned storage.
@@ -635,29 +659,10 @@ impl CollectionEvidence<'_, '_, '_> {
     }
 }
 
-/// Finds a reference to an iterable source binding.
-struct CollectionSourceFinder<'analysis, 'tcx> {
-    cx: &'analysis LateContext<'tcx>,
-    source: HirId,
-    has_found: bool,
-}
-
-impl<'tcx> Visitor<'tcx> for CollectionSourceFinder<'_, 'tcx> {
-    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if let ExprKind::Path(path) = expression.kind
-            && matches!(self.cx.qpath_res(&path, expression.hir_id), Res::Local(binding) if binding == self.source)
-        {
-            self.has_found = true;
-            return;
-        }
-        intravisit::walk_expr(self, expression);
-    }
-}
-
 impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
     /// Returns whether an expression references the iterable source parameter.
     fn uses_source(&self, expression: &'tcx Expr<'tcx>) -> bool {
-        let mut finder = CollectionSourceFinder {
+        let mut finder = CollectionEvidenceSourceFinder {
             cx: self.cx,
             source: self.source,
             has_found: false,

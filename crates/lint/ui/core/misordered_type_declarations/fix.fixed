@@ -1,5 +1,6 @@
 // run-rustfix
 // rustfix-only-machine-applicable
+// normalize-stderr-test: "(?m) +$" -> ""
 
 #![feature(register_tool)]
 #![allow(dead_code, misordered_inherent_impl_items, misordered_module_declarations)]

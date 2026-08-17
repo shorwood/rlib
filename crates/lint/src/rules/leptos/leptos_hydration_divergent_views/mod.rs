@@ -219,6 +219,7 @@ impl LeptosHydrationDivergentViews {
     fn classify_environment_condition(expression: &syn::Expr) -> Option<TrueEnvironment> {
         match expression {
             syn::Expr::Macro(expression) if expression.mac.path.is_ident("cfg") => {
+                // Malformed cfg tokens cannot establish a known environment branch.
                 let Ok(meta) = syn::parse2::<Meta>(expression.mac.tokens.clone()) else {
                     return None;
                 };

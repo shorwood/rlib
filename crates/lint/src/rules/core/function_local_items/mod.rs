@@ -13,6 +13,10 @@ use rustc_span::Span;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::SpanProvenanceExt;
 
+// -----------------------------------------------------------------------------
+// Violation: Function-local item diagnostic
+// -----------------------------------------------------------------------------
+
 /// Authored item declared inside an executable body.
 struct Violation {
     /// Item node used to honor its local lint level.
@@ -58,6 +62,10 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// FunctionLocalItems: Executable-body declaration policy
+// -----------------------------------------------------------------------------
+
 /// Late lint pass rejecting authored item statements in executable bodies.
 struct FunctionLocalItems;
 
@@ -90,13 +98,18 @@ impl FunctionLocalItems {
 
 impl LateLintPass<'_> for FunctionLocalItems {
     fn check_stmt(&mut self, cx: &LateContext<'_>, statement: &Stmt<'_>) {
+        // Ordinary executable statements contain no nested item declaration.
         let StmtKind::Item(item_id) = statement.kind else {
             return;
         };
+
+        // Items in non-callable bodies are governed by their enclosing declaration scope.
         if !Self::is_callable_body(cx, statement) {
             return;
         }
         let item = cx.tcx.hir_item(item_id);
+
+        // Generated items are not authored local-structure decisions.
         if item.span.in_external_macro(cx.sess().source_map()) || item.span.is_build_generated(cx) {
             return;
         }

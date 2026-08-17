@@ -111,6 +111,45 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
+// DiscardedBindingUse: Underscore-prefixed binding usage query
+// -----------------------------------------------------------------------------
+
+/// Finds whether one underscore-prefixed binding is subsequently read.
+struct DiscardedBindingUse<'analysis, 'tcx> {
+    /// Compiler context used to resolve local paths and nested bodies.
+    cx: &'analysis LateContext<'tcx>,
+    /// Local binding whose subsequent use is queried.
+    binding: HirId,
+    /// Whether traversal reached the queried binding.
+    is_found: bool,
+}
+
+impl<'tcx> Visitor<'tcx> for DiscardedBindingUse<'_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Once a use is proven, no remaining expression can change the result.
+        if self.is_found {
+            return;
+        }
+
+        // The first resolved reference proves the binding is not discarded.
+        if let ExprKind::Path(path) = expression.kind
+            && matches!(
+                self.cx.qpath_res(&path, expression.hir_id),
+                Res::Local(binding) if binding == self.binding
+            )
+        {
+            self.is_found = true;
+            return;
+        }
+        intravisit::walk_expr(self, expression);
+    }
+
+    fn visit_nested_body(&mut self, body: rustc_hir::BodyId) {
+        self.visit_body(self.cx.tcx.hir_body(body));
+    }
+}
+
+// -----------------------------------------------------------------------------
 // DiscardedResults: Failure preservation policy
 // -----------------------------------------------------------------------------
 
@@ -223,32 +262,4 @@ dylint_linting::impl_late_lint! {
     Warn,
     "rejects Result values discarded without an explicit failure policy",
     DiscardedResults
-}
-
-struct DiscardedBindingUse<'analysis, 'tcx> {
-    cx: &'analysis LateContext<'tcx>,
-    binding: HirId,
-    is_found: bool,
-}
-
-impl<'tcx> Visitor<'tcx> for DiscardedBindingUse<'_, 'tcx> {
-    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if self.is_found {
-            return;
-        }
-        if let ExprKind::Path(path) = expression.kind
-            && matches!(
-                self.cx.qpath_res(&path, expression.hir_id),
-                Res::Local(binding) if binding == self.binding
-            )
-        {
-            self.is_found = true;
-            return;
-        }
-        intravisit::walk_expr(self, expression);
-    }
-
-    fn visit_nested_body(&mut self, body: rustc_hir::BodyId) {
-        self.visit_body(self.cx.tcx.hir_body(body));
-    }
 }

@@ -888,7 +888,7 @@ impl<'tcx> Visitor<'tcx> for ConstructionEvidence<'_, 'tcx> {
 }
 
 // -----------------------------------------------------------------------------
-// ConstructionResultCollector: Returned target ownership
+// ConstructionResult: Returned target ownership and nested target discovery
 // -----------------------------------------------------------------------------
 
 /// Finds target constructions contributing to tail values and explicit returns.
@@ -901,34 +901,6 @@ struct ConstructionResultCollector<'analysis, 'tcx> {
     returned_targets: HashSet<HirId>,
     /// Local bindings mapped to the target-producing expressions they retain.
     bindings: HashMap<HirId, HashSet<HirId>>,
-}
-
-/// Finds target-producing expressions beneath one result expression.
-struct ConstructionTargetFinder<'collector, 'analysis, 'tcx> {
-    collector: &'collector ConstructionResultCollector<'analysis, 'tcx>,
-    targets: HashSet<HirId>,
-}
-
-impl<'tcx> Visitor<'tcx> for ConstructionTargetFinder<'_, '_, 'tcx> {
-    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if self.collector.produces_target(expression) {
-            self.targets.insert(expression.hir_id);
-            return;
-        }
-        if let ExprKind::Path(path) = expression.kind
-            && let Res::Local(binding) = self.collector.cx.qpath_res(&path, expression.hir_id)
-            && let Some(targets) = self.collector.bindings.get(&binding)
-        {
-            self.targets.extend(targets);
-            return;
-        }
-        if matches!(expression.kind, ExprKind::Closure(_)) {
-            return;
-        }
-        intravisit::walk_expr(self, expression);
-    }
-
-    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
 }
 
 impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
@@ -949,7 +921,7 @@ impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
 
     /// Collects target-producing expressions nested beneath one expression.
     fn targets_in(&self, expression: &'tcx Expr<'tcx>) -> HashSet<HirId> {
-        let mut finder = ConstructionTargetFinder {
+        let mut finder = ConstructionResultTargetFinder {
             collector: self,
             targets: HashSet::new(),
         };
@@ -1074,6 +1046,41 @@ impl<'tcx> Visitor<'tcx> for ConstructionResultCollector<'_, 'tcx> {
             ExprKind::Closure(_) => {}
             _ => intravisit::walk_expr(self, expression),
         }
+    }
+
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+}
+
+/// Finds target-producing expressions beneath one result expression.
+struct ConstructionResultTargetFinder<'collector, 'analysis, 'tcx> {
+    /// Result collector providing target classification and binding aliases.
+    collector: &'collector ConstructionResultCollector<'analysis, 'tcx>,
+    /// Target-producing expression identifiers found during traversal.
+    targets: HashSet<HirId>,
+}
+
+impl<'tcx> Visitor<'tcx> for ConstructionResultTargetFinder<'_, '_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // A direct construction completes this traversal branch.
+        if self.collector.produces_target(expression) {
+            self.targets.insert(expression.hir_id);
+            return;
+        }
+
+        // Known aliases contribute their previously recorded construction sites.
+        if let ExprKind::Path(path) = expression.kind
+            && let Res::Local(binding) = self.collector.cx.qpath_res(&path, expression.hir_id)
+            && let Some(targets) = self.collector.bindings.get(&binding)
+        {
+            self.targets.extend(targets);
+            return;
+        }
+
+        // Nested closures return from a different callable.
+        if matches!(expression.kind, ExprKind::Closure(_)) {
+            return;
+        }
+        intravisit::walk_expr(self, expression);
     }
 
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}

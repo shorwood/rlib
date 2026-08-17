@@ -395,34 +395,24 @@ fn iterator_evidence_is_direct_receiver(
 }
 
 // -----------------------------------------------------------------------------
-// IteratorEvidence: Persistent state advance proof
+// Iterator: Persistent state advancement and returned-value evidence
 // -----------------------------------------------------------------------------
 
-/// Persistent receiver-state evidence for one iterator-like method.
-struct IteratorEvidence<'analysis, 'tcx> {
-    /// Compiler context used to resolve local receiver paths.
+/// Finds whether an expression reads the receiver or a receiver-derived local.
+struct IteratorReceiverUse<'set, 'analysis, 'tcx> {
+    /// Compiler context used to resolve local paths.
     cx: &'analysis LateContext<'tcx>,
     /// Mutable receiver binding carrying persistent state.
     receiver: HirId,
-    /// Expressions that contribute to a tail value or explicit return.
-    returned: HashSet<HirId>,
-    /// Locals whose values originate in receiver-owned state.
-    receiver_derived: HashSet<HirId>,
-    /// Receiver fields carried by each receiver-derived local.
-    receiver_derived_fields: HashMap<HirId, HashSet<Symbol>>,
-    /// Mutable evidence accumulated during traversal.
-    state: IteratorEvidenceState,
-}
-
-struct IteratorReceiverUse<'set, 'analysis, 'tcx> {
-    cx: &'analysis LateContext<'tcx>,
-    receiver: HirId,
+    /// Local bindings whose values originate in receiver-owned state.
     receiver_derived: &'set HashSet<HirId>,
+    /// Whether the traversal found a receiver-owned value.
     is_found: bool,
 }
 
 impl<'tcx> Visitor<'tcx> for IteratorReceiverUse<'_, '_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // The first receiver-owned value completes this existence query.
         if iterator_evidence_is_receiver_rooted(self.cx, self.receiver, expression)
             || matches!(
                 expression.kind,
@@ -436,6 +426,8 @@ impl<'tcx> Visitor<'tcx> for IteratorReceiverUse<'_, '_, 'tcx> {
             self.is_found = true;
             return;
         }
+
+        // Nested closures own independent traversal state.
         if matches!(expression.kind, ExprKind::Closure(_)) {
             return;
         }
@@ -445,10 +437,15 @@ impl<'tcx> Visitor<'tcx> for IteratorReceiverUse<'_, '_, 'tcx> {
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
 }
 
+/// Collects top-level receiver fields read directly or through local aliases.
 struct IteratorFieldUse<'set, 'analysis, 'tcx> {
+    /// Compiler context used to resolve local paths.
     cx: &'analysis LateContext<'tcx>,
+    /// Mutable receiver binding carrying persistent state.
     receiver: HirId,
+    /// Receiver fields carried by each receiver-derived local.
     aliases: &'set HashMap<HirId, HashSet<Symbol>>,
+    /// Receiver fields observed during traversal.
     fields: HashSet<Symbol>,
 }
 
@@ -465,6 +462,8 @@ impl<'tcx> Visitor<'tcx> for IteratorFieldUse<'_, '_, 'tcx> {
         {
             self.fields.extend(fields);
         }
+
+        // Nested closures own independent traversal state.
         if matches!(expression.kind, ExprKind::Closure(_)) {
             return;
         }
@@ -472,6 +471,22 @@ impl<'tcx> Visitor<'tcx> for IteratorFieldUse<'_, '_, 'tcx> {
     }
 
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+}
+
+/// Persistent receiver-state evidence for one iterator-like method.
+struct IteratorEvidence<'analysis, 'tcx> {
+    /// Compiler context used to resolve local receiver paths.
+    cx: &'analysis LateContext<'tcx>,
+    /// Mutable receiver binding carrying persistent state.
+    receiver: HirId,
+    /// Expressions that contribute to a tail value or explicit return.
+    returned: HashSet<HirId>,
+    /// Locals whose values originate in receiver-owned state.
+    receiver_derived: HashSet<HirId>,
+    /// Receiver fields carried by each receiver-derived local.
+    receiver_derived_fields: HashMap<HirId, HashSet<Symbol>>,
+    /// Mutable evidence accumulated during traversal.
+    state: IteratorEvidenceState,
 }
 
 impl<'analysis, 'tcx> IteratorEvidence<'analysis, 'tcx> {
@@ -638,6 +653,25 @@ impl<'tcx> Visitor<'tcx> for IteratorEvidence<'_, 'tcx> {
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
 }
 
+/// Collects every non-closure expression contributing to one result value.
+struct IteratorValueCollector<'set> {
+    /// Destination set of contributing expression identifiers.
+    expressions: &'set mut HashSet<HirId>,
+}
+
+impl<'tcx> Visitor<'tcx> for IteratorValueCollector<'_> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Nested closures return from a different callable.
+        if matches!(expression.kind, ExprKind::Closure(_)) {
+            return;
+        }
+        self.expressions.insert(expression.hir_id);
+        intravisit::walk_expr(self, expression);
+    }
+
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+}
+
 // -----------------------------------------------------------------------------
 // IteratorResultCollector: Returned traversal ownership
 // -----------------------------------------------------------------------------
@@ -708,22 +742,6 @@ impl<'tcx> Visitor<'tcx> for IteratorResultCollector {
             ExprKind::Closure(_) => {}
             _ => intravisit::walk_expr(self, expression),
         }
-    }
-
-    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
-}
-
-struct IteratorValueCollector<'set> {
-    expressions: &'set mut HashSet<HirId>,
-}
-
-impl<'tcx> Visitor<'tcx> for IteratorValueCollector<'_> {
-    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if matches!(expression.kind, ExprKind::Closure(_)) {
-            return;
-        }
-        self.expressions.insert(expression.hir_id);
-        intravisit::walk_expr(self, expression);
     }
 
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}

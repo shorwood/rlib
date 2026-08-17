@@ -23,8 +23,16 @@ use rustc_span::symbol::sym;
 use rustc_span::{Span, Symbol};
 use serde::Deserialize;
 
+// -----------------------------------------------------------------------------
+// BooleanMatchArmCount: Boolean predicate match shape
+// -----------------------------------------------------------------------------
+
 /// Exact arm count for a boolean predicate match.
 const BOOLEAN_MATCH_ARM_COUNT: usize = 2;
+
+// -----------------------------------------------------------------------------
+// AccessorModesPerVariant: Complete variant accessor family size
+// -----------------------------------------------------------------------------
 
 /// Owned, shared, and mutable accessors expected for each variant.
 const ACCESSOR_MODES_PER_VARIANT: usize = 3;

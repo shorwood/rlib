@@ -70,8 +70,23 @@ impl<'tcx> Visitor<'tcx> for TextInputUseFinder<'_, 'tcx> {
 }
 
 // -----------------------------------------------------------------------------
-// TextBodyAnalyzer: Text body traversal
+// Text: Body traversal and derived-binding collection
 // -----------------------------------------------------------------------------
+
+/// Adds pattern bindings to one receiver-derived provenance set.
+struct TextBindingCollector<'set> {
+    /// Destination set for bindings introduced by the pattern.
+    bindings: &'set mut HashSet<HirId>,
+}
+
+impl<'tcx> Visitor<'tcx> for TextBindingCollector<'_> {
+    fn visit_pat(&mut self, pattern: &'tcx Pat<'tcx>) {
+        if let PatKind::Binding(_, binding, _, _) = pattern.kind {
+            self.bindings.insert(binding);
+        }
+        intravisit::walk_pat(self, pattern);
+    }
+}
 
 /// Finds input provenance and direct calls into `ToString`.
 struct TextBodyAnalyzer<'analysis, 'tcx> {
@@ -131,6 +146,14 @@ impl<'tcx> TextBodyAnalyzer<'_, 'tcx> {
             return None;
         };
         self.cx.qpath_res(&path, callee.hir_id).opt_def_id()
+    }
+
+    /// Adds every plain binding introduced by a receiver-derived pattern.
+    fn record_bindings(&mut self, pattern: &Pat<'_>) {
+        TextBindingCollector {
+            bindings: &mut self.bindings,
+        }
+        .visit_pat(pattern);
     }
 }
 
@@ -196,29 +219,6 @@ impl<'tcx> Visitor<'tcx> for TextBodyAnalyzer<'_, 'tcx> {
     }
 
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
-}
-
-struct TextBindingCollector<'set> {
-    bindings: &'set mut HashSet<HirId>,
-}
-
-impl<'tcx> Visitor<'tcx> for TextBindingCollector<'_> {
-    fn visit_pat(&mut self, pattern: &'tcx Pat<'tcx>) {
-        if let PatKind::Binding(_, binding, _, _) = pattern.kind {
-            self.bindings.insert(binding);
-        }
-        intravisit::walk_pat(self, pattern);
-    }
-}
-
-impl TextBodyAnalyzer<'_, '_> {
-    /// Adds every plain binding introduced by a receiver-derived pattern.
-    fn record_bindings(&mut self, pattern: &Pat<'_>) {
-        TextBindingCollector {
-            bindings: &mut self.bindings,
-        }
-        .visit_pat(pattern);
-    }
 }
 
 // -----------------------------------------------------------------------------

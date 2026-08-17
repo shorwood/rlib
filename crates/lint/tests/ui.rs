@@ -69,7 +69,7 @@ use dylint_testing::ui::Test;
 // -----------------------------------------------------------------------------
 
 /// Cross-cutting lints excluded while each fixture isolates its own diagnostic contract.
-const FIXTURE_CROSS_CUTTING_LINT_ALLOWS: [&str; 104] = [
+const FIXTURE_CROSS_CUTTING_LINT_ALLOWS: [&str; 106] = [
     "-A",
     "ad_hoc_collection_construction",
     "-A",
@@ -170,6 +170,8 @@ const FIXTURE_CROSS_CUTTING_LINT_ALLOWS: [&str; 104] = [
     "unnecessarily_broad_visibility",
     "-A",
     "unseparated_associated_items",
+    "-A",
+    "unseparated_module_items",
     "-A",
     "unparenthesized_mixed_boolean_operators",
     "-A",

@@ -45,14 +45,18 @@ impl BuilderOption {
 }
 
 // -----------------------------------------------------------------------------
+// CommentMarkerBytes: Rust comment delimiter width
+// -----------------------------------------------------------------------------
+
+/// Byte width of each Rust comment delimiter inspected below.
+const COMMENT_MARKER_BYTES: usize = 2;
+
+// -----------------------------------------------------------------------------
 // BonAttributeAnalysis: Authored Bon attribute inspection
 // -----------------------------------------------------------------------------
 
 /// Owns source-level analysis of Bon-related attributes.
 pub struct BonAttributeAnalysis;
-
-/// Byte width of each Rust comment delimiter inspected below.
-const COMMENT_MARKER_BYTES: usize = 2;
 
 impl BonAttributeAnalysis {
     /// Returns the final path component of an attribute.

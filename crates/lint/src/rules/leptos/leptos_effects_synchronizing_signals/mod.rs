@@ -140,7 +140,7 @@ impl<'tcx> Visitor<'tcx> for ReactiveOperations<'_, 'tcx> {
 }
 
 // -----------------------------------------------------------------------------
-// LeptosEffectsSynchronizingSignals: Acyclic reactive-state policy
+// EffectOperation: Framework effect closure layouts
 // -----------------------------------------------------------------------------
 
 /// Closure layout used by one effect constructor.
@@ -150,6 +150,13 @@ enum EffectOperation {
     /// Separate dependency and handler callbacks supplied to a watch operation.
     Watch,
 }
+
+/// Dependency and callback closures supplied to `watch`.
+const WATCH_CLOSURE_COUNT: usize = 2;
+
+// -----------------------------------------------------------------------------
+// LeptosEffectsSynchronizingSignals: Acyclic reactive-state policy
+// -----------------------------------------------------------------------------
 
 /// Late lint pass that keeps reactive-to-reactive synchronization out of effects.
 struct LeptosEffectsSynchronizingSignals;
@@ -229,9 +236,6 @@ impl LeptosEffectsSynchronizingSignals {
         Some(operations)
     }
 }
-
-/// Dependency and callback closures supplied to `watch`.
-const WATCH_CLOSURE_COUNT: usize = 2;
 
 impl<'tcx> LateLintPass<'tcx> for LeptosEffectsSynchronizingSignals {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {

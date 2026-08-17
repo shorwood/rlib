@@ -25,6 +25,29 @@ enum Origin {
     Transformed,
 }
 
+/// Detects any local binding in one tracked authority set.
+struct TrackedBindingFinder<'analysis, 'tcx> {
+    /// Compiler context used to resolve local paths.
+    cx: &'analysis LateContext<'tcx>,
+    /// Local bindings that carry the tracked authority.
+    tracked: &'analysis HashSet<HirId>,
+    /// Whether traversal reached a tracked binding.
+    has_found: bool,
+}
+
+impl<'tcx> Visitor<'tcx> for TrackedBindingFinder<'_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // The first tracked reference completes this existence query.
+        if let ExprKind::Path(path) = expression.kind
+            && matches!(self.cx.qpath_res(&path, expression.hir_id), Res::Local(binding) if self.tracked.contains(&binding))
+        {
+            self.has_found = true;
+            return;
+        }
+        intravisit::walk_expr(self, expression);
+    }
+}
+
 /// Body visitor proving that every tracked use belongs to one native binding.
 struct ExclusiveBinding<'analysis, 'tcx> {
     /// Compiler context used for semantic path and method resolution.
@@ -37,25 +60,6 @@ struct ExclusiveBinding<'analysis, 'tcx> {
     bindings: HashSet<HirId>,
     /// Whether any use escaped the accepted forwarding shape.
     has_escaped: bool,
-}
-
-/// Detects any local binding in one tracked authority set.
-struct TrackedBindingFinder<'analysis, 'tcx> {
-    cx: &'analysis LateContext<'tcx>,
-    tracked: &'analysis HashSet<HirId>,
-    has_found: bool,
-}
-
-impl<'tcx> Visitor<'tcx> for TrackedBindingFinder<'_, 'tcx> {
-    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if let ExprKind::Path(path) = expression.kind
-            && matches!(self.cx.qpath_res(&path, expression.hir_id), Res::Local(binding) if self.tracked.contains(&binding))
-        {
-            self.has_found = true;
-            return;
-        }
-        intravisit::walk_expr(self, expression);
-    }
 }
 
 impl<'analysis, 'tcx> ExclusiveBinding<'analysis, 'tcx> {

@@ -91,6 +91,7 @@ impl Analyzer {
                 line_is_empty &= !saw_line_break || matches!(byte, b' ' | b'\t' | b'\r');
                 continue;
             }
+
             // A second empty physical line establishes the required visual boundary.
             if saw_line_break && line_is_empty {
                 return true;
@@ -107,6 +108,7 @@ impl Analyzer {
         let Some((same_line, following_lines)) = source.split_once('\n') else {
             return false;
         };
+
         // Trailing tokens may own the following line and prohibit a blind insertion.
         if !same_line.trim().is_empty() {
             return false;

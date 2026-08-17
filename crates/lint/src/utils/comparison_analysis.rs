@@ -531,6 +531,54 @@ const COMPARISON_VOCABULARY_RELATION_METHODS: &[&str] =
     &["cmp", "partial_cmp", "eq", "ne", "total_cmp"];
 
 // -----------------------------------------------------------------------------
+// TotalCmpFinder: Floating-point totalization discovery
+// -----------------------------------------------------------------------------
+
+/// Finds a resolved call to the standard floating-point total comparator.
+struct TotalCmpFinder<'analysis, 'tcx> {
+    /// Compiler context used to resolve method definitions.
+    cx: &'analysis LateContext<'tcx>,
+    /// Whether traversal reached `total_cmp`.
+    has_found: bool,
+    /// Comparison operations contributing to the function result.
+    returned_relations: HashSet<HirId>,
+}
+
+impl TotalCmpFinder<'_, '_> {
+    /// Returns whether a method call resolves to the standard float comparator.
+    fn is_total_cmp(&self, expression: &Expr<'_>) -> bool {
+        // Calls without a resolved method definition cannot prove standard delegation.
+        let Some(definition) = self
+            .cx
+            .typeck_results()
+            .type_dependent_def_id(expression.hir_id)
+        else {
+            return false;
+        };
+        self.cx.tcx.item_name(definition).as_str() == "total_cmp"
+    }
+}
+
+impl<'tcx> Visitor<'tcx> for TotalCmpFinder<'_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if self.returned_relations.contains(&expression.hir_id)
+            && matches!(expression.kind, ExprKind::MethodCall(..))
+            && self.is_total_cmp(expression)
+        {
+            self.has_found = true;
+        }
+
+        // Nested closures return from a different callable.
+        if matches!(expression.kind, ExprKind::Closure(_)) {
+            return;
+        }
+        intravisit::walk_expr(self, expression);
+    }
+
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+}
+
+// -----------------------------------------------------------------------------
 // ComparisonSource: Authored relation evidence
 // -----------------------------------------------------------------------------
 
@@ -566,47 +614,6 @@ fn comparison_source_has_neutral_name(
                 || neutral.iter().any(|known| word == format!("{known}s"))
                 || (contract != ComparisonContract::Equality && word == "Order")
         })
-}
-
-/// Finds a resolved call to the standard floating-point total comparator.
-struct TotalCmpFinder<'analysis, 'tcx> {
-    /// Compiler context used to resolve method definitions.
-    cx: &'analysis LateContext<'tcx>,
-    /// Whether traversal reached `total_cmp`.
-    has_found: bool,
-    /// Comparison operations contributing to the function result.
-    returned_relations: HashSet<HirId>,
-}
-
-impl TotalCmpFinder<'_, '_> {
-    /// Returns whether a method call resolves to the standard float comparator.
-    fn is_total_cmp(&self, expression: &Expr<'_>) -> bool {
-        let Some(definition) = self
-            .cx
-            .typeck_results()
-            .type_dependent_def_id(expression.hir_id)
-        else {
-            return false;
-        };
-        self.cx.tcx.item_name(definition).as_str() == "total_cmp"
-    }
-}
-
-impl<'tcx> Visitor<'tcx> for TotalCmpFinder<'_, 'tcx> {
-    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if self.returned_relations.contains(&expression.hir_id)
-            && matches!(expression.kind, ExprKind::MethodCall(..))
-            && self.is_total_cmp(expression)
-        {
-            self.has_found = true;
-        }
-        if matches!(expression.kind, ExprKind::Closure(_)) {
-            return;
-        }
-        intravisit::walk_expr(self, expression);
-    }
-
-    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
 }
 
 /// Returns whether a body explicitly totalizes floating-point ordering.
@@ -685,26 +692,6 @@ struct RelationEvidenceAnalyzer<'analysis, 'tcx> {
     type_def_id: LocalDefId,
     /// First expression proving interaction between both sides.
     evidence: Option<RelationEvidence>,
-}
-
-/// Finds a reference to any binding in one comparison provenance family.
-struct ComparisonBindingFinder<'set, 'analysis, 'tcx> {
-    cx: &'analysis LateContext<'tcx>,
-    bindings: &'set HashSet<HirId>,
-    has_found: bool,
-}
-
-impl<'tcx> Visitor<'tcx> for ComparisonBindingFinder<'_, '_, 'tcx> {
-    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if let ExprKind::Path(path) = expression.kind
-            && let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id)
-            && self.bindings.contains(&binding)
-        {
-            self.has_found = true;
-            return;
-        }
-        intravisit::walk_expr(self, expression);
-    }
 }
 
 impl<'tcx> RelationEvidenceAnalyzer<'_, 'tcx> {
@@ -832,6 +819,34 @@ impl<'tcx> Visitor<'tcx> for RelationEvidenceAnalyzer<'_, 'tcx> {
 }
 
 // -----------------------------------------------------------------------------
+// ComparisonBindingFinder: Operand provenance membership query
+// -----------------------------------------------------------------------------
+
+/// Finds a reference to any binding in one comparison provenance family.
+struct ComparisonBindingFinder<'set, 'analysis, 'tcx> {
+    /// Compiler context used to resolve local paths.
+    cx: &'analysis LateContext<'tcx>,
+    /// Local bindings belonging to the queried provenance family.
+    bindings: &'set HashSet<HirId>,
+    /// Whether traversal reached a binding in the queried family.
+    has_found: bool,
+}
+
+impl<'tcx> Visitor<'tcx> for ComparisonBindingFinder<'_, '_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // The first matching binding completes this existence query.
+        if let ExprKind::Path(path) = expression.kind
+            && let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id)
+            && self.bindings.contains(&binding)
+        {
+            self.has_found = true;
+            return;
+        }
+        intravisit::walk_expr(self, expression);
+    }
+}
+
+// -----------------------------------------------------------------------------
 // RelationResultCollector: Returned relation ownership
 // -----------------------------------------------------------------------------
 
@@ -842,34 +857,6 @@ struct RelationResultCollector {
     relations: HashSet<HirId>,
     /// Comparison operations carried by each local binding.
     bindings: HashMap<HirId, HashSet<HirId>>,
-}
-
-/// Finds direct and aliased relation expressions in one result subtree.
-struct RelationFinder<'set> {
-    bindings: &'set HashMap<HirId, HashSet<HirId>>,
-    relations: HashSet<HirId>,
-}
-
-impl<'tcx> Visitor<'tcx> for RelationFinder<'_> {
-    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if RelationResultCollector::is_relation(expression) {
-            self.relations.insert(expression.hir_id);
-            return;
-        }
-        if let ExprKind::Path(rustc_hir::QPath::Resolved(_, path)) = expression.kind
-            && let Res::Local(binding) = path.res
-            && let Some(relations) = self.bindings.get(&binding)
-        {
-            self.relations.extend(relations);
-            return;
-        }
-        if matches!(expression.kind, ExprKind::Closure(_)) {
-            return;
-        }
-        intravisit::walk_expr(self, expression);
-    }
-
-    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
 }
 
 impl RelationResultCollector {
@@ -1005,6 +992,45 @@ impl<'tcx> Visitor<'tcx> for RelationResultCollector {
             ExprKind::Closure(_) => {}
             _ => intravisit::walk_expr(self, expression),
         }
+    }
+
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+}
+
+// -----------------------------------------------------------------------------
+// RelationFinder: Direct and aliased returned-relation discovery
+// -----------------------------------------------------------------------------
+
+/// Finds direct and aliased relation expressions in one result subtree.
+struct RelationFinder<'set> {
+    /// Comparison operations carried by each local binding.
+    bindings: &'set HashMap<HirId, HashSet<HirId>>,
+    /// Relation expressions discovered in the result subtree.
+    relations: HashSet<HirId>,
+}
+
+impl<'tcx> Visitor<'tcx> for RelationFinder<'_> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Direct comparison syntax completes this traversal branch.
+        if RelationResultCollector::is_relation(expression) {
+            self.relations.insert(expression.hir_id);
+            return;
+        }
+
+        // Known aliases contribute their previously recorded relation expressions.
+        if let ExprKind::Path(rustc_hir::QPath::Resolved(_, path)) = expression.kind
+            && let Res::Local(binding) = path.res
+            && let Some(relations) = self.bindings.get(&binding)
+        {
+            self.relations.extend(relations);
+            return;
+        }
+
+        // Nested closures return from a different callable.
+        if matches!(expression.kind, ExprKind::Closure(_)) {
+            return;
+        }
+        intravisit::walk_expr(self, expression);
     }
 
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}

@@ -11,14 +11,21 @@ use crate::utils::diagnostic::LateViolation;
 use crate::utils::item_separation::{Analyzer, Finding, Source};
 use crate::utils::source_provenance::{ItemProvenanceExt, SpanProvenanceExt};
 
+// -----------------------------------------------------------------------------
+// Violation: Unseparated module declaration diagnostic
+// -----------------------------------------------------------------------------
+
 /// Adjacent module declarations lacking a visually empty line between them.
-struct Violation(Finding);
+struct Violation {
+    /// Shared declaration-spacing evidence.
+    finding: Finding,
+}
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "module-level declarations `{}` and `{}` are not separated by a blank line",
-            self.0.previous_name, self.0.following_name
+            self.finding.previous_name, self.finding.following_name
         ))
     }
 
@@ -31,7 +38,7 @@ impl LateViolation for Violation {
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "insert one blank line before `{}`",
-            self.0.following_name
+            self.finding.following_name
         ))
     }
 
@@ -40,13 +47,16 @@ impl LateViolation for Violation {
         let remediation = self.remediation_message().into_owned();
         cx.tcx.emit_node_span_lint(
             UNSEPARATED_MODULE_ITEMS,
-            self.0.hir_id,
-            self.0.span,
+            self.finding.hir_id,
+            self.finding.span,
             DiagDecorator(|diag| {
                 diag.primary_message(primary);
-                diag.span_label(self.0.span, "this declaration needs visual separation");
+                diag.span_label(
+                    self.finding.span,
+                    "this declaration needs visual separation",
+                );
                 diag.note(self.rationale_message().into_owned());
-                if let Some(insertion) = self.0.insertion {
+                if let Some(insertion) = self.finding.insertion {
                     diag.span_suggestion(
                         insertion,
                         remediation,
@@ -60,6 +70,10 @@ impl LateViolation for Violation {
         );
     }
 }
+
+// -----------------------------------------------------------------------------
+// UnseparatedModuleItems: Module declaration spacing policy
+// -----------------------------------------------------------------------------
 
 /// Late lint pass requiring one visually empty line between module declarations.
 struct UnseparatedModuleItems;
@@ -83,9 +97,12 @@ impl UnseparatedModuleItems {
 
     /// Produces a stable human-readable name for one declaration.
     fn name(cx: &LateContext<'_>, item: &Item<'_>) -> String {
+        // Foreign modules have no ordinary declaration identifier.
         if matches!(item.kind, ItemKind::ForeignMod { .. }) {
             return "extern block".to_owned();
         }
+
+        // Implementation blocks are identified by their implemented type.
         if matches!(item.kind, ItemKind::Impl(_)) {
             return format!(
                 "impl {}",
@@ -100,7 +117,7 @@ impl UnseparatedModuleItems {
     /// Emits findings for one uninterrupted run of eligible declarations.
     fn check_run(cx: &LateContext<'_>, run: &[Source]) {
         for finding in Analyzer::findings(cx, run) {
-            Violation(finding).emit(cx);
+            Violation { finding }.emit(cx);
         }
     }
 }
@@ -114,10 +131,12 @@ impl<'tcx> LateLintPass<'tcx> for UnseparatedModuleItems {
             let is_authored = !item.span.in_external_macro(source_map)
                 && !item.span.is_build_generated(cx)
                 && !item.is_framework_generated();
+
             // Generated declarations are invisible in authored source and cannot break adjacency.
             if !is_authored {
                 continue;
             }
+
             // Authored imports, module declarations, and macros bound separate declaration runs.
             if !Self::is_declaration(item) {
                 Self::check_run(cx, &run);

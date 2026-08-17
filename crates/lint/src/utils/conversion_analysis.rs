@@ -380,18 +380,8 @@ pub struct ConversionCandidate {
 }
 
 // -----------------------------------------------------------------------------
-// ConversionAnalysis: Crate wide family selection
+// Excluded: Noncanonical conversion policy and effect names
 // -----------------------------------------------------------------------------
-/// Discovers conversion ownership independently from individual lint passes.
-#[derive(Default)]
-pub struct ConversionAnalysis {
-    /// Structurally proven one-source conversions in traversal order.
-    candidates: Vec<ConversionCandidate>,
-    /// Exact pairs already governed by `From` or `TryFrom`.
-    occupied_pairs: HashSet<ConversionPair>,
-    /// Functions whose sole source reaches a distinct constructed target.
-    target_owned_definitions: HashSet<LocalDefId>,
-}
 
 /// Vocabulary that signals a noncanonical policy, context, or effect.
 const EXCLUDED: &[&str] = &[
@@ -434,6 +424,21 @@ const EXCLUDED: &[&str] = &[
     "Wrapping",
     "Write",
 ];
+
+// -----------------------------------------------------------------------------
+// ConversionAnalysis: Crate wide family selection
+// -----------------------------------------------------------------------------
+
+/// Discovers conversion ownership independently from individual lint passes.
+#[derive(Default)]
+pub struct ConversionAnalysis {
+    /// Structurally proven one-source conversions in traversal order.
+    candidates: Vec<ConversionCandidate>,
+    /// Exact pairs already governed by `From` or `TryFrom`.
+    occupied_pairs: HashSet<ConversionPair>,
+    /// Functions whose sole source reaches a distinct constructed target.
+    target_owned_definitions: HashSet<LocalDefId>,
+}
 
 impl ConversionAnalysis {
     /// Extracts only direct and exact `Result<T, E>` conversion contracts.

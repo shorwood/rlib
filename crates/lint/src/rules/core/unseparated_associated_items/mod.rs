@@ -15,13 +15,16 @@ use crate::utils::item_separation::{Analyzer, Finding, Source};
 // -----------------------------------------------------------------------------
 
 /// Adjacent associated items lacking a visually empty line between them.
-struct Violation(Finding);
+struct Violation {
+    /// Shared declaration-spacing evidence.
+    finding: Finding,
+}
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "associated items `{}` and `{}` are not separated by a blank line",
-            self.0.previous_name, self.0.following_name
+            self.finding.previous_name, self.finding.following_name
         ))
     }
 
@@ -34,7 +37,7 @@ impl LateViolation for Violation {
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "insert one blank line before `{}`",
-            self.0.following_name
+            self.finding.following_name
         ))
     }
 
@@ -46,13 +49,16 @@ impl LateViolation for Violation {
         // Suggest a source edit only when no comment or other syntax occupies the boundary.
         cx.tcx.emit_node_span_lint(
             UNSEPARATED_ASSOCIATED_ITEMS,
-            self.0.hir_id,
-            self.0.span,
+            self.finding.hir_id,
+            self.finding.span,
             DiagDecorator(|diag| {
                 diag.primary_message(primary);
-                diag.span_label(self.0.span, "this associated item needs visual separation");
+                diag.span_label(
+                    self.finding.span,
+                    "this associated item needs visual separation",
+                );
                 diag.note(self.rationale_message().into_owned());
-                if let Some(insertion) = self.0.insertion {
+                if let Some(insertion) = self.finding.insertion {
                     diag.span_suggestion(
                         insertion,
                         remediation,
@@ -86,7 +92,7 @@ impl UnseparatedAssociatedItems {
     /// Diagnoses every adjacent authored pair without an intervening empty line.
     fn check_items(cx: &LateContext<'_>, items: &[Source]) {
         for finding in Analyzer::findings(cx, items) {
-            Violation(finding).emit(cx);
+            Violation { finding }.emit(cx);
         }
     }
 

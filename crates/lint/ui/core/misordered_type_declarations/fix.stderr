@@ -1,5 +1,5 @@
 warning: local types should be declared before their use
-  --> $DIR/fix.rs:13:1
+  --> $DIR/fix.rs:14:1
    |
 LL | / struct Consumer(Dependency);
 LL | |
@@ -8,7 +8,7 @@ LL | | impl Consumer {}
    |
    = note: the first misplaced type requires forward navigation; the resolved dependency-first order is `Dependency`, `Consumer`
 note: the lint level is defined here
-  --> $DIR/fix.rs:7:9
+  --> $DIR/fix.rs:8:9
    |
 LL | #![warn(misordered_type_declarations)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -22,3 +22,4 @@ LL + impl Consumer {}
    |
 
 warning: 1 warning emitted
+
