@@ -63,9 +63,12 @@ pub(super) trait FunctionLayoutSpanExt {
 
 impl FunctionLayoutSpanExt for Span {
     fn comments(self, cx: &LateContext<'_>) -> Vec<FunctionLayoutComment> {
+        // Empty and generated gaps contain no authored comments to classify.
         if self.is_empty() || self.from_expansion() {
             return Vec::new();
         }
+
+        // Unavailable source cannot provide reliable comment positions.
         let Ok(source) = cx.sess().source_map().span_to_snippet(self) else {
             return Vec::new();
         };

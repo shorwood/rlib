@@ -42,8 +42,9 @@ pub(super) enum AuthoredVisibility {
 impl AuthoredVisibility {
     /// Parses a visibility snippet while leaving inherited visibility outside the `candidate` set.
     fn from_source(source: &str) -> Option<Self> {
-        // Normalize explicit source before classifying the accepted vocabulary.
         let source = source.trim();
+
+        // Inherited visibility has no explicit syntax to classify.
         if source.is_empty() {
             return None;
         }
@@ -289,8 +290,9 @@ impl VisibilityUsageAnalyzer {
 impl VisibilityUsageAnalyzer {
     /// Records one struct or union field with independently authored visibility.
     pub(crate) fn record_field(&mut self, cx: &LateContext<'_>, field: &FieldDef<'_>) {
-        // Enum variant fields inherit the enum's visibility and cannot be narrowed independently.
         let parent = cx.tcx.parent(field.def_id.to_def_id());
+
+        // Only struct and union fields own independently narrowable visibility.
         if !matches!(cx.tcx.def_kind(parent), DefKind::Struct | DefKind::Union) {
             return;
         }
@@ -457,6 +459,7 @@ impl VisibilityUsageAnalyzer {
         item: &ImplItem<'_>,
         definitions: &mut HashSet<LocalDefId>,
     ) {
+        // Only associated-type assignments can expose normalized type components.
         if !matches!(item.kind, rustc_hir::ImplItemKind::Type(..)) {
             return;
         }
@@ -487,13 +490,17 @@ impl VisibilityUsageAnalyzer {
         name: Symbol,
         kind: &'static str,
     ) {
-        // Generated declarations and inherited private visibility are outside this rule.
+        // Generated declarations do not have independently editable source visibility.
         if vis_span.from_expansion() {
             return;
         }
+
+        // Visibility without recoverable source cannot be classified as authored syntax.
         let Ok(source) = cx.sess().source_map().span_to_snippet(vis_span) else {
             return;
         };
+
+        // Noncanonical or inherited syntax is outside the narrowing policy.
         let Some(authored) = AuthoredVisibility::from_source(&source) else {
             return;
         };
@@ -515,6 +522,8 @@ impl VisibilityUsageAnalyzer {
                 cx.tcx.def_kind(def_id),
                 DefKind::Fn | DefKind::AssocFn | DefKind::Static { .. }
             ) && cx.tcx.codegen_fn_attrs(def_id).contains_extern_indicator();
+
+        // External ABI contracts cannot be narrowed solely from Rust path uses.
         if has_external_attribute || has_external_codegen_contract {
             return;
         }
@@ -599,12 +608,15 @@ impl VisibilityUsageAnalyzer {
         item: &ImplItem<'_>,
         definitions: HashSet<LocalDefId>,
     ) {
-        // Resolve the concrete local target that owns this trait implementation surface.
         let parent = cx.tcx.local_parent(item.owner_id.def_id);
         let self_type = cx.tcx.type_of(parent).instantiate_identity();
+
+        // Trait targets must be nominal local types to receive interface dependencies.
         let ty::Adt(definition, _) = self_type.kind() else {
             return;
         };
+
+        // Foreign trait targets cannot contribute local visibility evidence.
         let Some(target) = definition.did().as_local() else {
             return;
         };
@@ -654,6 +666,7 @@ impl VisibilityUsageAnalyzer {
     fn module_is_test_owned(&self, tcx: TyCtxt<'_>, module: LocalDefId) -> bool {
         let mut cursor = Some(module);
         while let Some(candidate) = cursor {
+            // A canonical test ancestor makes every descendant use test-only.
             if self.test_modules.contains(&candidate) {
                 return true;
             }
@@ -762,6 +775,7 @@ impl VisibilityUsageAnalyzer {
         module: LocalDefId,
         definition_uses: &[VisibilityUse],
     ) {
+        // Only module candidates inherit reach from nested item references.
         if candidates
             .get(&module)
             .is_none_or(|candidate| candidate.identity.kind != "module")
@@ -903,6 +917,7 @@ impl<'analysis, 'tcx> VisibilityReferenceCollector<'analysis, 'tcx> {
 
     /// Records one local resolution after normalizing constructor definitions.
     fn record_resolution(&mut self, resolution: Res, span: Span) {
+        // Foreign resolutions do not require local visibility.
         let Some(mut definition) = resolution.opt_def_id().and_then(DefId::as_local) else {
             return;
         };
@@ -914,6 +929,7 @@ impl<'analysis, 'tcx> VisibilityReferenceCollector<'analysis, 'tcx> {
 
     /// Resolves the local definition selected by one typed method-call expression.
     fn method_definition(&self, expression: &Expr<'_>) -> Option<LocalDefId> {
+        // Only method calls have a type-dependent method definition.
         if !matches!(expression.kind, ExprKind::MethodCall(..)) {
             return None;
         }
@@ -927,19 +943,22 @@ impl<'analysis, 'tcx> VisibilityReferenceCollector<'analysis, 'tcx> {
 
     /// Records a field definition selected through typed member access.
     fn record_field_access(&mut self, expression: &'tcx Expr<'tcx>, base: &'tcx Expr<'tcx>) {
-        // Resolve the selected field index and adjusted aggregate base type.
+        // Field access outside a typed body cannot resolve an owning field definition.
         let Some(owner) = self.traversal.body_owner else {
             return;
         };
         let typeck = self.cx.tcx.typeck(owner);
         let index = typeck.field_index(expression.hir_id);
         let base_type = typeck.expr_ty_adjusted(base).peel_refs();
+
+        // Only nominal aggregates have field definitions to record.
         let ty::Adt(definition, _) = base_type.kind() else {
             return;
         };
 
-        // Convert the typed field identity into a local definition use.
         let field = definition.non_enum_variant().fields[index].did;
+
+        // Foreign fields are outside the local visibility analysis.
         let Some(field) = field.as_local() else {
             return;
         };
@@ -953,10 +972,12 @@ impl<'analysis, 'tcx> VisibilityReferenceCollector<'analysis, 'tcx> {
         hir_id: HirId,
         fields: impl IntoIterator<Item = VisibilitySourceField>,
     ) {
-        // Resolve the aggregate definition selected by the expression or pattern path.
+        // Aggregate fields require a type-checked body owner.
         let Some(owner) = self.traversal.body_owner else {
             return;
         };
+
+        // Unresolved aggregate paths cannot identify field visibility.
         let Some(mut definition) = self.cx.qpath_res(path, hir_id).opt_def_id() else {
             return;
         };
@@ -975,10 +996,12 @@ impl<'analysis, 'tcx> VisibilityReferenceCollector<'analysis, 'tcx> {
             .instantiate_identity()
             .kind();
 
-        // Continue only when semantic type resolution produced an aggregate definition.
+        // Only nominal aggregate types can map named source fields.
         let ty::Adt(adt, _) = aggregate_type else {
             return;
         };
+
+        // Enum fields inherit the enum boundary and are not independently visible.
         if adt.is_enum() {
             return;
         }
@@ -1010,11 +1033,14 @@ impl<'analysis, 'tcx> VisibilityReferenceCollector<'analysis, 'tcx> {
             definition = self.cx.tcx.parent(definition);
         }
 
-        // Record every local non-enum field required by the struct update operation.
         let aggregate_type = self.cx.tcx.type_of(definition).instantiate_identity();
+
+        // Struct update requires a nominal aggregate whose fields are independently visible.
         let ty::Adt(adt, _) = aggregate_type.kind() else {
             return;
         };
+
+        // Enum fields inherit the enum boundary and are not independently visible.
         if adt.is_enum() {
             return;
         }
@@ -1033,9 +1059,12 @@ impl<'analysis, 'tcx> VisibilityReferenceCollector<'analysis, 'tcx> {
                 self.cx.tcx.parent(constructor)
             }
             Res::Def(DefKind::Struct, definition) => definition,
+            // Other paths cannot select positional struct fields.
             _ => return,
         };
         let aggregate_type = self.cx.tcx.type_of(definition).instantiate_identity();
+
+        // Only nominal tuple structs have positional fields to record.
         let ty::Adt(adt, _) = aggregate_type.kind() else {
             return;
         };
@@ -1067,6 +1096,7 @@ impl<'tcx> Visitor<'tcx> for VisibilityReferenceCollector<'_, 'tcx> {
     }
 
     fn visit_nested_body(&mut self, body_id: rustc_hir::BodyId) {
+        // Interface-only traversal must not collect executable nested-body uses.
         if !self.traversal.has_body_traversal {
             return;
         }

@@ -96,9 +96,12 @@ struct AdapterPair<'path> {
 impl AdapterPair<'_> {
     /// Returns whether the directional adapter contracts provably disagree.
     fn is_provably_incompatible(&self) -> bool {
+        // Unrecognized serialization adapter names cannot prove a contract family.
         let Some(serialize) = NamedContract::from_path(self.serialize) else {
             return false;
         };
+
+        // Unrecognized deserialization adapter names cannot prove a conflicting contract.
         let Some(deserialize) = NamedContract::from_path(self.deserialize) else {
             return false;
         };
@@ -175,14 +178,20 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for SerdeNonRoundtrippingSerdeAdapters {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Generated and non-data items cannot define authored directional field adapters.
         if item.span.from_expansion()
             || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
         {
             return;
         }
+
+        // Missing authored source prevents recovery of adapter attributes.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
+
+        // Items without an authored field model expose no directional adapter pairs.
         let Some(SerdeAuthoredFieldSet { fields, .. }) =
             SerdeAuthoredFieldSet::for_item(item, &source)
         else {

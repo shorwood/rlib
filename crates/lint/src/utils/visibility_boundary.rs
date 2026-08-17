@@ -69,6 +69,7 @@ impl VisibilityBoundary {
         // Walk the right ancestry until it enters the left module chain.
         let mut cursor = Some(right);
         while let Some(module) = cursor {
+            // The first shared ancestor is the narrowest module containing both items.
             if left_ancestors.contains(&module) {
                 return module;
             }

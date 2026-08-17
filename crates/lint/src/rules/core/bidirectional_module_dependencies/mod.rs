@@ -124,6 +124,8 @@ impl LateLintPass<'_> for BidirectionalModuleDependencies {
         let ItemKind::Use(path, _) = item.kind else {
             return;
         };
+
+        // Macro-generated references do not represent authored module dependencies.
         if item.span.in_external_macro(cx.sess().source_map()) {
             return;
         }
@@ -180,6 +182,8 @@ impl BidirectionalModuleDependencies {
         // Canonicalize both directions before consulting the reported-pair set.
         let pair = ModulePair::new(dependency.source, dependency.target);
         let reverse_pair = ModulePair::new(dependency.target, dependency.source);
+
+        // Each dependency cycle is reported once regardless of traversal direction.
         if self.reported.contains(&pair) || self.reported.contains(&reverse_pair) {
             return;
         }

@@ -47,10 +47,14 @@ impl PolicyLiteralFinding {
         let is_stronger = candidate.evidence_strength > self.evidence_strength
             || (candidate.evidence_strength == self.evidence_strength
                 && candidate.category.evidence_rank() > self.category.evidence_rank());
+
+        // Stronger evidence supersedes the current classification for this source expression.
         if is_stronger {
             *self = candidate;
             return;
         }
+
+        // An existing name is stronger than an overlapping unnamed suggestion.
         if self.suggested_name.is_some() {
             return;
         }
@@ -166,9 +170,12 @@ impl<'analysis, 'tcx> PolicyLiteralOriginCollector<'analysis, 'tcx> {
 
     /// Resolves an authored path back to an immutable literal origin.
     fn local_origins(&self, expression: &Expr<'_>) -> Option<Vec<PolicyLiteralOrigin>> {
+        // Only direct paths can refer to a previously collected literal alias.
         let ExprKind::Path(path) = expression.kind else {
             return None;
         };
+
+        // Only local bindings can resolve to this body's immutable literal origins.
         let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id) else {
             return None;
         };
@@ -178,13 +185,18 @@ impl<'analysis, 'tcx> PolicyLiteralOriginCollector<'analysis, 'tcx> {
 
 impl<'tcx> Visitor<'tcx> for PolicyLiteralOriginCollector<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Anonymous constant bodies are analyzed at their own ownership boundary.
         if matches!(expression.kind, ExprKind::ConstBlock(_)) {
             return;
         }
+
+        // Reaching an immutable alias completes origin collection for that expression.
         if let Some(origins) = self.local_origins(expression) {
             self.origins.extend(origins);
             return;
         }
+
+        // A maximal literal-derived expression is one extractable constant origin.
         if Self::is_literal_derived(expression) {
             if !expression.span.from_expansion() && !Self::is_identity(expression) {
                 self.origins.push(PolicyLiteralOrigin {
@@ -234,6 +246,8 @@ impl<'analysis, 'tcx> LocalLiteralCollector<'analysis, 'tcx> {
         let StmtKind::Let(local) = statement.kind else {
             return;
         };
+
+        // Literal aliases must use immutable plain bindings.
         let PatKind::Binding(BindingMode(ByRef::No, Mutability::Not), binding, identifier, None) =
             local.pat.kind
         else {
@@ -250,6 +264,8 @@ impl<'analysis, 'tcx> LocalLiteralCollector<'analysis, 'tcx> {
         for origin in &mut origins {
             origin.authored_name = Some(identifier.name.as_str().to_owned());
         }
+
+        // Bindings without literal-derived material cannot introduce constant candidates.
         if origins.is_empty() {
             return;
         }
@@ -290,6 +306,7 @@ impl<'tcx> Visitor<'tcx> for LocalLiteralCollector<'_, 'tcx> {
     }
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Closures and const blocks define separate literal ownership boundaries.
         if matches!(
             expression.kind,
             ExprKind::Closure(_) | ExprKind::ConstBlock(_)
@@ -325,12 +342,17 @@ impl ControlFlowEvidence {
 
     /// Returns whether a call constructs the standard successful `Result` variant.
     fn is_result_success_constructor(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // Result-success recognition begins with a constructor call.
         let ExprKind::Call(callee, _) = expression.kind else {
             return false;
         };
+
+        // The constructor must be named by a direct path.
         let ExprKind::Path(path) = callee.kind else {
             return false;
         };
+
+        // Only resolved variant constructors can be the standard `Result::Ok`.
         let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
             cx.qpath_res(&path, callee.hir_id)
         else {
@@ -427,6 +449,7 @@ impl<'analysis, 'tcx> EvidenceCollector<'analysis, 'tcx> {
 
     /// Deduplicates a finding by exact authored source span.
     fn record(&mut self, candidate: PolicyLiteralFinding) {
+        // A matching source span merges evidence into one diagnostic before ending this insertion.
         if let Some(existing) = self.findings.iter_mut().find(|finding| {
             finding.span.lo() == candidate.span.lo() && finding.span.hi() == candidate.span.hi()
         }) {
@@ -484,6 +507,7 @@ impl<'analysis, 'tcx> EvidenceCollector<'analysis, 'tcx> {
 
     /// Records literals passed into a semantically resolved policy API.
     fn record_api(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Only calls recognized by the policy API catalog carry direct semantic evidence.
         let Some(api) = PolicyApi::for_expression(self.cx, expression) else {
             return;
         };
@@ -523,6 +547,8 @@ impl<'analysis, 'tcx> EvidenceCollector<'analysis, 'tcx> {
         // Restrict generic field vocabulary to explicit configuration containers.
         let type_symbol = self.cx.tcx.item_name(definition);
         let type_name = type_symbol.as_str();
+
+        // Generic field names are policy only when their container is explicitly configuration-shaped.
         if !is_configuration_type_name(type_name) {
             return;
         }
@@ -569,6 +595,8 @@ impl<'analysis, 'tcx> EvidenceCollector<'analysis, 'tcx> {
             || then_evidence.has_exit
             || else_evidence.has_fallible_operation
             || else_evidence.has_exit;
+
+        // Comparisons are policy only when a controlled branch changes execution behavior.
         if !has_policy_effect {
             return;
         }
@@ -606,6 +634,8 @@ impl<'analysis, 'tcx> EvidenceCollector<'analysis, 'tcx> {
         let has_fallible_body = arms.iter().any(|arm| {
             ControlFlowEvidence::for_expression(self.cx, arm.body).has_fallible_operation
         });
+
+        // Ordinary loops do not make their range bounds retry policy.
         if !has_fallible_body {
             return;
         }
@@ -720,12 +750,15 @@ impl PolicyComparisonCollector<'_> {
 
 impl<'tcx> Visitor<'tcx> for PolicyComparisonCollector<'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Nested closures and const blocks belong to their own threshold analysis scope.
         if matches!(
             expression.kind,
             ExprKind::Closure(_) | ExprKind::ConstBlock(_)
         ) {
             return;
         }
+
+        // Each comparison contributes both orientations for literal-side discovery.
         if let ExprKind::Binary(operator, left, right) = expression.kind
             && Self::is_comparison(operator.node)
         {
@@ -740,6 +773,7 @@ impl<'tcx> Visitor<'tcx> for PolicyComparisonCollector<'tcx> {
                 literal_side: left,
                 subject_name: Self::simple_name(right),
             });
+
             return;
         }
         intravisit::walk_expr(self, expression);
@@ -763,9 +797,12 @@ struct RangeOriginCollector<'analysis, 'tcx> {
 impl RangeOriginCollector<'_, '_> {
     /// Returns whether a struct expression constructs a standard range.
     fn is_range(&self, expression: &Expr<'_>) -> bool {
+        // Range recognition begins with a struct expression produced by range desugaring.
         let ExprKind::Struct(path, _, _) = expression.kind else {
             return false;
         };
+
+        // The struct path must resolve before it can be identified as a standard range type.
         let Some(definition) = self.cx.qpath_res(path, expression.hir_id).opt_def_id() else {
             return false;
         };
@@ -776,6 +813,7 @@ impl RangeOriginCollector<'_, '_> {
 
 impl<'tcx> Visitor<'tcx> for RangeOriginCollector<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // A discovered range contributes its bounds without descending into the same expression.
         if self.is_range(expression) {
             self.origins.extend(PolicyLiteralOriginCollector::collect(
                 self.cx,
@@ -784,6 +822,8 @@ impl<'tcx> Visitor<'tcx> for RangeOriginCollector<'_, 'tcx> {
             ));
             return;
         }
+
+        // Nested closures and const blocks belong to their own range-analysis scope.
         if matches!(
             expression.kind,
             ExprKind::Closure(_) | ExprKind::ConstBlock(_)

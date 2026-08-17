@@ -65,6 +65,7 @@ impl<'analysis, 'tcx> ExclusiveBinding<'analysis, 'tcx> {
 
         impl<'tcx> Visitor<'tcx> for Finder<'_, 'tcx> {
             fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+                // A matching tracked path completes the search for this expression subtree.
                 if let ExprKind::Path(path) = expression.kind
                     && matches!(self.cx.qpath_res(&path, expression.hir_id), Res::Local(binding) if self.tracked.contains(&binding))
                 {
@@ -87,6 +88,7 @@ impl<'analysis, 'tcx> ExclusiveBinding<'analysis, 'tcx> {
     /// Returns whether a method call resolves to semantic `Clone::clone`.
     fn is_clone(&self, expression: &Expr<'_>) -> bool {
         // Resolve both the selected method and its declaring trait.
+        // Unresolved calls cannot prove the standard identity-preserving clone operation.
         let Some(def_id) = self
             .cx
             .tcx
@@ -109,12 +111,15 @@ impl<'analysis, 'tcx> ExclusiveBinding<'analysis, 'tcx> {
     /// Classifies a value without following behavior-bearing transformations.
     fn origin(&self, expression: &'tcx Expr<'tcx>) -> Origin {
         // Resolve direct local paths before considering transparent wrapper syntax.
+        // A local path determines origin without inspecting any nested behavior.
         if let ExprKind::Path(path) = expression.kind {
             return match self.cx.qpath_res(&path, expression.hir_id) {
                 Res::Local(binding) if self.tracked.contains(&binding) => Origin::Transparent,
                 _ => Origin::Absent,
             };
         }
+
+        // Tuple origin is the conservative combination of every element origin.
         if let ExprKind::Tup(elements) = expression.kind {
             return self.combined_origin(elements);
         }
@@ -123,10 +128,13 @@ impl<'analysis, 'tcx> ExclusiveBinding<'analysis, 'tcx> {
         if let ExprKind::Block(block, None) = expression.kind
             && block.stmts.is_empty()
         {
+            // An empty transparent block inherits the origin of its optional tail value.
             return block
                 .expr
                 .map_or(Origin::Absent, |value| self.origin(value));
         }
+
+        // Compiler temporary wrappers preserve the wrapped value's origin.
         if let ExprKind::DropTemps(value) = expression.kind {
             return self.origin(value);
         }
@@ -136,8 +144,11 @@ impl<'analysis, 'tcx> ExclusiveBinding<'analysis, 'tcx> {
             && arguments.is_empty()
             && self.is_clone(expression)
         {
+            // Standard cloning preserves the tracked capability identity.
             return self.origin(receiver);
         }
+
+        // Any other expression containing the binding has transformed or consumed it.
         if self.contains_tracked(expression) {
             return Origin::Transformed;
         }
@@ -160,6 +171,7 @@ impl<'analysis, 'tcx> ExclusiveBinding<'analysis, 'tcx> {
     /// Returns the value argument of a resolved native `bind:*` expansion call.
     fn native_bind_value(&self, expression: &'tcx Expr<'tcx>) -> Option<&'tcx Expr<'tcx>> {
         // Resolve the method, declaring trait, and authored macro provenance together.
+        // Only method calls can represent expanded native binding operations.
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return None;
         };
@@ -188,10 +200,13 @@ impl<'analysis, 'tcx> ExclusiveBinding<'analysis, 'tcx> {
 
     /// Visits the expanded binding call without revisiting its accepted value argument.
     fn visit_native_bind_context(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Preserve traversal only for the method-call shape already classified as a bind.
         let ExprKind::MethodCall(_, receiver, arguments, _) = expression.kind else {
             return;
         };
         self.visit_expr(receiver);
+
+        // A bind call without arguments has no accepted value to exclude from traversal.
         let Some((_, preceding)) = arguments.split_last() else {
             return;
         };
@@ -209,11 +224,13 @@ impl<'tcx> Visitor<'tcx> for ExclusiveBinding<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         if let Some(value) = self.native_bind_value(expression) {
             match self.origin(value) {
+                // Transparent binding completes accepted-context traversal without visiting value.
                 Origin::Transparent => {
                     self.bindings.insert(expression.hir_id);
                     self.visit_native_bind_context(expression);
                     return;
                 }
+                // A transformed binding proves escape without further descendant traversal.
                 Origin::Transformed => {
                     self.has_escaped = true;
                     return;
@@ -221,6 +238,8 @@ impl<'tcx> Visitor<'tcx> for ExclusiveBinding<'_, 'tcx> {
                 Origin::Absent => {}
             }
         }
+
+        // A tracked path outside an accepted native bind is direct escape evidence.
         if let ExprKind::Path(path) = expression.kind
             && matches!(self.cx.qpath_res(&path, expression.hir_id), Res::Local(binding) if self.tracked.contains(&binding))
         {
@@ -231,10 +250,13 @@ impl<'tcx> Visitor<'tcx> for ExclusiveBinding<'_, 'tcx> {
     }
 
     fn visit_local(&mut self, local: &'tcx LetStmt<'tcx>) {
+        // Locals without initializers cannot create transparent aliases.
         let Some(initializer) = local.init else {
             intravisit::walk_local(self, local);
             return;
         };
+
+        // A transparent plain binding creates an alias whose initializer must not be revisited.
         if matches!(self.origin(initializer), Origin::Transparent)
             && let PatKind::Binding(_, binding, _, None) = local.pat.kind
         {

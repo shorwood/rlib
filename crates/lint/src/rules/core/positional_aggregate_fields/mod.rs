@@ -80,9 +80,13 @@ impl LateLintPass<'_> for PositionalAggregateFields {
         if item.span.from_expansion() {
             return;
         }
+
+        // Non-struct items are handled through their own aggregate declarations.
         let ItemKind::Struct(_, _, data) = item.kind else {
             return;
         };
+
+        // Named and unit structs expose no positional field contract.
         let Some(span) = Self::positional_span(&data, item.span) else {
             return;
         };
@@ -100,6 +104,8 @@ impl LateLintPass<'_> for PositionalAggregateFields {
         if variant.span.from_expansion() {
             return;
         }
+
+        // Named and unit variants expose no positional field contract.
         let Some(span) = Self::positional_span(&variant.data, variant.span) else {
             return;
         };

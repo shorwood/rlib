@@ -29,6 +29,8 @@ impl DistinctiveFileLabels {
         for depth in 1..=maximum {
             let first_suffix = first[first.len() - depth..].join("/");
             let second_suffix = second[second.len() - depth..].join("/");
+
+            // The first differing suffix depth yields the shortest distinctive file labels.
             if first_suffix != second_suffix {
                 return Self {
                     implementation: first_suffix,
@@ -80,6 +82,8 @@ impl Violation {
         // Resolve an authored local struct definition from the implementation.
         let struct_def_id = item.direct_struct(cx)?;
         let struct_span = cx.tcx.def_span(struct_def_id);
+
+        // Generated struct definitions do not establish an authored file-colocation contract.
         if struct_span.in_external_macro(cx.sess().source_map()) {
             return None;
         }
@@ -88,6 +92,8 @@ impl Violation {
         let source_map = cx.sess().source_map();
         let implementation_file = source_map.span_to_filename(item.span);
         let struct_file = source_map.span_to_filename(struct_span);
+
+        // An implementation already in the definition file satisfies colocation.
         if implementation_file == struct_file {
             return None;
         }
@@ -185,6 +191,7 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for CrossFileStructImpls {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        // Items without a cross-file direct-struct implementation require no diagnostic.
         let Some(violation) = Violation::from_item(cx, item) else {
             return;
         };

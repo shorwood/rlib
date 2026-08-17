@@ -85,10 +85,12 @@ fn heading_repeats_node(content: &str, node: NodeText<'_>) -> bool {
         .unwrap_or(name);
     let node_names = [heading_normalize(name), heading_normalize(terminal_name)];
 
+    // A heading equal to either structural node name merely repeats the markup.
     if node_names.contains(&heading) {
         return true;
     }
 
+    // Equivalent navigation terminology also repeats the structural element name.
     if node_names.iter().any(|node_name| {
         matches!(
             (heading.as_str(), node_name.as_str()),
@@ -132,6 +134,7 @@ impl LeptosMarkupRepeatingViewComments {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosMarkupRepeatingViewComments {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Expressions outside authored view macros contain no section headings.
         let Some(view) = self.views.analyze(cx, expression) else {
             return;
         };

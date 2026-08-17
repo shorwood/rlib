@@ -112,9 +112,12 @@ struct DirectFieldReference<'hir> {
 impl<'hir> DirectFieldReference<'hir> {
     /// Recognizes a direct borrow of one field.
     const fn from_expr(expression: &'hir Expr<'hir>) -> Option<Self> {
+        // Direct field forwarding begins with an explicit borrow expression.
         let ExprKind::AddrOf(_, mutability, field_expression) = expression.kind else {
             return None;
         };
+
+        // The borrowed expression must be a field projection.
         let ExprKind::Field(base, _) = field_expression.kind else {
             return None;
         };
@@ -164,6 +167,7 @@ impl DeriveMoreManualForwardingInterfaces {
         trait_id: DefId,
         method: &str,
     ) -> Option<&'static str> {
+        // Only core forwarding traits have matching derive_more implementations.
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core" {
             return None;
         }
@@ -199,6 +203,8 @@ impl DeriveMoreManualForwardingInterfaces {
             ExprKind::AddrOf(_, actual, inner) if actual == mutability => inner,
             _ => expression,
         };
+
+        // The forwarded receiver must be selected through a field projection.
         let ExprKind::Field(base, _) = expression.kind else {
             return false;
         };
@@ -214,15 +220,22 @@ impl DeriveMoreManualForwardingInterfaces {
         trait_id: DefId,
         derive: &IndexDerive,
     ) -> bool {
+        // Direct indexing forwarding begins with a borrowed indexing expression.
         let ExprKind::AddrOf(_, mutability, indexed) = expression.kind else {
             return false;
         };
+
+        // The borrow mutability must match the selected indexing derive.
         if mutability != Self::expected_mutability(derive.0) {
             return false;
         }
+
+        // The borrowed expression must use ordinary indexing syntax.
         let ExprKind::Index(container, index, _) = indexed.kind else {
             return false;
         };
+
+        // The index container must be the wrapper's stored field.
         let ExprKind::Field(base, _) = container.kind else {
             return false;
         };
@@ -234,6 +247,7 @@ impl DeriveMoreManualForwardingInterfaces {
 }
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualForwardingInterfaces {
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
+        // Only exact forwarding methods contribute a derive contract to the family.
         let Some(ContractTarget {
             definition,
             contract,
@@ -246,6 +260,8 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualForwardingInterfaces {
             name: cx.tcx.item_name(definition).to_string(),
             contracts: Vec::new(),
         });
+
+        // Each trait is represented once in the wrapper's derive set.
         if family.contracts.contains(&contract) {
             return;
         }
@@ -285,11 +301,14 @@ impl ContractTarget {
         definition: LocalDefId,
     ) -> Option<Self> {
         let call = DirectForwarding::call(cx, owner, expression)?;
+
+        // The forwarded call must resolve to the implemented standard trait method.
         if cx.tcx.trait_of_assoc(call.target) != Some(trait_id) {
             return None;
         }
         let first = call.arguments.first()?;
 
+        // The first call argument must be the expected wrapper field borrow.
         if !DeriveMoreManualForwardingInterfaces::field_argument(
             cx,
             first,
@@ -298,6 +317,8 @@ impl ContractTarget {
         ) {
             return None;
         }
+
+        // Indexing calls must preserve exactly one index binding after the receiver.
         if matches!(derive, "Index" | "IndexMut")
             && (call.arguments.len() != INDEX_ARGUMENT_COUNT
                 || !DirectForwarding::is_binding(cx, call.arguments[1], bindings[1]))
@@ -316,20 +337,28 @@ impl ContractTarget {
 
     /// Recognizes one exact field forwarding contract.
     fn for_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Forwarding analysis applies only to implementation methods.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
+
+        // Macro-expanded methods are not reliable authored forwarding contracts.
         if item.span.from_expansion() {
             return None;
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
 
+        // The method must be enclosed by an implementation item.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return None;
         };
+
+        // The enclosing item must remain an implementation after HIR resolution.
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return None;
         };
+
+        // Attributes may carry behavior beyond transparent field forwarding.
         if !cx.tcx.hir_attrs(parent.hir_id()).is_empty()
             || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
         {
@@ -343,11 +372,14 @@ impl ContractTarget {
             item.ident.name.as_str(),
         )?;
         let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
+
+        // The implementation target must be a nominal wrapper type.
         let ty::Adt(wrapper, _) = trait_ref.self_ty().kind() else {
             return None;
         };
         let definition = wrapper.did().as_local()?;
 
+        // This derive recognizer supports struct wrappers only.
         if !wrapper.is_struct() {
             return None;
         }
@@ -361,11 +393,13 @@ impl ContractTarget {
             1
         };
 
+        // The forwarding body must bind exactly the receiver and required index arguments.
         if forwarding.bindings.len() != expected_bindings {
             return None;
         }
         let self_binding = forwarding.bindings[0];
 
+        // Non-indexing derives can expose the field reference directly.
         if !matches!(derive, "Index" | "IndexMut")
             && let Some(field) = DirectFieldReference::from_expr(forwarding.forwarded)
             && field.mutability == DeriveMoreManualForwardingInterfaces::expected_mutability(derive)
@@ -379,6 +413,7 @@ impl ContractTarget {
                 .skip_binder()
                 .output();
 
+            // Direct field accessors must return a reference to the accessed field type.
             let ty::Ref(_, target, _) = output.kind() else {
                 return None;
             };
@@ -392,6 +427,7 @@ impl ContractTarget {
             });
         }
 
+        // Indexing derives can preserve ordinary indexing syntax directly.
         if matches!(derive, "Index" | "IndexMut")
             && DeriveMoreManualForwardingInterfaces::direct_index(
                 cx,

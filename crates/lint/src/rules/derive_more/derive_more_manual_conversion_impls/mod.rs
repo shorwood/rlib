@@ -27,6 +27,7 @@ struct OneFieldStruct<'tcx> {
 impl<'tcx> OneFieldStruct<'tcx> {
     /// Recognizes a struct wrapper with exactly one field.
     fn from_ty(ty: ty::Ty<'tcx>) -> Option<Self> {
+        // Only algebraic data types can provide a transparent wrapper field.
         let ty::Adt(definition, arguments) = ty.kind() else {
             return None;
         };
@@ -132,6 +133,8 @@ impl DeriveMoreManualConversionImpls {
             arguments,
         } = OneFieldStruct::from_ty(wrapper)?;
         let field = definition.non_enum_variant().fields.iter().next()?;
+
+        // A field with a different type performs more than transparent wrapping.
         if field.ty(cx.tcx, arguments) != inner {
             return None;
         }
@@ -139,6 +142,7 @@ impl DeriveMoreManualConversionImpls {
         let is_exact = match expression.kind {
             ExprKind::Call(_, _) => {
                 DirectForwarding::call(cx, owner, expression).is_some_and(|call| {
+                    // Exact construction forwards one and only one input argument.
                     let [argument] = call.arguments.as_slice() else {
                         return false;
                     };
@@ -148,6 +152,7 @@ impl DeriveMoreManualConversionImpls {
                 })
             }
             ExprKind::Struct(path, fields, StructTailExpr::None) => {
+                // Transparent struct syntax initializes only the wrapper's sole field.
                 let [constructed] = fields else {
                     return None;
                 };
@@ -172,6 +177,8 @@ impl DeriveMoreManualConversionImpls {
             definition,
             arguments,
         } = OneFieldStruct::from_ty(wrapper)?;
+
+        // Exact extraction must directly access the wrapper field.
         let ExprKind::Field(base, field) = expression.kind else {
             return None;
         };
@@ -185,20 +192,28 @@ impl DeriveMoreManualConversionImpls {
 }
 impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Conversion candidates must be function implementation items.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return;
         };
+
+        // Generated methods and receiver methods are outside static conversion policy.
         if item.span.from_expansion() || signature.decl.implicit_self.has_implicit_self() {
             return;
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
 
+        // The method must belong to a source-level implementation item.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return;
         };
+
+        // Nonimplementation parents cannot define a conversion contract.
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return;
         };
+
+        // Attributes or extra predicates may encode behavior a derive would not preserve.
         if !cx.tcx.hir_attrs(parent.hir_id()).is_empty()
             || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
             || !implementation_item.generics.predicates.is_empty()
@@ -206,6 +221,7 @@ impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
             return;
         }
 
+        // Inherent implementations do not implement the standard conversion trait.
         let Some(trait_ref) = implementation_item
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
@@ -213,6 +229,7 @@ impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
             return;
         };
 
+        // Exclude methods outside the canonical core conversion implementation.
         if cx.tcx.crate_name(trait_ref.krate).as_str() != "core"
             || cx.tcx.item_name(trait_ref).as_str() != "From"
             || item.ident.name.as_str() != "from"
@@ -224,11 +241,15 @@ impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
         let source = trait_ref.args.type_at(1);
         let target = trait_ref.self_ty();
         let body = cx.tcx.hir_body(body_id);
+
+        // Bodies with additional behavior are not exact forwarding conversions.
         let Some(forwarding) =
             DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)
         else {
             return;
         };
+
+        // Exact conversions forward a single source binding.
         let [binding] = forwarding.bindings.as_slice() else {
             return;
         };

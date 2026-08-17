@@ -150,6 +150,8 @@ impl DelegatingTypeAnalyzer {
             ExprKind::AddrOf(_, _, inner) => inner,
             _ => expression,
         };
+
+        // Only field expressions can select the wrapper's stored value.
         let ExprKind::Field(base, _) = expression.kind else {
             return false;
         };
@@ -158,6 +160,7 @@ impl DelegatingTypeAnalyzer {
 
     /// Returns whether a local target is authored as an asynchronous function.
     fn is_async_target(cx: &LateContext<'_>, target: DefId) -> bool {
+        // External targets cannot be inspected as authored async functions.
         let Some(target) = target.as_local() else {
             return false;
         };
@@ -178,6 +181,8 @@ impl DelegatingTypeAnalyzer {
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
+
+        // ABI, safety, and generic parameters can make forwarding semantically observable.
         if !signature.decl.implicit_self.has_implicit_self()
             || signature.header.abi != ExternAbi::Rust
             || signature.header.is_unsafe()
@@ -193,12 +198,16 @@ impl DelegatingTypeAnalyzer {
         let forwarding =
             DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
         let call = DirectForwarding::call(cx, forwarding.typeck_owner, forwarding.forwarded)?;
+
+        // Forwarding requires one method call with every authored argument preserved.
         if !call.is_method || call.arguments.len() != forwarding.bindings.len() {
             return None;
         }
 
         // Require the call receiver to be the wrapper's stored field.
         let self_binding = *forwarding.bindings.first()?;
+
+        // The call receiver must be the wrapper's sole stored value.
         if !Self::is_inner_field(cx, call.arguments[0], self_binding) {
             return None;
         }
@@ -215,6 +224,8 @@ impl DelegatingTypeAnalyzer {
             .fn_sig(call.target)
             .instantiate_identity()
             .skip_binder();
+
+        // Wrapper and target receivers must preserve ownership and borrow mutability.
         if !Self::receiver_modes_match(wrapper_signature.inputs()[0], target_signature.inputs()[0])
         {
             return None;
@@ -226,19 +237,25 @@ impl DelegatingTypeAnalyzer {
         for (argument, binding) in forwarded_arguments.zip(forwarded_bindings) {
             let matches = typeck.expr_ty(argument) == typeck.expr_ty_adjusted(argument)
                 && DirectForwarding::is_binding(cx, argument, *binding);
-            if matches {
-                continue;
+
+            // Any adapted or reordered parameter makes the method more than direct forwarding.
+            if !matches {
+                return None;
             }
-            return None;
         }
 
         // Preserve direct return and async behavior without normalizing adapters.
+        // Both branches require the target call to preserve the wrapper method's execution contract.
         if signature.header.is_async() {
+            // Async forwarding requires an async target method as well.
             if !Self::is_async_target(cx, call.target) {
                 return None;
             }
-        } else if wrapper_signature.output() != typeck.expr_ty(forwarding.forwarded) {
-            return None;
+        } else {
+            // Synchronous forwarding must preserve the direct result type.
+            if wrapper_signature.output() != typeck.expr_ty(forwarding.forwarded) {
+                return None;
+            }
         }
         Some(item.ident.span)
     }
@@ -253,6 +270,8 @@ impl DelegatingTypeAnalyzer {
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return false;
         };
+
+        // ABI, safety, async behavior, and non-lifetime generics add wrapper semantics.
         if signature.header.abi != ExternAbi::Rust
             || signature.header.is_unsafe()
             || signature.header.is_async()
@@ -265,15 +284,20 @@ impl DelegatingTypeAnalyzer {
 
         // Reduce the body to one transparent expression.
         let body = cx.tcx.hir_body(body_id);
+
+        // Neutral methods reduce to one transparent expression.
         let Some(expression) = DirectForwarding::single_body_expression(body.value) else {
             return false;
         };
 
         // Direct accessors expose the same field through the authored receiver.
         if signature.decl.implicit_self.has_implicit_self() {
+            // Accessors require a receiver binding that can identify the stored field.
             let Some(parameter) = body.params.first() else {
                 return false;
             };
+
+            // The receiver pattern must remain a direct binding.
             let rustc_hir::PatKind::Binding(_, self_binding, _, None) = parameter.pat.kind else {
                 return false;
             };
@@ -284,15 +308,21 @@ impl DelegatingTypeAnalyzer {
         let [parameter] = body.params else {
             return false;
         };
+
+        // The identity input must retain a direct binding identity.
         let rustc_hir::PatKind::Binding(_, binding, _, None) = parameter.pat.kind else {
             return false;
         };
 
         // Require the constructor expression to produce this wrapper directly.
         let expression_type = cx.tcx.typeck(item.owner_id.def_id).expr_ty(expression);
+
+        // Only nominal expression results can be the candidate wrapper.
         let ty::Adt(definition, _) = expression_type.kind() else {
             return false;
         };
+
+        // The constructed nominal type must be the wrapper under analysis.
         if definition.did().as_local() != Some(wrapper) {
             return false;
         }
@@ -315,9 +345,13 @@ impl DelegatingTypeAnalyzer {
     ) {
         // Resolve the owning inherent implementation and its direct struct target.
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
+
+        // Only implementation parents can own an associated wrapper item.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return;
         };
+
+        // The implementation must target one direct struct wrapper.
         let Some(wrapper) = parent.direct_struct(cx) else {
             return;
         };
@@ -328,6 +362,8 @@ impl DelegatingTypeAnalyzer {
             .or_default()
             .owned_declarations
             .insert(item.owner_id.def_id);
+
+        // Generated or semantically annotated methods preserve meaningful wrapper ownership.
         if item.span.from_expansion()
             || !DirectForwarding::has_only_nonsemantic_attributes(cx, item.hir_id())
         {
@@ -340,6 +376,8 @@ impl DelegatingTypeAnalyzer {
             self.disqualified.insert(wrapper);
             return;
         };
+
+        // Only prequalified wrapper declarations accumulate forwarding evidence.
         if !self.candidates.contains_key(&wrapper) {
             return;
         }
@@ -362,6 +400,7 @@ impl DelegatingTypeAnalyzer {
         }
         let wrapper = match expression.kind {
             ExprKind::Call(callee, [_]) => {
+                // Tuple construction must name its constructor directly.
                 let ExprKind::Path(path) = callee.kind else {
                     return;
                 };
@@ -370,12 +409,16 @@ impl DelegatingTypeAnalyzer {
             ExprKind::Struct(path, [_], _) => {
                 Self::struct_resolution(cx, cx.qpath_res(path, expression.hir_id)).or_else(|| {
                     let expression_type = cx.typeck_results().expr_ty(expression);
+
+                    // The record expression type must be nominal before it identifies a wrapper.
                     let ty::Adt(definition, _) = expression_type.kind() else {
                         return None;
                     };
                     definition.did().as_local()
                 })
             }
+
+            // Other expression forms are not direct wrapper construction sites.
             _ => return,
         };
 
@@ -464,6 +507,8 @@ impl DelegatingTypeAnalyzer {
         let [field] = data.fields() else {
             return;
         };
+
+        // Generated, generic, or semantically annotated fields do not have a fixed wrapper contract.
         if item.span.from_expansion()
             || !generics.params.is_empty()
             || !DirectForwarding::has_only_nonsemantic_attributes(cx, item.hir_id())
@@ -474,6 +519,8 @@ impl DelegatingTypeAnalyzer {
 
         // Resolve and reject a stored type whose target remains generic.
         let inner = cx.tcx.type_of(field.def_id).instantiate_identity();
+
+        // Generic storage types prevent a fixed delegation contract.
         if inner.has_param() {
             return;
         }
@@ -500,6 +547,8 @@ impl DelegatingTypeAnalyzer {
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
+
+        // Only direct struct implementations contribute wrapper ownership evidence.
         let Some(wrapper) = item.direct_struct(cx) else {
             return;
         };

@@ -106,15 +106,20 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for DeriveMoreAmbiguousDerivedErrorSources {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Only authored data declarations can carry competing source fields.
         if item.span.from_expansion()
             || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
         {
             return;
         }
+
+        // Source text is required to inspect derive_more field attributes.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
+        // Candidate collection depends on a complete declaration syntax tree.
         let Ok(declaration) = syn::parse_str::<syn::Item>(&source) else {
             return;
         };
@@ -151,6 +156,7 @@ impl DeriveMoreAmbiguousDerivedErrorSources {
     /// Parses the exact `derive_more` source helper attached to one field.
     fn source_policy(field: &syn::Field) -> Option<SourcePolicy> {
         field.attrs.iter().find_map(|attribute| {
+            // Attributes outside derive_more's error namespace cannot select a source.
             if !attribute.path().is_ident("error") {
                 return None;
             }
@@ -171,6 +177,7 @@ impl DeriveMoreAmbiguousDerivedErrorSources {
 
     /// Collects one struct or enum-variant field scope with unresolved source competition.
     fn collect_candidate(&mut self, definition: LocalDefId, span: Span, fields: &syn::Fields) {
+        // An explicit source choice resolves the field competition.
         if fields
             .iter()
             .any(|field| Self::source_policy(field) == Some(SourcePolicy::Source))
@@ -181,9 +188,13 @@ impl DeriveMoreAmbiguousDerivedErrorSources {
             field.ident.as_ref().is_some_and(|name| name == "source")
                 && Self::source_policy(field) != Some(SourcePolicy::NotSource)
         });
+
+        // Ambiguity requires an implicit source field.
         if !has_implicit_source {
             return;
         }
+
+        // Report only when another causal field competes with the implicit source.
         let Some(competing_field) = fields.iter().find_map(|field| {
             let name = field.ident.as_ref()?;
             let normalized = name.to_string().to_ascii_lowercase();

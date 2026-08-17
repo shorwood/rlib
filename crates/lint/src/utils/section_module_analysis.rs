@@ -134,6 +134,7 @@ impl ModuleAnalysis {
 
     /// Finds authored item-position macro invocations omitted from the lowered module HIR.
     fn macro_invocations(cx: &LateContext<'_>, span: Span) -> Vec<SectionEventCandidate> {
+        // Unavailable source text cannot contribute authored macro invocations.
         let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
             return Vec::new();
         };
@@ -255,10 +256,13 @@ impl ModuleAnalysis {
 
     /// Locates the authored byte immediately after an inline module's opening brace.
     fn opening_brace_offset(cx: &LateContext<'_>, span: Span) -> Option<BytePos> {
+        // Missing source text prevents locating the authored delimiter.
         let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
             return None;
         };
         let offset = source.rfind('{')? + 1;
+
+        // Offsets outside the compiler position range cannot form a valid span.
         let Ok(offset) = u32::try_from(offset) else {
             return None;
         };
@@ -267,10 +271,13 @@ impl ModuleAnalysis {
 
     /// Locates the authored byte at an inline module's closing brace.
     fn closing_brace_offset(cx: &LateContext<'_>, span: Span) -> Option<BytePos> {
+        // Missing source text prevents locating the authored delimiter.
         let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
             return None;
         };
         let offset = source.find('}')?;
+
+        // Offsets outside the compiler position range cannot form a valid span.
         let Ok(offset) = u32::try_from(offset) else {
             return None;
         };
@@ -291,6 +298,8 @@ impl ModuleAnalysis {
         let Some(item) = item else {
             return inner;
         };
+
+        // File-backed modules already use a complete span from their own source file.
         if cx.sess().source_map().span_to_filename(item.span)
             != cx.sess().source_map().span_to_filename(inner)
         {
@@ -380,6 +389,8 @@ impl ModuleAnalysis {
         let is_valid = parsed.error.is_none()
             && analyzer.rendered_lines_fit(&section.divider.raw_content)
             && !section.participants.is_empty();
+
+        // Invalid or empty sections are excluded from semantic companion analyses.
         if !is_valid {
             return;
         }
@@ -510,9 +521,13 @@ impl ModuleAnalysis {
         if section.participants.is_empty() {
             return None;
         }
+
+        // Opaque macros expose no declaration names from which to infer a prefix.
         if section.participants.contains_only_opaque_macros() {
             return None;
         }
+
+        // A divider matching its containing module already names the local namespace.
         if namespace.is_some_and(|namespace| namespace.prefix == prefix.text) {
             return None;
         }
@@ -527,9 +542,13 @@ impl ModuleAnalysis {
         let Some(expected) = identifier_case::longest_common_pascal_prefix(&names) else {
             return Some(Self::unrelated_names_finding(section, prefix));
         };
+
+        // The authored divider already matches the inferred declaration family.
         if expected == prefix.text {
             return None;
         }
+
+        // A declaration named for the divider may legitimately specialize its module namespace.
         if names.contains(&prefix.text)
             && namespace.is_some_and(|namespace| namespace.contains(&expected))
         {
@@ -557,12 +576,16 @@ impl ModuleAnalysis {
         // Parse the divider content to validate its syntax and extract the authored prefix.
         let parsed = ParsedContent::from(section.divider.raw_content.as_str());
         Self::record_malformed_section(analyzer, section, &parsed, analysis);
+
+        // Malformed, oversized, or empty sections cannot enter semantic analyses.
         if parsed.error.is_some()
             || !analyzer.rendered_lines_fit(&section.divider.raw_content)
             || section.participants.is_empty()
         {
             return;
         }
+
+        // A valid semantic section still requires an authored family prefix.
         let Some(prefix) = parsed.prefix.as_deref() else {
             return;
         };
@@ -571,6 +594,8 @@ impl ModuleAnalysis {
         // Record the section independently for each semantic companion lint.
         Self::record_valid_section(analyzer, section, &parsed, prefix, namespace, analysis);
         Self::record_duplicate_section(section, prefix, seen_prefixes, analysis);
+
+        // Matching section names produce no mismatch diagnostic.
         let Some(finding) = Self::mismatch_finding(section, prefix, namespace) else {
             return;
         };

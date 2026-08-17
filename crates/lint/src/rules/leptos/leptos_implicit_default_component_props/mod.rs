@@ -84,6 +84,7 @@ dylint_linting::impl_late_lint! {
 impl LeptosImplicitDefaultComponentProps {
     /// Returns whether the resolved property type represents meaningful absence.
     fn is_option(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+        // Non-aggregate types cannot be the standard library's `Option`.
         let ty::Adt(definition, _) = ty.kind() else {
             return false;
         };
@@ -94,6 +95,8 @@ impl LeptosImplicitDefaultComponentProps {
     /// Recovers whether the authored property uses Leptos's implicit optional marker.
     fn is_implicitly_optional(cx: &LateContext<'_>, property: &ComponentProp<'_>) -> bool {
         let prefix = property.owner_span.with_hi(property.span.lo());
+
+        // Missing authored signature text cannot prove an implicit optional marker.
         let Ok(mut source) = cx.sess().source_map().span_to_snippet(prefix) else {
             return false;
         };
@@ -101,9 +104,13 @@ impl LeptosImplicitDefaultComponentProps {
         // Complete the partial signature with a probe parameter so syn can associate every
         // preceding outer attribute with this exact property, regardless of attribute order.
         source.push_str("__rlib_prop_probe: ()) {}");
+
+        // An unparseable synthetic signature cannot reliably associate property attributes.
         let Ok(function) = syn::parse_str::<syn::ItemFn>(&source) else {
             return false;
         };
+
+        // A probe without the appended typed parameter cannot identify the target property.
         let Some(FnArg::Typed(parameter)) = function.sig.inputs.last() else {
             return false;
         };
@@ -115,9 +122,12 @@ impl LeptosImplicitDefaultComponentProps {
 
     /// Recognizes `prop` attributes whose argument list contains the `optional` option.
     fn is_optional_prop_meta(attribute: &Meta) -> bool {
+        // Bare and name-value attributes have no option list to inspect.
         let Meta::List(attribute) = attribute else {
             return false;
         };
+
+        // Attribute lists outside the `prop` namespace do not configure component properties.
         if !attribute.path.is_ident("prop") {
             return false;
         }
@@ -140,6 +150,7 @@ impl LeptosImplicitDefaultComponentProps {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosImplicitDefaultComponentProps {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        // Items that are not component-props implementations contain no property contract.
         let Some(properties) = ComponentProps::from_impl(cx, item) else {
             return;
         };

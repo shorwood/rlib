@@ -203,6 +203,8 @@ impl LeptosUnstableForKeys {
             syn::Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Deref(_)) => &*unary.expr,
             _ => expression,
         };
+
+        // Only a direct path can return one closure binding unchanged.
         let syn::Expr::Path(path) = expression else {
             return None;
         };
@@ -212,6 +214,7 @@ impl LeptosUnstableForKeys {
 
     /// Classifies parsed key closure semantics against its collection source.
     fn key_reason(expression: &syn::Expr, identity: CollectionIdentity) -> Option<&'static str> {
+        // Key policy is expressed by the callback closure supplied to the view component.
         let syn::Expr::Closure(closure) = expression else {
             return None;
         };
@@ -232,6 +235,8 @@ impl LeptosUnstableForKeys {
             }
             expression => Some(expression),
         };
+
+        // Literal and unit keys cannot encode any row-specific identity.
         if output.is_some_and(|expression| {
             matches!(expression, syn::Expr::Lit(_))
                 || matches!(expression, syn::Expr::Tuple(tuple) if tuple.elems.is_empty())
@@ -243,6 +248,8 @@ impl LeptosUnstableForKeys {
             is_used: false,
         };
         usage.visit_expr(&closure.body);
+
+        // A key independent from every row binding cannot preserve row identity.
         if !usage.is_used {
             return Some("the key does not derive from row identity");
         }
@@ -262,11 +269,14 @@ impl LeptosUnstableForKeys {
 
     /// Finds unstable key closures inside parsed authored `<For>` markup.
     fn findings(source: &str) -> Vec<KeyFinding> {
+        // Invalid macro syntax cannot provide trustworthy authored key expressions.
         let Ok(expression) = syn::parse_str::<ExprMacro>(source) else {
             return Vec::new();
         };
         let parser = rstml::Parser::new(rstml::ParserConfig::default().recover_block(true));
         let (nodes, errors) = parser.parse_recoverable(expression.mac.tokens).split_vec();
+
+        // Recovered markup errors make attribute positions and semantics unreliable.
         if !errors.is_empty() {
             return Vec::new();
         }
@@ -275,16 +285,20 @@ impl LeptosUnstableForKeys {
             .into_iter()
             .flat_map(Node::flatten)
             .filter_map(|node| {
+                // Only elements can represent keyed traversal components.
                 let Node::Element(element) = node else {
                     return None;
                 };
                 let name = element.name().to_string();
                 let terminal = name.rsplit("::").next().unwrap_or(&name);
+
+                // Ignore elements outside the two supported keyed traversal components.
                 if !matches!(terminal, "For" | "ForEnumerate") {
                     return None;
                 }
                 let attribute = |name: &str| {
                     element.attributes().iter().find_map(|attribute| {
+                        // Attribute blocks do not expose a named component property.
                         let NodeAttribute::Attribute(attribute) = attribute else {
                             return None;
                         };
@@ -313,12 +327,15 @@ impl LeptosUnstableForKeys {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosUnstableForKeys {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Only expressions expanded from an authored view macro carry key source positions.
         let Some(view_span) = expression.span.macro_backtrace().find_map(|expansion| {
             matches!(expansion.kind, ExpnKind::Macro(MacroKind::Bang, name) if name.as_str() == "view")
                 .then_some(expansion.call_site)
         }) else {
             return;
         };
+
+        // Missing authored view text prevents parsing and source-range reconstruction.
         let Ok(source) = cx.sess().source_map().span_to_snippet(view_span) else {
             return;
         };

@@ -111,6 +111,8 @@ impl SerdeSensitiveFieldsSerializedByDefault {
     fn sensitive_name(name: &str) -> bool {
         let name = name.strip_prefix("r#").unwrap_or(name).to_ascii_lowercase();
         let components = name.split(['_', '.']).collect::<Vec<_>>();
+
+        // Names that explicitly describe protection should not be treated as raw secrets.
         if components.iter().any(|component| {
             matches!(
                 *component,
@@ -167,15 +169,20 @@ impl SerdeSensitiveFieldsSerializedByDefault {
 impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Generated and non-data items cannot expose authored serializable fields.
         if item.span.from_expansion()
             || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
         {
             return;
         }
+
+        // Missing authored source prevents reliable Serde attribute recovery.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
+        // Items without an authored field model expose no field-level Serde contract here.
         let Some(SerdeAuthoredFieldSet {
             is_public: public,
             fields,
@@ -184,6 +191,8 @@ impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
         else {
             return;
         };
+
+        // Private data types are outside this public secret-exposure policy.
         if !public {
             return;
         }
@@ -197,23 +206,21 @@ impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
                     definition: field_definition,
                 } = field;
                 let attributes = SerdeAttributes::from_attributes(&authored_attributes);
-                if attributes.has(SerdeFlag::SkipSerialize)
-                    || !Self::sensitive_name(&name)
-                    || !Self::raw_secret_carrier(
+                let is_raw_default = !attributes.has(SerdeFlag::SkipSerialize)
+                    && Self::sensitive_name(&name)
+                    && Self::raw_secret_carrier(
                         cx,
                         cx.tcx.type_of(field_definition).instantiate_identity(),
                     )
-                    || attributes
+                    && !attributes
                         .serialize_with
                         .as_deref()
-                        .is_some_and(Self::explicit_sensitive_policy)
-                {
-                    return None;
-                }
-                Some(format!("`{name}`"))
+                        .is_some_and(Self::explicit_sensitive_policy);
+                is_raw_default.then(|| format!("`{name}`"))
             })
             .collect::<Vec<_>>();
 
+        // A public type without raw sensitive fields has no exposure to report.
         if fields.is_empty() {
             return;
         }

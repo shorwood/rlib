@@ -100,6 +100,7 @@ struct TraitTarget {
 impl TraitTarget {
     /// Recognizes a relevant equality trait implementation.
     fn for_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+        // Generated, non-implementation, or attributed items can carry behavior beyond structural equality.
         if item.span.from_expansion()
             || !matches!(item.kind, ItemKind::Impl(_))
             || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
@@ -111,6 +112,7 @@ impl TraitTarget {
             .impl_opt_trait_ref(item.owner_id.def_id)?
             .instantiate_identity();
 
+        // Only core equality traits participate in derive_more equality replacement.
         if cx.tcx.crate_name(trait_ref.def_id.krate).as_str() != "core" {
             return None;
         }
@@ -118,9 +120,12 @@ impl TraitTarget {
         let name = match cx.tcx.item_name(trait_ref.def_id).as_str() {
             "PartialEq" => "PartialEq",
             "Eq" => "Eq",
+
+            // Other core traits do not establish an equality contract.
             _ => return None,
         };
 
+        // The trait implementation target must be nominal.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return None;
         };
@@ -142,6 +147,7 @@ struct FieldAccess<'hir> {
 impl<'hir> FieldAccess<'hir> {
     /// Recognizes one field projection expression.
     fn from_expr(expression: &'hir Expr<'hir>) -> Option<Self> {
+        // Structural equality operands must be direct field projections.
         let ExprKind::Field(base, field) = expression.kind else {
             return None;
         };
@@ -182,20 +188,25 @@ impl DeriveMoreManualEqualityImpls {
         right: rustc_hir::HirId,
         fields: &mut HashSet<String>,
     ) -> Option<()> {
+        // Structural equality is expressed as a binary relation tree.
         let ExprKind::Binary(operator, lhs, rhs) = expression.kind else {
             return None;
         };
+
+        // Conjunctions preserve structural equality by requiring both operand subtrees.
         if operator.node == BinOpKind::And {
             Self::collect_equal_fields(cx, lhs, left, right, fields)?;
             return Self::collect_equal_fields(cx, rhs, left, right, fields);
         }
 
+        // Only equality leaves can compare corresponding wrapper fields.
         if operator.node != BinOpKind::Eq {
             return None;
         }
         let lhs = FieldAccess::from_expr(lhs)?;
         let rhs = FieldAccess::from_expr(rhs)?;
 
+        // Each leaf must compare one distinct matching field across the two operands.
         if lhs.field != rhs.field
             || !((DirectForwarding::is_binding(cx, lhs.base, left)
                 && DirectForwarding::is_binding(cx, rhs.base, right))
@@ -210,9 +221,12 @@ impl DeriveMoreManualEqualityImpls {
 }
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualEqualityImpls {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        // Only recognized equality trait implementations contribute an `Eq` companion.
         let Some(TraitTarget { trait_name, target }) = TraitTarget::for_item(cx, item) else {
             return;
         };
+
+        // Only the marker trait is retained as the `PartialEq` companion.
         if trait_name != "Eq" {
             return;
         }
@@ -220,6 +234,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualEqualityImpls {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
+        // Only exact structural equality methods contribute a derive candidate.
         let Some(StructuralEquality {
             target,
             field_count,
@@ -261,26 +276,35 @@ struct StructuralEquality {
 impl StructuralEquality {
     /// Recognizes a complete structural equality method.
     fn for_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Structural equality analysis applies only to implementation methods.
         let ImplItemKind::Fn(_, body_id) = item.kind else {
             return None;
         };
+
+        // Only authored `eq` methods can implement a structural `PartialEq` contract.
         if item.ident.name.as_str() != "eq" || item.span.from_expansion() {
             return None;
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
 
+        // The method must be enclosed by an implementation item.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return None;
         };
+
+        // The enclosing item must remain an implementation after HIR resolution.
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return None;
         };
+
+        // Attributes may carry equality policy beyond pure field comparison.
         if !cx.tcx.hir_attrs(parent.hir_id()).is_empty()
             || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
         {
             return None;
         }
 
+        // A custom `ne` method carries equality behavior beyond the derived default.
         if implementation_item.items.iter().any(|id| {
             let associated = cx.tcx.hir_impl_item(*id);
             associated.ident.name.as_str() == "ne"
@@ -289,6 +313,7 @@ impl StructuralEquality {
         }
         let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
 
+        // The implementation must be ordinary core `PartialEq` for the same type.
         if cx.tcx.crate_name(trait_ref.def_id.krate).as_str() != "core"
             || cx.tcx.item_name(trait_ref.def_id).as_str() != "PartialEq"
             || trait_ref.self_ty() != trait_ref.args.type_at(1)
@@ -296,21 +321,28 @@ impl StructuralEquality {
             return None;
         }
 
+        // The compared self type must be a nominal struct candidate.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return None;
         };
+
+        // This derive recognizer supports struct equality only.
         if !definition.is_struct() {
             return None;
         }
         let body = cx.tcx.hir_body(body_id);
 
+        // `PartialEq::eq` must bind both compared operands.
         let [left, right] = body.params else {
             return None;
         };
+
+        // The left operand must retain a direct binding identity.
         let PatKind::Binding(_, left, _, None) = left.pat.kind else {
             return None;
         };
 
+        // The right operand must retain a direct binding identity.
         let PatKind::Binding(_, right, _, None) = right.pat.kind else {
             return None;
         };
@@ -318,6 +350,8 @@ impl StructuralEquality {
         let mut fields = HashSet::new();
         let is_empty_equality = definition.non_enum_variant().fields.is_empty()
             && matches!(expression.kind, ExprKind::Lit(literal) if literal.node == LitKind::Bool(true));
+
+        // Nonempty structs must compare at least one corresponding field.
         if !is_empty_equality {
             DeriveMoreManualEqualityImpls::collect_equal_fields(
                 cx,

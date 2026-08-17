@@ -109,20 +109,28 @@ struct ExactDelegation {
 impl ExactDelegation {
     /// Recognizes one transparent iteration implementation.
     fn analyze(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Only function implementation items can define into-iterator delegation.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
+
+        // Only authored into_iter methods can match the generated contract.
         if item.ident.name.as_str() != "into_iter" || item.span.from_expansion() {
             return None;
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
 
+        // Methods without an item-level parent cannot establish implementation ownership.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return None;
         };
+
+        // Only implementation parents can carry the IntoIterator trait reference.
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return None;
         };
+
+        // Attributes may add behavior the derive replacement cannot preserve.
         if !cx.tcx.hir_attrs(parent.hir_id()).is_empty()
             || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
         {
@@ -130,6 +138,7 @@ impl ExactDelegation {
         }
         let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
 
+        // Only the core IntoIterator trait has the derive_more replacement contract.
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core"
             || cx.tcx.item_name(trait_id).as_str() != "IntoIterator"
         {
@@ -141,10 +150,12 @@ impl ExactDelegation {
             ty::Adt(definition, _) => (*definition, Receiver::Owned),
             ty::Ref(_, inner, Mutability::Not) => (inner.ty_adt_def()?, Receiver::Ref),
             ty::Ref(_, inner, Mutability::Mut) => (inner.ty_adt_def()?, Receiver::RefMut),
+            // Other receiver forms are not supported by the derive contract.
             _ => return None,
         };
         let definition = wrapper.did().as_local()?;
 
+        // Only one-field structs can transparently delegate iteration to their field.
         if !wrapper.is_struct() || wrapper.non_enum_variant().fields.len() != 1 {
             return None;
         }
@@ -152,15 +163,19 @@ impl ExactDelegation {
         let forwarding =
             DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
 
+        // Transparent delegation must forward exactly the method receiver.
         let [binding] = forwarding.bindings.as_slice() else {
             return None;
         };
         let call = DirectForwarding::call(cx, forwarding.typeck_owner, forwarding.forwarded)?;
         let called_trait = cx.tcx.trait_of_assoc(call.target)?;
 
+        // The forwarded call must invoke the same IntoIterator contract unchanged.
         if called_trait != trait_id || cx.tcx.item_name(call.target).as_str() != "into_iter" {
             return None;
         }
+
+        // IntoIterator delegation must pass exactly one receiver argument.
         let [argument] = call.arguments.as_slice() else {
             return None;
         };
@@ -170,13 +185,17 @@ impl ExactDelegation {
                 if DirectForwarding::is_binding(cx, base, *binding) => {}
             (Receiver::Ref, ExprKind::AddrOf(_, Mutability::Not, inner))
             | (Receiver::RefMut, ExprKind::AddrOf(_, Mutability::Mut, inner)) => {
+                // Borrowed delegation must select a field behind the matching reference.
                 let ExprKind::Field(base, _) = inner.kind else {
                     return None;
                 };
+
+                // The selected field must remain rooted in the original receiver.
                 if !DirectForwarding::is_binding(cx, base, *binding) {
                     return None;
                 }
             }
+            // Any other argument shape adds behavior beyond transparent field delegation.
             _ => return None,
         }
 
@@ -208,6 +227,7 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualIntoIteratorImpls {
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
+        // Nontransparent implementations do not contribute to a derivable receiver family.
         let Some(ExactDelegation {
             definition,
             receiver,
@@ -220,6 +240,8 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualIntoIteratorImpls {
             name: cx.tcx.item_name(definition).to_string(),
             receivers: Vec::new(),
         });
+
+        // Repeated receiver forms add no new family evidence.
         if family.receivers.contains(&receiver) {
             return;
         }

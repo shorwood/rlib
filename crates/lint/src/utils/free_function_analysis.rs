@@ -34,6 +34,8 @@ impl FreeFunctionExt for Item<'_> {
         let ItemKind::Fn { sig, has_body, .. } = self.kind else {
             return false;
         };
+
+        // Declarations without bodies are not authored function implementations.
         if !has_body {
             return false;
         }
@@ -53,6 +55,7 @@ impl FreeFunctionExt for Item<'_> {
     }
 
     fn is_visible_outside_module(&self, cx: &LateContext<'_>) -> bool {
+        // An absent visibility span denotes inherited module-private visibility.
         if self.vis_span.is_empty() {
             return false;
         }

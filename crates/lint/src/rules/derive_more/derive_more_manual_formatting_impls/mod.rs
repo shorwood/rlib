@@ -126,6 +126,8 @@ impl DeriveMoreManualFormattingImpls {
             ExprKind::AddrOf(_, Mutability::Not, inner) => inner,
             _ => expression,
         };
+
+        // Direct formatting delegation must select a receiver field.
         let ExprKind::Field(base, _) = expression.kind else {
             return false;
         };
@@ -141,9 +143,12 @@ impl DeriveMoreManualFormattingImpls {
         formatter_binding: rustc_hir::HirId,
         trait_id: DefId,
     ) -> bool {
+        // Exact delegation requires a resolved direct call.
         let Some(call) = DirectForwarding::call(cx, owner, expression) else {
             return false;
         };
+
+        // Formatting traits receive the formatted value and formatter arguments.
         let [value, formatter] = call.arguments.as_slice() else {
             return false;
         };
@@ -181,20 +186,29 @@ impl DeriveMoreManualFormattingImpls {
                     && matches!(cx.tcx.crate_name(definition.krate).as_str(), "core" | "std")
             })
         });
+
+        // Only the standard `write!` macro has the formatting semantics recognized here.
         if !is_standard_write {
             return false;
         }
+
+        // The authored implementation source must be available for syntax inspection.
         let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
             return false;
         };
+
+        // The implementation source must parse as a method item.
         let Ok(method) = syn::parse_str::<syn::ImplItemFn>(&source) else {
             return false;
         };
 
+        // The method body must contain exactly one macro expression statement.
         let [syn::Stmt::Expr(syn::Expr::Macro(invocation), _)] = method.block.stmts.as_slice()
         else {
             return false;
         };
+
+        // The sole body expression must invoke the standard `write!` macro.
         if invocation
             .mac
             .path
@@ -206,6 +220,7 @@ impl DeriveMoreManualFormattingImpls {
         }
         let inputs = method.sig.inputs.iter().collect::<Vec<_>>();
 
+        // Standard formatting methods take the receiver followed by one formatter parameter.
         let [
             syn::FnArg::Receiver(_),
             syn::FnArg::Typed(formatter_parameter),
@@ -214,25 +229,35 @@ impl DeriveMoreManualFormattingImpls {
             return false;
         };
 
+        // The formatter parameter must be an identifier for macro-argument matching.
         let syn::Pat::Ident(formatter_parameter) = formatter_parameter.pat.as_ref() else {
             return false;
         };
         let parser = Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
+
+        // Macro arguments must parse as comma-separated Rust expressions.
         let Ok(arguments) = parser.parse2(invocation.mac.tokens.clone()) else {
             return false;
         };
 
         let arguments = arguments.iter().collect::<Vec<_>>();
+
+        // Exact field formatting requires formatter, string literal, and field arguments.
         let [formatter, syn::Expr::Lit(format), field] = arguments.as_slice() else {
             return false;
         };
+
+        // The first macro argument must be the formatter identifier.
         let syn::Expr::Path(formatter) = formatter else {
             return false;
         };
 
+        // The format argument must be a string literal.
         let syn::Lit::Str(format) = &format.lit else {
             return false;
         };
+
+        // The formatted value must be a direct field projection.
         let syn::Expr::Field(field) = field else {
             return false;
         };
@@ -244,6 +269,7 @@ impl DeriveMoreManualFormattingImpls {
 }
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualFormattingImpls {
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
+        // Only exact formatting implementations contribute to a derive family.
         let Some(ExactFormatting {
             definition,
             trait_name,
@@ -256,6 +282,8 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualFormattingImpls {
             name: cx.tcx.item_name(definition).to_string(),
             traits: Vec::new(),
         });
+
+        // A trait appears only once in the derive set for its wrapper.
         if family.traits.contains(&trait_name) {
             return;
         }
@@ -286,20 +314,28 @@ struct ExactFormatting {
 impl ExactFormatting {
     /// Recognizes one exact formatting implementation.
     fn analyze(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Formatting analysis applies only to implementation methods.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
+
+        // Only authored `fmt` methods can implement a formatting trait.
         if item.ident.name.as_str() != "fmt" || item.span.from_expansion() {
             return None;
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
 
+        // The method must be enclosed by an implementation item.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return None;
         };
+
+        // That parent must remain an implementation after HIR resolution.
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return None;
         };
+
+        // Attributes may carry formatting policy beyond transparent delegation.
         if !cx.tcx.hir_attrs(parent.hir_id()).is_empty()
             || !cx.tcx.hir_attrs(item.hir_id()).is_empty()
         {
@@ -307,6 +343,7 @@ impl ExactFormatting {
         }
         let trait_id = implementation_item.of_trait?.trait_ref.trait_def_id()?;
 
+        // Only core formatting traits can be reproduced by derive_more formatting derives.
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core" {
             return None;
         }
@@ -314,9 +351,12 @@ impl ExactFormatting {
             DeriveMoreManualFormattingImpls::formatting_trait(cx.tcx.item_name(trait_id).as_str())?;
         let trait_ref = cx.tcx.impl_trait_ref(implementation).instantiate_identity();
 
+        // The formatted implementation target must be a nominal type.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return None;
         };
+
+        // This derive recognizer supports struct wrappers only.
         if !definition.is_struct() {
             return None;
         }
@@ -325,6 +365,8 @@ impl ExactFormatting {
         let body = cx.tcx.hir_body(body_id);
         let forwarding =
             DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
+
+        // `fmt` forwarding requires the receiver and formatter bindings in order.
         let [self_binding, formatter_binding] = forwarding.bindings.as_slice() else {
             return None;
         };

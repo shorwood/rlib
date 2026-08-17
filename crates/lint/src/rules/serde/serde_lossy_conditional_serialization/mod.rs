@@ -111,14 +111,20 @@ impl SerdeLossyConditionalSerialization {
 impl LateLintPass<'_> for SerdeLossyConditionalSerialization {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Generated and non-data items cannot define authored field serialization policy.
         if item.span.from_expansion()
             || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
         {
             return;
         }
+
+        // Missing authored source prevents recovery of conditional serialization attributes.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
+
+        // Items without an authored field model expose no serialization conditions to inspect.
         let Some(SerdeAuthoredFieldSet { fields, .. }) =
             SerdeAuthoredFieldSet::for_item(item, &source)
         else {

@@ -48,6 +48,7 @@ impl Violation {
         }
         let ty = match cx.sess().source_map().span_to_snippet(ty_span) {
             Ok(ty) => ty,
+            // Missing type source prevents reliable optionality classification.
             Err(_error) => return None,
         };
 
@@ -133,6 +134,7 @@ impl BonRequiredBuilderMembersBreakingCompatibility {
     ) -> Option<Violation> {
         let member = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
             Ok(member) => member,
+            // Missing pattern source prevents stable baseline-member identification.
             Err(_error) => return None,
         };
 
@@ -183,6 +185,7 @@ impl BonRequiredBuilderMembersBreakingCompatibility {
 
     /// Checks public builder methods declared in one inherent implementation.
     fn check_implementation(&self, cx: &EarlyContext<'_>, implementation: &rustc_ast::Impl) {
+        // Missing self-type source prevents stable baseline builder identification.
         let Ok(owner) = cx
             .sess()
             .source_map()
@@ -214,6 +217,7 @@ impl EarlyLintPass for BonRequiredBuilderMembersBreakingCompatibility {
                 if matches!(item.vis.kind, VisibilityKind::Public)
                     && BonAttributeAnalysis::builder(&item.attrs).is_some() =>
             {
+                // A public builder function without an identifier cannot match a baseline path.
                 let Some(identifier) = item.kind.ident() else {
                     return;
                 };

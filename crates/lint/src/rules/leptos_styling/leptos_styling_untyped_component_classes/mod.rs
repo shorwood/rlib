@@ -19,7 +19,9 @@ use crate::utils::diagnostic::EarlyViolation;
 
 /// One class-bearing view attribute that bypasses local generated constants.
 struct Violation {
+    /// Authored class attribute range receiving the diagnostic.
     span: Span,
+    /// Policy-specific explanation for the untyped class source.
     message: String,
 }
 
@@ -60,6 +62,7 @@ impl EarlyViolation for Violation {
 
 /// Requires authored view classes to use the colocated sheet's generated API.
 struct LeptosStylingUntypedComponentClasses {
+    /// Authored source files indexed for early lint callbacks.
     files: AuthoredFiles,
 }
 

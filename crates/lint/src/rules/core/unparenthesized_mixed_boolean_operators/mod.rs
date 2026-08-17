@@ -89,6 +89,8 @@ impl EarlyLintPass for UnparenthesizedMixedBooleanOperators {
         let ExprKind::Binary(operator, left, right) = &expression.kind else {
             return;
         };
+
+        // Non-boolean binary operators cannot participate in mixed boolean precedence.
         if !Self::is_boolean(operator.node) {
             return;
         }
@@ -138,6 +140,7 @@ impl UnparenthesizedMixedBooleanOperators {
 
     /// Returns whether a direct operand uses the other boolean `operator`.
     const fn has_opposite_operator(expression: &Expr, parent: BinOpKind) -> bool {
+        // Only binary expressions can establish an enclosing boolean operator.
         let ExprKind::Binary(operator, ..) = expression.kind else {
             return false;
         };

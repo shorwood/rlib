@@ -35,6 +35,7 @@ impl Violation {
     ) -> Option<Self> {
         for left_name in &left.parser_names {
             for right_name in &right.parser_names {
+                // Exact or case-folded parser-name overlap makes the two variants ambiguous.
                 if left_name == right_name
                     || ((left.is_ascii_case_insensitive || right.is_ascii_case_insensitive)
                         && left_name.eq_ignore_ascii_case(right_name))
@@ -59,6 +60,7 @@ impl Violation {
             let variants = contract.enabled_variants().collect::<Vec<_>>();
             for (index, left) in variants.iter().enumerate() {
                 for right in variants.iter().skip(index + 1) {
+                    // The first conflicting spelling is sufficient to diagnose this enum contract.
                     if let Some(violation) = Self::conflicting_parser_name(contract, left, right) {
                         return Some(violation);
                     }

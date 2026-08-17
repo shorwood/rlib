@@ -137,6 +137,7 @@ pub struct EnumContract {
 impl EnumContract {
     /// Builds the effective Strum contract for one authored enum declaration.
     fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+        // Non-enum items have no variant-level Strum contract.
         let ItemKind::Enum(_, _, definition) = item.kind else {
             return None;
         };
@@ -390,9 +391,12 @@ impl ContractCatalog {
 
     /// Records types whose manual Serde implementation exposes a separate wire schema.
     fn record_external_schema_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only implementation items can establish an external schema trait.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
+
+        // Inherent implementations do not define a serialization contract.
         let Some(trait_def) = implementation
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
@@ -400,6 +404,7 @@ impl ContractCatalog {
             return;
         };
 
+        // Only Serde serialization traits expose a separate wire schema.
         if !matches!(
             cx.tcx.item_name(trait_def).as_str(),
             "Serialize" | "Deserialize"
@@ -410,6 +415,7 @@ impl ContractCatalog {
             return;
         }
 
+        // Only local nominal types can be recorded as schema-bearing.
         let Some(definition) = cx
             .tcx
             .type_of(item.owner_id)
@@ -424,12 +430,14 @@ impl ContractCatalog {
 
     /// Associates macro-generated implementations and discriminants with source enums.
     fn record_generated_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Items outside a recognized Strum derive have no generated contract.
         let Some(derive) = Self::derive_for(cx, item.span) else {
             return;
         };
 
         match item.kind {
             ItemKind::Impl(_) => {
+                // Generated implementations without a local enum target are irrelevant.
                 let Some(enum_def) = cx
                     .tcx
                     .type_of(item.owner_id)
@@ -454,10 +462,14 @@ impl ContractCatalog {
     /// Records authored enums and Strum-generated items.
     pub(crate) fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.record_external_schema_impl(cx, item);
+
+        // Macro expansion items need generated-contract association instead of source parsing.
         if item.span.from_expansion() {
             self.record_generated_item(cx, item);
             return;
         }
+
+        // Non-enum authored items have no Strum contract to retain.
         let Some(contract) = EnumContract::from_item(cx, item) else {
             return;
         };
@@ -605,6 +617,8 @@ impl TypeAttributes {
                 }
                 Ok(())
             });
+
+            // Malformed Strum metadata cannot contribute a reliable type-wide policy.
             if parsing.is_err() {
                 return output;
             }
@@ -670,6 +684,7 @@ impl VariantAttributes {
                     output.detailed_message = Some(StrumAttributeValue::string(&meta)?);
                 } else if meta.path.is_ident("props") {
                     meta.parse_nested_meta(|property| {
+                        // Unnamed properties cannot provide a stable metadata key.
                         let Some(name) = property.path.get_ident() else {
                             return Ok(());
                         };
@@ -682,6 +697,8 @@ impl VariantAttributes {
                 }
                 Ok(())
             });
+
+            // Malformed Strum metadata cannot contribute reliable variant policy.
             if parsing.is_err() {
                 return output;
             }
@@ -710,6 +727,7 @@ impl SourceAttributes {
         let EnumSource { source, span } = EnumSource::for_item(cx, item)?;
         let parsed = match syn::parse_str::<syn::ItemEnum>(&source) {
             Ok(parsed) => parsed,
+            // Source unavailable from the compiler cannot be parsed for outer attributes.
             Err(_error) => return None,
         };
 
@@ -723,6 +741,7 @@ impl SourceAttributes {
                     if let syn::Fields::Named(fields) = &variant.fields {
                         attributes.has_explicit_string_payload = fields.named.iter().all(|field| {
                             field.attrs.iter().any(|attribute| {
+                                // Non-Strum attributes cannot define default payload construction.
                                 if !attribute.path().is_ident("strum") {
                                     return false;
                                 }
@@ -764,14 +783,17 @@ impl EnumSource {
         let source_map = cx.tcx.sess.source_map();
         let item_source = match source_map.span_to_snippet(item.span) {
             Ok(source) => source,
+            // Source unavailable from the compiler cannot be parsed for outer attributes.
             Err(_error) => return None,
         };
         let location = source_map.lookup_char_pos(item.span.lo());
         let file_source = location.file.src.as_deref()?;
 
+        // Offsets outside the source file cannot delimit the attributed enum source.
         let offset = match usize::try_from(item.span.lo().0.checked_sub(location.file.start_pos.0)?)
         {
             Ok(offset) => offset,
+            // Offsets outside the source file cannot delimit the attributed enum source.
             Err(_error) => return None,
         };
         let bytes = file_source.as_bytes();
@@ -800,8 +822,10 @@ impl EnumSource {
             start = cursor - 1;
         }
 
+        // Source positions that exceed rustc's byte range cannot form a span.
         let source_offset = match u32::try_from(start) {
             Ok(offset) => offset,
+            // Source positions that exceed rustc's byte range cannot form a span.
             Err(_error) => return None,
         };
         let source_lo = rustc_span::BytePos(location.file.start_pos.0 + source_offset);
@@ -832,11 +856,13 @@ impl StrumAssociatedItem<'_> {
         cx: &LateContext<'_>,
         expression: &Expr<'_>,
     ) -> Option<LocalDefId> {
+        // Only paths can refer to a generated associated Strum item.
         let ExprKind::Path(path) = expression.kind else {
             return None;
         };
         let definition = cx.qpath_res(&path, expression.hir_id).opt_def_id()?;
 
+        // Only associated functions and constants can be the queried Strum contract.
         if !matches!(
             cx.tcx.def_kind(definition),
             DefKind::AssocFn | DefKind::AssocConst { .. }
@@ -850,14 +876,18 @@ impl StrumAssociatedItem<'_> {
             .trait_item_def_id()
             .unwrap_or(definition);
 
+        // Other associated items do not match the requested Strum contract member.
         if cx.tcx.item_name(contract_definition).as_str() != self.item_name {
             return None;
         }
         let path_name = cx.tcx.def_path_str(contract_definition);
+
+        // Items outside the expected Strum trait are unrelated associated members.
         if !path_name.contains("strum") || !path_name.contains(self.trait_name) {
             return None;
         }
 
+        // Only type-relative paths expose the enum receiver type.
         let QPath::TypeRelative(ty, _) = path else {
             return None;
         };

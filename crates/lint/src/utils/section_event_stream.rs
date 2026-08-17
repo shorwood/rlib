@@ -140,6 +140,8 @@ impl SectionEventCandidate {
     fn from_impl(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         // Resolve the implementation's nominal self type and local definition.
         let self_type = cx.tcx.type_of(item.owner_id).instantiate_identity();
+
+        // Only algebraic self types can join a nominal declaration family.
         let ty::Adt(definition, _) = self_type.kind() else {
             return None;
         };
@@ -198,11 +200,14 @@ impl SectionEventStreamCandidates {
         declarations: &mut Vec<SectionParticipant>,
         candidate: SectionParticipant,
     ) {
+        // A first occurrence establishes the declaration's source-order position.
         let Some(index) = positions.get(&candidate.def_id).copied() else {
             positions.insert(candidate.def_id, declarations.len());
             declarations.push(candidate);
             return;
         };
+
+        // Preserve an existing nominal declaration over supporting implementation evidence.
         if !candidate.is_nominal || declarations[index].is_nominal {
             return;
         }
@@ -288,9 +293,13 @@ impl SectionEventStreamCandidates {
             .filter(|participant| !participant.is_opaque_macro)
             .map(|participant| participant.name.as_str())
             .collect::<Vec<_>>();
+
+        // A solitary declaration cannot establish multiple naming families.
         if names.len() < MINIMUM_MULTIPLE_FAMILY_SIZE {
             return false;
         }
+
+        // Declarations without any shared prefix necessarily reveal distinct families.
         let Some(prefix) = identifier_case::longest_common_pascal_prefix(&names) else {
             return true;
         };
@@ -300,9 +309,13 @@ impl SectionEventStreamCandidates {
     /// Returns whether the declarations expose several independent naming families.
     fn has_multiple_conceptual_families(&self, namespace: Option<&ModuleNamespace>) -> bool {
         let names = self.family_names();
+
+        // A solitary concept cannot establish multiple conceptual families.
         if names.len() < MINIMUM_MULTIPLE_FAMILY_SIZE {
             return false;
         }
+
+        // Concepts without any shared prefix necessarily reveal distinct families.
         let Some(prefix) = identifier_case::longest_common_pascal_prefix(&names) else {
             return true;
         };
@@ -358,6 +371,7 @@ impl SectionEventStreamCandidates {
 
     /// Produces naming-first guidance for a declaration group without a divider.
     fn missing_guidance(&self, namespace: Option<&ModuleNamespace>) -> String {
+        // Independent concept families need separate responsibility-based sections.
         if self.has_multiple_conceptual_families(namespace) {
             return format!(
                 "add responsibility-based sections for the independently named concepts {}",
@@ -421,6 +435,7 @@ pub(super) struct SectionEventStreamState {
 impl SectionEventStreamState {
     /// Routes a declaration into the active section or the uncovered group.
     fn record_candidate(&mut self, participant: SectionEventCandidate) {
+        // Declarations before any divider remain uncovered for later reporting.
         let Some(section) = &mut self.current else {
             self.uncovered.push(participant);
             return;
@@ -445,6 +460,8 @@ impl SectionEventStreamState {
     pub(super) fn finish(mut self, analyzer: &SectionAnalyzer) -> SectionAnalysis {
         // Preserve declarations that appeared outside any authored section.
         self.record_uncovered(analyzer);
+
+        // Without an active authored section, uncovered analysis is already complete.
         let Some(section) = self.current.take() else {
             return self.analysis;
         };

@@ -79,13 +79,17 @@ dylint_linting::impl_late_lint! {
 impl MietteUnstableDiagnosticUrls {
     /// Returns whether a host is externally routable enough for durable documentation.
     fn public_host(authority: &str) -> bool {
+        // Empty authorities and embedded credentials are not stable public hosts.
         if authority.is_empty() || authority.contains('@') {
             return false;
         }
         let host = if let Some(bracketed) = authority.strip_prefix('[') {
+            // Bracketed IPv6 authorities require a complete closing delimiter.
             let Some((host, suffix)) = bracketed.split_once(']') else {
                 return false;
             };
+
+            // Any suffix must be a nonempty numeric port declaration.
             if !suffix.is_empty()
                 && !suffix.strip_prefix(':').is_some_and(|port| {
                     !port.is_empty() && port.chars().all(|c| c.is_ascii_digit())
@@ -95,6 +99,7 @@ impl MietteUnstableDiagnosticUrls {
             }
             host
         } else if let Some((host, port)) = authority.rsplit_once(':') {
+            // Unbracketed port suffixes must contain only a nonempty numeric port.
             if port.is_empty() || !port.chars().all(|c| c.is_ascii_digit()) {
                 return false;
             }
@@ -103,6 +108,7 @@ impl MietteUnstableDiagnosticUrls {
             authority
         };
 
+        // IP literals can be classified directly by their routability properties.
         if let Ok(address) = host.parse::<IpAddr>() {
             return match address {
                 IpAddr::V4(address) => {
@@ -137,9 +143,12 @@ impl MietteUnstableDiagnosticUrls {
 
     /// Returns whether a URL is a static public HTTPS address.
     fn stable_url(url: &str) -> bool {
+        // Durable diagnostic documentation must use an encrypted absolute URL.
         let Some(remainder) = url.strip_prefix("https://") else {
             return false;
         };
+
+        // Interpolation markers make the metadata dynamic rather than a stable link.
         if url.contains('{') || url.contains('}') {
             return false;
         }
@@ -153,9 +162,12 @@ impl MietteUnstableDiagnosticUrls {
 
     /// Reports a present URL that is unsuitable for durable documentation.
     fn check_url(cx: &LateContext<'_>, span: Span, url: Option<&str>) {
+        // Diagnostics without URL metadata have no link stability contract.
         let Some(url) = url else {
             return;
         };
+
+        // Stable public HTTPS links already satisfy the documentation contract.
         if Self::stable_url(url) {
             return;
         }

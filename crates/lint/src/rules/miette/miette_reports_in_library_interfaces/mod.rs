@@ -83,6 +83,7 @@ struct AuthoredReportTypeVisitor<'analysis, 'tcx> {
 
 impl<'hir> Visitor<'hir> for AuthoredReportTypeVisitor<'_, '_> {
     fn visit_ty(&mut self, ty: &'hir HirTy<'hir, AmbigArg>) {
+        // Stop once any nested authored type has established the report boundary.
         if self.is_found {
             return;
         }
@@ -100,6 +101,8 @@ impl<'hir> Visitor<'hir> for AuthoredReportTypeVisitor<'_, '_> {
                         self.cx.tcx.type_of(definition).instantiate_identity(),
                     ));
         }
+
+        // A resolved report needs no further descent through its type arguments.
         if self.is_found {
             return;
         }
@@ -130,9 +133,12 @@ impl MietteReportsInLibraryInterfaces {
 
     /// Finds `miette::Report` directly or in a result error position.
     fn contains_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+        // Nonalgebraic types cannot be a report, pointer wrapper, or result.
         let ty::Adt(definition, arguments) = ty.kind() else {
             return false;
         };
+
+        // A direct Miette report proves the erased boundary immediately.
         if cx.tcx.crate_name(definition.did().krate).as_str() == "miette"
             && cx.tcx.item_name(definition.did()).as_str() == "Report"
         {
@@ -143,6 +149,8 @@ impl MietteReportsInLibraryInterfaces {
                 cx.tcx.item_name(definition.did()).as_str(),
                 "Box" | "Rc" | "Arc"
             );
+
+        // Transparent owning pointers inherit report status from their payload.
         if is_pointer && !arguments.is_empty() {
             return Self::contains_report(cx, arguments.type_at(0));
         }
@@ -159,6 +167,7 @@ impl MietteReportsInLibraryInterfaces {
         span: Span,
         declared_output: Option<&HirTy<'_>>,
     ) {
+        // Only exported boundaries of library artifacts constrain caller error vocabulary.
         if !Self::library_crate(cx) || !cx.tcx.effective_visibilities(()).is_exported(definition) {
             return;
         }
@@ -178,6 +187,8 @@ impl MietteReportsInLibraryInterfaces {
             }
             visitor.is_found
         });
+
+        // Preserve boundaries whose resolved and authored outputs contain no report.
         if !Self::contains_report(cx, output) && !authored_report {
             return;
         }
@@ -193,9 +204,12 @@ impl MietteReportsInLibraryInterfaces {
 impl LateLintPass<'_> for MietteReportsInLibraryInterfaces {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Executables may choose their final rendering boundary freely.
+        // Only free functions expose a callable item boundary.
         let ItemKind::Fn { sig, .. } = item.kind else {
             return;
         };
+
+        // Generated functions are not authored public interface decisions.
         if item.span.from_expansion() {
             return;
         }
@@ -213,9 +227,12 @@ impl LateLintPass<'_> for MietteReportsInLibraryInterfaces {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Only methods expose a callable implementation boundary.
         let ImplItemKind::Fn(signature, _) = item.kind else {
             return;
         };
+
+        // Generated methods are not authored public interface decisions.
         if item.span.from_expansion() {
             return;
         }
@@ -233,9 +250,12 @@ impl LateLintPass<'_> for MietteReportsInLibraryInterfaces {
     }
 
     fn check_trait_item(&mut self, cx: &LateContext<'_>, item: &TraitItem<'_>) {
+        // Only trait methods expose a callable trait boundary.
         let TraitItemKind::Fn(signature, _) = item.kind else {
             return;
         };
+
+        // Generated trait methods are not authored public interface decisions.
         if item.span.from_expansion() {
             return;
         }

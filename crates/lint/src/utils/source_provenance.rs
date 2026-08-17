@@ -21,6 +21,7 @@ pub trait SpanProvenanceExt {
 
 impl SpanProvenanceExt for Span {
     fn is_build_generated(&self, cx: &LateContext<'_>) -> bool {
+        // Without a build output directory, no source path can be classified as build-generated.
         let Some(output_directory) = env::var_os("OUT_DIR") else {
             return false;
         };
@@ -76,8 +77,11 @@ impl AuthoredItemSource {
     /// Returns an authored item together with its immediately preceding outer attributes.
     pub(crate) fn for_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
         let source_map = cx.tcx.sess.source_map();
+
+        // Unavailable item text cannot be reconstructed with its authored attributes.
         let item_source = match source_map.span_to_snippet(item.span) {
             Ok(source) => source,
+            // A snippet failure leaves no parseable item body to return.
             Err(_error) => return None,
         };
         let location = source_map.lookup_char_pos(item.span.lo());
@@ -85,6 +89,7 @@ impl AuthoredItemSource {
         let offset = match usize::try_from(item.span.lo().0.checked_sub(location.file.start_pos.0)?)
         {
             Ok(offset) => offset,
+            // A source-relative position that does not fit memory indexing cannot be inspected.
             Err(_error) => return None,
         };
         let bytes = file_source.as_bytes();
@@ -153,10 +158,14 @@ impl FieldProvenanceExt for FieldDef<'_> {
     fn is_framework_generated(&self, cx: &LateContext<'_>) -> bool {
         // Require the conventional generated props container before inspecting mapped source.
         let parent = cx.tcx.parent(self.def_id.to_def_id());
+
+        // Fields outside structs cannot be generated component-props fields.
         if cx.tcx.def_kind(parent) != DefKind::Struct {
             return false;
         }
         let parent_name = cx.tcx.item_name(parent);
+
+        // Structs outside the generated props naming convention are authored field containers.
         if !parent_name.as_str().ends_with("Props") {
             return false;
         }

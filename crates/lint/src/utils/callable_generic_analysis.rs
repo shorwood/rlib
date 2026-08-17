@@ -213,6 +213,8 @@ impl<'tcx> Visitor<'tcx> for ExplicitOpenTypeVisitor<'_, 'tcx> {
         if let TyKind::Path(path) = ty.kind {
             let resolution = self.cx.qpath_res(&path, ty.hir_id);
             self.has_open_boundary = explicit_open_type_resolution_is_open(resolution);
+
+            // Once a path proves an open boundary, nested syntax cannot make it concrete again.
             if self.has_open_boundary {
                 return;
             }
@@ -262,6 +264,8 @@ impl CallableGenericAnalyzer {
                 Self::has_explicit_open_argument(cx, arguments.args.iter())
             });
         }
+
+        // Other qualified path forms do not expose resolved segment arguments here.
         let QPath::Resolved(_, path) = path else {
             return false;
         };
@@ -361,6 +365,7 @@ impl CallableGenericAnalyzer {
 
         // Closures, callables, coroutine internals, trait objects, and aliases stay open.
         let has_open_component = argument.walk().any(|component| {
+            // Non-type generic components do not affect type nameability.
             let Some(component) = component.as_type() else {
                 return false;
             };
@@ -393,6 +398,8 @@ impl CallableGenericAnalyzer {
     ) -> Option<GenericAbstractionFinding> {
         // Require at least one resolved call, no open boundary, and one concrete identity.
         let evidence = evidence?;
+
+        // Open or varying substitutions preserve the authored generic abstraction.
         if evidence.has_open_boundary || evidence.concrete.len() != 1 {
             return None;
         }
@@ -455,6 +462,8 @@ impl CallableGenericAnalyzer {
 
         // Retain only callables declaring at least one own authored type parameter.
         let parameters = Self::parameters(cx, item.owner_id.def_id, function.generics);
+
+        // Functions without eligible authored type parameters need no abstraction finding.
         if parameters.is_empty() {
             return;
         }
@@ -476,12 +485,18 @@ impl CallableGenericAnalyzer {
     pub(crate) fn record_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         // Exclude trait declarations and trait implementations from callable ownership analysis.
         let parent = cx.tcx.local_parent(item.owner_id.def_id);
+
+        // Associated items whose parent is unavailable as an item cannot prove inherent ownership.
         let Node::Item(parent_item) = cx.tcx.hir_node_by_def_id(parent) else {
             return;
         };
+
+        // Only implementation parents can establish inherent callable ownership.
         let ItemKind::Impl(implementation) = parent_item.kind else {
             return;
         };
+
+        // Trait implementation methods inherit a trait contract rather than owning this abstraction.
         if implementation.of_trait.is_some() {
             return;
         }
@@ -490,10 +505,14 @@ impl CallableGenericAnalyzer {
         let ImplItemKind::Fn(signature, _) = item.kind else {
             return;
         };
+
+        // Generated, unsafe, or foreign callables are outside ordinary generic API guidance.
         if item.span.from_expansion() || !Self::eligible_header(signature.header) {
             return;
         }
         let parameters = Self::parameters(cx, item.owner_id.def_id, item.generics);
+
+        // Callables without eligible authored type parameters need no abstraction finding.
         if parameters.is_empty() {
             return;
         }
@@ -562,6 +581,8 @@ impl CallableGenericAnalyzer {
         boundary: ResolvedCallBoundary,
     ) {
         let evidence = self.evidence.entry(key).or_default();
+
+        // Explicitly open call syntax preserves the parameter without concrete classification.
         if matches!(boundary, ResolvedCallBoundary::Open) {
             evidence.has_open_boundary = true;
             return;
@@ -575,6 +596,8 @@ impl CallableGenericAnalyzer {
 
         // Bound labels while retaining every distinct concrete substitution identity.
         let spans = evidence.concrete.entry(concrete).or_default();
+
+        // Additional calls beyond the representative limit add no diagnostic information.
         if spans.len() >= RESOLVED_CALL_MAX_REPRESENTATIVE_SPANS {
             return;
         }
@@ -590,6 +613,7 @@ impl CallableGenericAnalyzer {
         span: Span,
         boundary: ResolvedCallBoundary,
     ) {
+        // Calls into foreign declarations cannot provide local abstraction evidence.
         let Some(declaration) = target.as_local() else {
             return;
         };
@@ -644,6 +668,8 @@ impl CallableGenericAnalyzer {
         let ExprKind::Path(path) = callee.kind else {
             return;
         };
+
+        // Unresolved callee paths cannot identify a generic declaration.
         let Some(target) = cx.qpath_res(&path, callee.hir_id).opt_def_id() else {
             return;
         };
@@ -663,6 +689,8 @@ impl CallableGenericAnalyzer {
     ) {
         // Resolve compiler-selected method identity and arguments together.
         let typeck = cx.typeck_results();
+
+        // Calls without a compiler-selected method cannot provide substitution evidence.
         let Some(target) = typeck.type_dependent_def_id(expression.hir_id) else {
             return;
         };
@@ -693,6 +721,8 @@ impl CallableGenericAnalyzer {
             Node::Expr(parent)
                 if matches!(parent.kind, ExprKind::Call(callee, _) if callee.hir_id == expression.hir_id)
         );
+
+        // Direct callees are recorded by the parent call with their resolved arguments.
         if is_direct_callee {
             return;
         }
@@ -701,9 +731,13 @@ impl CallableGenericAnalyzer {
         let Some(target) = cx.qpath_res(path, expression.hir_id).opt_def_id() else {
             return;
         };
+
+        // Non-callable paths do not create an escaping callable value.
         if !matches!(cx.tcx.def_kind(target), DefKind::Fn | DefKind::AssocFn) {
             return;
         }
+
+        // Foreign callable values do not affect a local declaration's abstraction boundary.
         let Some(target) = target.as_local() else {
             return;
         };
@@ -716,6 +750,7 @@ impl CallableGenericAnalyzer {
         cx: &LateContext<'tcx>,
         expression: &'tcx Expr<'tcx>,
     ) {
+        // Macro-generated expressions do not provide authored call-boundary evidence.
         if expression.span.from_expansion() {
             return;
         }

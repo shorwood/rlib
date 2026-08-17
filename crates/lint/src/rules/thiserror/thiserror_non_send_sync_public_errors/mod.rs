@@ -133,6 +133,7 @@ dylint_linting::impl_late_lint! {
 impl ThiserrorNonSendSyncPublicErrors {
     /// Collects known representations that prevent a value from implementing `Send`.
     fn collect_send_blockers(cx: &LateContext<'_>, ty: Ty<'_>, blockers: &mut Vec<String>) {
+        // Non-aggregate types cannot contain an `Rc` definition or aggregate arguments.
         let ty::Adt(definition, arguments) = ty.kind() else {
             return;
         };
@@ -157,6 +158,7 @@ impl ThiserrorNonSendSyncPublicErrors {
         nesting: ChannelNesting,
         errors: &mut HashSet<LocalDefId>,
     ) {
+        // Non-aggregate types cannot introduce or contain a channel payload definition.
         let ty::Adt(definition, arguments) = ty.kind() else {
             return;
         };
@@ -180,6 +182,8 @@ impl ThiserrorNonSendSyncPublicErrors {
 impl LateLintPass<'_> for ThiserrorNonSendSyncPublicErrors {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Generated items do not define authored error or channel-boundary contracts.
         if item.span.from_expansion() {
             return;
         }
@@ -204,6 +208,7 @@ impl LateLintPass<'_> for ThiserrorNonSendSyncPublicErrors {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Generated or non-function associated items cannot define a channel-returning method.
         if item.span.from_expansion() || !matches!(item.kind, ImplItemKind::Fn(..)) {
             return;
         }
@@ -239,6 +244,7 @@ impl ThiserrorNonSendSyncPublicErrors {
         definition: LocalDefId,
         name: &str,
     ) {
+        // Non-exported functions do not expose channel payloads through public API.
         if !cx.tcx.effective_visibilities(()).is_exported(definition) {
             return;
         }
@@ -262,6 +268,7 @@ impl ThiserrorNonSendSyncPublicErrors {
         item: &Item<'_>,
         fields: impl IntoIterator<Item = &'hir rustc_hir::FieldDef<'hir>>,
     ) {
+        // Non-exported error types cannot violate the public transport contract.
         if !cx
             .tcx
             .effective_visibilities(())
@@ -279,6 +286,7 @@ impl ThiserrorNonSendSyncPublicErrors {
             );
         }
 
+        // Errors without a known thread-safety blocker require no boundary correlation.
         if blockers.is_empty() {
             return;
         }

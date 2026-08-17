@@ -171,6 +171,7 @@ impl SectionAnalyzer {
 
     /// Finds divider templates in an item-free source range.
     fn dividers_in_span(&self, cx: &LateContext<'_>, span: Span) -> Vec<SectionEventDivider> {
+        // Unavailable source cannot yield authored divider positions.
         let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
             return Vec::new();
         };

@@ -242,6 +242,7 @@ impl<'tcx> ConversionReturn<'tcx> {
 
     /// Extracts an exact standard `Result<Target, Error>` contract.
     fn fallible(cx: &LateContext<'tcx>, output: Ty<'tcx>) -> Option<Self> {
+        // Non-ADT outputs cannot satisfy the standard Result conversion contract.
         let ty::Adt(definition, arguments) = output.kind() else {
             return None;
         };
@@ -464,17 +465,19 @@ impl ConversionAnalysis {
 
     /// Records an existing standard conversion implementation for pair suppression.
     pub(crate) fn record_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Restrict pair occupancy to authored standard conversion implementations.
+        // Only implementation items can occupy a standard conversion pair.
         let ItemKind::Impl(_) = item.kind else {
             return;
         };
         let def_id = item.owner_id.def_id;
+
+        // Inherent implementations do not occupy a standard conversion trait.
         let Some(trait_ref) = cx.tcx.impl_opt_trait_ref(def_id) else {
             return;
         };
         let trait_ref = trait_ref.instantiate_identity();
 
-        // Accept either standard conversion trait as occupancy for the pair.
+        // Only From and TryFrom implementations suppress the recommended pair.
         if !cx.tcx.is_diagnostic_item(sym::From, trait_ref.def_id)
             && !cx.tcx.is_diagnostic_item(sym::TryFrom, trait_ref.def_id)
         {
@@ -483,12 +486,18 @@ impl ConversionAnalysis {
 
         // Resolve both sides into the same lifetime-erased family identity.
         let target_ty = cx.tcx.type_of(def_id).instantiate_identity();
+
+        // Unclassifiable target types cannot form an exact conversion family.
         let Some(target) = ConversionType::from_ty(target_ty) else {
             return;
         };
+
+        // Conversion traits without a source argument cannot occupy a pair.
         let Some(source_ty) = trait_ref.args.types().nth(1) else {
             return;
         };
+
+        // Unclassifiable source types cannot form an exact conversion family.
         let Some(source) = ConversionType::from_ty(source_ty) else {
             return;
         };
@@ -510,10 +519,11 @@ impl ConversionAnalysis {
         let header = match kind {
             FnKind::ItemFn(_, _, header) => header,
             FnKind::Method(_, signature) => signature.header,
+            // Closures have no reusable conversion API contract.
             FnKind::Closure => return,
         };
 
-        // Exclude unsafe and compile-time contracts from automatic trait guidance.
+        // Unsafe and compile-time contracts cannot be replaced by ordinary conversion traits.
         if matches!(
             header.safety,
             rustc_hir::HeaderSafety::Normal(rustc_hir::Safety::Unsafe)
@@ -522,40 +532,47 @@ impl ConversionAnalysis {
             return;
         }
 
-        // Reject unresolved type and constant parameters while permitting erased lifetimes.
         let generics = cx.tcx.generics_of(candidate.function.def_id);
         let has_unresolved_family_parameter = generics
             .own_params
             .iter()
             .any(|parameter| !matches!(parameter.kind, ty::GenericParamDefKind::Lifetime));
+
+        // Generic type or const parameters prevent exact conversion-family comparison.
         if has_unresolved_family_parameter {
             return;
         }
 
-        // Require exactly one semantic source and one authored source pattern.
         let signature = cx
             .tcx
             .fn_sig(candidate.function.def_id)
             .instantiate_identity()
             .skip_binder();
+
+        // Only one-source functions can map to a standard conversion trait.
         if signature.inputs().len() != 1 || body.params.len() != 1 {
             return;
         }
 
-        // Resolve concrete distinct source and target family identities.
         let source_ty = signature.inputs()[0];
+
+        // Unclassifiable source types cannot establish a conversion family.
         let Some(source) = ConversionType::from_ty(source_ty) else {
             return;
         };
 
-        // Resolve the exact direct or fallible target contract.
+        // Unsupported return shapes cannot select a standard conversion contract.
         let Some(return_) = Self::return_contract(cx, signature.output(), candidate) else {
             return;
         };
         let target_ty = return_.target;
+
+        // Unclassifiable targets cannot establish a conversion family.
         let Some(target) = ConversionType::from_ty(target_ty) else {
             return;
         };
+
+        // Identity functions do not require a source-to-target conversion trait.
         if source == target {
             return;
         }
@@ -571,6 +588,8 @@ impl ConversionAnalysis {
         let mut evidence =
             ConversionEvidence::new(cx, candidate.target.def_id, source_bindings, body);
         evidence.visit_expr(body.value);
+
+        // Target construction must actually consume the sole source value.
         if !evidence.has_source_reached_target {
             return;
         }
@@ -672,6 +691,7 @@ struct ConversionEvidenceTaintedUse<'analysis, 'tcx> {
 
 impl<'tcx> Visitor<'tcx> for ConversionEvidenceTaintedUse<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // A discovered source reference ends this branch's descendant traversal.
         if let ExprKind::Path(path) = expression.kind
             && let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id)
             && self.tainted.contains(&binding)
@@ -739,6 +759,7 @@ impl<'analysis, 'tcx> ConversionEvidence<'analysis, 'tcx> {
         path: &rustc_hir::QPath<'tcx>,
         hir_id: HirId,
     ) -> Option<ConversionEvidenceEffectDefinition> {
+        // Non-definition paths cannot be classified as an effect source.
         let Res::Def(kind, def_id) = self.cx.qpath_res(path, hir_id) else {
             return None;
         };
@@ -804,8 +825,9 @@ impl<'analysis, 'tcx> ConversionEvidence<'analysis, 'tcx> {
         // Require an actual construction operation before comparing its resolved result.
         let operation = self.is_construction_operation(expression);
 
-        // Compare the operation result with the promised local nominal target.
         let ty = self.cx.typeck_results().expr_ty(expression).peel_refs();
+
+        // Non-ADT results cannot be the promised nominal construction target.
         let ty::Adt(definition, _) = ty.kind() else {
             return false;
         };
@@ -817,10 +839,12 @@ impl<'analysis, 'tcx> ConversionEvidence<'analysis, 'tcx> {
         // Resolve direct paths, calls, and method calls to their defining item.
         let definition = self.effect_definition(expression);
 
-        // Classify ambient statics before checking known effectful API namespaces.
+        // Unresolved expressions cannot establish a known effect.
         let Some(definition) = definition else {
             return;
         };
+
+        // Ambient static access makes further effect classification unnecessary.
         if matches!(definition.kind, DefKind::Static { .. }) {
             self.has_effect = true;
             return;
@@ -834,6 +858,7 @@ impl<'analysis, 'tcx> ConversionEvidence<'analysis, 'tcx> {
 
 impl<'tcx> Visitor<'tcx> for ConversionEvidence<'_, 'tcx> {
     fn visit_stmt(&mut self, statement: &'tcx Stmt<'tcx>) {
+        // Non-let statements use the ordinary statement traversal.
         let StmtKind::Let(local) = statement.kind else {
             intravisit::walk_stmt(self, statement);
             return;
@@ -847,6 +872,8 @@ impl<'tcx> Visitor<'tcx> for ConversionEvidence<'_, 'tcx> {
                 .visit_pat(local.pat);
             }
         }
+
+        // Let statements without an else block have no conditional exit to traverse.
         let Some(else_block) = local.els else {
             return;
         };
@@ -862,6 +889,7 @@ impl<'tcx> Visitor<'tcx> for ConversionEvidence<'_, 'tcx> {
             self.has_source_reached_target = true;
         }
 
+        // Assignment is fully traversed after preserving taint state.
         if let ExprKind::Assign(left, right, _) = expression.kind {
             let right_is_tainted = self.uses_tainted(right);
             self.visit_expr(right);
@@ -922,6 +950,8 @@ impl<'tcx> ConversionResultCollector<'_, 'tcx, '_> {
                 )
         );
         let ty = self.cx.typeck_results().expr_ty(expression).peel_refs();
+
+        // Non-ADT results cannot be the promised nominal construction target.
         let ty::Adt(definition, _) = ty.kind() else {
             return false;
         };
@@ -930,6 +960,7 @@ impl<'tcx> ConversionResultCollector<'_, 'tcx, '_> {
 
     /// Follows only expression positions whose value contributes to a return contract.
     fn visit_result_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // A direct target construction needs no deeper return-position traversal.
         if self.produces_target(expression) {
             self.returned_targets.insert(expression.hir_id);
             return;

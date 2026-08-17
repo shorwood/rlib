@@ -82,11 +82,10 @@ pub(super) fn longest_common_pascal_prefix(names: &[&str]) -> Option<String> {
             .count();
         prefix.truncate(shared);
 
-        // Stop immediately when no canonical family prefix survives.
-        if !prefix.is_empty() {
-            continue;
+        // No canonical family exists once the shared word prefix is exhausted.
+        if prefix.is_empty() {
+            return None;
         }
-        return None;
     }
 
     // Render the surviving canonical word sequence as one type-family prefix.

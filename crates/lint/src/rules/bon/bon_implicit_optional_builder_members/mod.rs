@@ -30,6 +30,7 @@ impl Violation {
         let source_map = cx.sess().source_map();
         let ty = match source_map.span_to_snippet(parameter.ty.span) {
             Ok(ty) => ty,
+            // Missing authored type text prevents reliable optional-member classification.
             Err(_error) => return None,
         };
 
@@ -43,6 +44,7 @@ impl Violation {
 
         let member = match source_map.span_to_snippet(parameter.pat.span) {
             Ok(member) => member,
+            // Missing authored pattern text prevents recovery of the builder member name.
             Err(_error) => return None,
         }
         .trim()
@@ -111,6 +113,7 @@ struct BonImplicitOptionalBuilderMembers;
 impl BonImplicitOptionalBuilderMembers {
     /// Checks one free or associated function carrying Bon's builder attribute.
     fn check_function(cx: &EarlyContext<'_>, attributes: &[rustc_ast::Attribute], function: &Fn) {
+        // Non-builder functions and explicitly required policies need no omission warning.
         if BonAttributeAnalysis::builder(attributes).is_none()
             || (BonAttributeAnalysis::builder_contains(cx, attributes, "on(")
                 && BonAttributeAnalysis::builder_contains(cx, attributes, "required"))

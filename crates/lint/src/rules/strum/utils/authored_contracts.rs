@@ -45,6 +45,8 @@ impl StringParserProvider {
     /// Resolves the configured provider when several implementations are available.
     pub(crate) fn selected(cx: &LateContext<'_>, configured: Option<Self>) -> Option<Self> {
         let providers = Self::providers(cx);
+
+        // A sole available provider needs no configuration to resolve ownership.
         if providers.len() == 1 {
             return providers.first().copied();
         }
@@ -79,6 +81,8 @@ impl DisplayProvider {
     /// Resolves the configured provider when several implementations are available.
     pub(crate) fn selected(cx: &LateContext<'_>, configured: Option<Self>) -> Option<Self> {
         let providers = Self::providers(cx);
+
+        // A sole available provider needs no configuration to resolve ownership.
         if providers.len() == 1 {
             return providers.first().copied();
         }
@@ -113,6 +117,7 @@ pub enum StaticValue {
 impl StaticValue {
     /// Recovers a supported metadata literal after removing transparent wrappers.
     fn from_expression(expression: &Expr<'_>) -> Option<Self> {
+        // Static metadata must be represented by a literal expression.
         let ExprKind::Lit(literal) = AuthoredContractAnalysis::peel_transparent(expression).kind
         else {
             return None;
@@ -152,13 +157,17 @@ pub struct VariantValueFamily {
 impl VariantValueFamily {
     /// Resolves one exhaustive receiver match returning only static literals.
     pub(crate) fn from_impl_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Macro-expanded methods are not reliable authored contract evidence.
         if item.span.from_expansion() {
             return None;
         }
+
+        // Only function items can provide the required receiver match.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
 
+        // The contract requires exactly one implicit receiver parameter.
         if signature.decl.inputs.len() != 1 || !signature.decl.implicit_self.has_implicit_self() {
             return None;
         }
@@ -169,6 +178,8 @@ impl VariantValueFamily {
             .instantiate_identity()
             .skip_binder()
             .inputs()[0];
+
+        // The method must borrow the enum whose variants it maps.
         if !matches!(receiver.kind(), ty::Ref(_, inner, rustc_hir::Mutability::Not) if inner.ty_adt_def()?.did().as_local() == Some(enum_def))
         {
             return None;
@@ -177,19 +188,25 @@ impl VariantValueFamily {
         let receiver = AuthoredContractAnalysis::binding_id(body.params.first()?.pat)?;
         let expression = AuthoredContractAnalysis::peel_transparent(body.value);
 
+        // Static mappings are recognized only from an explicit variant match.
         let ExprKind::Match(scrutinee, arms, _) = expression.kind else {
             return None;
         };
+
+        // The match must dispatch on the method receiver itself.
         if !AuthoredContractAnalysis::is_local_path(cx, scrutinee, receiver) {
             return None;
         }
         let mut values = HashMap::new();
 
         for arm in arms {
+            // Guarded arms cannot establish a complete variant mapping.
             if arm.guard.is_some() {
                 return None;
             }
             let variant = AuthoredContractAnalysis::ignored_variant_pattern(cx, arm.pat)?;
+
+            // Every arm must cover a distinct variant of the enclosing enum.
             if AuthoredContractAnalysis::owning_enum(cx, variant) != Some(enum_def)
                 || values
                     .insert(variant, StaticValue::from_expression(arm.body)?)
@@ -253,13 +270,17 @@ impl DisplayCandidate {
 
     /// Recovers an exhaustive static `Display` mapping for one enum.
     pub(crate) fn from_impl_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Only authored `fmt` methods can implement the candidate `Display` contract.
         if item.span.from_expansion() || item.ident.name.as_str() != "fmt" {
             return None;
         }
+
+        // Only function items can provide the formatter match body.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
 
+        // `Display::fmt` requires its receiver and formatter inputs.
         if signature.decl.inputs.len() != Self::DISPLAY_SIGNATURE_INPUT_COUNT {
             return None;
         }
@@ -276,9 +297,13 @@ impl DisplayCandidate {
         let formatter = AuthoredContractAnalysis::binding_id(body.params.get(1)?.pat)?;
 
         let expression = AuthoredContractAnalysis::peel_transparent(body.value);
+
+        // Static display mappings are recognized only from an explicit variant match.
         let ExprKind::Match(scrutinee, arms, _) = expression.kind else {
             return None;
         };
+
+        // The match must dispatch on the formatter method's receiver.
         if !AuthoredContractAnalysis::is_local_path(cx, scrutinee, receiver) {
             return None;
         }
@@ -286,11 +311,14 @@ impl DisplayCandidate {
         let mut values = HashMap::new();
 
         for arm in arms {
+            // Guarded arms cannot establish a complete variant mapping.
             if arm.guard.is_some() {
                 return None;
             }
             let variant = AuthoredContractAnalysis::ignored_variant_pattern(cx, arm.pat)?;
             let value = AuthoredContractAnalysis::formatter_write_str(cx, arm.body, formatter)?;
+
+            // Every arm must cover a distinct variant of the displayed enum.
             if AuthoredContractAnalysis::owning_enum(cx, variant) != Some(enum_def)
                 || values.insert(variant, value).is_some()
             {
@@ -340,9 +368,12 @@ pub struct StringTableCandidate {
 impl StringTableCandidate {
     /// Recovers this contract from one authored declaration.
     pub(crate) fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+        // Macro-expanded constants are not reliable authored table evidence.
         if item.span.from_expansion() {
             return None;
         }
+
+        // Only constants with an explicit body can be static name tables.
         let ItemKind::Const(_, _, _, ConstItemRhs::Body(body_id)) = item.kind else {
             return None;
         };
@@ -360,9 +391,12 @@ impl StringTableCandidate {
 
     /// Recovers an exhaustive static variant-name table.
     pub(crate) fn from_impl_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Macro-expanded constants are not reliable authored table evidence.
         if item.span.from_expansion() {
             return None;
         }
+
+        // Only implementation constants with a body can be static name tables.
         let ImplItemKind::Const(_, ConstItemRhs::Body(body_id)) = item.kind else {
             return None;
         };
@@ -400,13 +434,17 @@ pub struct StringParserCandidate {
 impl StringParserCandidate {
     /// Recovers an exhaustive unit-enum `FromStr` implementation.
     pub(crate) fn from_impl_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Only authored `from_str` methods can implement the parser contract.
         if item.span.from_expansion() || item.ident.name.as_str() != "from_str" {
             return None;
         }
+
+        // Only function items can provide the parser match body.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
 
+        // `FromStr` accepts exactly one input string.
         if signature.decl.inputs.len() != 1 {
             return None;
         }
@@ -422,9 +460,12 @@ impl StringParserCandidate {
         let input = AuthoredContractAnalysis::binding_id(body.params.first()?.pat)?;
         let expression = AuthoredContractAnalysis::peel_transparent(body.value);
 
+        // Parser recognition requires a direct match over the input.
         let ExprKind::Match(scrutinee, arms, _) = expression.kind else {
             return None;
         };
+
+        // The parser must match directly on its input binding.
         if !AuthoredContractAnalysis::is_local_path(cx, scrutinee, input) {
             return None;
         }
@@ -433,6 +474,7 @@ impl StringParserCandidate {
         let mut fallback = false;
 
         for arm in arms {
+            // Guarded arms cannot establish a complete parser table.
             if arm.guard.is_some() {
                 return None;
             }
@@ -444,6 +486,8 @@ impl StringParserCandidate {
             }
             let arm_names = AuthoredContractAnalysis::string_patterns(arm.pat)?;
             let variant = AuthoredContractAnalysis::result_ok_variant(cx, arm.body)?;
+
+            // Successful arms must construct variants of the parsed enum.
             if AuthoredContractAnalysis::owning_enum(cx, variant) != Some(enum_def) {
                 return None;
             }
@@ -490,13 +534,17 @@ pub struct DiscriminantMirrorCandidate {
 impl DiscriminantMirrorCandidate {
     /// Recovers a one-to-one conversion into a unit discriminant mirror.
     pub(crate) fn from_impl_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Only authored `From::from` methods can establish a mirror conversion.
         if item.span.from_expansion() || item.ident.name.as_str() != "from" {
             return None;
         }
+
+        // Only function items can provide the conversion match body.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
 
+        // `From::from` accepts exactly one source value.
         if signature.decl.inputs.len() != 1 {
             return None;
         }
@@ -508,6 +556,8 @@ impl DiscriminantMirrorCandidate {
                 crate_name: "core",
             },
         )?;
+
+        // Public mirrors may be part of the API and cannot be silently replaced.
         if cx.tcx.effective_visibilities(()).is_exported(mirror_enum) {
             return None;
         }
@@ -515,10 +565,13 @@ impl DiscriminantMirrorCandidate {
         let body = cx.tcx.hir_body(body_id);
         let input = AuthoredContractAnalysis::binding_id(body.params.first()?.pat)?;
         let expression = AuthoredContractAnalysis::peel_transparent(body.value);
+
+        // Mirror recognition requires a direct match over the source value.
         let ExprKind::Match(scrutinee, arms, _) = expression.kind else {
             return None;
         };
 
+        // The conversion must dispatch on its single source input.
         if !AuthoredContractAnalysis::is_local_path(cx, scrutinee, input) {
             return None;
         }
@@ -526,6 +579,7 @@ impl DiscriminantMirrorCandidate {
         let mut observed = HashSet::new();
 
         for arm in arms {
+            // Guarded arms cannot establish a one-to-one mirror mapping.
             if arm.guard.is_some() {
                 return None;
             }
@@ -533,6 +587,7 @@ impl DiscriminantMirrorCandidate {
             let target = AuthoredContractAnalysis::unit_variant_expression(cx, arm.body)?;
             let found_source_enum = AuthoredContractAnalysis::owning_enum(cx, source)?;
 
+            // Each source must map once to an identically named mirror variant.
             if source_enum
                 .replace(found_source_enum)
                 .is_some_and(|known| known != found_source_enum)
@@ -548,6 +603,7 @@ impl DiscriminantMirrorCandidate {
         let source = cx.tcx.adt_def(source_enum.to_def_id());
         let mirror = cx.tcx.adt_def(mirror_enum.to_def_id());
 
+        // The conversion must cover every source and unit-only mirror variant exactly once.
         if source.variants().len() != observed.len()
             || mirror.variants().len() != observed.len()
             || !source
@@ -590,6 +646,7 @@ struct AuthoredContractAnalysis;
 impl AuthoredContractAnalysis {
     /// Recovers the string literal matched by a parser arm.
     fn string_patterns(pattern: &Pat<'_>) -> Option<Vec<String>> {
+        // Alternative patterns must each resolve to supported string literals.
         if let PatKind::Or(patterns) = pattern.kind {
             return patterns
                 .iter()
@@ -597,9 +654,13 @@ impl AuthoredContractAnalysis {
                 .collect::<Option<Vec<_>>>()
                 .map(|groups| groups.into_iter().flatten().collect());
         }
+
+        // A parser key must be written as an expression pattern.
         let PatKind::Expr(expression) = pattern.kind else {
             return None;
         };
+
+        // Only non-negated string literals are supported parser keys.
         let PatExprKind::Lit {
             lit,
             negated: false,
@@ -607,6 +668,8 @@ impl AuthoredContractAnalysis {
         else {
             return None;
         };
+
+        // Non-string literals cannot provide an authored list of serialized names.
         let rustc_ast::LitKind::Str(value, _) = lit.node else {
             return None;
         };
@@ -637,6 +700,7 @@ impl AuthoredContractAnalysis {
     fn ignored_variant_pattern(cx: &LateContext<'_>, pattern: &Pat<'_>) -> Option<LocalDefId> {
         let resolution = match pattern.kind {
             PatKind::Expr(expression) => {
+                // A payload-free variant must be written as a direct path.
                 let PatExprKind::Path(path) = expression.kind else {
                     return None;
                 };
@@ -656,6 +720,8 @@ impl AuthoredContractAnalysis {
             {
                 cx.qpath_res(&path, pattern.hir_id)
             }
+
+            // Other patterns can observe or bind payload data.
             _ => return None,
         };
         Self::variant_from_res(cx, resolution)
@@ -663,6 +729,7 @@ impl AuthoredContractAnalysis {
 
     /// Returns the binding introduced by a plain, unqualified identifier pattern.
     const fn binding_id(pattern: &Pat<'_>) -> Option<rustc_hir::HirId> {
+        // Generated-style contracts require an unmodified input binding.
         let PatKind::Binding(_, binding, _, None) = pattern.kind else {
             return None;
         };
@@ -675,10 +742,15 @@ impl AuthoredContractAnalysis {
         hir_id: rustc_hir::HirId,
     ) -> Option<LocalDefId> {
         cx.tcx.hir_parent_iter(hir_id).find_map(|(_, node)| {
+            // Only item ancestors can contain an inherent implementation.
             let Node::Item(item) = node else { return None };
+
+            // The candidate must be enclosed by an implementation item.
             let ItemKind::Impl(implementation) = item.kind else {
                 return None;
             };
+
+            // Trait implementations do not establish inherent generated methods.
             if implementation.of_trait.is_some() {
                 return None;
             }
@@ -698,11 +770,16 @@ impl AuthoredContractAnalysis {
         identity: TraitIdentity<'_>,
     ) -> Option<LocalDefId> {
         cx.tcx.hir_parent_iter(hir_id).find_map(|(_, node)| {
+            // Only item ancestors can contain the requested trait implementation.
             let Node::Item(item) = node else { return None };
+
+            // The candidate must be enclosed by an implementation item.
             let ItemKind::Impl(implementation) = item.kind else {
                 return None;
             };
             let trait_def = implementation.of_trait?.trait_ref.trait_def_id()?;
+
+            // Only the named standard trait establishes this generated contract.
             if cx.tcx.item_name(trait_def).as_str() != identity.trait_name
                 || cx.tcx.crate_name(trait_def.krate).as_str() != identity.crate_name
             {
@@ -727,12 +804,15 @@ impl AuthoredContractAnalysis {
         loop {
             expression = match expression.kind {
                 ExprKind::Block(block, None) if block.stmts.is_empty() => {
+                    // An empty block without a tail expression cannot be peeled further.
                     let Some(inner) = block.expr else {
                         return expression;
                     };
                     inner
                 }
                 ExprKind::DropTemps(inner) => inner,
+
+                // Any other wrapper can change the expression's contract semantics.
                 _ => return expression,
             };
         }
@@ -741,9 +821,13 @@ impl AuthoredContractAnalysis {
     /// Resolves a direct variant constructor path.
     fn constructor_resolution(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<DefId> {
         let expression = Self::peel_transparent(expression);
+
+        // Constructor resolution requires a direct path expression.
         let ExprKind::Path(path) = expression.kind else {
             return None;
         };
+
+        // Only a resolved variant constructor can be a standard result constructor.
         let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
             cx.qpath_res(&path, expression.hir_id)
         else {
@@ -754,6 +838,7 @@ impl AuthoredContractAnalysis {
 
     /// Returns whether an expression constructs standard `Result::Err`.
     fn result_err(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // `Err` recognition requires a one-argument constructor call.
         let ExprKind::Call(callee, [_]) = Self::peel_transparent(expression).kind else {
             return false;
         };
@@ -768,6 +853,8 @@ impl AuthoredContractAnalysis {
         binding: rustc_hir::HirId,
     ) -> bool {
         let expression = Self::peel_transparent(expression);
+
+        // Only direct paths can be compared with the captured input binding.
         let ExprKind::Path(path) = expression.kind else {
             return false;
         };
@@ -777,6 +864,8 @@ impl AuthoredContractAnalysis {
     /// Resolves a direct expression to a local unit variant.
     fn unit_variant_expression(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
         let expression = Self::peel_transparent(expression);
+
+        // A unit variant result must be a direct constructor path.
         let ExprKind::Path(path) = expression.kind else {
             return None;
         };
@@ -785,10 +874,13 @@ impl AuthoredContractAnalysis {
 
     /// Extracts a unit variant wrapped by standard `Result::Ok`.
     fn result_ok_variant(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
+        // `Ok` recognition requires a one-argument constructor call.
         let ExprKind::Call(callee, [value]) = Self::peel_transparent(expression).kind else {
             return None;
         };
         let constructor = Self::constructor_resolution(cx, callee)?;
+
+        // The constructor must be standard `Result::Ok`.
         if !Self::is_result_variant(cx, constructor, "Ok") {
             return None;
         }
@@ -803,6 +895,8 @@ impl AuthoredContractAnalysis {
         } else {
             expression
         };
+
+        // Static name tables must be direct array expressions.
         let ExprKind::Array(elements) = expression.kind else {
             return None;
         };
@@ -823,9 +917,13 @@ impl AuthoredContractAnalysis {
         formatter: rustc_hir::HirId,
     ) -> Option<String> {
         let expression = Self::peel_transparent(expression);
+
+        // Display mappings require a one-argument formatter method call.
         let ExprKind::MethodCall(segment, receiver, [value], _) = expression.kind else {
             return None;
         };
+
+        // The call must invoke `write_str` on the captured formatter binding.
         if segment.ident.name.as_str() != "write_str"
             || !Self::is_local_path(cx, receiver, formatter)
         {

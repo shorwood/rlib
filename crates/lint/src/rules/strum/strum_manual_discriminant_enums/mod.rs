@@ -88,15 +88,20 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for StrumManualDiscriminantEnums {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only implementation blocks can establish an external schema for a mirror enum.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
+
+        // Inherent implementations do not bind the enum to an external serialization schema.
         let Some(trait_def) = implementation
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
         else {
             return;
         };
+
+        // Traits outside Serde's serialization contract do not constrain discriminant shape.
         if !matches!(
             cx.tcx.item_name(trait_def).as_str(),
             "Serialize" | "Deserialize"
@@ -106,6 +111,8 @@ impl LateLintPass<'_> for StrumManualDiscriminantEnums {
         ) {
             return;
         }
+
+        // Implementations without a local aggregate target cannot mark a local mirror enum.
         let Some(definition) = cx
             .tcx
             .type_of(item.owner_id)
@@ -119,6 +126,7 @@ impl LateLintPass<'_> for StrumManualDiscriminantEnums {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Methods that do not mirror enum discriminants are outside this lint's candidate model.
         let Some(candidate) = DiscriminantMirrorCandidate::from_impl_item(cx, item) else {
             return;
         };

@@ -152,6 +152,7 @@ impl LeptosMismatchedViewAttributeGroups {
             })
             .collect::<Vec<_>>();
 
+        // Headings that name zero or multiple categories lack one declared responsibility.
         let [category] = matches.as_slice() else {
             return None;
         };
@@ -185,6 +186,7 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosMismatchedViewAttributeGroups {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Expressions outside authored view macros contain no attribute groups.
         let Some(view) = self.views.analyze(cx, expression) else {
             return;
         };

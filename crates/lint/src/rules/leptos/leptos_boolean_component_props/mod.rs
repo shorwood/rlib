@@ -90,6 +90,7 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosBooleanComponentProps {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
+        // Items without generated component properties expose no prop API to inspect.
         let Some(properties) = ComponentProps::from_impl(cx, item) else {
             return;
         };

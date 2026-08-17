@@ -85,29 +85,39 @@ impl SerdeManualSerializeImpls {
         item: &Item<'_>,
         field_name: &str,
     ) -> bool {
+        // Missing authored source cannot prove an exact manual implementation.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return false;
         };
+
+        // Unparseable implementation text cannot be compared structurally.
         let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
             return false;
         };
 
+        // A transparent derive replaces only a solitary serialization method.
         let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
             return false;
         };
+
+        // Other methods do not implement the serialization entry point.
         if method.sig.ident != "serialize" {
             return false;
         }
 
+        // Serialization must accept only the receiver and one serializer argument.
         let [_, syn::FnArg::Typed(serializer)] =
             method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
         else {
             return false;
         };
 
+        // The serializer must have a stable binding that can be tracked into the call.
         let syn::Pat::Ident(serializer) = serializer.pat.as_ref() else {
             return false;
         };
+
+        // Additional statements encode behavior beyond transparent forwarding.
         let [syn::Stmt::Expr(expression, _)] = method.block.stmts.as_slice() else {
             return false;
         };
@@ -150,13 +160,17 @@ impl SerdeManualSerializeImpls {
 }
 impl LateLintPass<'_> for SerdeManualSerializeImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only implementation items can define a manual serializer.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
+
+        // Generated implementations are outside authored derive policy.
         if item.span.from_expansion() {
             return;
         }
 
+        // Inherent implementations do not implement the Serde contract.
         let Some(trait_id) = implementation
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
@@ -164,6 +178,7 @@ impl LateLintPass<'_> for SerdeManualSerializeImpls {
             return;
         };
 
+        // Exclude implementations of unrelated traits with similar method shapes.
         if cx.tcx.item_name(trait_id).as_str() != "Serialize"
             || !matches!(
                 cx.tcx.crate_name(trait_id.krate).as_str(),
@@ -179,11 +194,13 @@ impl LateLintPass<'_> for SerdeManualSerializeImpls {
             .impl_trait_ref(item.owner_id.def_id)
             .instantiate_identity();
 
+        // Transparent serialization applies only to algebraic wrapper types.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return;
         };
 
         // Verify the nominal wrapper shape and its exact serializer forwarding body.
+        // Require a single-field struct and exact forwarding behavior.
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
             || !Self::exact_transparent_serializer(

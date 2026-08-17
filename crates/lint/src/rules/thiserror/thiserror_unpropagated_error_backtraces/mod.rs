@@ -45,6 +45,7 @@ struct BacktraceShape {
 impl BacktraceShape {
     /// Returns whether a field has the standard `Backtrace` type.
     fn is_std(cx: &LateContext<'_>, field_type: ty::Ty<'_>) -> bool {
+        // Nonalgebraic types cannot resolve to the standard backtrace definition.
         let Some(definition) = field_type.ty_adt_def() else {
             return false;
         };
@@ -184,16 +185,20 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Expanded items provide derive evidence rather than authored field shapes.
         if item.span.from_expansion() {
             return;
         }
 
+        // Missing authored source prevents field-attribute correlation with HIR.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
         let enum_shapes = |definition: &rustc_hir::EnumDef<'_>| {
             let enumeration = match syn::parse_str::<syn::ItemEnum>(&source) {
                 Ok(enumeration) => enumeration,
+                // Unparseable enum text cannot provide reliable backtrace attributes.
                 Err(_error) => return None,
             };
             let shapes = enumeration
@@ -217,6 +222,7 @@ impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
         };
         let shapes = match item.kind {
             ItemKind::Struct(_, _, data) => {
+                // Unparseable struct text cannot provide reliable backtrace attributes.
                 let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
                     return;
                 };
@@ -229,11 +235,13 @@ impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
                 vec![shape]
             }
             ItemKind::Enum(_, _, definition) => {
+                // Invalid enum source cannot contribute a backtrace shape.
                 let Some(shapes) = enum_shapes(&definition) else {
                     return;
                 };
                 shapes
             }
+            // Other declarations cannot define nominal thiserror field contracts.
             _ => return,
         };
         self.order.push(item.owner_id.def_id);
@@ -242,9 +250,12 @@ impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for definition in &self.order {
+            // Types without a generated error contract have no thiserror trace behavior.
             if self.catalog.derived_type(*definition).is_none() {
                 continue;
             }
+
+            // Definitions without authored field shapes provide no continuity evidence.
             let Some(shapes) = self.shapes.get(definition) else {
                 continue;
             };
@@ -283,6 +294,7 @@ impl ThiserrorUnpropagatedErrorBacktraces {
         definition: LocalDefId,
         visiting: &mut HashSet<LocalDefId>,
     ) -> bool {
+        // A repeated definition closes a source cycle without inventing trace evidence.
         if !visiting.insert(definition) {
             return false;
         }

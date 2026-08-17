@@ -70,6 +70,7 @@ impl BonAttributeAnalysis {
         let attribute = Self::builder(attributes)?;
         let source = match Self::source(cx, attribute) {
             Ok(source) => source,
+            // Unavailable authored text cannot prove that the attribute is plain.
             Err(_error) => return None,
         };
         matches!(source.trim(), "#[builder]" | "#[bon::builder]").then_some(attribute.span)
@@ -77,6 +78,7 @@ impl BonAttributeAnalysis {
 
     /// Returns whether a builder attribute contains an authored policy token.
     pub fn builder_contains(cx: &EarlyContext<'_>, attributes: &[Attribute], needle: &str) -> bool {
+        // A declaration without a builder attribute contains no builder policy.
         let Some(attribute) = Self::builder(attributes) else {
             return false;
         };
@@ -89,15 +91,22 @@ impl BonAttributeAnalysis {
         attributes: &[Attribute],
         expected: BuilderOption,
     ) -> bool {
+        // A declaration without a builder attribute has no configured option.
         let Some(attribute) = Self::builder(attributes) else {
             return false;
         };
+
+        // Missing authored attribute text prevents top-level option parsing.
         let Ok(source) = Self::source(cx, attribute) else {
             return false;
         };
+
+        // An attribute without an option payload contains no top-level option.
         let Some(open) = source.find('(') else {
             return false;
         };
+
+        // An unterminated payload cannot be parsed as a complete option list.
         let Some(close) = source.rfind(')') else {
             return false;
         };
@@ -109,6 +118,7 @@ impl BonAttributeAnalysis {
                 '(' | '[' | '{' => nesting += 1,
                 ')' | ']' | '}' => nesting = nesting.saturating_sub(1),
                 ',' if nesting == 0 => {
+                    // A matching complete segment proves the requested option immediately.
                     if Self::option_name(&payload[start..index]) == expected.as_str() {
                         return true;
                     }
@@ -126,15 +136,22 @@ impl BonAttributeAnalysis {
         attributes: &[Attribute],
         expected: BuilderOption,
     ) -> bool {
+        // A declaration without a builder attribute has no bare option.
         let Some(attribute) = Self::builder(attributes) else {
             return false;
         };
+
+        // Missing authored attribute text prevents top-level option parsing.
         let Ok(source) = Self::source(cx, attribute) else {
             return false;
         };
+
+        // An attribute without an option payload contains no bare option.
         let Some(open) = source.find('(') else {
             return false;
         };
+
+        // An unterminated payload cannot be parsed as a complete option list.
         let Some(close) = source.rfind(')') else {
             return false;
         };
@@ -146,6 +163,7 @@ impl BonAttributeAnalysis {
                 '(' | '[' | '{' => nesting += 1,
                 ')' | ']' | '}' => nesting = nesting.saturating_sub(1),
                 ',' if nesting == 0 => {
+                    // A matching valueless segment proves the requested bare option immediately.
                     if Self::is_bare_option(&payload[start..index], expected) {
                         return true;
                     }

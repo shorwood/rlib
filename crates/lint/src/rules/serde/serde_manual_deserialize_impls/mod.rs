@@ -84,32 +84,45 @@ dylint_linting::impl_late_lint! {
 impl SerdeManualDeserializeImpls {
     /// Proves that deserialization delegates to one field and wraps the result unchanged.
     fn exact_transparent_deserializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
+        // Missing authored source cannot prove an exact manual implementation.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return false;
         };
+
+        // Unparseable implementation text cannot be compared structurally.
         let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
             return false;
         };
 
+        // A transparent derive replaces only a solitary deserialization method.
         let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
             return false;
         };
+
+        // Other methods do not implement the deserialization entry point.
         if method.sig.ident != "deserialize" {
             return false;
         }
+
+        // Transparent deserialization accepts exactly one typed deserializer argument.
         let [syn::FnArg::Typed(deserializer)] =
             method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
         else {
             return false;
         };
+
+        // The deserializer must have a stable binding that can be tracked into the call.
         let syn::Pat::Ident(deserializer) = deserializer.pat.as_ref() else {
             return false;
         };
 
         // Match a successful single-field construction around one direct deserialize call.
+        // Additional statements encode behavior beyond transparent forwarding.
         let [syn::Stmt::Expr(syn::Expr::Call(ok), _)] = method.block.stmts.as_slice() else {
             return false;
         };
+
+        // The body must return exactly one successful wrapper value.
         if !matches!(ok.func.as_ref(), syn::Expr::Path(path)
             if path.path.segments.last().is_some_and(|segment| segment.ident == "Ok"))
             || ok.args.len() != 1
@@ -135,11 +148,14 @@ impl SerdeManualDeserializeImpls {
             }
             _ => None,
         };
+
+        // The wrapped value must propagate failure from its decode operation directly.
         let Some(syn::Expr::Try(decoded)) = decoded else {
             return false;
         };
 
         // Require direct forwarding to the standard deserialize operation.
+        // Noncall expressions perform work a transparent derive cannot reproduce.
         let syn::Expr::Call(decode) = decoded.expr.as_ref() else {
             return false;
         };
@@ -153,13 +169,17 @@ impl SerdeManualDeserializeImpls {
 }
 impl LateLintPass<'_> for SerdeManualDeserializeImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only implementation items can define a manual deserializer.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
+
+        // Generated implementations are outside authored derive policy.
         if item.span.from_expansion() {
             return;
         }
 
+        // Inherent implementations do not implement the Serde contract.
         let Some(trait_id) = implementation
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
@@ -167,6 +187,7 @@ impl LateLintPass<'_> for SerdeManualDeserializeImpls {
             return;
         };
 
+        // Exclude implementations of unrelated traits with similar method shapes.
         if cx.tcx.item_name(trait_id).as_str() != "Deserialize"
             || !matches!(
                 cx.tcx.crate_name(trait_id.krate).as_str(),
@@ -180,9 +201,12 @@ impl LateLintPass<'_> for SerdeManualDeserializeImpls {
             .impl_trait_ref(item.owner_id.def_id)
             .instantiate_identity();
 
+        // Transparent deserialization applies only to algebraic wrapper types.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return;
         };
+
+        // Require a single-field struct and exact forwarding behavior.
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
             || !Self::exact_transparent_deserializer(cx, item)

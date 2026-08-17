@@ -81,6 +81,8 @@ impl LateLintPass<'_> for ImplicitFirstWinsDeduplication {
 
         // Require the compiler-resolved standard Iterator operation, not a same-named method.
         let filter_definition = cx.typeck_results().type_dependent_def_id(expression.hir_id);
+
+        // Only standard iterator filters can encode the first-wins pattern inspected below.
         if filter.ident.name.as_str() != "filter"
             || filter_definition.is_none_or(|definition| {
                 !cx.tcx
@@ -98,6 +100,8 @@ impl LateLintPass<'_> for ImplicitFirstWinsDeduplication {
 
         // Abort early if the closure body is not a method call on a `HashSet` receiver.
         let body = cx.tcx.hir_body(closure.body).value.peel_blocks();
+
+        // A filter predicate without an insertion call cannot implement stateful deduplication.
         let ExprKind::MethodCall(insert, receiver, _, _) = body.kind else {
             return;
         };
@@ -116,6 +120,8 @@ impl ImplicitFirstWinsDeduplication {
     fn is_hash_set(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
         let expression_type = cx.typeck_results().expr_ty(expression);
         let referent_type = expression_type.peel_refs();
+
+        // Non-ADT state cannot be one of the supported set implementations.
         let ty::Adt(definition, _) = referent_type.kind() else {
             return false;
         };

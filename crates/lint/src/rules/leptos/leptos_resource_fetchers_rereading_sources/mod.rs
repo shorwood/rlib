@@ -109,11 +109,13 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
 
     /// Recognizes a reactive current-value read relevant to this closure.
     fn is_reactive_read(&self, expression: &Expr<'_>) -> bool {
+        // Only method calls can implement a reactive read interface.
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return false;
         };
         let owner = self.cx.tcx.hir_enclosing_body_owner(expression.hir_id);
 
+        // Unresolved calls cannot be classified by their reactive interface.
         let Some(method) = self
             .cx
             .tcx
@@ -127,6 +129,8 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
         if self.cx.tcx.crate_name(method.krate).as_str() != "reactive_graph" {
             return false;
         }
+
+        // Methods without an associated trait cannot match a reactive read interface.
         let Some(trait_id) = self.cx.tcx.trait_of_assoc(method) else {
             return false;
         };
@@ -156,6 +160,7 @@ impl<'analysis, 'tcx> ReactiveReads<'analysis, 'tcx> {
 
 impl<'tcx> Visitor<'tcx> for ReactiveReads<'_, 'tcx> {
     fn visit_nested_body(&mut self, body_id: BodyId) {
+        // Nested user closures do not execute as part of the resource fetcher itself.
         if self.body_depth >= Self::MAXIMUM_RESOURCE_BODY_DEPTH {
             return;
         }
@@ -209,20 +214,27 @@ impl LeptosResourceFetchersRereadingSources {
         cx: &LateContext<'tcx>,
         expression: &'tcx Expr<'tcx>,
     ) -> Option<ResourceClosures<'tcx>> {
+        // Resource construction must be expressed as a direct call.
         let ExprKind::Call(callee, arguments) = expression.kind else {
             return None;
         };
+
+        // A resource requires both a tracked source and a fetcher.
         let [source, fetcher, ..] = arguments else {
             return None;
         };
 
+        // Indirect callees cannot identify a resource constructor.
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
+
+        // Only resolved definitions can be matched to the Leptos constructor.
         let Res::Def(_, method) = cx.qpath_res(&path, callee.hir_id) else {
             return None;
         };
 
+        // Exclude calls outside the Leptos resource constructor family.
         if cx.tcx.crate_name(method.krate).as_str() != "leptos_server"
             || !cx.tcx.item_name(method).as_str().starts_with("new")
         {
@@ -247,6 +259,7 @@ impl LeptosResourceFetchersRereadingSources {
     fn signal_place(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<SignalPlace> {
         match expression.kind {
             ExprKind::Path(path) => {
+                // Nonlocal paths cannot name a captured signal place.
                 let Res::Local(root) = cx.qpath_res(&path, expression.hir_id) else {
                     return None;
                 };
@@ -271,6 +284,7 @@ impl LeptosResourceFetchersRereadingSources {
         closure: &'tcx Expr<'tcx>,
         collection: ReactiveReadCollection,
     ) -> Option<ReactiveReads<'analysis, 'tcx>> {
+        // Reactive reads are collected only within authored closure bodies.
         let ExprKind::Closure(closure) = closure.kind else {
             return None;
         };
@@ -283,17 +297,22 @@ impl LeptosResourceFetchersRereadingSources {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosResourceFetchersRereadingSources {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Analyze only recognized resource constructor calls.
         let Some(ResourceClosures { source, fetcher }) = Self::closures(cx, expression) else {
             return;
         };
+
+        // A nonclosure source cannot establish the tracked reads under review.
         let Some(source) = Self::analyze(cx, source, ReactiveReadCollection::TrackedSource) else {
             return;
         };
 
+        // A nonclosure fetcher has no isolated body to compare with its source.
         let Some(fetcher) = Self::analyze(cx, fetcher, ReactiveReadCollection::Fetcher) else {
             return;
         };
 
+        // Emit only when the fetcher rereads a place already tracked by the source.
         let Some(read) = fetcher.reads.iter().find(|read| {
             source
                 .reads

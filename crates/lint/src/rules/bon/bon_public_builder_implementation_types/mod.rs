@@ -104,6 +104,7 @@ impl BonPublicBuilderImplementationTypes {
         span: Span,
         exposures: &mut Vec<Exposure>,
     ) {
+        // Non-aggregate types contain no named implementation type or aggregate arguments.
         let ty::Adt(definition, arguments) = ty.kind() else {
             return;
         };
@@ -150,6 +151,8 @@ impl BonPublicBuilderImplementationTypes {
 impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.catalog.check_item(cx, item);
+
+        // Generated or crate-private items cannot leak implementation types through public API.
         if item.span.from_expansion()
             || !cx
                 .tcx
@@ -158,6 +161,8 @@ impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
         {
             return;
         }
+
+        // Only functions expose signature types through this item callback.
         let ItemKind::Fn { sig, .. } = item.kind else {
             return;
         };
@@ -165,6 +170,7 @@ impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
+        // Generated or non-exported associated items cannot leak a public builder type.
         if item.span.from_expansion()
             || !cx
                 .tcx
@@ -173,6 +179,8 @@ impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
         {
             return;
         }
+
+        // Non-function associated items have no callable signature to inspect.
         let ImplItemKind::Fn(signature, _) = item.kind else {
             return;
         };
@@ -180,6 +188,7 @@ impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
     }
 
     fn check_field_def(&mut self, cx: &LateContext<'tcx>, field: &'tcx FieldDef<'tcx>) {
+        // Generated or non-exported fields do not expose their types through public API.
         if field.span.from_expansion()
             || !cx.tcx.effective_visibilities(()).is_exported(field.def_id)
         {
@@ -219,6 +228,8 @@ impl BonPublicBuilderImplementationTypes {
         for (input, semantic) in declaration.inputs.iter().zip(signature.inputs()) {
             self.collect_ty(cx, *semantic, input.span);
         }
+
+        // An implicit unit return contributes no authored output type to inspect.
         let FnRetTy::Return(output) = declaration.output else {
             return;
         };

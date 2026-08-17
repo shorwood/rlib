@@ -140,6 +140,7 @@ impl MisorderedModuleDeclarations {
 
     /// Returns whether an item directly implements the expected local nominal type.
     fn is_direct_impl_of(cx: &LateContext<'_>, item: &Item<'_>, expected: LocalDefId) -> bool {
+        // Non-implementation items cannot extend a nominal declaration group.
         if !matches!(item.kind, ItemKind::Impl(_)) {
             return false;
         }
@@ -199,9 +200,12 @@ impl MisorderedModuleDeclarations {
 
     /// Produces a stable human-readable name for diagnostic ordering output.
     fn canonical_name(cx: &LateContext<'_>, item: &Item<'_>) -> String {
+        // Foreign modules use a stable semantic label because they have no identifier.
         if matches!(item.kind, ItemKind::ForeignMod { .. }) {
             return "extern block".to_owned();
         }
+
+        // Implementation blocks are named by their resolved self type.
         if matches!(item.kind, ItemKind::Impl(_)) {
             return format!(
                 "impl {}",
@@ -234,6 +238,8 @@ impl MisorderedModuleDeclarations {
     fn emit_if_needed(cx: &LateContext<'_>, hir_id: HirId, nodes: &DeclarationNodeList) {
         // Stop when the authored order already matches dependency order.
         let ordering = nodes.declaration_order();
+
+        // An identity permutation needs no diagnostic or source movement.
         if ordering.iter().copied().eq(0..nodes.len()) {
             return;
         }

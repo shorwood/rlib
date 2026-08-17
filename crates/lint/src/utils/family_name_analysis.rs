@@ -475,6 +475,8 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         confidence: &mut ConfidenceEvidence,
     ) -> Option<Vec<FamilyInferenceRename<'section>>> {
         let owner_name = &self.affected[relationship.owner_index].name;
+
+        // A single-word owner provides no shared stem for its dependent declarations.
         if owner_name.len() <= 1 {
             return None;
         }
@@ -545,6 +547,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         occupied_names: &HashSet<String>,
     ) -> Option<FamilyNameFinding> {
         // Require affected declarations and contextual or ownership evidence.
+        // A family with no prefixed declarations has no actionable rename candidates.
         if self.affected.is_empty() {
             return None;
         }
@@ -556,6 +559,8 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
 
         // Combine contextual evidence with any reverse owner-child relationship.
         let reverse_owner = self.reverse_owner_relationship();
+
+        // Neither repeated context nor an inverted ownership name supports this inference.
         if !context_matches && reverse_owner.is_none() {
             return None;
         }
@@ -567,6 +572,8 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
             .iter()
             .find(|participant| participant.name == self.section.prefix);
         let exact_root = root.is_some();
+
+        // A lone helper related to an exact family root uses its prefix semantically.
         if self.single_participant_is_semantically_rooted(root) {
             return None;
         }
@@ -687,6 +694,7 @@ impl NameTokens {
 
     /// Compares context words while permitting singular/plural variation at the end.
     fn matches_context(&self, context: &Self) -> bool {
+        // Differing word counts cannot describe the same contextual name.
         if self.words.len() != context.words.len() {
             return false;
         }
@@ -694,6 +702,7 @@ impl NameTokens {
 
         // Permit a plural variation only on the final contextual word.
         paired.enumerate().all(|(index, (left, right))| {
+            // Exact token matches need no singular or plural normalization.
             if left == right {
                 return true;
             }
@@ -763,13 +772,22 @@ impl ModuleNamingAnalysis {
 
     /// Resolves the inline-module identifier or file stem that supplies context words.
     fn context(cx: &LateContext<'_>, module: &Mod<'_>, hir_id: HirId) -> Option<String> {
-        for node in [cx.tcx.hir_node(hir_id), cx.tcx.parent_hir_node(hir_id)] {
-            let Node::Item(item) = node else { continue };
-            let Some(identifier) = item.kind.ident() else {
-                continue;
-            };
-            return Some(identifier.name.to_string());
+        // Prefer the first named item in the nearest-to-farthest context search.
+        let item_context = [cx.tcx.hir_node(hir_id), cx.tcx.parent_hir_node(hir_id)]
+            .into_iter()
+            .find_map(|node| match node {
+                Node::Item(item) => item
+                    .kind
+                    .ident()
+                    .map(|identifier| identifier.name.to_string()),
+                _ => None,
+            });
+
+        // A named enclosing item is stronger context than the module's file stem.
+        if item_context.is_some() {
+            return item_context;
         }
+
         let source_map = cx.sess().source_map();
         let filename = source_map.span_to_filename(module.spans.inner_span);
         filename.into_local_path().and_then(|path| {
@@ -781,6 +799,8 @@ impl ModuleNamingAnalysis {
     /// Resolves a direct inherent implementation to its local nominal self type.
     fn impl_dependency_owner(cx: &LateContext<'_>, item: &Item<'_>) -> Option<LocalDefId> {
         let self_type = cx.tcx.type_of(item.owner_id).instantiate_identity();
+
+        // Implementations of non-ADT self types have no nominal owner to associate.
         let ty::Adt(definition, _) = self_type.kind() else {
             return None;
         };
@@ -808,6 +828,8 @@ impl ModuleNamingAnalysis {
             let ItemKind::Impl(_) = item.kind else {
                 continue;
             };
+
+            // Implementations without a local nominal owner cannot enrich a local family.
             let Some(definition) = Self::impl_dependency_owner(cx, item) else {
                 continue;
             };

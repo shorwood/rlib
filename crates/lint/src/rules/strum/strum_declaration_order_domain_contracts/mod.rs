@@ -100,6 +100,7 @@ impl StrumDeclarationOrderDomainContracts {
 }
 impl LateLintPass<'_> for StrumDeclarationOrderDomainContracts {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        // Generated expressions and order-insensitive contexts cannot expose this contract.
         if expression.span.from_expansion() || !Self::order_sensitive_context(cx, expression.hir_id)
         {
             return;
@@ -121,6 +122,7 @@ impl LateLintPass<'_> for StrumDeclarationOrderDomainContracts {
             _ => None,
         };
 
+        // Expressions outside direct associated-item access provide no enum-order source.
         let Some(associated) = associated else { return };
         let is_order_source = (StrumAssociatedItem {
             trait_name: "IntoEnumIterator",
@@ -135,7 +137,8 @@ impl LateLintPass<'_> for StrumDeclarationOrderDomainContracts {
             .enum_definition(cx, associated)
             .is_some();
 
-        if !(is_order_source) {
+        // Only Strum iteration and variant-array sources inherit declaration order.
+        if !is_order_source {
             return;
         }
         Violation {

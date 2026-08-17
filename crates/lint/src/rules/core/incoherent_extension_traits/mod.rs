@@ -34,6 +34,7 @@ impl Default for ExtensionTraitConfig {
 impl ExtensionTraitConfig {
     /// Rejects configuration that cannot express a coherent policy.
     fn validate(&self) -> Result<(), String> {
+        // A zero method limit cannot admit any coherent extension trait.
         if self.max_methods == 0 {
             return Err("extension_traits.max_methods must be greater than zero".to_owned());
         }

@@ -107,6 +107,7 @@ impl LateLintPass<'_> for StrumManualEnumStringParsers {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Implementation items without a complete parser are unrelated.
         let Some(candidate) = StringParserCandidate::from_impl_item(cx, item) else {
             return;
         };
@@ -114,6 +115,7 @@ impl LateLintPass<'_> for StrumManualEnumStringParsers {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
+        // Replacement is valid only when Strum owns enum-string parsing.
         if StringParserProvider::selected(cx, self.provider)
             != Some(StringParserProvider::StrumEnumString)
         {

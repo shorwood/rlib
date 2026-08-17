@@ -102,6 +102,8 @@ impl LateLintPass<'_> for DeriveMoreManualVariantAccessors {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         let selected = PredicateFamily::selected(cx, self.provider);
+
+        // Manual accessors are replaceable only when Derive More owns the selected predicates.
         if selected != Some(PredicateProvider::DeriveMoreIsVariant) {
             return;
         }

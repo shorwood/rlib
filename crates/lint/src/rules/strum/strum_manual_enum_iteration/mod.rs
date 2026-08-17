@@ -100,10 +100,13 @@ impl StrumManualEnumIteration {
 
     /// Reports complete authored iteration when Strum owns its replacement.
     fn check(&self, cx: &LateContext<'_>, candidate: Option<CollectionCandidate>) {
+        // Incomplete collection analysis provides no manual iteration contract.
         let Some(candidate) = candidate else {
             return;
         };
-        if !(candidate.selected(self.provider) == Some(CollectionProvider::StrumEnumIter)) {
+
+        // Replacement is valid only when Strum iteration is the selected provider.
+        if candidate.selected(self.provider) != Some(CollectionProvider::StrumEnumIter) {
             return;
         }
 

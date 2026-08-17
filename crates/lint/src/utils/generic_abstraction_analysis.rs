@@ -202,6 +202,7 @@ struct GenericAbstractionOpenTypeVisitor<'a, 'tcx> {
 impl<'tcx> Visitor<'tcx> for GenericAbstractionOpenTypeVisitor<'_, 'tcx> {
     fn visit_ty(&mut self, ty: &'tcx Ty<'tcx, AmbigArg>) {
         // Stop descending after any nested component has made the substitution open.
+        // Further components cannot restore concrete substitution evidence.
         if self.has_open_boundary {
             return;
         }
@@ -216,6 +217,8 @@ impl<'tcx> Visitor<'tcx> for GenericAbstractionOpenTypeVisitor<'_, 'tcx> {
         if let TyKind::Path(qpath) = ty.kind {
             let resolution = self.cx.qpath_res(&qpath, ty.hir_id);
             self.has_open_boundary = generic_abstraction_open_type_resolution_is_open(resolution);
+
+            // Stop once this resolved path proves the substitution remains open.
             if self.has_open_boundary {
                 return;
             }
@@ -278,11 +281,14 @@ impl GenericAbstractionAnalyzer {
                 kind,
                 DefKind::Struct | DefKind::Enum | DefKind::Union | DefKind::TyAlias
             );
+
+            // The first supported ancestor is the declaration that owns the substitution.
             if is_supported {
                 return def_id.as_local();
             }
 
             // Only constructors and variants can resolve below their owning nominal type.
+            // Other definition kinds cannot lead to a supported declaration ancestor.
             if !matches!(kind, DefKind::Ctor(..) | DefKind::Variant) {
                 return None;
             }
@@ -301,12 +307,16 @@ impl GenericAbstractionAnalyzer {
             has_open_boundary: false,
         };
         visitor.visit_ty(ty);
+
+        // Any inferred or abstract nested component invalidates concrete evidence.
         if visitor.has_open_boundary {
             return None;
         }
 
         // Preserve authored vocabulary while treating unavailable source conservatively.
         let source_map = cx.sess().source_map();
+
+        // Missing authored text cannot establish one stable substitution spelling.
         let Ok(source) = source_map.span_to_snippet(ty.span) else {
             return None;
         };
@@ -358,6 +368,8 @@ impl GenericAbstractionAnalyzer {
     ) -> Option<GenericAbstractionFinding> {
         // Require at least one use, no open boundary, and exactly one concrete spelling.
         let evidence = evidence?;
+
+        // Varying or incomplete evidence does not prove an unnecessary abstraction.
         if evidence.has_open_boundary || evidence.concrete.len() != 1 {
             return None;
         }
@@ -397,10 +409,13 @@ impl GenericAbstractionAnalyzer {
         argument: Option<&&GenericArg<'tcx>>,
         use_span: Span,
     ) {
+        // Missing or non-type arguments leave this parameter's boundary open.
         let Some(GenericArg::Type(argument_ty)) = argument.copied() else {
             evidence.has_open_boundary = true;
             return;
         };
+
+        // Abstract substitutions cannot count as concrete specialization evidence.
         let Some(concrete) = Self::concrete_argument(cx, argument_ty) else {
             evidence.has_open_boundary = true;
             return;
@@ -408,6 +423,8 @@ impl GenericAbstractionAnalyzer {
 
         // Bound labels while retaining every distinct substitution identity.
         let spans = evidence.concrete.entry(concrete).or_default();
+
+        // Additional equivalent sites do not improve the bounded diagnostic evidence.
         if spans.len() >= GENERIC_SUBSTITUTION_MAX_REPRESENTATIVE_USE_SPANS {
             return;
         }
@@ -433,6 +450,8 @@ impl GenericAbstractionAnalyzer {
                 .then_some(segment.args)
                 .flatten()
         });
+
+        // A directly resolved segment provides the authoritative authored arguments.
         if direct.is_some() {
             return direct;
         }
@@ -447,15 +466,20 @@ impl GenericAbstractionAnalyzer {
     /// Records one eligible generic nominal declaration.
     pub(crate) fn record_item(&mut self, item: &Item<'_>) {
         // Reject generated and unsupported declarations before inspecting their generics.
+        // Expanded declarations are not authored abstraction choices.
         if item.span.from_expansion() {
             return;
         }
+
+        // Unsupported item kinds cannot contribute nominal generic declarations.
         let Some(parts) = Self::declaration_parts(item) else {
             return;
         };
 
         // Retain only declarations with at least one explicit authored type parameter.
         let parameters = Self::declaration_parameters(parts.generics);
+
+        // Nongeneric declarations cannot exhibit an unnecessary generic abstraction.
         if parameters.is_empty() {
             return;
         }
@@ -528,9 +552,12 @@ impl GenericAbstractionAnalyzer {
         use_span: Span,
     ) {
         // Resolve constructors and variants to the supported declaration owning their generics.
+        // Unresolved paths provide no stable declaration identity.
         let Some(resolved) = cx.qpath_res(qpath, hir_id).opt_def_id() else {
             return;
         };
+
+        // Paths outside supported local declarations do not contribute evidence.
         let Some(declaration) = Self::declaration_def_id(cx, resolved) else {
             return;
         };
@@ -574,6 +601,7 @@ impl GenericAbstractionAnalyzer {
 
     /// Records an explicit type-position substitution.
     pub(crate) fn record_ty<'tcx>(&mut self, cx: &LateContext<'tcx>, ty: &'tcx Ty<'tcx, AmbigArg>) {
+        // Only path types carry explicit declaration substitutions.
         let TyKind::Path(qpath) = ty.kind else {
             return;
         };

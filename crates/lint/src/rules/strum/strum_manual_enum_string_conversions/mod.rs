@@ -109,14 +109,18 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // A manual display candidate is recorded separately and needs no value-family analysis.
         if let Some(display) = DisplayCandidate::from_impl_item(cx, item) {
             self.displays.push(display);
             return;
         }
+
+        // Associated items without a complete enum-value family are unrelated conversions.
         let Some(family) = VariantValueFamily::from_impl_item(cx, item) else {
             return;
         };
 
+        // Only complete static-string accessors match the generated conversion contract.
         if !family.returns_static_str(cx)
             || !matches!(
                 family.method_name.as_str(),
@@ -155,6 +159,8 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
             }
             .emit(cx);
         }
+
+        // Manual display replacement is valid only when Strum is the selected provider.
         if DisplayProvider::selected(cx, self.display_provider)
             != Some(DisplayProvider::StrumDisplay)
         {

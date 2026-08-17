@@ -51,12 +51,17 @@ impl ComparisonContract {
 
     /// Classifies a function return type as equality, partial ordering, or total ordering.
     fn from_output(cx: &LateContext<'_>, output: Ty<'_>) -> Option<Self> {
+        // Boolean outputs directly establish an equality relation.
         if output.is_bool() {
             return Some(Self::Equality);
         }
+
+        // A direct `Ordering` output establishes a total ordering relation.
         if comparison_type_is_ordering(cx, output) {
             return Some(Self::TotalOrdering);
         }
+
+        // Partial ordering requires an `Option<Ordering>` return type.
         let ty::Adt(definition, arguments) = output.kind() else {
             return None;
         };
@@ -96,6 +101,7 @@ pub enum ComparisonProblem {
 impl ComparisonProblem {
     /// Classifies ownership for one exact comparison family.
     const fn classify(candidate_count: usize, occupancy: ComparisonFamilyOccupancy) -> Self {
+        // Multiple candidates leave canonical trait ownership ambiguous.
         if candidate_count > 1 {
             return Self::AmbiguousFamily {
                 count: candidate_count,
@@ -230,6 +236,8 @@ impl ComparisonAnalysis {
         let ItemKind::Impl(_) = item.kind else {
             return;
         };
+
+        // Trait occupancy is meaningful only for a resolved standard trait reference.
         let Some(trait_ref) = cx.tcx.impl_opt_trait_ref(item.owner_id.def_id) else {
             return;
         };
@@ -237,10 +245,14 @@ impl ComparisonAnalysis {
         // Resolve the local implementation target and standard trait identity.
         let trait_ref = trait_ref.instantiate_identity();
         let self_ty = cx.tcx.type_of(item.owner_id.def_id).instantiate_identity();
+
+        // Only local nominal types can own a comparison trait family.
         let Some(type_def_id) = comparison_type_local_adt(self_ty) else {
             return;
         };
         let path = cx.tcx.def_path_str(trait_ref.def_id);
+
+        // Only standard comparison traits occupy a relation family.
         let Some(contract) = ComparisonContract::from_trait_path(&path) else {
             return;
         };
@@ -269,6 +281,8 @@ impl ComparisonAnalysis {
         let (name, header) = match kind {
             FnKind::ItemFn(ident, _, header) => (ident.name, header),
             FnKind::Method(ident, signature) => (ident.name, signature.header),
+
+            // Closures do not define a named comparison API.
             FnKind::Closure => return,
         };
 
@@ -285,9 +299,13 @@ impl ComparisonAnalysis {
 
         // Resolve two shared operands of the same local nominal type.
         let signature = cx.tcx.fn_sig(def_id).instantiate_identity().skip_binder();
+
+        // A comparison API requires exactly two signature inputs.
         let [left, right] = signature.inputs() else {
             return;
         };
+
+        // Both inputs must immutably borrow the same local nominal type.
         let Some(type_def_id) = comparison_type_same_shared_local_adt(*left, *right) else {
             return;
         };
@@ -296,9 +314,13 @@ impl ComparisonAnalysis {
         let Some(contract) = ComparisonContract::from_output(cx, signature.output()) else {
             return;
         };
+
+        // Qualified names describe policy beyond a neutral comparison operation.
         if !comparison_source_has_neutral_name(cx, name, type_def_id, contract) {
             return;
         }
+
+        // Floating-point fields require explicit totalization for an `Ord`-like contract.
         if contract == ComparisonContract::TotalOrdering
             && comparison_type_contains_float_field(cx, type_def_id)
             && !comparison_source_uses_total_cmp(cx, body)
@@ -310,6 +332,8 @@ impl ComparisonAnalysis {
         let Some(left_binding) = comparison_source_binding(body.params[0].pat) else {
             return;
         };
+
+        // The right operand likewise needs a plain binding for provenance tracking.
         let Some(right_binding) = comparison_source_binding(body.params[1].pat) else {
             return;
         };
@@ -415,6 +439,7 @@ impl ComparisonAnalysis {
 
 /// Resolves a possibly referenced type to one local nominal definition.
 fn comparison_type_local_adt(ty: Ty<'_>) -> Option<LocalDefId> {
+    // Only nominal types can provide a local comparison family identity.
     let ty::Adt(definition, _) = ty.peel_refs().kind() else {
         return None;
     };
@@ -443,6 +468,7 @@ fn comparison_type_same_shared_local_adt<'tcx>(
 
 /// Returns whether a type is exactly `std::cmp::Ordering`.
 fn comparison_type_is_ordering(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+    // Only nominal types can resolve to the standard `Ordering` definition.
     let ty::Adt(definition, _) = ty.kind() else {
         return false;
     };
@@ -538,6 +564,8 @@ fn comparison_source_has_neutral_name(
 /// Returns whether a body explicitly totalizes floating-point ordering.
 fn comparison_source_uses_total_cmp<'tcx>(cx: &LateContext<'tcx>, body: &Body<'tcx>) -> bool {
     /// Finds a resolved call to the standard floating-point total comparator.
+    ///
+    /// TODO: Forbid struct and impl declarations inside methods.
     struct TotalCmpFinder<'analysis, 'tcx> {
         /// Compiler context used to resolve method definitions.
         cx: &'analysis LateContext<'tcx>,
@@ -549,6 +577,7 @@ fn comparison_source_uses_total_cmp<'tcx>(cx: &LateContext<'tcx>, body: &Body<'t
     impl TotalCmpFinder<'_, '_> {
         /// Returns whether a method call resolves to the standard float comparator.
         fn is_total_cmp(&self, expression: &Expr<'_>) -> bool {
+            // Only resolved methods can be identified as the standard float comparator.
             let Some(definition) = self
                 .cx
                 .typeck_results()
@@ -568,6 +597,8 @@ fn comparison_source_uses_total_cmp<'tcx>(cx: &LateContext<'tcx>, body: &Body<'t
             {
                 self.has_found = true;
             }
+
+            // Nested closures do not totalize the enclosing comparison operation.
             if matches!(expression.kind, ExprKind::Closure(_)) {
                 return;
             }
@@ -589,6 +620,7 @@ fn comparison_source_uses_total_cmp<'tcx>(cx: &LateContext<'tcx>, body: &Body<'t
 
 /// Extracts one plain parameter binding for provenance analysis.
 const fn comparison_source_binding(pattern: &Pat<'_>) -> Option<HirId> {
+    // Provenance analysis needs an unmodified parameter binding.
     let PatKind::Binding(_, binding, _, None) = pattern.kind else {
         return None;
     };
@@ -666,6 +698,7 @@ impl<'tcx> RelationEvidenceAnalyzer<'_, 'tcx> {
         }
         impl<'tcx> Visitor<'tcx> for BindingFinder<'_, '_, 'tcx> {
             fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+                // Finding one matching binding completes this provenance search.
                 if let ExprKind::Path(path) = expression.kind
                     && let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id)
                     && self.bindings.contains(&binding)
@@ -704,10 +737,14 @@ impl<'tcx> RelationEvidenceAnalyzer<'_, 'tcx> {
             comparison_type_local_adt(self.cx.typeck_results().expr_ty(operand))
                 == Some(self.type_def_id)
         };
+
+        // Both operands must retain the candidate's local nominal type.
         if !owns_operand(left) || !owns_operand(right) {
             return false;
         }
         let typeck = self.cx.typeck_results();
+
+        // A resolved method definition is required to identify trait delegation.
         let Some(definition) = typeck.type_dependent_def_id(expression.hir_id) else {
             return false;
         };
@@ -726,6 +763,7 @@ impl<'tcx> RelationEvidenceAnalyzer<'_, 'tcx> {
         left: &'tcx Expr<'tcx>,
         right: &'tcx Expr<'tcx>,
     ) {
+        // Only the first returned operation that combines both operand families is evidence.
         if self.evidence.is_some()
             || !self.returned_relations.contains(&expression.hir_id)
             || !self.opposite_operands(left, right)
@@ -742,9 +780,12 @@ impl<'tcx> RelationEvidenceAnalyzer<'_, 'tcx> {
 
     /// Propagates operand provenance through one plain local binding.
     fn record_alias(&mut self, initializer: Option<&'tcx Expr<'tcx>>, pattern: &Pat<'_>) {
+        // Bindings without an initializer cannot inherit operand provenance.
         let Some(initializer) = initializer else {
             return;
         };
+
+        // Only plain bindings can retain a stable provenance identity.
         let PatKind::Binding(_, binding, _, None) = pattern.kind else {
             return;
         };
@@ -753,6 +794,8 @@ impl<'tcx> RelationEvidenceAnalyzer<'_, 'tcx> {
         if self.uses(initializer, &self.left) {
             self.left.insert(binding);
         }
+
+        // Absence from the right family ends propagation for this alias.
         if !self.uses(initializer, &self.right) {
             return;
         }
@@ -824,10 +867,13 @@ impl RelationResultCollector {
 
         impl<'tcx> Visitor<'tcx> for RelationFinder<'_> {
             fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+                // A direct relation expression is a complete result-flow leaf.
                 if RelationResultCollector::is_relation(expression) {
                     self.relations.insert(expression.hir_id);
                     return;
                 }
+
+                // A bound relation contributes all of its recorded relation expressions.
                 if let ExprKind::Path(rustc_hir::QPath::Resolved(_, path)) = expression.kind
                     && let Res::Local(binding) = path.res
                     && let Some(relations) = self.bindings.get(&binding)
@@ -835,6 +881,8 @@ impl RelationResultCollector {
                     self.relations.extend(relations);
                     return;
                 }
+
+                // Nested closures do not contribute relations to the outer result.
                 if matches!(expression.kind, ExprKind::Closure(_)) {
                     return;
                 }
@@ -854,6 +902,7 @@ impl RelationResultCollector {
 
     /// Follows only expression positions whose value contributes to the returned boolean.
     fn visit_result_expr<'tcx>(&mut self, expression: &'tcx Expr<'tcx>) {
+        // A bound relation contributes all of its recorded relation expressions.
         if let ExprKind::Path(rustc_hir::QPath::Resolved(_, path)) = expression.kind
             && let Res::Local(binding) = path.res
             && let Some(relations) = self.bindings.get(&binding)
@@ -861,6 +910,8 @@ impl RelationResultCollector {
             self.relations.extend(relations);
             return;
         }
+
+        // A direct relation expression is a complete result-flow leaf.
         if Self::is_relation(expression) {
             self.relations.insert(expression.hir_id);
             return;
@@ -936,6 +987,7 @@ impl<'tcx> Visitor<'tcx> for RelationResultCollector {
     }
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Assignment handling updates relation bindings before ending this traversal branch.
         if let ExprKind::Assign(left, right, _) = expression.kind {
             let relations = self.relations_in(right);
             self.visit_expr(right);

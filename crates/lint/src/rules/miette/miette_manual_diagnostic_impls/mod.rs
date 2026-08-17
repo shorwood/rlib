@@ -95,12 +95,17 @@ impl MietteManualDiagnosticImpls {
         cx: &LateContext<'_>,
         expression: &'hir Expr<'hir>,
     ) -> Option<&'hir Expr<'hir>> {
+        // Optional diagnostic metadata must be constructed by a one-argument call.
         let ExprKind::Call(callee, [argument]) = expression.kind else {
             return None;
         };
+
+        // The optional constructor must be named by a direct path.
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
+
+        // Only a resolved variant constructor can be standard `Option::Some`.
         let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
             cx.qpath_res(&path, callee.hir_id)
         else {
@@ -116,21 +121,32 @@ impl MietteManualDiagnosticImpls {
 
     /// Recognizes boxed static text used by code, help, and URL methods.
     fn static_box(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // Metadata must first be wrapped in standard `Option::Some`.
         let Some(expression) = Self::some_argument(cx, expression) else {
             return false;
         };
+
+        // The wrapped value must be produced by a one-argument constructor call.
         let ExprKind::Call(callee, [value]) = expression.kind else {
             return false;
         };
+
+        // The constructor must be named by a direct path.
         let ExprKind::Path(path) = callee.kind else {
             return false;
         };
+
+        // Only associated constructors can create the expected boxed metadata value.
         let Res::Def(DefKind::AssocFn, method) = cx.qpath_res(&path, callee.hir_id) else {
             return false;
         };
+
+        // The constructor must belong to an implementation before its self type is inspected.
         let Some(implementation) = cx.tcx.impl_of_assoc(method) else {
             return false;
         };
+
+        // The constructor implementation must target an ADT before it can be `Box`.
         let Some(box_type) = cx
             .tcx
             .type_of(implementation)
@@ -147,6 +163,7 @@ impl MietteManualDiagnosticImpls {
 
     /// Recognizes a static Miette severity variant wrapped by `Some`.
     fn static_severity(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // Severity metadata must wrap a direct variant path in `Option::Some`.
         let Some(Expr {
             kind: ExprKind::Path(path),
             hir_id,
@@ -155,6 +172,8 @@ impl MietteManualDiagnosticImpls {
         else {
             return false;
         };
+
+        // Severity metadata must be a direct variant constructor path.
         let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) = cx.qpath_res(path, *hir_id)
         else {
             return false;
@@ -171,6 +190,7 @@ impl MietteManualDiagnosticImpls {
 
     /// Recognizes a direct reference to one field on `self`.
     fn direct_reference(cx: &LateContext<'_>, body: &Body<'_>, expression: &Expr<'_>) -> bool {
+        // Field metadata must wrap an immutable field borrow in `Option::Some`.
         let Some(Expr {
             kind: ExprKind::AddrOf(_, Mutability::Not, field),
             ..
@@ -178,15 +198,23 @@ impl MietteManualDiagnosticImpls {
         else {
             return false;
         };
+
+        // Field forwarding requires an immutable borrow of the field.
         let ExprKind::Field(base, _) = field.kind else {
             return false;
         };
+
+        // The field base must be named by a direct receiver path.
         let ExprKind::Path(path) = base.kind else {
             return false;
         };
+
+        // Direct field forwarding requires the implementation receiver parameter.
         let Some(parameter) = body.params.first() else {
             return false;
         };
+
+        // The receiver parameter must remain a direct binding.
         let PatKind::Binding(_, receiver, _, None) = parameter.pat.kind else {
             return false;
         };
@@ -195,12 +223,15 @@ impl MietteManualDiagnosticImpls {
 
     /// Returns all methods when the complete implementation is derive-equivalent.
     fn derivable_methods(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Vec<String>> {
+        // Only implementation items can supply a complete diagnostic method set.
         let ItemKind::Impl(implementation) = item.kind else {
             return None;
         };
         let mut names = Vec::new();
         for reference in implementation.items {
             let method = cx.tcx.hir_impl_item(*reference);
+
+            // Every member must be a method with a body that can be analyzed.
             let ImplItemKind::Fn(_, body_id) = method.kind else {
                 return None;
             };
@@ -215,6 +246,7 @@ impl MietteManualDiagnosticImpls {
                 _ => false,
             };
 
+            // Each diagnostic method must map to a supported derive-equivalent form.
             if !derivable {
                 return None;
             }
@@ -225,13 +257,17 @@ impl MietteManualDiagnosticImpls {
 }
 impl LateLintPass<'_> for MietteManualDiagnosticImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only implementation items can be manual `Diagnostic` implementations.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
+
+        // Macro-expanded implementations are not reliable authored diagnostic contracts.
         if item.span.from_expansion() {
             return;
         }
 
+        // The implementation must resolve a trait identity before it can be miette's `Diagnostic`.
         let Some(trait_id) = implementation
             .of_trait
             .and_then(|reference| reference.trait_ref.trait_def_id())
@@ -239,6 +275,7 @@ impl LateLintPass<'_> for MietteManualDiagnosticImpls {
             return;
         };
 
+        // Only miette's `Diagnostic` trait establishes this derive replacement.
         if cx.tcx.crate_name(trait_id.krate).as_str() != "miette"
             || cx.tcx.item_name(trait_id).as_str() != "Diagnostic"
         {
@@ -249,14 +286,18 @@ impl LateLintPass<'_> for MietteManualDiagnosticImpls {
             .tcx
             .impl_trait_ref(item.owner_id.def_id)
             .instantiate_identity();
+
+        // The implementation target must be a nominal type.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return;
         };
 
+        // External target types cannot be replaced through an authored derive.
         if definition.did().as_local().is_none() {
             return;
         }
 
+        // Every implemented method must be derivable before the whole contract is reported.
         let Some(methods) = Self::derivable_methods(cx, item) else {
             return;
         };

@@ -109,9 +109,13 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Only enums can expose variant-specific foreign error representations.
         let ItemKind::Enum(_, _, definition) = item.kind else {
             return;
         };
+
+        // Generated or non-exported enums do not define the public authored contract.
         if item.span.from_expansion()
             || !cx
                 .tcx
@@ -121,9 +125,12 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
             return;
         }
 
+        // Missing authored source prevents recovery of thiserror field roles.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
+
+        // Unparseable enum source cannot be aligned with HIR variants and fields.
         let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
             return;
         };
@@ -171,6 +178,7 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
             }
         }
 
+        // Enums without a foreign causal field expose no representation through their variants.
         if exposures.is_empty() {
             return;
         }

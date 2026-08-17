@@ -34,12 +34,15 @@ impl ExplicitTupleType {
     pub(crate) fn classify(cx: &LateContext<'_>, ty: &Ty<'_, AmbigArg>) -> Option<Self> {
         // Reject generated, nested, and compiler-encoded roots before tuple discovery.
         let nested = matches!(cx.tcx.parent_hir_node(ty.hir_id), Node::Ty(_));
+
+        // Only authored root annotations represent tuple API choices owned by this analysis.
         if ty.span.from_expansion() || nested || Self::is_callable_argument_tuple(cx, ty) {
             return None;
         }
 
         // Classify an explicit root tuple without descending into its component types.
         if Self::is_non_unit_tuple(ty) {
+            // Compiler tuple encodings without authored parentheses are not explicit tuple syntax.
             if !Self::has_tuple_syntax(cx, ty.span) {
                 return None;
             }
@@ -76,11 +79,14 @@ impl ExplicitTupleType {
 
     /// Returns whether this tuple is the compiler encoding of callable-trait arguments.
     fn is_callable_argument_tuple(cx: &LateContext<'_>, ty: &Ty<'_, AmbigArg>) -> bool {
+        // Non-tuple types cannot be callable-trait argument tuple encodings.
         if !Self::is_non_unit_tuple(ty) {
             return false;
         }
         let owner = cx.tcx.hir_get_parent_item(ty.hir_id).def_id;
         let owner_span = cx.tcx.def_span(owner);
+
+        // A tuple preceding its owner cannot have a callable-trait prefix in that owner source.
         if owner_span.lo() > ty.span.lo() {
             return false;
         }
@@ -113,6 +119,7 @@ struct NestedTupleFinder<'cx, 'tcx> {
 
 impl<'hir> Visitor<'hir> for NestedTupleFinder<'_, '_> {
     fn visit_ty(&mut self, ty: &'hir Ty<'hir, AmbigArg>) {
+        // The first authored nested tuple completes discovery for this root annotation.
         if self.tuple_span.is_none()
             && ExplicitTupleType::is_non_unit_tuple(ty)
             && !ExplicitTupleType::is_callable_argument_tuple(self.cx, ty)

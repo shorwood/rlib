@@ -136,6 +136,7 @@ struct ContractNames {
 impl ContractNames {
     /// Recovers visibility and implicit names from a Serde struct or enum.
     fn analyze(source: &str) -> Option<Self> {
+        // A successfully parsed struct has a complete field contract and needs no enum fallback.
         if let Ok(structure) = syn::parse_str::<syn::ItemStruct>(source) {
             let container = SerdeAttributes::from_attributes(&structure.attrs);
             let fields = structure.fields.iter().filter_map(|field| {
@@ -161,8 +162,10 @@ impl ContractNames {
             });
         }
 
+        // Source that is neither a struct nor enum cannot define the supported Serde contract.
         let enumeration = match syn::parse_str::<syn::ItemEnum>(source) {
             Ok(enumeration) => enumeration,
+            // Failed enum parsing exhausts the supported authored data shapes.
             Err(_error) => return None,
         };
         let container = SerdeAttributes::from_attributes(&enumeration.attrs);
@@ -241,15 +244,20 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for SerdeUnstableImplicitWireNames {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Generated and non-data items cannot expose authored implicit wire names.
         if item.span.from_expansion()
             || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
         {
             return;
         }
 
+        // Missing authored source prevents recovery of effective Serde names.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
+
+        // Unrecognized authored data syntax cannot yield an implicit-name contract.
         let Some(ContractNames {
             is_public,
             serialize: serialize_names,
@@ -259,6 +267,7 @@ impl LateLintPass<'_> for SerdeUnstableImplicitWireNames {
             return;
         };
 
+        // Private or fully explicit contracts have no unstable public wire name to report.
         if !is_public || (serialize_names.is_empty() && deserialize_names.is_empty()) {
             return;
         }

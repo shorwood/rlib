@@ -123,12 +123,17 @@ impl MietteSourceCodeWithoutLabels {
         target: LocalDefId,
         visited: &mut HashSet<LocalDefId>,
     ) -> bool {
+        // Revisiting a type closes a recursive related-diagnostic cycle without new evidence.
         if !visited.insert(target) {
             return false;
         }
+
+        // Non-Miette related types cannot contribute a known label contract.
         let Some(contract) = catalog.derived_type(target) else {
             return true;
         };
+
+        // Transparent diagnostics delegate source presentation beyond this contract.
         if contract.metadata.is_transparent {
             return true;
         }

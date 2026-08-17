@@ -158,9 +158,12 @@ dylint_linting::impl_late_lint! {
 impl LeptosHydrationDivergentViews {
     /// Classifies one name-value `cfg!` predicate by its true environment.
     fn name_value_environment(name_value: &syn::MetaNameValue) -> Option<TrueEnvironment> {
+        // Environment predicates require a literal comparison value.
         let syn::Expr::Lit(value) = &name_value.value else {
             return None;
         };
+
+        // Only string-valued target and feature predicates are supported.
         let syn::Lit::Str(value) = &value.lit else {
             return None;
         };
@@ -185,12 +188,14 @@ impl LeptosHydrationDivergentViews {
         match meta {
             Meta::NameValue(name_value) => Self::name_value_environment(name_value),
             Meta::List(list) if list.path.is_ident("not") => {
+                // Malformed negated metadata cannot identify an environment.
                 let Ok(nested) = syn::parse2::<Meta>(list.tokens.clone()) else {
                     return None;
                 };
                 Self::environment_meta(&nested).map(TrueEnvironment::inverted)
             }
             Meta::List(list) if list.path.is_ident("all") || list.path.is_ident("any") => {
+                // Malformed compound metadata cannot be classified consistently.
                 let Ok(nested) =
                     Punctuated::<Meta, Token![,]>::parse_terminated.parse2(list.tokens.clone())
                 else {
@@ -215,6 +220,7 @@ impl LeptosHydrationDivergentViews {
         fn classify(expression: &syn::Expr) -> Option<TrueEnvironment> {
             match expression {
                 syn::Expr::Macro(expression) if expression.mac.path.is_ident("cfg") => {
+                    // Invalid configuration syntax has no reliable environment meaning.
                     let Ok(meta) = syn::parse2::<Meta>(expression.mac.tokens.clone()) else {
                         return None;
                     };
@@ -229,6 +235,7 @@ impl LeptosHydrationDivergentViews {
             }
         }
 
+        // Unparseable conditions cannot be matched to supported configuration forms.
         let Ok(expression) = syn::parse_str(source) else {
             return None;
         };
@@ -237,6 +244,7 @@ impl LeptosHydrationDivergentViews {
 
     /// Reduces one branch to the element and text structure relevant to hydration.
     fn view_shape(source: &str) -> Option<Vec<String>> {
+        // An unparseable branch cannot provide a trustworthy view shape.
         let Ok(expression) = syn::parse_str::<syn::Expr>(source) else {
             return None;
         };
@@ -248,28 +256,38 @@ impl LeptosHydrationDivergentViews {
 
 impl LateLintPass<'_> for LeptosHydrationDivergentViews {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        // Macro-generated branches are not authored hydration decisions.
         if expression.span.from_expansion() {
             return;
         }
+
+        // Hydration divergence requires two explicit conditional branches.
         let ExprKind::If(condition, then_branch, Some(else_branch)) = expression.kind else {
             return;
         };
         let source_map = cx.sess().source_map();
 
+        // Missing authored condition text prevents configuration classification.
         let Ok(condition_source) = source_map.span_to_snippet(condition.span) else {
             return;
         };
+
+        // Ignore conditions that do not select a supported execution environment.
         let Some(true_environment) = Self::environment_condition(&condition_source) else {
             return;
         };
 
+        // Missing authored then-branch text prevents shape comparison.
         let Ok(then_source) = source_map.span_to_snippet(then_branch.span) else {
             return;
         };
+
+        // Missing authored else-branch text prevents shape comparison.
         let Ok(else_source) = source_map.span_to_snippet(else_branch.span) else {
             return;
         };
 
+        // Both branches must contain a recognizable Leptos view.
         let (Some(then_shape), Some(else_shape)) = (
             Self::view_shape(&then_source),
             Self::view_shape(&else_source),
@@ -277,6 +295,7 @@ impl LateLintPass<'_> for LeptosHydrationDivergentViews {
             return;
         };
 
+        // Equal initial structures are safe to hydrate across environments.
         if then_shape == else_shape {
             return;
         }

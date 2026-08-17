@@ -169,6 +169,8 @@ impl Template {
                 "template must not have leading, trailing, or carriage-return newlines".to_owned(),
             );
         }
+
+        // A zero width cannot admit any valid ordinary-comment template line.
         if max_line_length == 0 {
             return Err("max_line_length must be greater than zero".to_owned());
         }
@@ -198,6 +200,8 @@ impl Template {
             return Err("every template line must be a normal `//` comment".to_owned());
         }
         let static_content = line.replace(TEMPLATE_CONTENT_PLACEHOLDER, "");
+
+        // Static template syntax wider than policy cannot produce canonical dividers.
         if static_content.chars().count() > max_line_length {
             return Err("a static template line exceeds max_line_length".to_owned());
         }
@@ -215,6 +219,7 @@ impl Template {
         template: &TemplateLine,
         line: &TemplateSourceLine<'source>,
     ) -> Result<Option<&'source str>, ()> {
+        // Static template lines must match completely and capture no semantic content.
         let Some(after) = &template.after else {
             return (line.content == template.before).then_some(None).ok_or(());
         };
@@ -235,9 +240,13 @@ impl Template {
         let mut content = None;
         for (offset, template) in self.lines.iter().enumerate() {
             let line = &lines[index + offset];
+
+            // Mixed indentation means these source lines cannot form one divider instance.
             if line.indentation != indentation {
                 return None;
             }
+
+            // Any line mismatch invalidates the complete multiline template candidate.
             let Ok(value) = Self::line_content(template, line) else {
                 return None;
             };

@@ -256,6 +256,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
 
     /// Records one unique guard-clause opportunity.
     fn push_needless(&mut self, finding: ControlFlowFinding) {
+        // A span already recorded through another traversal path must produce only one finding.
         if self.state.contains_guardable_span(finding.span) {
             return;
         }
@@ -265,6 +266,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
 
     /// Returns whether an expression exits its current control-flow path.
     fn expression_diverges(&self, expression: &Expr<'_>) -> bool {
+        // Explicit jump expressions diverge without requiring type-based `never` inference.
         if matches!(
             expression.kind,
             ExprKind::Break(..) | ExprKind::Continue(..) | ExprKind::Ret(..) | ExprKind::Become(..)
@@ -384,6 +386,8 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
             return;
         }
         let calls = expression.method_chain_length();
+
+        // Chains within the configured limit require no decomposition guidance.
         if calls <= self.config.max_method_chain_calls {
             return;
         }
@@ -418,6 +422,7 @@ impl<'tcx> Visitor<'tcx> for ControlFlowAnalyzer<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         // Traverse authored desugarings while ignoring opaque macro expansions.
         if expression.span.from_expansion() {
+            // Opaque macro output has no authored control-flow structure to analyze.
             if expression.span.desugaring_kind().is_none() {
                 return;
             }
@@ -433,6 +438,8 @@ impl<'tcx> Visitor<'tcx> for ControlFlowAnalyzer<'_, 'tcx> {
         if matches!(expression.kind, ExprKind::Closure(..)) {
             return;
         }
+
+        // Specialized conditional traversal owns every child, so ordinary walking must stop here.
         if let ExprKind::If(condition, then, otherwise) = expression.kind {
             self.visit_if_at_depth(expression, condition, then, otherwise, self.state.depth + 1);
             return;

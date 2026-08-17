@@ -30,6 +30,7 @@ impl Violation {
         for attribute in attributes {
             let is_documentation = attribute.is_doc_comment() || attribute.has_name(sym::doc);
             if is_documentation {
+                // Documentation following another attribute establishes the first violation.
                 if let Some(preceding) = preceding {
                     return Some(Self {
                         preceding,
@@ -92,9 +93,12 @@ dylint_linting::impl_pre_expansion_lint! {
 impl DocumentationAfterAttributes {
     /// Emits the first ordering failure in one declaration's attribute stack.
     fn check_attributes(cx: &EarlyContext<'_>, attributes: &[Attribute]) {
+        // Canonically ordered attributes require no diagnostic.
         let Some(violation) = Violation::from_attributes(attributes) else {
             return;
         };
+
+        // Generated attribute ordering cannot be repaired in authored source.
         if violation.documentation.from_expansion() || violation.preceding.from_expansion() {
             return;
         }

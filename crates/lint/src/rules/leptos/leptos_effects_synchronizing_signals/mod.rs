@@ -90,6 +90,7 @@ impl<'analysis, 'tcx> ReactiveOperations<'analysis, 'tcx> {
 
     /// Classifies a method call by its semantic reactive graph trait.
     fn reactive_method(&self, expression: &Expr<'_>) -> Option<ReactiveMethod> {
+        // Only method calls can implement reactive read or write interfaces.
         let ExprKind::MethodCall(_, _, _, _) = expression.kind else {
             return None;
         };
@@ -101,6 +102,7 @@ impl<'analysis, 'tcx> ReactiveOperations<'analysis, 'tcx> {
             .typeck(owner)
             .type_dependent_def_id(expression.hir_id)?;
 
+        // Methods outside the reactive graph do not participate in signal synchronization.
         if self.cx.tcx.crate_name(method.krate).as_str() != "reactive_graph" {
             return None;
         }
@@ -163,31 +165,42 @@ dylint_linting::impl_late_lint! {
 impl LeptosEffectsSynchronizingSignals {
     /// Returns the framework effect operation selected by a resolved call.
     fn effect_operation(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<EffectOperation> {
+        // Effect construction must be expressed as a direct call.
         let ExprKind::Call(callee, _) = expression.kind else {
             return None;
         };
+
+        // Indirect callees cannot identify a framework effect operation.
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
 
+        // Only resolved definitions can be matched to effect constructors.
         let Res::Def(_, method) = cx.qpath_res(&path, callee.hir_id) else {
             return None;
         };
+
+        // Calls outside the reactive graph cannot construct framework effects.
         if cx.tcx.crate_name(method.krate).as_str() != "reactive_graph" {
             return None;
         }
 
         let method_name = cx.tcx.item_name(method);
+
+        // Associated operations must belong to the framework effect type.
         if let Some(implementation) = cx.tcx.impl_of_assoc(method) {
             let definition = cx
                 .tcx
                 .type_of(implementation)
                 .instantiate_identity()
                 .ty_adt_def()?;
+
+            // Associated functions on other reactive types are not effect constructors.
             if cx.tcx.item_name(definition.did()).as_str() != "Effect" {
                 return None;
             }
 
+            // The recognized associated operation determines its closure layout.
             return match method_name.as_str() {
                 "new" | "new_sync" | "new_isomorphic" => Some(EffectOperation::Callback),
                 "watch" | "watch_sync" => Some(EffectOperation::Watch),
@@ -207,6 +220,7 @@ impl LeptosEffectsSynchronizingSignals {
         cx: &'analysis LateContext<'tcx>,
         expression: &'tcx Expr<'tcx>,
     ) -> Option<ReactiveOperations<'analysis, 'tcx>> {
+        // Only direct closure arguments have an isolated effect callback body.
         let ExprKind::Closure(closure) = expression.kind else {
             return None;
         };
@@ -222,9 +236,12 @@ impl<'tcx> LateLintPass<'tcx> for LeptosEffectsSynchronizingSignals {
         // Bound the operation-specific closure scan.
         const WATCH_CLOSURE_COUNT: usize = 2;
 
+        // Effect candidates must be expressed as direct calls with inspectable arguments.
         let ExprKind::Call(_, arguments) = expression.kind else {
             return;
         };
+
+        // Unrecognized calls do not establish an effect callback boundary.
         let Some(operation) = Self::effect_operation(cx, expression) else {
             return;
         };
@@ -237,6 +254,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosEffectsSynchronizingSignals {
         };
 
         for argument in arguments.iter().take(closure_count) {
+            // Nonclosure arguments do not contribute direct callback operations.
             let Some(operations) = Self::closure_operations(cx, argument) else {
                 continue;
             };
@@ -244,6 +262,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosEffectsSynchronizingSignals {
             write_span = write_span.or(operations.write_span);
         }
 
+        // Synchronization requires both a tracked read and a reactive write.
         let (Some(read_span), Some(write_span)) = (read_span, write_span) else {
             return;
         };

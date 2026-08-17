@@ -105,12 +105,18 @@ dylint_linting::impl_late_lint! {
 impl<'tcx> LateLintPass<'tcx> for BonEscapingIncompleteBuilders {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.catalog.check_item(cx, item);
+
+        // Generated and public items are not private escape boundaries owned by this lint.
         if item.span.from_expansion() || cx.tcx.visibility(item.owner_id.def_id).is_public() {
             return;
         }
+
+        // Only functions can return an incomplete builder across a call boundary.
         let ItemKind::Fn { sig, .. } = item.kind else {
             return;
         };
+
+        // An implicit unit return cannot carry an incomplete builder value.
         let FnRetTy::Return(output) = sig.decl.output else {
             return;
         };
@@ -121,12 +127,17 @@ impl<'tcx> LateLintPass<'tcx> for BonEscapingIncompleteBuilders {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
+        // Generated and public methods are not private escape boundaries owned by this lint.
         if item.span.from_expansion() || cx.tcx.visibility(item.owner_id.def_id).is_public() {
             return;
         }
+
+        // Only associated functions can return an incomplete builder.
         let ImplItemKind::Fn(signature, _) = item.kind else {
             return;
         };
+
+        // An implicit unit return cannot carry an incomplete builder value.
         let FnRetTy::Return(output) = signature.decl.output else {
             return;
         };
@@ -137,6 +148,7 @@ impl<'tcx> LateLintPass<'tcx> for BonEscapingIncompleteBuilders {
     }
 
     fn check_field_def(&mut self, cx: &LateContext<'tcx>, field: &'tcx FieldDef<'tcx>) {
+        // Only authored private fields represent internal storage escape boundaries.
         if !(!field.span.from_expansion() && !cx.tcx.visibility(field.def_id).is_public()) {
             return;
         }

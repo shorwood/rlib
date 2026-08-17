@@ -18,6 +18,8 @@ pub(super) fn for_authored_name(name: &str, category: PolicyCategory) -> Option<
     // Normalize the candidate before requiring an explicit policy-role word.
     let name = name.trim_start_matches('_');
     let canonical_words = words(name);
+
+    // Names without canonical words provide no vocabulary for a suggestion.
     if canonical_words.is_empty() {
         return None;
     }
@@ -27,6 +29,8 @@ pub(super) fn for_authored_name(name: &str, category: PolicyCategory) -> Option<
         .iter()
         .map(|word| word.to_ascii_lowercase())
         .collect::<Vec<_>>();
+
+    // A name must state its policy category before mechanical normalization is safe.
     if !normalized.iter().any(|word| category.matches_word(word)) {
         return None;
     }
@@ -88,6 +92,8 @@ impl ConfigurationNameContext<'_> {
 
         // Recover domain vocabulary and keep boundary qualifiers in canonical order.
         let domain = self.domain_words();
+
+        // A generic configuration type cannot supply the missing domain vocabulary.
         if domain.is_empty() {
             return None;
         }

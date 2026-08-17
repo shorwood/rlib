@@ -100,6 +100,8 @@ impl LeptosAttributeBoundControlledInputs {
         let callsite = expression.span.source_callsite();
         let source_file = cx.sess().source_map().lookup_source_file(callsite.lo());
         let source = source_file.src.as_deref()?;
+
+        // An invalid source-relative offset prevents reliable inspection of the preceding attribute.
         let Ok(offset) = usize::try_from(callsite.lo().0.checked_sub(source_file.start_pos.0)?)
         else {
             return None;
@@ -107,6 +109,7 @@ impl LeptosAttributeBoundControlledInputs {
         let source = source.get(..offset)?.trim_end();
         let tag = source.rsplit_once('<')?.1.split_ascii_whitespace().next()?;
 
+        // Only form controls define the raw state attributes governed by this lint.
         if !matches!(tag, "input" | "select" | "textarea") {
             return None;
         }
@@ -116,6 +119,8 @@ impl LeptosAttributeBoundControlledInputs {
             let Some(before) = before_equals.strip_suffix(attribute) else {
                 continue;
             };
+
+            // A token-delimited suffix proves the reactive value belongs to this exact attribute.
             if before
                 .chars()
                 .next_back()
@@ -131,17 +136,21 @@ impl LeptosAttributeBoundControlledInputs {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosAttributeBoundControlledInputs {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Expressions without an adjacent raw state attribute are unrelated to controlled inputs.
         let Some(attribute) = Self::raw_state_attribute(cx, expression) else {
             return;
         };
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
         let ty = cx.tcx.typeck(owner).expr_ty(expression);
 
+        // Immutable values cannot participate in two-way controlled input state.
         if !ReactiveCapability::carries_mutation(cx, owner, ty) {
             return;
         }
 
         let span = expression.span.source_callsite();
+
+        // A source range already reported through expansion aliases should emit only once.
         if !self.reported.insert(SourceRange {
             start: span.lo(),
             end: span.hi(),

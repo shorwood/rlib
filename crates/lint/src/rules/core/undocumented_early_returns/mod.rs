@@ -92,13 +92,14 @@ impl<'tcx> LateLintPass<'tcx> for UndocumentedEarlyReturns {
     fn check_fn(
         &mut self,
         cx: &LateContext<'tcx>,
-        kind: FnKind<'tcx>,
+        _kind: FnKind<'tcx>,
         _: &'tcx FnDecl<'tcx>,
         body: &'tcx Body<'tcx>,
         span: Span,
         _: LocalDefId,
     ) {
-        if matches!(kind, FnKind::Closure) || span.from_expansion() || span.is_build_generated(cx) {
+        // Generated bodies contain no authored guard comments to enforce.
+        if span.from_expansion() || span.is_build_generated(cx) {
             return;
         }
         for finding in self.analyzer.analyze_early_returns(cx, body) {

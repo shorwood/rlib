@@ -125,6 +125,8 @@ impl UnseparatedAssociatedItems {
                 line_is_empty &= !saw_line_break || matches!(byte, b' ' | b'\t' | b'\r');
                 continue;
             }
+
+            // A second line break after only horizontal whitespace proves a blank physical line.
             if saw_line_break && line_is_empty {
                 return true;
             }
@@ -136,9 +138,12 @@ impl UnseparatedAssociatedItems {
 
     /// Returns whether inserting after the previous item preserves comment ownership.
     fn has_safe_insertion(source: &str) -> bool {
+        // A single-line gap provides no stable line boundary for insertion.
         let Some((same_line, following_lines)) = source.split_once('\n') else {
             return false;
         };
+
+        // Syntax following the prior item on its line makes that insertion point unsafe.
         if !same_line.trim().is_empty() {
             return false;
         }
@@ -227,6 +232,7 @@ impl<'tcx> LateLintPass<'tcx> for UnseparatedAssociatedItems {
         let items = match item.kind {
             ItemKind::Impl(implementation) => Self::impl_items(cx, implementation.items),
             ItemKind::Trait(.., item_ids) => Self::trait_items(cx, item_ids),
+            // Other declarations do not own associated-item sequences.
             _ => return,
         };
 

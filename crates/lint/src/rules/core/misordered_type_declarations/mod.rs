@@ -128,6 +128,7 @@ impl MisorderedTypeDeclarations {
 
     /// Returns whether an item directly implements the expected local type.
     fn is_direct_impl_of(cx: &LateContext<'_>, item: &Item<'_>, expected: LocalDefId) -> bool {
+        // Only implementation items participate in adjacency to their target type.
         if !matches!(item.kind, ItemKind::Impl(_)) {
             return false;
         }
@@ -141,6 +142,8 @@ impl MisorderedTypeDeclarations {
         // Stop when the authored order already matches dependency order.
         let ordering = nodes.declaration_order();
         let source = (0..nodes.len()).collect::<Vec<_>>();
+
+        // An unchanged declaration ordering requires no source rewrite.
         if ordering == source {
             return;
         }

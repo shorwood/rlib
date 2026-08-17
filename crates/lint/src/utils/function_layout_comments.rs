@@ -18,22 +18,31 @@ use super::function_structure_config::FunctionStructureConfig;
 /// a second missing-comment diagnostic. Code between the comment and boundary still stops the
 /// search because that comment belongs to the preceding operation.
 fn has_phase_comment_candidate_before(cx: &LateContext<'_>, boundary: Span, prefix: &str) -> bool {
+    // Expanded boundaries cannot have an authored phase comment attached to them.
     if boundary.from_expansion() {
         return false;
     }
     let source_file = cx.sess().source_map().lookup_source_file(boundary.lo());
+
+    // Files without retained source text cannot be inspected for leading comments.
     let Some(source) = source_file.src.as_deref() else {
         return false;
     };
+
+    // An invalid relative byte position cannot identify an authored boundary.
     let Ok(offset) = usize::try_from((boundary.lo() - source_file.start_pos).to_u32()) else {
         return false;
     };
+
+    // A boundary outside the retained source cannot have an inspectable prefix.
     let Some(before) = source.get(..offset) else {
         return false;
     };
 
     // A boundary beginning after authored syntax on the same line cannot own a leading comment.
     let mut lines = before.rsplit('\n');
+
+    // Non-whitespace before the boundary makes any earlier comment belong elsewhere.
     if lines.next().is_some_and(|line| !line.trim().is_empty()) {
         return false;
     }
@@ -162,6 +171,8 @@ impl Block {
     fn previous_line_is_blank(cx: &LateContext<'_>, gap: Span, comment: Span) -> bool {
         let before = gap.with_hi(comment.lo());
         let source_map = cx.sess().source_map();
+
+        // Unavailable authored text cannot prove the required visual separation.
         let Ok(snippet) = source_map.span_to_snippet(before) else {
             return false;
         };
@@ -265,6 +276,7 @@ impl FunctionLayoutEntryGap {
 
     /// Returns whether the gap contains a complete blank physical line.
     fn contains_blank_line(cx: &LateContext<'_>, span: Span) -> bool {
+        // Unavailable authored text cannot establish a visual phase boundary.
         let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
             return false;
         };

@@ -57,6 +57,7 @@ impl DirectForwarding {
         // Reject destructured parameters before matching their uses by identity.
         let mut parameter_bindings = Vec::with_capacity(body.params.len());
         for parameter in body.params {
+            // Only plain parameters can be tracked as unchanged forwarded values.
             let PatKind::Binding(_, binding, _, None) = parameter.pat.kind else {
                 return None;
             };
@@ -91,6 +92,7 @@ impl DirectForwarding {
 
     /// Returns whether an expression is one plain local binding.
     pub(crate) fn is_binding(cx: &LateContext<'_>, expression: &Expr<'_>, binding: HirId) -> bool {
+        // Only direct paths can name an unchanged local binding.
         let ExprKind::Path(path) = expression.kind else {
             return false;
         };
@@ -184,13 +186,18 @@ impl DirectForwarding {
         outer_bindings: &[HirId],
     ) -> Option<DirectForwardingExpression<'hir>> {
         // Resolve the compiler-generated coroutine block and binding remap.
+        // Async lowering must begin with the compiler coroutine closure.
         let ExprKind::Closure(closure) = body.value.kind else {
             return None;
         };
         let coroutine = cx.tcx.hir_body(closure.body);
+
+        // The coroutine body must retain its transparent compiler block shape.
         let ExprKind::Block(block, None) = coroutine.value.kind else {
             return None;
         };
+
+        // Every authored parameter must have one generated coroutine binding.
         if block.stmts.len() != outer_bindings.len() {
             return None;
         }
@@ -201,12 +208,18 @@ impl DirectForwarding {
 
         // Unwrap the compiler's await lowering to the one forwarded future.
         let awaited = Self::single_body_expression(block.expr?)?;
+
+        // Only the compiler await desugaring is a transparent asynchronous wrapper.
         let ExprKind::Match(scrutinee, _, MatchSource::AwaitDesugar) = awaited.kind else {
             return None;
         };
+
+        // The await scrutinee must invoke the compiler future adapter directly.
         let ExprKind::Call(_, futures) = scrutinee.kind else {
             return None;
         };
+
+        // Exact forwarding awaits one and only one future expression.
         let [forwarded] = futures else {
             return None;
         };
@@ -214,6 +227,8 @@ impl DirectForwarding {
         // Reject await adapters that rely on a semantic type adjustment.
         let owner = cx.tcx.hir_body_owner_def_id(closure.body);
         let typeck = cx.tcx.typeck(owner);
+
+        // A type adjustment indicates adaptation beyond transparent awaiting.
         if typeck.expr_ty(awaited) != typeck.expr_ty_adjusted(awaited) {
             return None;
         }
@@ -233,9 +248,12 @@ impl DirectForwarding {
         outer_binding: HirId,
     ) -> Option<HirId> {
         // Resolve the generated local and require a plain binding pattern.
+        // Coroutine parameter remaps are represented by generated local statements.
         let rustc_hir::StmtKind::Let(local) = statement.kind else {
             return None;
         };
+
+        // Destructured generated locals cannot preserve one authored binding identity.
         let PatKind::Binding(_, inner_binding, _, None) = local.pat.kind else {
             return None;
         };
@@ -252,9 +270,12 @@ impl DirectForwarding {
     const fn returned_expression<'hir>(
         statement: &'hir rustc_hir::Stmt<'hir>,
     ) -> Option<&'hir Expr<'hir>> {
+        // Only semicolon statements can contain the explicit return shape accepted here.
         let rustc_hir::StmtKind::Semi(expression) = statement.kind else {
             return None;
         };
+
+        // Returns without a value do not forward an expression.
         let ExprKind::Ret(Some(expression)) = expression.kind else {
             return None;
         };

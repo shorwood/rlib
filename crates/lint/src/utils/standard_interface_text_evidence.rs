@@ -58,6 +58,7 @@ struct TextInputUseFinder<'analysis, 'tcx> {
 
 impl<'tcx> Visitor<'tcx> for TextInputUseFinder<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // A matching local path completes the search, so its descendants need no traversal.
         if let ExprKind::Path(path) = expression.kind
             && matches!(self.cx.qpath_res(&path, expression.hir_id), Res::Local(binding) if self.bindings.contains(&binding))
         {
@@ -102,6 +103,7 @@ impl<'tcx> TextBodyAnalyzer<'_, 'tcx> {
         expression: &'tcx Expr<'tcx>,
         receiver: &'tcx Expr<'tcx>,
     ) -> Option<DefId> {
+        // Calls on receivers unrelated to the authored input provide no delegation evidence.
         if !self.expression_uses_input(receiver) {
             return None;
         }
@@ -116,12 +118,15 @@ impl<'tcx> TextBodyAnalyzer<'_, 'tcx> {
         callee: &'tcx Expr<'tcx>,
         arguments: &'tcx [Expr<'tcx>],
     ) -> Option<DefId> {
+        // Calls without any input-derived argument cannot implement the accessor contract.
         if !arguments
             .iter()
             .any(|argument| self.expression_uses_input(argument))
         {
             return None;
         }
+
+        // Indirect callees cannot be resolved as a concrete free-function delegation target.
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
@@ -131,6 +136,7 @@ impl<'tcx> TextBodyAnalyzer<'_, 'tcx> {
 
 impl<'tcx> Visitor<'tcx> for TextBodyAnalyzer<'_, 'tcx> {
     fn visit_stmt(&mut self, statement: &'tcx Stmt<'tcx>) {
+        // Initialized bindings require provenance-aware traversal exactly once.
         if let StmtKind::Let(local) = statement.kind
             && let Some(initializer) = local.init
         {
@@ -170,6 +176,7 @@ impl<'tcx> Visitor<'tcx> for TextBodyAnalyzer<'_, 'tcx> {
             self.evidence.has_display_delegation = true;
         }
 
+        // Assignments update receiver-derived binding provenance before normal traversal resumes.
         if let ExprKind::Assign(left, right, _) = expression.kind {
             let derives_from_input = self.expression_uses_input(right);
             self.visit_expr(right);

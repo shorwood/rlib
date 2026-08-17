@@ -77,6 +77,8 @@ impl LateLintPass<'_> for NestedTupleTypes {
         let Some(tuple) = ExplicitTupleType::classify(cx, ty) else {
             return;
         };
+
+        // Flat explicit tuples are outside the nested-anonymous-structure policy.
         if tuple.kind != ExplicitTupleKind::Nested {
             return;
         }

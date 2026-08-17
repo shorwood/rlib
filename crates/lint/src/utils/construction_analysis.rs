@@ -236,6 +236,8 @@ impl ConstructionAnalysis {
         let Node::Item(item) = cx.tcx.hir_node_by_def_id(implementation) else {
             return None;
         };
+
+        // Only implementation items can own inherent associated functions.
         if !matches!(item.kind, ItemKind::Impl(_)) {
             return None;
         }
@@ -255,12 +257,16 @@ impl ConstructionAnalysis {
     ) -> Option<ConstructionInputFunction> {
         // Classify the direct HIR owner without following nested declarations.
         let parent = cx.tcx.opt_local_parent(def_id)?;
+
+        // A module parent identifies a free function constructor.
         if cx.tcx.def_kind(parent) == DefKind::Mod {
             return Some(ConstructionInputFunction {
                 origin: ConstructionOrigin::Free,
                 module: parent,
             });
         }
+
+        // A non-trait implementation parent identifies an inherent constructor.
         if cx.tcx.def_kind(parent) == (DefKind::Impl { of_trait: false }) {
             return Self::inherent_function(cx, parent);
         }
@@ -303,6 +309,8 @@ impl ConstructionAnalysis {
         // Follow only the success slot of the two standard construction containers.
         let is_option = cx.tcx.is_diagnostic_item(sym::Option, definition.did());
         let is_result = cx.tcx.is_diagnostic_item(sym::Result, definition.did());
+
+        // Other wrapper types do not preserve a recognized construction success path.
         if !is_option && !is_result {
             return None;
         }
@@ -319,6 +327,8 @@ impl ConstructionAnalysis {
     /// Returns a local nominal type after peeling ordinary references.
     fn direct_adt(input: Ty<'_>) -> Option<LocalDefId> {
         let input = input.peel_refs();
+
+        // Only nominal input types can be compared with the construction target.
         let ty::Adt(definition, _) = input.kind() else {
             return None;
         };
@@ -327,15 +337,22 @@ impl ConstructionAnalysis {
 
     /// Resolves the sole immutable string-slice parameter to its body binding.
     fn single_string_binding(body: &Body<'_>, inputs: &[Ty<'_>]) -> Option<HirId> {
+        // Canonical parsers accept exactly one source parameter.
         if inputs.len() != 1 || body.params.len() != 1 {
             return None;
         }
+
+        // The sole parameter must be an immutable string slice.
         let ty::Ref(_, inner, rustc_hir::Mutability::Not) = inputs[0].kind() else {
             return None;
         };
+
+        // Other referenced types cannot supply the parser's textual source.
         if !inner.is_str() {
             return None;
         }
+
+        // The parameter must remain a direct binding for use tracking.
         let PatKind::Binding(_, binding, _, None) = body.params[0].pat.kind else {
             return None;
         };
@@ -391,9 +408,13 @@ impl ConstructionAnalysis {
         let ExprKind::Path(path) = expression.kind else {
             return;
         };
+
+        // Only function definitions are tracked as relocatable references.
         let Res::Def(DefKind::Fn, definition) = cx.qpath_res(&path, expression.hir_id) else {
             return;
         };
+
+        // External definitions cannot be rewritten within this crate.
         let Some(definition) = definition.as_local() else {
             return;
         };
@@ -418,8 +439,12 @@ impl ConstructionAnalysis {
         let (ident, header) = match kind {
             FnKind::ItemFn(ident, _, header) => (ident, header),
             FnKind::Method(ident, signature) => (ident, signature.header),
+
+            // Closures do not establish a named construction API.
             FnKind::Closure => return,
         };
+
+        // Foreign ABI functions and external macro output are not authored candidates.
         if header.abi != ExternAbi::Rust || span.in_external_macro(cx.sess().source_map()) {
             return;
         }
@@ -429,6 +454,8 @@ impl ConstructionAnalysis {
             return;
         };
         let signature = cx.tcx.fn_sig(def_id).instantiate_identity().skip_binder();
+
+        // The return type must resolve to a supported local construction target.
         let Some(target) = Self::constructed_target(cx, signature.output()) else {
             return;
         };
@@ -446,6 +473,8 @@ impl ConstructionAnalysis {
         let mut evidence =
             ConstructionEvidence::new(cx, target.def_id, string_binding, returned_targets);
         evidence.visit_expr(body.value);
+
+        // The function body must actually construct the target promised by its return type.
         if !evidence.has_constructed_target {
             return;
         }
@@ -538,9 +567,13 @@ impl ConstructionAnalysis {
     fn record_module_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Resolve only items directly owned by a module.
         let def_id = item.owner_id.def_id;
+
+        // Items without a local parent cannot participate in module adjacency analysis.
         let Some(module) = cx.tcx.opt_local_parent(def_id) else {
             return;
         };
+
+        // Nested items are not direct members of the module's authored order.
         if cx.tcx.def_kind(module) != DefKind::Mod {
             return;
         }
@@ -557,6 +590,7 @@ impl ConstructionAnalysis {
 
     /// Records function definitions reached through one use declaration.
     fn record_import(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only use declarations can create imported constructor references.
         let ItemKind::Use(path, _) = item.kind else {
             return;
         };
@@ -576,6 +610,8 @@ impl ConstructionAnalysis {
     fn record_from_str_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Resolve only authored trait implementation items.
         let def_id = item.owner_id.def_id;
+
+        // Only implementation items can establish a `FromStr` contract.
         if !matches!(item.kind, ItemKind::Impl(_)) {
             return;
         }
@@ -592,15 +628,21 @@ impl ConstructionAnalysis {
         // Identify the standard trait without mistaking a same-named user trait for it.
         let is_core_from_str = cx.tcx.crate_name(trait_ref.def_id.krate).as_str() == "core"
             && cx.tcx.item_name(trait_ref.def_id).as_str() == "FromStr";
+
+        // Same-named user traits do not preclude a standard `FromStr` implementation.
         if !is_core_from_str {
             return;
         }
 
         // Retain the local nominal self type implementing the standard contract.
         let self_type = cx.tcx.type_of(def_id).instantiate_identity();
+
+        // Only nominal self types can be construction-parser targets.
         let ty::Adt(definition, _) = self_type.kind() else {
             return;
         };
+
+        // External target types are not part of this crate's parser families.
         let Some(target) = definition.did().as_local() else {
             return;
         };
@@ -630,12 +672,17 @@ struct ConstructionFailureCollector<'analysis, 'tcx> {
 impl<'analysis, 'tcx> ConstructionFailureCollector<'analysis, 'tcx> {
     /// Returns whether one expression directly constructs the standard `Result::Err` variant.
     fn is_result_variant(&self, expression: &Expr<'_>, expected: &str) -> bool {
+        // Result variant recognition starts with a constructor call.
         let ExprKind::Call(callee, _) = expression.kind else {
             return false;
         };
+
+        // The constructor must be named by a direct path.
         let ExprKind::Path(path) = callee.kind else {
             return false;
         };
+
+        // Only resolved variant constructors can be standard result variants.
         let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
             self.cx.qpath_res(&path, callee.hir_id)
         else {
@@ -649,6 +696,7 @@ impl<'analysis, 'tcx> ConstructionFailureCollector<'analysis, 'tcx> {
 
     /// Returns whether a returned call has a standard `Result` contract beyond direct `Ok`.
     fn is_result_operation(&self, expression: &Expr<'_>) -> bool {
+        // Only non-`Ok` calls can supply a fallible result operation.
         if !matches!(
             expression.kind,
             ExprKind::Call(..) | ExprKind::MethodCall(..)
@@ -661,6 +709,7 @@ impl<'analysis, 'tcx> ConstructionFailureCollector<'analysis, 'tcx> {
 
     /// Visits only expressions whose value can become the function's returned result.
     fn visit_result_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // One explicit failure path is sufficient evidence for a fallible constructor.
         if self.is_result_variant(expression, "Err") || self.is_result_operation(expression) {
             self.has_failure_path = true;
             return;
@@ -712,6 +761,8 @@ impl<'tcx> Visitor<'tcx> for ConstructionFailureCollector<'_, 'tcx> {
         if let ExprKind::Ret(Some(value)) = expression.kind {
             self.visit_result_expr(value);
         }
+
+        // Closure-local control flow cannot make the enclosing constructor fallible.
         if matches!(expression.kind, ExprKind::Closure(_)) {
             return;
         }
@@ -796,6 +847,7 @@ impl<'analysis, 'tcx> ConstructionEvidence<'analysis, 'tcx> {
 
 impl<'tcx> Visitor<'tcx> for ConstructionEvidence<'_, 'tcx> {
     fn visit_stmt(&mut self, statement: &'tcx Stmt<'tcx>) {
+        // Discarded parser-source bindings do not demonstrate meaningful source use.
         if let StmtKind::Let(local) = statement.kind
             && matches!(local.pat.kind, PatKind::Wild)
             && local
@@ -816,6 +868,8 @@ impl<'tcx> Visitor<'tcx> for ConstructionEvidence<'_, 'tcx> {
         }
         self.has_constructed_target |=
             self.returned_targets.contains(&expression.hir_id) && self.produces_target(expression);
+
+        // Nested closures do not contribute construction evidence to the outer function.
         if matches!(expression.kind, ExprKind::Closure(_)) {
             return;
         }
@@ -866,10 +920,13 @@ impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
 
         impl<'tcx> Visitor<'tcx> for TargetFinder<'_, '_, 'tcx> {
             fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+                // A direct construction is a complete target-producing leaf.
                 if self.collector.produces_target(expression) {
                     self.targets.insert(expression.hir_id);
                     return;
                 }
+
+                // A bound target value contributes all of its recorded construction sites.
                 if let ExprKind::Path(path) = expression.kind
                     && let Res::Local(binding) =
                         self.collector.cx.qpath_res(&path, expression.hir_id)
@@ -878,6 +935,8 @@ impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
                     self.targets.extend(targets);
                     return;
                 }
+
+                // Nested closures cannot contribute targets to the outer return value.
                 if matches!(expression.kind, ExprKind::Closure(_)) {
                     return;
                 }
@@ -897,10 +956,13 @@ impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
 
     /// Follows expressions that can contribute to the callable's returned value.
     fn visit_result_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // A direct construction is a complete target-producing result.
         if self.produces_target(expression) {
             self.returned_targets.insert(expression.hir_id);
             return;
         }
+
+        // A bound target value contributes all of its recorded construction sites.
         if let ExprKind::Path(path) = expression.kind
             && let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id)
             && let Some(targets) = self.bindings.get(&binding)
@@ -988,6 +1050,7 @@ impl<'tcx> Visitor<'tcx> for ConstructionResultCollector<'_, 'tcx> {
     }
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Assignment handling records the binding update before ending this traversal branch.
         if let ExprKind::Assign(left, right, _) = expression.kind {
             let targets = self.targets_in(right);
             self.visit_expr(right);

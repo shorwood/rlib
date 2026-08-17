@@ -19,7 +19,9 @@ use crate::utils::diagnostic::EarlyViolation;
 
 /// One selector branch or import that violates component CSS isolation.
 struct Violation {
+    /// Authored selector range receiving the diagnostic.
     span: Span,
+    /// Policy-specific explanation for the escaping selector.
     message: String,
 }
 
@@ -60,6 +62,7 @@ impl EarlyViolation for Violation {
 
 /// Requires every ordinary component selector branch to have a local class anchor.
 struct LeptosStylingUnscopedComponentSelectors {
+    /// Authored source files indexed for early lint callbacks.
     files: AuthoredFiles,
 }
 

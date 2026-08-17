@@ -54,6 +54,8 @@ impl DeriveMoreContractCatalog {
     fn expansion(cx: &LateContext<'_>, span: Span) -> Option<&'static str> {
         span.macro_backtrace().find_map(|expansion| {
             let definition = expansion.macro_def_id?;
+
+            // Expansions from other macro crates provide no derive_more contract evidence.
             if cx.tcx.crate_name(definition.krate).as_str() != "derive_more_impl" {
                 return None;
             }
@@ -131,13 +133,17 @@ impl DeriveMoreContractCatalog {
 
     /// Records the target of a framework-generated implementation.
     fn record_generated_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only generated implementation items can realize a derive contract.
         if !matches!(item.kind, ItemKind::Impl(_)) {
             return;
         }
+
+        // Implementations without a recognized derive_more expansion are unrelated.
         let Some(derive) = Self::expansion(cx, item.span) else {
             return;
         };
 
+        // Generated implementations without a local aggregate target cannot be correlated.
         let Some(definition) = cx
             .tcx
             .type_of(item.owner_id)
@@ -152,6 +158,7 @@ impl DeriveMoreContractCatalog {
 
     /// Records authored contracts and generated implementation evidence.
     pub fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Expanded items contribute generated derive evidence rather than authored type contracts.
         if item.span.from_expansion() {
             self.record_generated_impl(cx, item);
             return;
@@ -171,6 +178,7 @@ impl DeriveMoreContractCatalog {
                     .flat_map(|variant| variant.data.fields())
                     .collect::<Vec<_>>(),
             ),
+            // Other item kinds cannot own aggregate field-visibility contracts.
             _ => return,
         };
 

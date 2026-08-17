@@ -49,6 +49,7 @@ impl SerdeAuthoredFieldSet {
     fn for_struct(data: &VariantData<'_>, source: &str) -> Option<Self> {
         let structure = match syn::parse_str::<syn::ItemStruct>(source) {
             Ok(structure) => structure,
+            // Unparseable struct text cannot be correlated with HIR fields reliably.
             Err(_error) => return None,
         };
         let fields = structure
@@ -76,6 +77,7 @@ impl SerdeAuthoredFieldSet {
     fn for_enum(definition: &EnumDef<'_>, source: &str) -> Option<Self> {
         let enumeration = match syn::parse_str::<syn::ItemEnum>(source) {
             Ok(enumeration) => enumeration,
+            // Unparseable enum text cannot be correlated with HIR variants reliably.
             Err(_error) => return None,
         };
         let fields = enumeration
@@ -219,6 +221,7 @@ impl SerdeAttributes {
                     || meta.path.is_ident("rename_all")
                     || meta.path.is_ident("rename_all_fields")
                 {
+                    // Field-wide naming policy is complete without member rename parsing.
                     if meta.path.is_ident("rename_all_fields") {
                         if meta.input.peek(syn::Token![=]) {
                             let value = meta.value()?.parse::<syn::LitStr>()?.value();
@@ -298,6 +301,8 @@ impl SerdeAttributes {
                 }
                 Ok(())
             });
+
+            // Preserve policy recognized before malformed nested syntax stopped parsing.
             if parsing.is_err() {
                 return result;
             }
@@ -407,10 +412,12 @@ impl SerdeContractCatalog {
 
     /// Records the target of a framework-generated implementation.
     fn record_generated_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only implementation expansions can establish generated trait evidence.
         if !matches!(item.kind, ItemKind::Impl(_)) {
             return;
         }
 
+        // Ignore expansions not produced by a supported Serde derive macro.
         let Some(derive) = item.span.macro_backtrace().find_map(|expansion| {
             let definition = expansion.macro_def_id?;
             (cx.tcx.crate_name(definition.krate).as_str() == "serde_derive")
@@ -424,6 +431,7 @@ impl SerdeContractCatalog {
             return;
         };
 
+        // Generated implementations without local algebraic targets have no catalog key.
         let Some(definition) = cx
             .tcx
             .type_of(item.owner_id)
@@ -438,6 +446,7 @@ impl SerdeContractCatalog {
 
     /// Records authored contracts and generated implementation evidence.
     pub fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Expanded items contribute derive provenance rather than authored contracts.
         if item.span.from_expansion() {
             self.record_generated_impl(cx, item);
             return;
@@ -456,6 +465,7 @@ impl SerdeContractCatalog {
                     .flat_map(|variant| variant.data.fields())
                     .any(|field| field.vis_span.is_empty()),
             ),
+            // Other declarations do not expose Serde struct or enum contracts.
             _ => return,
         };
 

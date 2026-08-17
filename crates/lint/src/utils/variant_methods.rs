@@ -68,6 +68,8 @@ impl PredicateFamily {
         configured: Option<PredicateProvider>,
     ) -> Option<PredicateProvider> {
         let providers = Self::providers(cx);
+
+        // A single enabled provider needs no user-facing disambiguation.
         if providers.len() == 1 {
             return providers.first().copied();
         }
@@ -166,12 +168,18 @@ impl VariantMetadata {
         let span = cx.tcx.hir_span(hir_id);
         let source_map = cx.tcx.sess.source_map();
         let location = source_map.lookup_char_pos(span.lo());
+
+        // Attribute scanning requires the compiler to retain this file's source text.
         let Some(file_source) = location.file.src.as_deref() else {
             return false;
         };
+
+        // A span outside its source file cannot identify the preceding attributes.
         let Some(raw_offset) = span.lo().0.checked_sub(location.file.start_pos.0) else {
             return false;
         };
+
+        // The byte offset must fit the source slice before it can be indexed.
         let Ok(offset) = usize::try_from(raw_offset) else {
             return false;
         };
@@ -212,9 +220,12 @@ impl VariantMetadata {
 /// Resolves a positive integer literal pattern.
 #[cfg(feature = "strum")]
 fn integer_pattern(pattern: &Pat<'_>) -> Option<u128> {
+    // Only expression patterns can encode a literal discriminant.
     let PatKind::Expr(expression) = pattern.kind else {
         return None;
     };
+
+    // Negative and non-literal patterns do not represent supported discriminants.
     let PatExprKind::Lit {
         lit: literal,
         negated: false,
@@ -222,6 +233,8 @@ fn integer_pattern(pattern: &Pat<'_>) -> Option<u128> {
     else {
         return None;
     };
+
+    // Repr conversion matching requires an integer literal specifically.
     let rustc_ast::LitKind::Int(value, _) = literal.node else {
         return None;
     };
@@ -243,6 +256,7 @@ fn variant_from_res(cx: &LateContext<'_>, resolution: Res) -> Option<LocalDefId>
 fn ignored_variant_pattern(cx: &LateContext<'_>, pattern: &Pat<'_>) -> Option<LocalDefId> {
     let resolution = match pattern.kind {
         PatKind::Expr(expression) => {
+            // A payload-free variant must be written as a direct path.
             let PatExprKind::Path(path) = expression.kind else {
                 return None;
             };
@@ -262,6 +276,8 @@ fn ignored_variant_pattern(cx: &LateContext<'_>, pattern: &Pat<'_>) -> Option<Lo
         {
             cx.qpath_res(&path, pattern.hir_id)
         }
+
+        // Any other pattern can observe or bind payload data.
         _ => return None,
     };
 
@@ -270,6 +286,7 @@ fn ignored_variant_pattern(cx: &LateContext<'_>, pattern: &Pat<'_>) -> Option<Lo
 
 /// Resolves one plain binding pattern.
 const fn binding_id(pattern: &Pat<'_>) -> Option<rustc_hir::HirId> {
+    // Generated accessors require an unmodified binding for each payload field.
     let PatKind::Binding(_, binding, _, None) = pattern.kind else {
         return None;
     };
@@ -289,9 +306,12 @@ struct BoundTupleVariant {
 impl BoundTupleVariant {
     /// Resolves a tuple-variant pattern and its ordered field bindings.
     fn analyze(cx: &LateContext<'_>, pattern: &Pat<'_>) -> Option<Self> {
+        // Only tuple-variant patterns can establish ordered payload bindings.
         let PatKind::TupleStruct(path, fields, rest) = pattern.kind else {
             return None;
         };
+
+        // A rest pattern omits fields, so it cannot prove an exact accessor.
         if rest.as_opt_usize().is_some() {
             return None;
         }
@@ -328,6 +348,7 @@ fn option_output<'tcx>(cx: &LateContext<'tcx>, definition: LocalDefId) -> Option
         .skip_binder()
         .output();
 
+    // Accessor recognition is meaningful only for an exact `Option` result.
     let ty::Adt(option, arguments) = output.kind() else {
         return None;
     };
@@ -343,6 +364,8 @@ fn shared_receiver(cx: &LateContext<'_>, definition: LocalDefId, enum_def: Local
         .fn_sig(definition)
         .instantiate_identity()
         .skip_binder();
+
+    // Predicate methods must have a receiver to be generated from the enum.
     let Some(receiver) = signature.inputs().first() else {
         return false;
     };
@@ -356,12 +379,17 @@ fn shared_receiver(cx: &LateContext<'_>, definition: LocalDefId, enum_def: Local
 /// Finds the local enum targeted by an inherent implementation item.
 fn enclosing_inherent_enum(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> Option<LocalDefId> {
     cx.tcx.hir_parent_iter(hir_id).find_map(|(_, node)| {
+        // Only item ancestors can contain an inherent implementation.
         let Node::Item(item) = node else {
             return None;
         };
+
+        // The candidate must live in an implementation item.
         let rustc_hir::ItemKind::Impl(implementation) = item.kind else {
             return None;
         };
+
+        // Trait implementations do not establish inherent generated methods.
         if implementation.of_trait.is_some() {
             return None;
         }
@@ -381,9 +409,12 @@ fn owning_enum(cx: &LateContext<'_>, variant: LocalDefId) -> Option<LocalDefId> 
 
 /// Rejects enums whose variant attributes may disable or rename generated methods.
 fn enum_has_strum_variant_attributes(cx: &LateContext<'_>, enum_def: LocalDefId) -> bool {
+    // Unknown HIR structure may hide attributes that alter generated coverage.
     let Node::Item(item) = cx.tcx.hir_node_by_def_id(enum_def) else {
         return true;
     };
+
+    // Only enum definitions expose the variant metadata being checked.
     let rustc_hir::ItemKind::Enum(_, _, definition) = item.kind else {
         return true;
     };
@@ -399,9 +430,12 @@ fn enum_has_strum_variant_attributes(cx: &LateContext<'_>, enum_def: LocalDefId)
 /// Returns whether Strum excludes any variant from generated enum APIs.
 #[cfg(feature = "strum")]
 fn enum_has_strum_disabled_variant(cx: &LateContext<'_>, enum_def: LocalDefId) -> bool {
+    // Unknown HIR structure may hide disabled variants.
     let Node::Item(item) = cx.tcx.hir_node_by_def_id(enum_def) else {
         return true;
     };
+
+    // Only enum definitions expose the disabled-variant metadata.
     let rustc_hir::ItemKind::Enum(_, _, definition) = item.kind else {
         return true;
     };
@@ -417,12 +451,17 @@ fn eligible_variants(
     enum_def: LocalDefId,
     provider: Option<PredicateProvider>,
 ) -> Option<Vec<LocalDefId>> {
+    // Strum metadata can change coverage unless a concrete provider was selected.
     if provider.is_none() && enum_has_strum_variant_attributes(cx, enum_def) {
         return None;
     }
+
+    // The candidate must resolve to a local enum item.
     let Node::Item(item) = cx.tcx.hir_node_by_def_id(enum_def) else {
         return None;
     };
+
+    // Variant enumeration requires the item to remain an enum.
     let rustc_hir::ItemKind::Enum(_, _, definition) = item.kind else {
         return None;
     };
@@ -466,12 +505,15 @@ const fn peel_transparent<'hir>(mut expression: &'hir Expr<'hir>) -> &'hir Expr<
     loop {
         expression = match expression.kind {
             ExprKind::Block(block, None) if block.stmts.is_empty() => {
+                // An empty block without a tail expression cannot be peeled further.
                 let Some(inner) = block.expr else {
                     return expression;
                 };
                 inner
             }
             ExprKind::DropTemps(inner) => inner,
+
+            // Any other expression wrapper is semantically significant.
             _ => return expression,
         };
     }
@@ -479,9 +521,12 @@ const fn peel_transparent<'hir>(mut expression: &'hir Expr<'hir>) -> &'hir Expr<
 
 /// Resolves a literal boolean after transparent blocks.
 const fn bool_literal(expression: &Expr<'_>) -> Option<bool> {
+    // Only literal expressions can prove a boolean match arm's result.
     let ExprKind::Lit(literal) = peel_transparent(expression).kind else {
         return None;
     };
+
+    // Non-boolean literals do not identify a positive or negative arm.
     let rustc_ast::LitKind::Bool(value) = literal.node else {
         return None;
     };
@@ -513,6 +558,7 @@ impl<'hir> BoolArms<'hir> {
 /// Resolves a direct unit-variant expression.
 #[cfg(feature = "strum")]
 fn unit_variant_expression(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
+    // A unit variant result must be a direct constructor path.
     let ExprKind::Path(path) = peel_transparent(expression).kind else {
         return None;
     };
@@ -522,6 +568,8 @@ fn unit_variant_expression(cx: &LateContext<'_>, expression: &Expr<'_>) -> Optio
 /// Returns whether an expression is a direct path to a local binding.
 fn is_local_path(cx: &LateContext<'_>, expression: &Expr<'_>, binding: rustc_hir::HirId) -> bool {
     let expression = peel_transparent(expression);
+
+    // Only direct paths can be compared with the captured binding.
     let ExprKind::Path(path) = expression.kind else {
         return false;
     };
@@ -535,9 +583,12 @@ fn returns_bindings(
     expression: &Expr<'_>,
     bindings: &[rustc_hir::HirId],
 ) -> bool {
+    // A single binding is returned directly rather than wrapped in a tuple.
     if bindings.len() == 1 {
         return is_local_path(cx, expression, bindings[0]);
     }
+
+    // Multiple bindings must be returned in their original tuple shape.
     let ExprKind::Tup(elements) = peel_transparent(expression).kind else {
         return false;
     };
@@ -572,14 +623,20 @@ impl VariantMethodMatch {
         const BOOLEAN_MATCH_ARM_COUNT: usize = 2;
 
         let expression = peel_transparent(expression);
+
+        // Predicate recognition starts with an explicit match expression.
         let ExprKind::Match(scrutinee, arms, _) = expression.kind else {
             return None;
         };
+
+        // The match must cover only the receiver with exactly two outcomes.
         if !is_local_path(cx, scrutinee, receiver) || arms.len() != BOOLEAN_MATCH_ARM_COUNT {
             return None;
         }
 
         let BoolArms { positive, negative } = BoolArms::analyze(arms)?;
+
+        // Guards or a non-wildcard fallback prevent a complete generated predicate.
         if positive.guard.is_some()
             || negative.guard.is_some()
             || !matches!(negative.pat.kind, PatKind::Wild)
@@ -602,9 +659,13 @@ impl VariantMethodMatch {
         receiver: rustc_hir::HirId,
     ) -> Option<Self> {
         let expression = peel_transparent(expression);
+
+        // Accessor recognition starts with an explicit match expression.
         let ExprKind::Match(scrutinee, arms, _) = expression.kind else {
             return None;
         };
+
+        // The match must cover only the receiver with `Some` and fallback arms.
         if !is_local_path(cx, scrutinee, receiver) || arms.len() != Self::OPTION_MATCH_ARM_COUNT {
             return None;
         }
@@ -613,6 +674,8 @@ impl VariantMethodMatch {
             .iter()
             .find(|arm| option_some(cx, arm.body).is_some())?;
         let failure = arms.iter().find(|arm| is_option_none(cx, arm.body))?;
+
+        // Guards or a non-wildcard fallback prevent a complete generated accessor.
         if success.guard.is_some()
             || failure.guard.is_some()
             || !matches!(failure.pat.kind, PatKind::Wild)
@@ -622,6 +685,7 @@ impl VariantMethodMatch {
         let BoundTupleVariant { variant, bindings } = BoundTupleVariant::analyze(cx, success.pat)?;
         let returned = option_some(cx, success.body)?;
 
+        // The success arm must return the original payload without transformation.
         if !returns_bindings(cx, returned, &bindings) {
             return None;
         }
@@ -653,14 +717,17 @@ struct PredicateMethod {
 impl PredicateMethod {
     /// Resolves one shared-receiver, exact single-variant boolean match.
     fn from_impl_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Generated methods cannot be identified reliably inside macro expansions.
         if item.span.from_expansion() {
             return None;
         }
+
+        // Only function implementation items can supply a predicate body.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
 
-        // Require a public, synchronous, undocumented accessor with no generic parameters.
+        // Generated predicates must retain Strum's public, simple method contract.
         if signature.decl.inputs.len() != 1
             || signature.header.is_unsafe()
             || signature.header.is_async()
@@ -677,6 +744,8 @@ impl PredicateMethod {
 
         // Resolve the exact enum variant and receiver field returned by the accessor.
         let enum_def = enclosing_inherent_enum(cx, item.hir_id())?;
+
+        // The method must borrow precisely the enum it is associated with.
         if !shared_receiver(cx, item.owner_id.def_id, enum_def) {
             return None;
         }
@@ -685,6 +754,8 @@ impl PredicateMethod {
         let receiver = binding_id(body.params.first()?.pat)?;
         let VariantMethodMatch { variant, span } =
             VariantMethodMatch::predicate(cx, body.value, receiver)?;
+
+        // The matched variant must belong to the enclosing enum.
         if owning_enum(cx, variant) != Some(enum_def) {
             return None;
         }
@@ -697,6 +768,7 @@ impl PredicateMethod {
                 .to_case(Case::Snake)
         );
 
+        // The public method name must match the generated predicate naming scheme.
         if item.ident.name.as_str() != expected_name {
             return None;
         }
@@ -721,6 +793,7 @@ pub struct PredicateFamilyAnalyzer {
 impl PredicateFamilyAnalyzer {
     /// Records one exact authored variant predicate when eligible.
     pub(crate) fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Only complete predicate methods contribute evidence to a family.
         let Some(method) = PredicateMethod::from_impl_item(cx, item) else {
             return;
         };
@@ -745,6 +818,8 @@ impl PredicateFamilyAnalyzer {
                     .iter()
                     .map(|method| method.variant)
                     .collect::<HashSet<_>>();
+
+                // A replacement is sound only when every eligible variant is represented once.
                 if methods.len() != expected.len()
                     || found.len() != expected.len()
                     || !expected.iter().all(|variant| found.contains(variant))
@@ -776,13 +851,18 @@ fn option_some<'hir>(
     expression: &'hir Expr<'hir>,
 ) -> Option<&'hir Expr<'hir>> {
     let expression = peel_transparent(expression);
+
+    // `Some` recognition requires a one-argument constructor call.
     let ExprKind::Call(callee, [value]) = expression.kind else {
         return None;
     };
+
+    // The constructor itself must be named by a direct path.
     let ExprKind::Path(path) = peel_transparent(callee).kind else {
         return None;
     };
 
+    // Only a resolved variant constructor can be standard `Option::Some`.
     let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
         cx.qpath_res(&path, callee.hir_id)
     else {
@@ -795,6 +875,8 @@ fn option_some<'hir>(
 #[cfg(feature = "strum")]
 fn is_option_none(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
     let expression = peel_transparent(expression);
+
+    // `None` recognition requires a direct constructor path.
     let ExprKind::Path(path) = expression.kind else {
         return false;
     };
@@ -810,9 +892,13 @@ fn repr_match(
     enum_def: LocalDefId,
 ) -> Option<Span> {
     let expression = peel_transparent(expression);
+
+    // Repr conversion recognition requires a literal match expression.
     let ExprKind::Match(scrutinee, arms, _) = expression.kind else {
         return None;
     };
+
+    // The match must dispatch directly on the conversion input.
     if !is_local_path(cx, scrutinee, input) {
         return None;
     }
@@ -821,6 +907,7 @@ fn repr_match(
     let mut has_fallback = false;
 
     for arm in arms {
+        // Guarded arms cannot establish an exhaustive discriminant mapping.
         if arm.guard.is_some() {
             return None;
         }
@@ -831,16 +918,20 @@ fn repr_match(
         let value = integer_pattern(arm.pat)?;
         let variant_expression = option_some(cx, arm.body)?;
         let variant = unit_variant_expression(cx, variant_expression)?;
+
+        // Every literal must select one distinct variant of the candidate enum.
         if owning_enum(cx, variant) != Some(enum_def) || observed.insert(variant, value).is_some() {
             return None;
         }
     }
 
+    // A generated conversion needs an uncovered-value fallback and no disabled variants.
     if !has_fallback || enum_has_strum_disabled_variant(cx, enum_def) {
         return None;
     }
     let definition = cx.tcx.adt_def(enum_def.to_def_id());
 
+    // Every enum variant must be unit-like and mapped to its actual discriminant.
     if definition
         .variants()
         .iter()
@@ -861,6 +952,8 @@ fn repr_match(
 
     for (index, discriminant) in definition.discriminants(cx.tcx) {
         let variant = definition.variant(index).def_id.as_local()?;
+
+        // The observed literal must agree with the compiler's discriminant value.
         if observed.get(&variant).copied() != Some(discriminant.val) {
             return None;
         }
@@ -885,13 +978,17 @@ pub struct ReprConversionCandidate {
 impl ReprConversionCandidate {
     /// Resolves an exhaustive literal-to-variant `from_repr` implementation.
     pub(crate) fn from_impl_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Generated or differently named methods are not authored `from_repr` candidates.
         if item.span.from_expansion() || item.ident.name.as_str() != "from_repr" {
             return None;
         }
+
+        // Only function implementation items can implement the conversion.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
 
+        // `FromRepr` accepts exactly one integer input.
         if signature.decl.inputs.len() != 1 {
             return None;
         }
@@ -903,11 +1000,14 @@ impl ReprConversionCandidate {
             .fn_sig(item.owner_id.def_id)
             .instantiate_identity()
             .skip_binder();
+
+        // The input type must match the enum's declared integer representation.
         if signature.inputs()[0] != repr.to_ty(cx.tcx) {
             return None;
         }
         let output = option_output(cx, item.owner_id.def_id)?;
 
+        // The `Option` payload must be the enclosing enum itself.
         if output.ty_adt_def()?.did().as_local() != Some(enum_def) {
             return None;
         }
@@ -959,14 +1059,17 @@ struct AccessorMethod {
 impl AccessorMethod {
     /// Resolves one `Option` accessor that returns bound fields without transformation.
     fn from_impl_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Generated methods cannot be identified reliably inside macro expansions.
         if item.span.from_expansion() {
             return None;
         }
+
+        // Only function implementation items can supply an accessor body.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
 
-        // Require a public, synchronous, undocumented accessor with no generic parameters.
+        // Generated accessors must retain Strum's public, simple method contract.
         if signature.decl.inputs.len() != 1
             || signature.header.is_unsafe()
             || signature.header.is_async()
@@ -994,6 +1097,8 @@ impl AccessorMethod {
         let receiver = binding_id(body.params.first()?.pat)?;
         let VariantMethodMatch { variant, span } =
             VariantMethodMatch::accessor(cx, body.value, receiver)?;
+
+        // The matched variant must belong to the enclosing enum.
         if owning_enum(cx, variant) != Some(enum_def) {
             return None;
         }
@@ -1013,6 +1118,7 @@ impl AccessorMethod {
             suffix
         );
 
+        // The method name must match the generated accessor naming scheme.
         if item.ident.name.as_str() != expected_name {
             return None;
         }
@@ -1040,6 +1146,7 @@ pub struct AccessorFamilyAnalyzer {
 impl AccessorFamilyAnalyzer {
     /// Records one exact authored tuple-variant accessor when eligible.
     pub(crate) fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Only complete accessors contribute evidence to a family.
         let Some(method) = AccessorMethod::from_impl_item(cx, item) else {
             return;
         };
@@ -1064,6 +1171,8 @@ impl AccessorFamilyAnalyzer {
                     .iter()
                     .map(|method| (method.variant, method.mode))
                     .collect::<HashSet<_>>();
+
+                // A replacement is sound only when every variant has every accessor mode.
                 if methods.len() != expected
                     || found.len() != expected
                     || !variants.iter().all(|variant| {

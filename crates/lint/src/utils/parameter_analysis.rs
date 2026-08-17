@@ -96,6 +96,7 @@ impl ParameterSignature {
         let name = match kind {
             FnKind::ItemFn(ident, _, header) if header.abi == ExternAbi::Rust => ident,
             FnKind::Method(ident, signature) if signature.header.abi == ExternAbi::Rust => ident,
+            // Foreign-ABI and closure bodies are not ordinary authored Rust API boundaries.
             _ => return None,
         };
 
@@ -128,6 +129,8 @@ impl ParameterSignature {
         let TraitItemKind::Fn(signature, TraitFn::Required(names)) = item.kind else {
             return None;
         };
+
+        // Foreign-ABI or generated declarations are not authored Rust trait API boundaries.
         if signature.header.abi != ExternAbi::Rust
             || item.span.in_external_macro(cx.sess().source_map())
         {
@@ -157,6 +160,8 @@ impl ParameterSignature {
     ) -> bool {
         // Prefer semantic generated names that remain stable across source remapping.
         let semantic_name = cx.tcx.item_name(def_id.to_def_id());
+
+        // Conventional generated component names directly identify framework glue.
         if name.name.as_str().starts_with("__component_")
             || semantic_name.as_str().starts_with("__component_")
         {
@@ -283,6 +288,8 @@ impl ParameterSignature {
         let mut unique_names = HashSet::new();
         for parameter in parameters {
             let name = parameter.name.as_str();
+
+            // Weak role names cannot prove distinct semantic domains at call sites.
             if parameter_role::parameter_role_is_weak(name) {
                 return false;
             }
@@ -345,6 +352,8 @@ impl ParameterSignature {
     /// Returns whether one boolean parameter forms `set_property(property)` exactly.
     pub(crate) fn has_exact_boolean_setter(&self) -> bool {
         let booleans = self.boolean_parameters();
+
+        // Exact setters require one total parameter and that parameter must be boolean.
         if self.parameters.len() != 1 || booleans.len() != 1 {
             return false;
         }

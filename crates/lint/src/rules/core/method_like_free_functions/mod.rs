@@ -190,10 +190,13 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
 
         // Formatting ownership likewise needs complete crate-wide interface evidence.
         self.interfaces.record_item(cx, item);
+
+        // Imports contribute migration constraints but are not free-function method candidates.
         if self.record_function_import(item) {
             return;
         }
 
+        // Items without a supported receiver-shaped function contract need no ownership analysis.
         let Some(candidate) = MethodCandidate::discover(cx, item) else {
             return;
         };
@@ -217,6 +220,8 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
 
         // Retain canonical text helpers for formatting-specific precedence.
         self.interfaces.record_function(cx, kind, body, def_id);
+
+        // Only recognized construction candidates can contribute conversion precedence evidence.
         let Some(candidate) = self.constructions.candidate(def_id) else {
             return;
         };
@@ -227,6 +232,7 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
     ///
     /// This pass only gathers facts. It does not offer a fix until the whole crate has been seen.
     fn check_expr(&mut self, cx: &LateContext<'_>, expr: &Expr<'_>) {
+        // Non-path expressions cannot be direct references rewritten by a method migration.
         let ExprKind::Path(qpath) = expr.kind else {
             return;
         };
@@ -310,6 +316,7 @@ impl MethodLikeFreeFunctions {
     /// An imported alias is part of the function's public shape inside the module, so the fixer
     /// leaves that move to the author.
     fn record_function_import(&mut self, item: &Item<'_>) -> bool {
+        // Non-import items should continue through ordinary method-candidate discovery.
         let ItemKind::Use(path, _) = item.kind else {
             return false;
         };

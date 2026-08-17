@@ -96,19 +96,25 @@ dylint_linting::impl_late_lint! {
 impl ThiserrorErrorMessagesUsedAsIdentifiers {
     /// Resolves the local error type formatted by a `to_string` call.
     fn displayed_error(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
+        // Non-method expressions cannot represent either supported string-conversion chain.
         let ExprKind::MethodCall(segment, receiver, _, _) = expression.kind else {
             return None;
         };
+
+        // An `as_str` adapter is transparent only when its receiver is an allocated `String`.
         if segment.ident.as_str() == "as_str" {
             let receiver_type = cx.typeck_results().expr_ty(receiver).peel_refs();
             let definition = receiver_type.ty_adt_def()?;
-            if cx.tcx.item_name(definition.did()).as_str() == "String"
+            return if cx.tcx.item_name(definition.did()).as_str() == "String"
                 && cx.tcx.crate_name(definition.did().krate).as_str() == "alloc"
             {
-                return Self::displayed_error(cx, receiver);
-            }
-            return None;
+                Self::displayed_error(cx, receiver)
+            } else {
+                None
+            };
         }
+
+        // Other method names do not establish a display-text conversion.
         if segment.ident.as_str() != "to_string" {
             return None;
         }
@@ -117,6 +123,8 @@ impl ThiserrorErrorMessagesUsedAsIdentifiers {
             .typeck_results()
             .type_dependent_def_id(expression.hir_id)?;
         let trait_id = cx.tcx.trait_of_assoc(method)?;
+
+        // Inherent or unrelated `to_string` methods are not the standard display conversion.
         if cx.tcx.item_name(trait_id).as_str() != "ToString"
             || cx.tcx.crate_name(trait_id.krate).as_str() != "alloc"
         {
@@ -143,6 +151,7 @@ impl LateLintPass<'_> for ThiserrorErrorMessagesUsedAsIdentifiers {
     }
 
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        // Macro-generated string decisions are not authored domain-policy choices.
         if expression.span.from_expansion() {
             return;
         }
@@ -175,6 +184,7 @@ impl LateLintPass<'_> for ThiserrorErrorMessagesUsedAsIdentifiers {
             _ => None,
         };
 
+        // Expressions without a resolved display-text decision need no derive correlation.
         let Some((definition, operation)) = candidate else {
             return;
         };

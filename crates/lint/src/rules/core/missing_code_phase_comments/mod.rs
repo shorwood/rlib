@@ -94,6 +94,7 @@ impl<'tcx> LateLintPass<'tcx> for MissingCodePhaseComments {
         span: Span,
         _: LocalDefId,
     ) {
+        // Closures and generated bodies do not expose authored function phases here.
         if matches!(kind, FnKind::Closure) || span.from_expansion() || span.is_build_generated(cx) {
             return;
         }

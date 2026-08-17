@@ -40,9 +40,13 @@ impl<'analysis> Violation<'analysis> {
     /// Classifies unsupported boolean parameters while preserving exact setter contracts.
     fn from_signature(signature: &'analysis ParameterSignature) -> Option<Self> {
         let parameters = signature.boolean_parameters();
+
+        // Signatures without boolean policy or with an exact setter contract are acceptable.
         if parameters.is_empty() || signature.has_exact_boolean_setter() {
             return None;
         }
+
+        // A lone unsupported boolean is reported with focused single-flag guidance.
         if parameters.len() == 1 {
             return Some(Self::SingleFlag {
                 hir_id: signature.hir_id,
@@ -160,6 +164,7 @@ dylint_linting::impl_late_lint! {
 impl BooleanFunctionArguments {
     /// Classifies and emits one violation for an unsupported boolean signature.
     fn check_signature(cx: &LateContext<'_>, signature: &ParameterSignature) {
+        // Supported signatures require no boolean-policy diagnostic.
         let Some(violation) = Violation::from_signature(signature) else {
             return;
         };
@@ -177,6 +182,7 @@ impl<'tcx> LateLintPass<'tcx> for BooleanFunctionArguments {
         _: Span,
         def_id: LocalDefId,
     ) {
+        // Bodies outside ordinary authored Rust signatures are not governed by this API rule.
         let Some(signature) = ParameterSignature::from_body(cx, kind, body, def_id) else {
             return;
         };
@@ -184,6 +190,7 @@ impl<'tcx> LateLintPass<'tcx> for BooleanFunctionArguments {
     }
 
     fn check_trait_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx TraitItem<'tcx>) {
+        // Provided or otherwise unsupported trait items do not define required call-site policy.
         let Some(signature) = ParameterSignature::from_required_trait(cx, item) else {
             return;
         };

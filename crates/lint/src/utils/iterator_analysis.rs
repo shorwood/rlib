@@ -74,6 +74,8 @@ impl IteratorAnalysis {
             return;
         };
         let self_ty = cx.tcx.type_of(item.owner_id.def_id).instantiate_identity();
+
+        // Implementations for foreign or nonnominal types cannot own a local iterator contract.
         let Some(type_def_id) = iterator_classification_local_adt(self_ty) else {
             return;
         };
@@ -99,6 +101,8 @@ impl IteratorAnalysis {
                     .as_str(),
             )
         });
+
+        // Types without reusable traversal methods provide no collection evidence.
         if !has_reusable_method {
             return;
         }
@@ -129,18 +133,26 @@ impl IteratorAnalysis {
             signature.header.safety,
             rustc_hir::HeaderSafety::Normal(rustc_hir::Safety::Unsafe)
         );
+
+        // Unsafe, const, or multi-parameter methods cannot be ordinary iterator-next candidates.
         if is_const || is_unsafe || body.params.len() != 1 {
             return;
         }
 
         // Resolve the mutable local receiver before inspecting its yielded item.
         let function = cx.tcx.fn_sig(def_id).instantiate_identity().skip_binder();
+
+        // Methods with other semantic arities cannot advance only their receiver.
         let [receiver] = function.inputs() else {
             return;
         };
+
+        // Iterator advancement requires a mutable receiver reference.
         let ty::Ref(_, receiver, Mutability::Mut) = receiver.kind() else {
             return;
         };
+
+        // Foreign or nonnominal receivers cannot own a local iterator implementation.
         let Some(type_def_id) = iterator_classification_local_adt(*receiver) else {
             return;
         };
@@ -149,6 +161,8 @@ impl IteratorAnalysis {
         let Some(item) = iterator_classification_option_item(cx, function.output()) else {
             return;
         };
+
+        // Borrowed yields or policy-bearing names do not claim ordinary owned iteration.
         if matches!(item.kind(), ty::Ref(..) | ty::RawPtr(..))
             || !iterator_classification_has_neutral_name(cx, ident.name, type_def_id, item)
         {
@@ -159,6 +173,8 @@ impl IteratorAnalysis {
         let PatKind::Binding(_, receiver_binding, _, None) = body.params[0].pat.kind else {
             return;
         };
+
+        // Methods without persistent state-advance evidence do not reproduce Iterator::next.
         let Some(evidence_span) = IteratorEvidence::analyze(cx, body, receiver_binding) else {
             return;
         };
@@ -253,6 +269,7 @@ const ITERATOR_VOCABULARY_TRANSIENT_METHODS: &[&str] = &[
 
 /// Resolves a possibly referenced type to one local nominal definition.
 fn iterator_classification_local_adt(ty: Ty<'_>) -> Option<LocalDefId> {
+    // Only nominal types can resolve to a local iterator owner.
     let ty::Adt(definition, _) = ty.peel_refs().kind() else {
         return None;
     };
@@ -271,6 +288,7 @@ fn iterator_classification_option_item<'tcx>(
     cx: &LateContext<'tcx>,
     ty: Ty<'tcx>,
 ) -> Option<Ty<'tcx>> {
+    // Non-ADT returns cannot be the standard Option item contract.
     let ty::Adt(definition, arguments) = ty.kind() else {
         return None;
     };
@@ -288,6 +306,8 @@ fn iterator_classification_has_neutral_name(
 ) -> bool {
     // Reject names carrying availability, parsing, or selection policy.
     let words = identifier_case::words(name.as_str());
+
+    // Contextual vocabulary distinguishes temporary absence from iterator exhaustion.
     if words
         .iter()
         .any(|word| ITERATOR_VOCABULARY_CONTEXTUAL_NAMES.contains(&word.as_str()))
@@ -345,6 +365,7 @@ fn iterator_evidence_is_receiver_rooted(
     receiver: HirId,
     expression: &Expr<'_>,
 ) -> bool {
+    // A direct receiver path completes the receiver-rooted proof immediately.
     if let ExprKind::Path(path) = expression.kind {
         return matches!(cx.qpath_res(&path, expression.hir_id), Res::Local(binding) if binding == receiver);
     }
@@ -414,6 +435,8 @@ impl<'analysis, 'tcx> IteratorEvidence<'analysis, 'tcx> {
         if evidence.state.has_transient_operation {
             return None;
         }
+
+        // Direct delegation is the strongest available state-advance evidence.
         if let Some(delegated) = evidence.state.delegated_next {
             return Some(delegated);
         }
@@ -464,6 +487,7 @@ impl<'analysis, 'tcx> IteratorEvidence<'analysis, 'tcx> {
 
         impl<'tcx> Visitor<'tcx> for ReceiverUse<'_, '_, 'tcx> {
             fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+                // A receiver-derived read completes this expression's provenance search.
                 if iterator_evidence_is_receiver_rooted(self.cx, self.receiver, expression)
                     || matches!(
                         expression.kind,
@@ -477,6 +501,8 @@ impl<'analysis, 'tcx> IteratorEvidence<'analysis, 'tcx> {
                     self.is_found = true;
                     return;
                 }
+
+                // Closure bodies have independent receiver and return semantics.
                 if matches!(expression.kind, ExprKind::Closure(_)) {
                     return;
                 }
@@ -518,6 +544,8 @@ impl<'analysis, 'tcx> IteratorEvidence<'analysis, 'tcx> {
                 {
                     self.fields.extend(fields);
                 }
+
+                // Closure bodies do not contribute fields to the surrounding iterator result.
                 if matches!(expression.kind, ExprKind::Closure(_)) {
                     return;
                 }
@@ -603,6 +631,7 @@ impl<'tcx> Visitor<'tcx> for IteratorEvidence<'_, 'tcx> {
             {
                 self.record_receiver_method(segment.ident.name.as_str(), expression.span);
             }
+            // Closure bodies carry traversal state independent from the surrounding method.
             ExprKind::Closure(_) => return,
             _ => {}
         }
@@ -631,6 +660,7 @@ impl IteratorResultCollector {
         }
         impl<'tcx> Visitor<'tcx> for ValueCollector<'_> {
             fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+                // Closure values do not expose their body expressions as outer return values.
                 if matches!(expression.kind, ExprKind::Closure(_)) {
                     return;
                 }

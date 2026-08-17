@@ -55,6 +55,7 @@ impl Default for LeptosViewStructureConfig {
 impl LeptosViewStructureConfig {
     /// Rejects ineffective limits and prefixes that are not ordinary comments.
     fn validate(&self) -> Result<(), String> {
+        // Zero limits would make every nonempty authored view structurally invalid.
         if self.max_unnamed_view_complexity == 0
             || self.max_view_section_complexity == 0
             || self.max_unnamed_view_attribute_complexity == 0
@@ -64,6 +65,8 @@ impl LeptosViewStructureConfig {
         }
 
         let prefix = &self.view_section_comment_prefix;
+
+        // Section markers must remain one trimmed ordinary line-comment prefix.
         if prefix.trim() != prefix
             || prefix.contains(['\n', '\r'])
             || !prefix.starts_with("//")
@@ -209,8 +212,10 @@ pub struct ViewStructureAnalysis {
 impl ViewStructureAnalysis {
     /// Parses the same RSX token tree as Leptos and overlays authored Rust comments.
     fn parse(span: Span, owner: HirId, source: &str) -> Option<Self> {
+        // Invalid macro syntax cannot provide an authored view structure.
         let expression = match syn::parse_str::<ExprMacro>(source) {
             Ok(expression) => expression,
+            // Parsing failure leaves no trustworthy macro body to inspect.
             Err(_error) => return None,
         };
         let bounds = body_range(&expression);
@@ -218,6 +223,8 @@ impl ViewStructureAnalysis {
         let parser = rstml::Parser::new(rstml::ParserConfig::default().recover_block(true));
 
         let (nodes, errors) = parser.parse_recoverable(tokens).split_vec();
+
+        // Recovered parser errors make the structural model unreliable.
         if !errors.is_empty() {
             return None;
         }
@@ -286,12 +293,17 @@ impl ViewAttributeCategory {
         }
 
         // Recognize behavior, data, and integration namespaces.
+        // Event bindings represent client-side behavior rather than static state.
         if name.starts_with("on:") || name.starts_with("on_") {
             return Self::Behavior;
         }
+
+        // Data attributes carry application data independently from presentation.
         if name.starts_with("data-") || name.starts_with("data:") {
             return Self::Data;
         }
+
+        // Framework directives and references integrate the element with Leptos behavior.
         if name == "node_ref" || name.starts_with("use:") || name.starts_with("attr:") {
             return Self::Integration;
         }
@@ -460,6 +472,8 @@ impl ViewCallSites {
             matches!(expansion.kind, ExpnKind::Macro(MacroKind::Bang, name) if name.as_str() == "view")
                 .then_some(expansion.call_site)
         })?;
+
+        // Analyze each authored macro call only once across its expanded expressions.
         if !self.seen.insert(ViewSourceRange {
             lo: span.lo().0,
             hi: span.hi().0,
@@ -467,8 +481,10 @@ impl ViewCallSites {
             return None;
         }
 
+        // Missing authored macro text prevents overlaying comments and source ranges.
         let source = match cx.sess().source_map().span_to_snippet(span) {
             Ok(source) => source,
+            // Source recovery failure leaves no text or comment positions to model.
             Err(_error) => return None,
         };
         ViewStructureAnalysis::parse(span, expression.hir_id, &source)
@@ -506,6 +522,8 @@ impl ViewScopeBuilder<'_> {
     /// Converts one structural rstml node into a direct-view participant.
     fn project_node(&self, node: &Node) -> Option<ViewNode> {
         let range = node.span().byte_range();
+
+        // Invalid or out-of-bounds parser ranges cannot map back to authored source.
         if range.start >= range.end || range.end > self.source.len() {
             return None;
         }
@@ -527,6 +545,7 @@ impl ViewScopeBuilder<'_> {
                 ) + 1;
                 (complexity, None, None)
             }
+            // Nonparticipant nodes do not contribute direct navigation complexity.
             Node::Comment(_)
             | Node::Doctype(_)
             | Node::Text(_)
@@ -591,6 +610,8 @@ impl ViewScopeBuilder<'_> {
             .iter()
             .filter_map(|attribute| {
                 let range = attribute.span().byte_range();
+
+                // Invalid attribute ranges cannot contribute reliable source evidence.
                 if range.start >= range.end || range.end > self.source.len() {
                     return None;
                 }
@@ -616,6 +637,7 @@ impl ViewScopeBuilder<'_> {
             })
             .collect::<Vec<_>>();
 
+        // Opening tags without direct attributes need no attribute-group model.
         if attributes.is_empty() {
             return;
         }
@@ -666,10 +688,13 @@ impl ViewScopeBuilder<'_> {
 
         // Every element child list is an independent direct sibling scope.
         for node in direct {
+            // Only elements own nested sibling scopes and opening-tag attributes.
             let Node::Element(element) = node else {
                 continue;
             };
             self.collect_element(element);
+
+            // Empty elements have no descendant scope to analyze.
             if element.children.is_empty() {
                 continue;
             }
@@ -765,6 +790,7 @@ fn has_event_handler(element: &NodeElement<rstml::Infallible>) -> bool {
 
 /// Extracts one immediately owned quoted text node.
 fn direct_literal(element: &NodeElement<rstml::Infallible>) -> Option<String> {
+    // Mixed or nested children are not one directly owned literal.
     let [Node::Text(text)] = element.children.as_slice() else {
         return None;
     };

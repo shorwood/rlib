@@ -36,6 +36,7 @@ impl Violation {
         let attribute = BonAttributeAnalysis::builder(attributes)?;
         let source = match BonAttributeAnalysis::source(cx, attribute) {
             Ok(source) => source,
+            // Missing attribute source prevents comparison with established vocabulary.
             Err(_error) => return None,
         };
         let configured = ConfiguredIdentifier {
@@ -118,6 +119,7 @@ impl BonIncoherentBuilderVocabulary {
     fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
         let established = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
             Ok(established) => established,
+            // Missing parameter source prevents recovery of its established vocabulary.
             Err(_error) => return None,
         };
         Violation::member_violation(cx, &parameter.attrs, established.trim().to_owned())
@@ -134,6 +136,7 @@ impl BonIncoherentBuilderVocabulary {
         attributes: &[rustc_ast::Attribute],
         operation: &str,
     ) {
+        // Functions outside the Bon builder contract expose no configured operation vocabulary.
         let Some(attribute) = BonAttributeAnalysis::builder(attributes) else {
             return;
         };
@@ -169,6 +172,7 @@ impl BonIncoherentBuilderVocabulary {
         operation: &str,
         function: &Fn,
     ) {
+        // Functions outside the Bon builder contract expose no member vocabulary to compare.
         if BonAttributeAnalysis::builder(attributes).is_none() {
             return;
         }

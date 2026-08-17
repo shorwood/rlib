@@ -149,6 +149,7 @@ impl BonInconsistentBuilderConversions {
 
     /// Checks parameters on one function builder unless an item-wide conversion policy applies.
     fn check_function(cx: &EarlyContext<'_>, attributes: &[rustc_ast::Attribute], function: &Fn) {
+        // Functions without a directly inspectable builder expose no member conversion set.
         if BonAttributeAnalysis::builder(attributes).is_none()
             || BonAttributeAnalysis::builder_contains(cx, attributes, "on(")
         {
@@ -174,6 +175,7 @@ impl BonInconsistentBuilderConversions {
         attributes: &[rustc_ast::Attribute],
         data: &VariantData,
     ) {
+        // Types without a directly inspectable derived builder expose no member conversion set.
         if !BonAttributeAnalysis::derives_builder(cx, attributes)
             || BonAttributeAnalysis::builder_contains(cx, attributes, "on(")
         {

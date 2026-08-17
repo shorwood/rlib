@@ -78,6 +78,7 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for StrumManualEnumCounts {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Implementation items without a complete manual count are unrelated.
         let Some(candidate) = CountCandidate::from_impl_item(cx, item) else {
             return;
         };

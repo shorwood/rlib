@@ -28,17 +28,23 @@ pub struct Candidate {
 impl Candidate {
     /// Recognizes an exact `From<T>` implementation that constructs one variant.
     pub(crate) fn from_impl_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Conversion candidates must be authored function implementations.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return None;
         };
+
+        // Generated methods and receiver methods cannot be the static conversion entry point.
         if item.span.from_expansion() || signature.decl.implicit_self.has_implicit_self() {
             return None;
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
 
+        // The method must belong to a source-level implementation item.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return None;
         };
+
+        // Nonimplementation parents cannot define a conversion contract.
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return None;
         };
@@ -46,6 +52,8 @@ impl Candidate {
         let trait_id = implementation_item
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())?;
+
+        // Exclude methods outside the canonical core conversion implementation.
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core"
             || cx.tcx.item_name(trait_id).as_str() != "From"
             || item.ident.name.as_str() != "from"
@@ -56,9 +64,12 @@ impl Candidate {
         let source = trait_ref.args.type_at(1);
         let target = trait_ref.self_ty();
 
+        // Only algebraic data types can provide enum variants for wrapping.
         let ty::Adt(definition, arguments) = target.kind() else {
             return None;
         };
+
+        // Struct conversions cannot be replaced by a derived enum source variant.
         if !definition.is_enum() {
             return None;
         }
@@ -66,17 +77,21 @@ impl Candidate {
 
         let forwarding =
             DirectForwarding::expression(cx, item.owner_id.def_id, signature.header, body)?;
+
+        // The conversion must forward exactly its single source argument.
         let [binding] = forwarding.bindings.as_slice() else {
             return None;
         };
         let (target, argument) = if let Some(call) =
             DirectForwarding::call(cx, forwarding.typeck_owner, forwarding.forwarded)
         {
+            // Constructor calls must receive only the forwarded source value.
             let [argument] = call.arguments.as_slice() else {
                 return None;
             };
             (call.target, *argument)
         } else {
+            // Struct syntax must construct one field without an update tail.
             let ExprKind::Struct(path, [field], StructTailExpr::None) = forwarding.forwarded.kind
             else {
                 return None;
@@ -87,6 +102,8 @@ impl Candidate {
                 field.expr,
             )
         };
+
+        // Reject conversions that transform rather than directly forward the source.
         if !DirectForwarding::is_binding(cx, argument, *binding) {
             return None;
         }
@@ -107,6 +124,8 @@ impl Candidate {
             return None;
         };
         let source_text = AuthoredItemSource::for_item(cx, enum_item)?;
+
+        // Unparseable authored enum text cannot provide reliable derive attributes.
         let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source_text) else {
             return None;
         };
@@ -117,6 +136,8 @@ impl Candidate {
             .iter()
             .find(|candidate| candidate.ident == variant.name.as_str())?;
         let authored_fields = authored_variant.fields.iter().collect::<Vec<_>>();
+
+        // Derivation is equivalent only for a unique wrapped source field.
         let [authored_field] = authored_fields.as_slice() else {
             return None;
         };
@@ -127,6 +148,8 @@ impl Candidate {
             .as_ref()
             .is_some_and(|name| name == "source")
             || ThiserrorAttributes::from_attributes(&authored_field.attrs).is_source;
+
+        // Fields outside the source chain do not represent error conversion policy.
         if !is_source {
             return None;
         }

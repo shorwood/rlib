@@ -78,14 +78,18 @@ dylint_linting::impl_late_lint! {
 impl LeptosNeedlesslyClonedSignalValues {
     /// Returns whether the receiver resolves to tracked reactive `get()`.
     fn is_reactive_get(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // Only method calls can implement the tracked reactive read interface.
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return false;
         };
+
+        // Tracked get operations accept no explicit arguments.
         if !arguments.is_empty() {
             return false;
         }
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
 
+        // Unresolved calls cannot be classified through their reactive trait contract.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -117,13 +121,18 @@ impl LeptosNeedlesslyClonedSignalValues {
 
     /// Accepts only resolved operations whose receiver is shared-borrowed for the call.
     fn is_borrowing_operation(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // Borrow-only consumers must be expressed as receiver method calls.
         let ExprKind::MethodCall(segment, _, arguments, _) = expression.kind else {
             return false;
         };
+
+        // Exclude methods outside the deliberately narrow inspection vocabulary.
         if !Self::borrowing_operation_name(segment.ident.name.as_str(), arguments.len()) {
             return false;
         }
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+
+        // Unresolved methods cannot prove a shared-borrow receiver contract.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -140,9 +149,12 @@ impl LeptosNeedlesslyClonedSignalValues {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosNeedlesslyClonedSignalValues {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // The borrowing consumer must be expressed as a receiver method call.
         let ExprKind::MethodCall(segment, receiver, _, _) = expression.kind else {
             return;
         };
+
+        // Emit only for noncopy tracked clones consumed immediately through a shared borrow.
         if !Self::is_borrowing_operation(cx, expression)
             || !Self::is_reactive_get(cx, receiver)
             || Self::is_copy(cx, receiver)

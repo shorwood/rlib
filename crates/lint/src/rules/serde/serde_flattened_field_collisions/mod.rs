@@ -66,9 +66,13 @@ impl StructContract {
             SerdeDirection::Serialize => "Serialize",
             SerdeDirection::Deserialize => "Deserialize",
         };
+
+        // Cycles and targets lacking the directional derive contribute no resolvable names.
         if !visiting.insert(target) || catalog.derived_type(target, derive).is_none() {
             return Vec::new();
         }
+
+        // An unrecorded local target has no authored field contract to flatten.
         let Some(flattened) = structs.get(&target) else {
             visiting.remove(&target);
             return Vec::new();
@@ -183,16 +187,23 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Only structs define the field namespace modeled by this flattening analysis.
         let ItemKind::Struct(_, _, data) = item.kind else {
             return;
         };
+
+        // Generated structs do not define authored flattening policy.
         if item.span.from_expansion() {
             return;
         }
 
+        // Missing authored source prevents reliable Serde attribute recovery.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
+
+        // Unparseable source cannot produce a trustworthy field-to-HIR correspondence.
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };

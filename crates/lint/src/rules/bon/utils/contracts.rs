@@ -89,6 +89,8 @@ impl BonContractCatalog {
         match ty.kind() {
             ty::Adt(definition, arguments) => {
                 let local = definition.did().as_local();
+
+                // A directly generated builder is the nearest builder identity in this type.
                 if local.is_some_and(|definition| self.generated_builders.contains(&definition)) {
                     return local;
                 }
@@ -109,6 +111,7 @@ impl BonContractCatalog {
 
     /// Records generated Bon types and correlates derive impls with authored structs.
     fn record_generated_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Expansions unrelated to Bon cannot establish builder implementation details.
         if !Self::is_bon_expansion(cx, item.span) {
             return;
         }
@@ -125,10 +128,12 @@ impl BonContractCatalog {
             }
         }
 
+        // Only Bon-generated builder implementations identify the authored derive target.
         if !matches!(item.kind, ItemKind::Impl(_)) || !Self::is_builder_expansion(cx, item.span) {
             return;
         }
 
+        // Generated implementations without a local aggregate target cannot be correlated.
         let Some(definition) = cx
             .tcx
             .type_of(item.owner_id)
@@ -143,10 +148,13 @@ impl BonContractCatalog {
 
     /// Records either generated expansion evidence or an authored struct contract.
     pub fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Expanded items contribute generated Bon evidence rather than authored contracts.
         if item.span.from_expansion() {
             self.record_generated_impl(cx, item);
             return;
         }
+
+        // Only authored structs can be targets of Bon's derive contract.
         let ItemKind::Struct(identifier, _, data) = item.kind else {
             return;
         };

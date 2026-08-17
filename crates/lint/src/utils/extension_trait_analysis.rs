@@ -103,6 +103,8 @@ struct ExtensionTraitAnalyzerDefinition {
     subjects: HashSet<DefId>,
 }
 
+// TODO: Enforce newline between things such as struct and impl.
+
 /// One authored impl that makes a local trait an extension trait.
 struct ExtensionTraitAnalyzerImpl {
     /// Impl definition identity.
@@ -130,9 +132,13 @@ impl ExtensionTraitAnalyzer {
     pub(crate) fn record_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Retain every authored top-level declaration so unrelated items can interrupt a group.
         let def_id = item.owner_id.def_id;
+
+        // Crate roots and other parentless definitions cannot participate in a module-local group.
         let Some(parent) = cx.tcx.opt_local_parent(def_id) else {
             return;
         };
+
+        // Only authored direct module items have meaningful physical grouping.
         if cx.tcx.def_kind(parent) != DefKind::Mod
             || item.span.in_external_macro(cx.sess().source_map())
         {
@@ -189,6 +195,8 @@ impl ExtensionTraitAnalyzer {
 
         // Require a foreign nominal or blanket target before retaining the impl.
         let target = cx.tcx.type_of(def_id).instantiate_identity();
+
+        // Implementations on ordinary local targets are not extension-trait evidence.
         if !target.is_extension_target() {
             return;
         }
@@ -205,13 +213,18 @@ impl ExtensionTraitAnalyzer {
     /// Records one method's size contribution and concrete nonreceiver subject types.
     pub(crate) fn record_trait_item(&mut self, cx: &LateContext<'_>, item: &TraitItem<'_>) {
         // Resolve the owning local trait and count only methods.
+        // Associated constants and types do not contribute method or subject coherence.
         if !matches!(item.kind, TraitItemKind::Fn(..)) {
             return;
         }
         let def_id = item.owner_id.def_id;
+
+        // Parentless associated items cannot be correlated with a recorded trait.
         let Some(trait_def_id) = cx.tcx.opt_local_parent(def_id) else {
             return;
         };
+
+        // Methods on traits excluded during item collection require no further analysis.
         let Some(trait_) = self.traits.get_mut(&trait_def_id) else {
             return;
         };
@@ -307,6 +320,7 @@ impl ExtensionTraitAnalyzer {
                     .collect::<Vec<_>>();
                 impls.sort_unstable_by_key(|impl_| impl_.span.lo());
 
+                // A cross-module implementation is already sufficient placement evidence.
                 if let Some(cross_module) = impls.iter().find(|impl_| impl_.module != trait_.module)
                 {
                     return Some(ExtensionTraitPlacementFinding {

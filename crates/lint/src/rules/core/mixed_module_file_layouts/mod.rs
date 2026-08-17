@@ -70,6 +70,7 @@ struct MixedModuleFileLayouts;
 impl MixedModuleFileLayouts {
     /// Returns whether a companion directory contains Rust source at any depth.
     fn directory_contains_rust_source(directory: &Path) -> bool {
+        // An unreadable directory is conservatively treated as containing source to avoid noise.
         let Ok(entries) = directory.read_dir() else {
             return true;
         };
@@ -116,6 +117,8 @@ impl EarlyLintPass for MixedModuleFileLayouts {
         let ItemKind::Mod(_, ident, kind) = &item.kind else {
             return;
         };
+
+        // Inline modules do not select a separate conventional source-file layout.
         if matches!(kind, ModKind::Loaded(_, Inline::Yes, _)) {
             return;
         }
@@ -132,16 +135,22 @@ impl EarlyLintPass for MixedModuleFileLayouts {
 
         // Resolve the declaring file and the unique conventional flat source candidate.
         let source_map = cx.sess().source_map();
+
+        // Non-local source names cannot be mapped to a filesystem companion directory.
         let Some(parent_source) = source_map.span_to_filename(item.span).into_local_path() else {
             return;
         };
         let name = ident.name.as_str();
+
+        // Declarations without a matching flat module file cannot form the mixed layout.
         let Some(module_source) = Self::flat_module_source(&parent_source, name) else {
             return;
         };
 
         // Diagnose only a flat source plus a same-name non-Rust companion directory.
         let companion_directory = module_source.with_extension("");
+
+        // Missing companions and companions already containing Rust source are conventional layouts.
         if !companion_directory.is_dir()
             || Self::directory_contains_rust_source(&companion_directory)
         {

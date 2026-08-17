@@ -119,10 +119,13 @@ impl BonManualBuilderImplementations {
 }
 impl LateLintPass<'_> for BonManualBuilderImplementations {
     fn check_item(&mut self, _cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only structs can establish the field-backed protocol of a manual builder.
         let ItemKind::Struct(identifier, _, data) = item.kind else {
             return;
         };
         let name = identifier.name.as_str();
+
+        // Generated, conventionally unrelated, or trivial structs are not builder candidates.
         if item.span.from_expansion()
             || !name.ends_with("Builder")
             || data.fields().len() < Self::MINIMUM_STRUCTURAL_MEMBERS
@@ -146,21 +149,28 @@ impl LateLintPass<'_> for BonManualBuilderImplementations {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Only methods can contribute setters or a terminal builder operation.
         let ImplItemKind::Fn(signature, _) = item.kind else {
             return;
         };
+
+        // Generated methods do not represent an authored manual builder protocol.
         if item.span.from_expansion() {
             return;
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
 
+        // Associated functions without an item parent cannot belong to an inspectable impl.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return;
         };
+
+        // Only direct struct implementations can contribute to a recorded builder candidate.
         let Some(definition) = parent.direct_struct(cx) else {
             return;
         };
 
+        // Methods on structs rejected during candidate discovery need no protocol analysis.
         let Some(candidate) = self.candidates.get_mut(&definition) else {
             return;
         };

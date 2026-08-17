@@ -81,6 +81,8 @@ impl LeptosReactiveWritesDuringViewConstruction {
 
         // Look up the method selected by type checking this body.
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+
+        // Unresolved methods cannot establish reactive write semantics.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -125,6 +127,7 @@ impl LeptosReactiveWritesDuringViewConstruction {
             return false;
         };
 
+        // Implementations without a nominal self type cannot be the suspend constructor.
         let Some(definition) = cx
             .tcx
             .type_of(implementation)
@@ -150,6 +153,8 @@ impl LeptosReactiveWritesDuringViewConstruction {
             if matches!(parent.kind, ExprKind::Closure(_)) {
                 closure_depth = closure_depth.saturating_add(1);
             }
+
+            // The enclosing suspend constructor decides whether exactly one future closure owns it.
             if Self::is_suspend_new(cx, parent) {
                 return closure_depth == 1;
             }
@@ -160,6 +165,7 @@ impl LeptosReactiveWritesDuringViewConstruction {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosReactiveWritesDuringViewConstruction {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Only reactive writes directly owned by a suspended view future violate construction policy.
         if !Self::is_reactive_write(cx, expression)
             || !Self::is_direct_suspend_write(cx, expression)
         {

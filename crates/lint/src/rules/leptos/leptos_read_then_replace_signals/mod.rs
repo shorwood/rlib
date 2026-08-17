@@ -107,6 +107,7 @@ impl<'tcx> Visitor<'tcx> for CurrentValueRead<'_, 'tcx> {
     fn visit_nested_body(&mut self, _: BodyId) {}
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // The first matching read is sufficient diagnostic evidence.
         if self.span.is_some() {
             return;
         }
@@ -120,14 +121,18 @@ impl<'tcx> Visitor<'tcx> for CurrentValueRead<'_, 'tcx> {
             for argument in arguments {
                 self.visit_expr(argument);
             }
+
+            // The invoked closure and arguments fully account for this call's eager reads.
             return;
         }
 
+        // Nonmethod expressions may still contain nested current-value reads.
         let ExprKind::MethodCall(_, receiver, arguments, _) = expression.kind else {
             intravisit::walk_expr(self, expression);
             return;
         };
 
+        // The outermost read from the tracked signal is sufficient evidence for replacement.
         if LeptosReadThenReplaceSignals::signal_place(self.cx, receiver)
             .is_some_and(|place| place == self.signal)
             && LeptosReadThenReplaceSignals::is_current_value_read(
@@ -138,6 +143,7 @@ impl<'tcx> Visitor<'tcx> for CurrentValueRead<'_, 'tcx> {
             )
         {
             self.span = Some(expression.span);
+
             return;
         }
         intravisit::walk_expr(self, expression);
@@ -164,6 +170,7 @@ impl LeptosReadThenReplaceSignals {
     fn signal_place(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<SignalPlace> {
         match expression.kind {
             ExprKind::Path(path) => {
+                // Nonlocal paths cannot identify a writable captured signal.
                 let Res::Local(root) = cx.qpath_res(&path, expression.hir_id) else {
                     return None;
                 };
@@ -189,6 +196,7 @@ impl LeptosReadThenReplaceSignals {
         expression: &Expr<'_>,
         identity: ReactiveMethodIdentity,
     ) -> bool {
+        // Unresolved calls cannot be matched to a reactive trait method.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -212,6 +220,7 @@ impl LeptosReadThenReplaceSignals {
         expression: &Expr<'_>,
         argument_count: usize,
     ) -> bool {
+        // Unresolved calls cannot be classified as current-value reads.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -219,9 +228,13 @@ impl LeptosReadThenReplaceSignals {
         else {
             return false;
         };
+
+        // Methods outside the reactive graph cannot read signal state semantically.
         if cx.tcx.crate_name(method.krate).as_str() != "reactive_graph" {
             return false;
         }
+
+        // Methods without an associated trait cannot match a reactive read interface.
         let Some(trait_id) = cx.tcx.trait_of_assoc(method) else {
             return false;
         };
@@ -244,10 +257,13 @@ impl LeptosReadThenReplaceSignals {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosReadThenReplaceSignals {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Replacement candidates are single-argument method calls.
         let ExprKind::MethodCall(_, receiver, [replacement], _) = expression.kind else {
             return;
         };
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+
+        // Receivers without a stable local signal place cannot be correlated with reads.
         let Some(signal) = Self::signal_place(cx, receiver) else {
             return;
         };
@@ -263,6 +279,8 @@ impl<'tcx> LateLintPass<'tcx> for LeptosReadThenReplaceSignals {
                 },
             )
         });
+
+        // Ignore reactive operations that do not replace the complete signal value.
         if !is_replacement {
             return;
         }
@@ -275,6 +293,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosReadThenReplaceSignals {
         };
         read.visit_expr(replacement);
 
+        // A replacement independent of the current value is already atomic enough.
         let Some(read_span) = read.span else {
             return;
         };

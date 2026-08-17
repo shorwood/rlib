@@ -69,10 +69,14 @@ impl RedundantWrapper {
 
         // Require a distinct local call target with compatible async and receiver semantics.
         let call = DirectForwarding::call(cx, forwarding.typeck_owner, forwarding.forwarded)?;
+
+        // Calls to constructors or other definitions are not function-forwarding wrappers.
         if !matches!(cx.tcx.def_kind(call.target), DefKind::Fn | DefKind::AssocFn) {
             return None;
         }
         let target = call.target.as_local()?;
+
+        // Recursive, arity-changing, async-changing, or receiver-changing calls add semantics.
         if target == identity.def_id
             || call.arguments.len() != forwarding.bindings.len()
             || (identity.header.is_async() && !Self::is_async_function(cx, target))
@@ -102,6 +106,8 @@ impl RedundantWrapper {
                 .fn_sig(target)
                 .instantiate(cx.tcx, typeck.node_args(forwarding.forwarded.hir_id))
                 .skip_binder();
+
+            // A method wrapper must preserve both total arity and its receiver type.
             if target_signature.inputs().len() != signature.inputs().len()
                 || !Self::same_receiver_type(target_signature.inputs()[0], signature.inputs()[0])
             {
@@ -111,16 +117,19 @@ impl RedundantWrapper {
 
         let bound_arguments = forwarding.bindings.iter().zip(call.arguments);
         let typed_arguments = bound_arguments.zip(signature.inputs());
+
+        // Any reordered binding or adjusted argument type makes the wrapper semantically relevant.
         for (index, ((binding, argument), input)) in typed_arguments.enumerate() {
             // Require each forwarded argument to be its corresponding plain binding.
             // Compare the binding identity and adjusted argument type in parameter order.
             let has_incompatible_type =
                 !(call.is_method && index == 0) && typeck.expr_ty_adjusted(argument) != *input;
             let has_matching_binding = DirectForwarding::is_binding(cx, argument, *binding);
-            if has_matching_binding && !has_incompatible_type {
-                continue;
+
+            // One reordered binding or adjusted argument type makes the wrapper meaningful.
+            if !has_matching_binding || has_incompatible_type {
+                return None;
             }
-            return None;
         }
 
         // Retain the wrapper identity and its semantically equivalent target.
@@ -288,6 +297,8 @@ impl<'tcx> LateLintPass<'tcx> for NeedlessFunctionWrappers {
         let ItemKind::Fn { sig, body, .. } = item.kind else {
             return;
         };
+
+        // An unnamed function-like item cannot produce a user-facing wrapper identity.
         let Some(ident) = item.kind.ident() else {
             return;
         };
@@ -321,6 +332,8 @@ impl<'tcx> LateLintPass<'tcx> for NeedlessFunctionWrappers {
 
         // Resolve the enclosing implementation before classifying the method.
         let parent = cx.tcx.local_parent(item.owner_id.def_id);
+
+        // A method whose parent is not an item cannot belong to an inherent impl block.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(parent) else {
             return;
         };
@@ -346,6 +359,8 @@ impl<'tcx> LateLintPass<'tcx> for NeedlessFunctionWrappers {
 
         // Discover one direct forwarding target without guessing through adapters.
         let body = cx.tcx.hir_body(body);
+
+        // Methods that do more than direct forwarding are outside this lint's policy.
         let Some(wrapper) = RedundantWrapper::discover(cx, &identity, body) else {
             return;
         };

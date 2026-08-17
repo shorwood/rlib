@@ -44,6 +44,7 @@ impl VisibilityPackagePolicy {
 
     /// Interprets one package manifest without treating malformed metadata as permission to narrow.
     fn from_manifest_path(path: &Path) -> Self {
+        // An unreadable manifest cannot prove that the package is closed to dependents.
         let Ok(source) = read_to_string(path) else {
             return Self::Publishable;
         };

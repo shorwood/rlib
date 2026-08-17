@@ -204,10 +204,11 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
             let gap = source_map
                 .span_to_snippet(Span::with_root_ctxt(lo, hi))
                 .map_err(|_| MigrationBarrier::UnavailableSource)?;
-            if !gap.contains("//") && !gap.contains("/*") {
-                continue;
+
+            // Authored commentary at any crossed boundary makes ownership after movement ambiguous.
+            if gap.contains("//") || gap.contains("/*") {
+                return Err(MigrationBarrier::NearbyComment);
             }
-            return Err(MigrationBarrier::NearbyComment);
         }
         Ok(())
     }
@@ -355,6 +356,7 @@ impl LateViolation for Violation<'_> {
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
+        // A single displaced impl needs singular evidence-focused rationale.
         if self.impl_count == 1 {
             return Cow::Owned(format!(
                 "keeping this direct impl block adjacent lets readers and tools understand `{}` without searching the module",
@@ -368,6 +370,7 @@ impl LateViolation for Violation<'_> {
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
+        // A single displaced impl receives a direct singular movement instruction.
         if self.impl_count == 1 {
             return Cow::Owned(format!(
                 "move this impl block immediately after `{}`",
@@ -485,6 +488,7 @@ impl NonAdjacentStructImpls {
 
         // Construct groups only for structs that own at least one direct impl.
         let groups = indexed.filter_map(|(struct_index, item)| {
+            // Non-struct declarations cannot anchor a struct-and-impl adjacency group.
             let ItemKind::Struct(name, ..) = item.kind else {
                 return None;
             };

@@ -94,13 +94,17 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
     }
 
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Generated calls are not authored choices of machine identity.
         if expression.span.from_expansion() {
             return;
         }
 
+        // Map insertion must be expressed as a receiver method call.
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return;
         };
+
+        // Unresolved methods cannot establish a standard map insertion boundary.
         let Some(target) = cx
             .tcx
             .typeck(expression.hir_id.owner.def_id)
@@ -109,22 +113,30 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
             return;
         };
         let path = cx.tcx.def_path_str(target);
+
+        // Exclude calls outside standard hash-map and tree-map insertion.
         if cx.tcx.item_name(target).as_str() != "insert"
             || (!path.contains("collections::HashMap") && !path.contains("collections::BTreeMap"))
         {
             return;
         }
+
+        // A map insertion without a key argument provides no identity expression.
         let Some(key) = arguments.first() else {
             return;
         };
 
+        // Only a direct conversion method can turn display output into the key.
         let ExprKind::MethodCall(_, source, to_string_arguments, _) = key.kind else {
             return;
         };
+
+        // Conversion arguments indicate a different key-building contract.
         if !to_string_arguments.is_empty() {
             return;
         }
 
+        // Unresolved conversions cannot prove use of the standard string interface.
         let Some(to_string) = cx
             .tcx
             .typeck(key.hir_id.owner.def_id)
@@ -133,6 +145,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
             return;
         };
 
+        // Exclude similarly named methods outside the standard string conversion trait.
         if cx.tcx.item_name(to_string).as_str() != "to_string"
             || !cx.tcx.trait_of_assoc(to_string).is_some_and(|trait_id| {
                 cx.tcx
@@ -142,6 +155,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
             return;
         }
 
+        // Only local nominal source types can join the derive contract catalog.
         let Some(definition) = cx
             .tcx
             .typeck(key.hir_id.owner.def_id)
@@ -161,6 +175,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreOpaqueDerivedDisplayContracts {
     fn check_crate_post(&mut self, cx: &LateContext<'tcx>) {
         self.candidates.sort_by_key(|candidate| candidate.span.lo());
         for candidate in self.candidates.drain(..) {
+            // Sources without generated display output have no opaque derived grammar.
             let Some(contract) = self.catalog.derived_type(candidate.definition, "Display") else {
                 continue;
             };

@@ -100,6 +100,7 @@ struct VariantShape {
 impl VariantShape {
     /// Builds the accepted object shape for one named-field variant.
     fn from_variant(variant: &syn::Variant) -> Option<Self> {
+        // Only named-field variants expose distinguishable object-key contracts.
         let syn::Fields::Named(fields) = &variant.fields else {
             return None;
         };
@@ -113,6 +114,8 @@ impl VariantShape {
 
         for field in &fields.named {
             let attributes = SerdeAttributes::from_attributes(&field.attrs);
+
+            // Fields skipped during deserialization do not constrain accepted input shapes.
             if attributes.has(SerdeFlag::SkipDeserialize) {
                 continue;
             }
@@ -124,6 +127,8 @@ impl VariantShape {
                 name.clone(),
                 SerdeAmbiguousUntaggedEnums::scalar_domain(&field.ty)?,
             );
+
+            // Defaulted and optional fields are not required members of the witness shape.
             if !(!has_default && !SerdeAmbiguousUntaggedEnums::is_option(&field.ty)) {
                 continue;
             }
@@ -140,6 +145,8 @@ impl VariantShape {
             .union(&second.required)
             .cloned()
             .collect::<BTreeSet<_>>();
+
+        // Closed variants reject a union witness containing any unknown required field.
         if (self.is_closed && !required.is_subset(&self.fields.keys().cloned().collect()))
             || (second.is_closed && !required.is_subset(&second.fields.keys().cloned().collect()))
         {
@@ -147,6 +154,7 @@ impl VariantShape {
         }
 
         for key in &required {
+            // A shared required field with disjoint scalar domains prevents overlap.
             if let (Some(first_domain), Some(second_domain)) =
                 (self.fields.get(key), second.fields.get(key))
                 && !SerdeAmbiguousUntaggedEnums::domains_overlap(first_domain, second_domain)
@@ -255,17 +263,21 @@ impl SerdeAmbiguousUntaggedEnums {
 
     /// Classifies scalar syntax types that can overlap during untagged deserialization.
     fn scalar_domain(ty: &syn::Type) -> Option<&'static str> {
+        // Only path types can name the supported primitive or optional domains.
         let syn::Type::Path(path) = ty else {
             return None;
         };
         let segment = path.path.segments.last()?;
 
         let name = segment.ident.to_string();
+
+        // Primitive paths can be classified without container unwrapping.
         if name != "Option" {
             return Self::primitive_domain(&name);
         }
 
         // Unwrap an optional scalar while preserving its overlap domain.
+        // Optional syntax requires an angle-bracketed inner type argument.
         let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
             return None;
         };
@@ -287,17 +299,24 @@ impl SerdeAmbiguousUntaggedEnums {
 impl LateLintPass<'_> for SerdeAmbiguousUntaggedEnums {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Retain only authored enum declarations for variant-shape analysis.
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Enum(..)) {
             return;
         }
+
+        // Missing authored source prevents Serde attribute and field-shape recovery.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
+        // Unparseable enum text cannot provide reliable variant contracts.
         let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
             return;
         };
         let container = SerdeAttributes::from_attributes(&enumeration.attrs);
+
+        // Tagged enums already carry an explicit disambiguating wire field.
         if !container.has(SerdeFlag::Untagged) {
             return;
         }
@@ -306,6 +325,7 @@ impl LateLintPass<'_> for SerdeAmbiguousUntaggedEnums {
             .variants
             .iter()
             .filter_map(|variant| {
+                // Variants skipped during deserialization accept no input shape.
                 if SerdeAttributes::from_attributes(&variant.attrs).has(SerdeFlag::SkipDeserialize)
                 {
                     return None;
@@ -319,6 +339,7 @@ impl LateLintPass<'_> for SerdeAmbiguousUntaggedEnums {
 
         for (index, first) in variants.iter().enumerate() {
             for second in &variants[index + 1..] {
+                // Disjoint variant shapes provide no ambiguous witness.
                 let Some(witness) = first.overlap_witness(second) else {
                     continue;
                 };
@@ -336,6 +357,7 @@ impl LateLintPass<'_> for SerdeAmbiguousUntaggedEnums {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for candidate in self.candidates.drain(..) {
+            // Without generated deserialization, the authored shapes are not active wire inputs.
             if self
                 .catalog
                 .derived_type(candidate.definition, "Deserialize")

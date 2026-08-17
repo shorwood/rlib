@@ -100,16 +100,23 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for SerdeCatchAllVariantsHidingSchemaDrift {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Generated and non-enum items cannot define an authored catch-all variant contract.
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Enum(..)) {
             return;
         }
+
+        // Missing authored source prevents recovery of variant Serde attributes.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
+        // Unparseable enum source cannot produce trustworthy catch-all variant evidence.
         let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
             return;
         };
+
+        // Private enums do not expose forward-compatible schema behavior to public consumers.
         if !matches!(enumeration.vis, syn::Visibility::Public(_)) {
             return;
         }
@@ -123,6 +130,7 @@ impl LateLintPass<'_> for SerdeCatchAllVariantsHidingSchemaDrift {
             .map(|variant| format!("`{}`", variant.ident))
             .collect::<Vec<_>>();
 
+        // An enum without an active Serde catch-all variant cannot hide schema drift.
         if variants.is_empty() {
             return;
         }

@@ -89,6 +89,7 @@ impl ThiserrorDynamicErrorsInLibraryInterfaces {
 
     /// Recognizes `Box<dyn std::error::Error>` and its `core` spelling.
     fn boxed_trait_name(cx: &LateContext<'_>, inner: Ty<'_>) -> Option<String> {
+        // Only a dynamic trait object can be the erased boxed error payload.
         let ty::Dynamic(predicates, ..) = inner.kind() else {
             return None;
         };
@@ -106,9 +107,13 @@ impl ThiserrorDynamicErrorsInLibraryInterfaces {
             let name = name_symbol.as_str();
             let crate_symbol = cx.tcx.crate_name(definition.did().krate);
             let krate = crate_symbol.as_str();
+
+            // Well-known report types erase the public failure vocabulary directly.
             if (krate == "anyhow" && name == "Error") || (krate == "miette" && name == "Report") {
                 return Some(format!("{krate}::{name}"));
             }
+
+            // Standard boxes may erase the error behind a dynamic trait object.
             if krate == "alloc" && name == "Box" && !arguments.is_empty() {
                 return Self::boxed_trait_name(cx, arguments.type_at(0));
             }
@@ -123,6 +128,7 @@ impl ThiserrorDynamicErrorsInLibraryInterfaces {
         definition: LocalDefId,
         span: Span,
     ) {
+        // Only authored effectively exported functions constrain library callers.
         if span.from_expansion() || !cx.tcx.effective_visibilities(()).is_exported(definition) {
             return;
         }
@@ -134,14 +140,19 @@ impl ThiserrorDynamicErrorsInLibraryInterfaces {
             .skip_binder()
             .output();
 
+        // Nonalgebraic outputs cannot be the standard result container.
         let ty::Adt(result, arguments) = output.kind() else {
             return;
         };
+
+        // Only a well-formed standard result exposes a designated error argument.
         if !cx.tcx.is_diagnostic_item(sym::Result, result.did())
             || arguments.len() != Self::RESULT_TYPE_ARGUMENT_COUNT
         {
             return;
         }
+
+        // Concrete error arguments preserve an inspectable public failure vocabulary.
         let Some(error) = Self::error_name(cx, arguments.type_at(1)) else {
             return;
         };
@@ -157,6 +168,7 @@ impl ThiserrorDynamicErrorsInLibraryInterfaces {
 }
 impl LateLintPass<'_> for ThiserrorDynamicErrorsInLibraryInterfaces {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only free functions expose callable item boundaries.
         if !matches!(item.kind, ItemKind::Fn { .. }) {
             return;
         }
@@ -164,6 +176,7 @@ impl LateLintPass<'_> for ThiserrorDynamicErrorsInLibraryInterfaces {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Only methods expose callable implementation boundaries.
         if !matches!(item.kind, ImplItemKind::Fn(..)) {
             return;
         }

@@ -159,6 +159,8 @@ impl LateLintPass<'_> for ResultsConvertedToOptions {
         if expression.span.from_expansion() {
             return;
         }
+
+        // Expressions outside supported result-to-option operations preserve no failure evidence here.
         let Some(finding) = Self::classify(cx, expression) else {
             return;
         };

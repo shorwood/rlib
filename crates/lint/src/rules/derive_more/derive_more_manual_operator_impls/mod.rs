@@ -172,9 +172,12 @@ dylint_linting::impl_late_lint! {
 impl DeriveMoreManualOperatorImpls {
     /// Extracts the sole expression used to reconstruct a newtype result.
     fn constructed_argument(method: &syn::ImplItemFn) -> Option<ConstructedArgument<'_>> {
+        // Attributed methods may carry behavior derive_more cannot reproduce.
         if !method.attrs.is_empty() {
             return None;
         }
+
+        // Only a sole expression can transparently reconstruct the newtype.
         let [syn::Stmt::Expr(expression, _)] = method.block.stmts.as_slice() else {
             return None;
         };
@@ -234,6 +237,7 @@ impl DeriveMoreManualOperatorImpls {
 
     /// Returns the associated output declaration required by non-assignment operators.
     fn output_method<'a>(items: &'a [syn::ImplItem], derive: &str) -> Option<&'a syn::ImplItemFn> {
+        // Noncanonical associated-item layouts cannot prove transparent operator forwarding.
         let [syn::ImplItem::Type(output), syn::ImplItem::Fn(method)] = items else {
             return None;
         };
@@ -245,6 +249,7 @@ impl DeriveMoreManualOperatorImpls {
 
     /// Returns whether an expression selects a field from the named binding.
     fn field_of(expression: &syn::Expr, receiver: &str) -> Option<String> {
+        // Only field access can identify a forwarded newtype member.
         let syn::Expr::Field(field) = expression else {
             return None;
         };
@@ -254,23 +259,29 @@ impl DeriveMoreManualOperatorImpls {
 
     /// Proves that an authored operator applies directly to corresponding newtype fields.
     fn exact_operator_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) -> bool {
+        // Implementations without authored source cannot be checked for exact forwarding.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return false;
         };
+
+        // Unparseable source cannot prove an operator's transparent syntax.
         let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
             return false;
         };
 
+        // Unsupported derives have no operator syntax contract to verify.
         let Some(operator) = Operator::from_derive(derive) else {
             return false;
         };
 
         match operator {
             Operator::Binary(expected) => {
+                // Binary derives require their standard Output item and operator method.
                 let Some(method) = Self::output_method(&implementation.items, derive) else {
                     return false;
                 };
 
+                // The method must reconstruct exactly one field from the operator result.
                 let Some(ConstructedArgument {
                     expression: argument,
                     field: constructed_field,
@@ -285,9 +296,12 @@ impl DeriveMoreManualOperatorImpls {
                     && Self::field_of(&operation.right, "rhs").as_deref() == Some(&constructed_field))
             }
             Operator::Unary(expected) => {
+                // Unary derives require their standard Output item and operator method.
                 let Some(method) = Self::output_method(&implementation.items, derive) else {
                     return false;
                 };
+
+                // The method must reconstruct exactly one field from the operator result.
                 let Some(ConstructedArgument {
                     expression: argument,
                     field: constructed_field,
@@ -300,12 +314,17 @@ impl DeriveMoreManualOperatorImpls {
                     && Self::field_of(&operation.expr, "self").as_deref() == Some(&constructed_field))
             }
             Operator::Assignment(expected) => {
+                // Assignment derives require exactly one authored operator method.
                 let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
                     return false;
                 };
+
+                // Other method names or attributes can add semantics derive_more cannot preserve.
                 if method.sig.ident != Self::operator_method(derive) || !method.attrs.is_empty() {
                     return false;
                 }
+
+                // Only a sole binary expression can be transparent assignment forwarding.
                 let [syn::Stmt::Expr(syn::Expr::Binary(operation), _)] =
                     method.block.stmts.as_slice()
                 else {
@@ -321,13 +340,17 @@ impl DeriveMoreManualOperatorImpls {
 }
 impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only implementation items can define an operator trait contract.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
+
+        // Generated or attributed implementations may carry semantics derive_more cannot preserve.
         if item.span.from_expansion() || !cx.tcx.hir_attrs(item.hir_id()).is_empty() {
             return;
         }
 
+        // Inherent implementations do not implement a derivable operator trait.
         let Some(trait_id) = implementation
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
@@ -337,6 +360,8 @@ impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
         let derive_name = cx.tcx.item_name(trait_id);
 
         let derive = derive_name.as_str();
+
+        // Only supported core operator traits have derive_more replacements.
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core"
             || Operator::from_derive(derive).is_none()
         {
@@ -347,6 +372,8 @@ impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
             .tcx
             .impl_trait_ref(item.owner_id.def_id)
             .instantiate_identity();
+
+        // Only nominal wrapper self types can use a newtype operator derive.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return;
         };
@@ -355,6 +382,8 @@ impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
             Operator::from_derive(derive),
             Some(Operator::Binary(_) | Operator::Assignment(_))
         ) || trait_ref.args.type_at(1) == trait_ref.self_ty();
+
+        // Only one-field self-to-self wrappers with exact forwarding are derivable.
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
             || !rhs_is_self

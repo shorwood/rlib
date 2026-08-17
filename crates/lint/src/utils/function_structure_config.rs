@@ -41,6 +41,7 @@ impl FunctionStructureConfig {
             ("max_match_arm_lines", self.max_match_arm_lines),
             ("max_method_chain_calls", self.max_method_chain_calls),
         ] {
+            // Every configured limit must admit at least one structural unit.
             if value == 0 {
                 return Err(format!(
                     "function_structure.{name} must be greater than zero"
@@ -49,6 +50,8 @@ impl FunctionStructureConfig {
         }
 
         let prefix = &self.phase_comment_prefix;
+
+        // Phase markers must be one authored ordinary line-comment prefix.
         if prefix.trim() != prefix
             || prefix.contains(['\n', '\r'])
             || !prefix.starts_with("//")

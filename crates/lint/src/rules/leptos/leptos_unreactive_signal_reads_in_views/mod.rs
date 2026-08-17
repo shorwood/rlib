@@ -72,11 +72,13 @@ dylint_linting::impl_late_lint! {
 impl LeptosUnreactiveSignalReadsInViews {
     /// Returns whether the expression resolves to a tracked reactive read.
     fn is_tracked_read(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // Non-method expressions cannot resolve to a tracked read trait method.
         let ExprKind::MethodCall(_, _, _, _) = expression.kind else {
             return false;
         };
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
 
+        // Unresolved method calls cannot establish reactive read semantics.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -85,9 +87,12 @@ impl LeptosUnreactiveSignalReadsInViews {
             return false;
         };
 
+        // Methods outside the reactive graph crate are not Leptos tracked reads.
         if cx.tcx.crate_name(method.krate).as_str() != "reactive_graph" {
             return false;
         }
+
+        // Inherent methods cannot implement one of the tracked read trait contracts.
         let Some(trait_id) = cx.tcx.trait_of_assoc(method) else {
             return false;
         };
@@ -119,6 +124,7 @@ impl LeptosUnreactiveSignalReadsInViews {
             };
             is_inside_view |= Self::is_view_expansion(parent.span);
 
+            // An authored closure restores reactive reevaluation for reads beneath it.
             if matches!(parent.kind, ExprKind::Closure(_))
                 && cx
                     .sess()
@@ -135,6 +141,7 @@ impl LeptosUnreactiveSignalReadsInViews {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosUnreactiveSignalReadsInViews {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Only tracked reads evaluated eagerly inside authored views violate the policy.
         if !Self::is_tracked_read(cx, expression) || !Self::is_eager_view_read(cx, expression) {
             return;
         }

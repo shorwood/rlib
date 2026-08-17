@@ -103,6 +103,7 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosMissingViewAttributeGroupComments {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Expressions outside authored view macros contain no attribute groups to name.
         let Some(view) = self.views.analyze(cx, expression) else {
             return;
         };

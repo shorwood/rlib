@@ -100,6 +100,7 @@ impl SerdeDefaultsHidingMissingData {
             .iter()
             .filter(|attribute| attribute.path().is_ident("doc"))
             .filter_map(|attribute| {
+                // Non-name-value doc attributes contribute no missing-data policy prose.
                 let Ok(value) = attribute.meta.require_name_value() else {
                     return None;
                 };
@@ -131,14 +132,20 @@ impl SerdeDefaultsHidingMissingData {
 impl LateLintPass<'_> for SerdeDefaultsHidingMissingData {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Generated and non-data items cannot define authored field-default policy.
         if item.span.from_expansion()
             || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
         {
             return;
         }
+
+        // Missing authored source prevents recovery of default attributes and documentation.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
+
+        // Items without an authored field model expose no defaults to evaluate.
         let Some(SerdeAuthoredFieldSet { fields, .. }) =
             SerdeAuthoredFieldSet::for_item(item, &source)
         else {

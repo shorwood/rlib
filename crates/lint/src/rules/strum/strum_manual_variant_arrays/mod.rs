@@ -96,9 +96,12 @@ impl StrumManualVariantArrays {
 
     /// Reports a complete authored variant array when Strum owns its replacement.
     fn check(&self, cx: &LateContext<'_>, candidate: Option<CollectionCandidate>) {
+        // Incomplete collection analysis provides no manual variant-array contract.
         let Some(candidate) = candidate else {
             return;
         };
+
+        // Replacement is valid only when Strum's variant array is the selected provider.
         if candidate.selected(self.provider) != Some(CollectionProvider::StrumVariantArray) {
             return;
         }

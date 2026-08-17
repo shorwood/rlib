@@ -21,7 +21,9 @@ use crate::utils::diagnostic::EarlyViolation;
 
 /// One component class with no semantic `style::CONSTANT` reference.
 struct Violation {
+    /// Authored class selector range receiving the diagnostic.
     span: Span,
+    /// Unreferenced stylesheet class name without its selector prefix.
     class: String,
 }
 
@@ -67,6 +69,7 @@ impl EarlyViolation for Violation {
 
 /// Finds CSS classes without typed references in their owning Rust module.
 struct LeptosStylingUnusedStylesheetClasses {
+    /// Authored source files indexed for early lint callbacks.
     files: AuthoredFiles,
 }
 

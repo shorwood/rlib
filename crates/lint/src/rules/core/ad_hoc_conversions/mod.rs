@@ -206,6 +206,8 @@ impl<'tcx> LateLintPass<'tcx> for AdHocConversions {
         self.constructions
             .record_function(cx, kind, body, span, def_id);
         self.collections.record_function(cx, kind, body, def_id);
+
+        // Functions without a recognized construction provide no conversion candidate.
         let Some(candidate) = self.constructions.candidate(def_id) else {
             return;
         };

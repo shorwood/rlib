@@ -97,9 +97,12 @@ dylint_linting::impl_late_lint! {
 impl MisorderedInherentImplItems {
     /// Returns whether the resolved return type contains the inherent impl's self type.
     fn returns_self_type(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
+        // Non-function associated items have no return type to classify.
         let ImplItemKind::Fn(signature, _) = item.kind else {
             return false;
         };
+
+        // An implicit unit return cannot contain the implementation's self type.
         if matches!(signature.decl.output, rustc_hir::FnRetTy::DefaultReturn(_)) {
             return false;
         }
@@ -143,6 +146,8 @@ impl MisorderedInherentImplItems {
     ) {
         // Stop when the authored order already matches dependency order.
         let ordering = nodes.declaration_order();
+
+        // An identity permutation needs no diagnostic or associated-item movement.
         if ordering.iter().copied().eq(0..nodes.len()) {
             return;
         }
@@ -175,6 +180,8 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedInherentImplItems {
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
+
+        // Trait implementations and generated blocks follow contracts outside inherent ordering.
         if implementation.of_trait.is_some() || item.span.in_external_macro(cx.sess().source_map())
         {
             return;

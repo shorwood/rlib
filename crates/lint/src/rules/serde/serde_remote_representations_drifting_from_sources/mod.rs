@@ -126,13 +126,18 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Generated and non-struct items cannot define an authored remote representation.
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Struct(..)) {
             return;
         }
+
+        // Missing authored source prevents recovery of the remote attribute and field schema.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
+        // Unparseable struct source cannot produce a trustworthy remote schema projection.
         let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
             return;
         };
@@ -144,6 +149,7 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
             .collect::<BTreeSet<_>>();
         let attributes = SerdeAttributes::from_attributes(&structure.attrs);
 
+        // Structs without `remote` establish source schemas rather than projections to compare.
         let Some(remote) = attributes.remote else {
             let path = cx.tcx.def_path_str(item.owner_id.to_def_id());
             self.sources.push(SourceSchema {
@@ -163,6 +169,7 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
             .iter()
             .filter(|attribute| attribute.path().is_ident("doc"))
             .filter_map(|attribute| {
+                // Non-name-value doc attributes contribute no compatibility prose.
                 let Ok(value) = attribute.meta.require_name_value() else {
                     return None;
                 };

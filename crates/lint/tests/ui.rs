@@ -257,6 +257,7 @@ const FIXTURE_LEPTOS_SOURCE_POLICY_ALLOWS: [&str; 14] = [
     unix
 ))]
 fn fixture_rerun_with_feature_aware_cargo_wrapper() -> bool {
+    // The feature-aware child process must not recursively spawn another Cargo run.
     if var_os("RLIB_LINT_ALL_FEATURE_UI_CHILD").is_some() {
         return false;
     }
@@ -386,6 +387,28 @@ fn fixture_selected_framework() -> Option<String> {
     }
 }
 
+/// Runs the compatibility fixture that requires an authored Bon API baseline.
+fn fixture_run_bon_compatibility() {
+    Test::example(
+        env!("CARGO_PKG_NAME"),
+        "bon_required_builder_members_breaking_compatibility",
+    )
+    .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
+    .dylint_toml(
+        r#"
+                [rlib-lint.bon_api_baseline.builders.Request]
+                members = ["host"]
+
+                [rlib-lint.bon_api_baseline.builders.upload]
+                members = ["path"]
+
+                [rlib-lint.bon_api_baseline.builders."Client::connect"]
+                members = ["host"]
+            "#,
+    )
+    .run();
+}
+
 /// Runs Bon examples selected by the shared framework fixture filter.
 #[cfg(feature = "bon")]
 fn fixture_run_bon() {
@@ -415,30 +438,15 @@ fn fixture_run_bon() {
             .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
             .run();
     }
+
+    // Selective UI runs skip this compatibility fixture unless its lint was requested.
     if selected
         .as_deref()
         .is_some_and(|selected| selected != "bon_required_builder_members_breaking_compatibility")
     {
         return;
     }
-    Test::example(
-        env!("CARGO_PKG_NAME"),
-        "bon_required_builder_members_breaking_compatibility",
-    )
-    .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
-    .dylint_toml(
-        r#"
-                [rlib-lint.bon_api_baseline.builders.Request]
-                members = ["host"]
-
-                [rlib-lint.bon_api_baseline.builders.upload]
-                members = ["path"]
-
-                [rlib-lint.bon_api_baseline.builders."Client::connect"]
-                members = ["host"]
-            "#,
-    )
-    .run();
+    fixture_run_bon_compatibility();
 }
 
 /// Runs `derive_more` examples selected by the shared framework fixture filter.
@@ -492,6 +500,8 @@ fn fixture_run_derive_more() {
         )
         .run();
     }
+
+    // Selective UI runs skip this manual-error fixture unless its lint was requested.
     if selected
         .as_deref()
         .is_some_and(|selected| selected != "derive_more_manual_error_impls")
@@ -582,6 +592,8 @@ fn fixture_run_miette() {
         }
         test.run();
     }
+
+    // Selective UI runs skip this library-report fixture unless its lint was requested.
     if selected
         .as_deref()
         .is_some_and(|selected| selected != "miette_reports_in_library_interfaces")
@@ -662,6 +674,8 @@ fn fixture_run_thiserror() {
             )
             .run();
     }
+
+    // Selective UI runs skip this error-conversion fixture unless its lint was requested.
     if selected
         .as_deref()
         .is_some_and(|selected| selected != "thiserror_manual_from_error_variants")
@@ -677,6 +691,27 @@ fn fixture_run_thiserror() {
         r#"
                 [rlib-lint.derive_resolution]
                 error_variant_conversion = "thiserror_from"
+            "#,
+    )
+    .run();
+}
+
+/// Runs the authorization fixture with representative endpoint vocabulary.
+fn fixture_run_leptos_authorization() {
+    Test::example(
+        env!("CARGO_PKG_NAME"),
+        "leptos_server_functions_without_authorization_boundaries",
+    )
+    .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
+    .rustc_flags(FIXTURE_LEPTOS_GENERATED_CORE_LINT_ALLOWS)
+    .rustc_flags(FIXTURE_LEPTOS_SOURCE_POLICY_ALLOWS)
+    .dylint_toml(
+        r#"
+                [rlib-lint.leptos_server_authorization]
+                sensitive_call_terms = ["delete_account", "read_private_profile"]
+                authorization_functions = ["authorize_account_admin"]
+                protected_endpoint_attributes = ["protected_endpoint"]
+                public_endpoint_attributes = ["public_endpoint"]
             "#,
     )
     .run();
@@ -737,28 +772,14 @@ fn fixture_run_leptos() {
         .rustc_flags(FIXTURE_LEPTOS_GENERATED_CORE_LINT_ALLOWS)
         .run();
     }
+
+    // Selective UI runs skip this authorization fixture unless its lint was requested.
     if selected.as_deref().is_some_and(|selected| {
         selected != "leptos_server_functions_without_authorization_boundaries"
     }) {
         return;
     }
-    Test::example(
-        env!("CARGO_PKG_NAME"),
-        "leptos_server_functions_without_authorization_boundaries",
-    )
-    .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
-    .rustc_flags(FIXTURE_LEPTOS_GENERATED_CORE_LINT_ALLOWS)
-    .rustc_flags(FIXTURE_LEPTOS_SOURCE_POLICY_ALLOWS)
-    .dylint_toml(
-        r#"
-                [rlib-lint.leptos_server_authorization]
-                sensitive_call_terms = ["delete_account", "read_private_profile"]
-                authorization_functions = ["authorize_account_admin"]
-                protected_endpoint_attributes = ["protected_endpoint"]
-                public_endpoint_attributes = ["public_endpoint"]
-            "#,
-    )
-    .run();
+    fixture_run_leptos_authorization();
 }
 
 /// Runs source-oriented styling fixtures with only their sibling policies suppressed in-source.
@@ -863,6 +884,8 @@ fn fixture_run_strum() {
         )
         .run();
     }
+
+    // Selective UI runs skip this enum-parser fixture unless its lint was requested.
     if selected
         .as_deref()
         .is_some_and(|selected| selected != "strum_manual_enum_string_parsers")
@@ -891,6 +914,7 @@ fn fixture_ui() {
         feature = "serde",
         feature = "thiserror"
     ))]
+    // A completed feature-aware rerun owns the fixture result and ends the parent test.
     if fixture_rerun_with_feature_aware_cargo_wrapper() {
         return;
     }

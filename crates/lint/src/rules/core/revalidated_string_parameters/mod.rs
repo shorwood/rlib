@@ -99,6 +99,7 @@ impl<'tcx> LateLintPass<'tcx> for RevalidatedStringParameters {
         _: Span,
         def_id: LocalDefId,
     ) {
+        // Bodies without an eligible parameter signature expose no string parameter to track.
         let Some(signature) = ParameterSignature::from_body(cx, kind, body, def_id) else {
             return;
         };

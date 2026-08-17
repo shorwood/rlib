@@ -104,6 +104,8 @@ impl LateLintPass<'_> for StrumManualEnumPredicates {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         let selected = PredicateFamily::selected(cx, self.provider);
+
+        // Manual predicates are replaceable only when Strum owns the selected implementation.
         if selected != Some(PredicateProvider::StrumEnumIs) {
             return;
         }

@@ -109,6 +109,8 @@ impl Candidate {
             .zip(hir_fields)
             .filter_map(|(field, hir_field)| {
                 let name = field.ident.as_ref()?.to_string();
+
+                // Fields without a causal role cannot contribute source ambiguity.
                 if !ThiserrorAmbiguousErrorSources::has_causal_name(&name) {
                     return None;
                 }
@@ -163,6 +165,7 @@ impl ThiserrorAmbiguousErrorSources {
 
     /// Returns whether a field name denotes a primary causal role.
     fn has_causal_name(name: &str) -> bool {
+        // Names describing secondary error roles must not compete for the primary source.
         if ["related", "suppressed", "fallback", "retry"]
             .iter()
             .any(|role| name.contains(role))
@@ -175,16 +178,20 @@ impl ThiserrorAmbiguousErrorSources {
 impl LateLintPass<'_> for ThiserrorAmbiguousErrorSources {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Generated declarations do not define authored causal-field policy.
         if item.span.from_expansion() {
             return;
         }
 
+        // Missing authored source prevents reliable field-name and attribute recovery.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
         match item.kind {
             ItemKind::Struct(_, _, data) => {
+                // Unparseable struct source cannot produce trustworthy causal-field evidence.
                 let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
                     return;
                 };
@@ -198,6 +205,7 @@ impl LateLintPass<'_> for ThiserrorAmbiguousErrorSources {
                 ));
             }
             ItemKind::Enum(_, _, definition) => {
+                // Unparseable enum source cannot produce trustworthy variant-field evidence.
                 let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
                     return;
                 };

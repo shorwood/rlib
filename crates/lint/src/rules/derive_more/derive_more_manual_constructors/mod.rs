@@ -125,6 +125,7 @@ impl DeriveMoreManualConstructors {
         body.params
             .iter()
             .map(|parameter| {
+                // Destructured parameters cannot map one-to-one onto named fields.
                 let PatKind::Binding(_, binding, ident, None) = parameter.pat.kind else {
                     return None;
                 };
@@ -192,9 +193,13 @@ impl DeriveMoreManualConstructors {
         definition: DefId,
     ) -> bool {
         let self_ty = cx.tcx.type_of(implementation).instantiate_identity();
+
+        // Only algebraic self types can be matched to a struct definition.
         let ty::Adt(adt, arguments) = self_ty.kind() else {
             return false;
         };
+
+        // The implementation must construct the exact enclosing definition.
         if adt.did() != definition {
             return false;
         }
@@ -211,10 +216,12 @@ impl DeriveMoreManualConstructors {
 }
 impl LateLintPass<'_> for DeriveMoreManualConstructors {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Constructor candidates must be function implementation items.
         let ImplItemKind::Fn(signature, body_id) = item.kind else {
             return;
         };
 
+        // Preserve only the public, safe, constant constructor contract produced by the derive.
         if item.ident.name.as_str() != "new"
             || item.span.from_expansion()
             || signature.decl.implicit_self.has_implicit_self()
@@ -228,17 +235,23 @@ impl LateLintPass<'_> for DeriveMoreManualConstructors {
             return;
         }
         let implementation = cx.tcx.local_parent(item.owner_id.def_id);
+
+        // The method must belong to a source-level implementation item.
         let Node::Item(parent) = cx.tcx.hir_node_by_def_id(implementation) else {
             return;
         };
 
+        // Nonimplementation parents cannot define an inherent constructor.
         let ItemKind::Impl(implementation_item) = parent.kind else {
             return;
         };
+
+        // Trait methods are not replaceable by an inherent constructor derive.
         if implementation_item.of_trait.is_some() {
             return;
         }
 
+        // The enclosing self type must resolve to a concrete algebraic definition.
         let Some(definition) = cx
             .tcx
             .type_of(implementation)
@@ -247,21 +260,29 @@ impl LateLintPass<'_> for DeriveMoreManualConstructors {
         else {
             return;
         };
+
+        // Constructor derivation applies to structs rather than enum or union assembly.
         if !definition.is_struct() {
             return;
         }
+
+        // A differing callable signature carries policy the derive would not preserve.
         if !Self::signature_matches(cx, implementation, item.owner_id.def_id, definition.did()) {
             return;
         }
         let body = cx.tcx.hir_body(body_id);
 
+        // Destructured or otherwise complex parameters are not direct field inputs.
         let Some(bindings) = Self::parameter_bindings(body) else {
             return;
         };
+
+        // Additional body work makes the constructor more than structural assembly.
         let Some(expression) = DirectForwarding::single_body_expression(body.value) else {
             return;
         };
 
+        // Emit only when every input is assigned unchanged to its matching field.
         if !Self::exact_field_assembly(
             cx,
             definition.did(),

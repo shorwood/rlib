@@ -35,6 +35,8 @@ impl DeclarationOrder {
         }
         let source_map = cx.sess().source_map();
         let file = source_map.span_to_filename(nodes.first()?.source.span);
+
+        // Cross-file declaration groups cannot be permuted by one atomic source suggestion.
         if nodes
             .iter()
             .any(|node| source_map.span_to_filename(node.source.span) != file)
@@ -51,15 +53,16 @@ impl DeclarationOrder {
                 nodes[pair[0]].source.span.hi(),
                 nodes[pair[1]].source.span.lo(),
             );
+
+            // An unavailable inter-declaration gap cannot prove that reordering preserves source.
             let Ok(gap) = source_map.span_to_snippet(gap_span) else {
                 return None;
             };
 
-            // Reject gaps containing authored comments or macro definitions.
-            if !gap.contains("//") && !gap.contains("/*") && !gap.contains("macro_rules!") {
-                continue;
+            // Authored comments or macros in a gap have ambiguous ownership under reordering.
+            if gap.contains("//") || gap.contains("/*") || gap.contains("macro_rules!") {
+                return None;
             }
-            return None;
         }
 
         // Pair reordered snippets with the original source-ordered target spans.
@@ -71,6 +74,8 @@ impl DeclarationOrder {
                     .map_err(|_| ())
             })
             .collect::<Result<Vec<_>, _>>();
+
+        // Every declaration snippet must be available before constructing an atomic permutation.
         let Ok(snippets) = snippets else {
             return None;
         };

@@ -43,6 +43,8 @@ impl NominalTypeExt for Ty<'_> {
         let ty::Adt(definition, arguments) = self.kind() else {
             return false;
         };
+
+        // A directly local aggregate already provides an output-side semantic owner.
         if definition.did().is_local() {
             return true;
         }
@@ -118,9 +120,13 @@ impl ForeignTypeAnalyzer {
         let ItemKind::Fn { body, .. } = item.kind else {
             return;
         };
+
+        // Function items without an identifier cannot define a discoverable owning operation.
         let Some(ident) = item.kind.ident() else {
             return;
         };
+
+        // Non-snake names are generated or outside the ordinary free-function API convention.
         if !identifier_case::is_snake(ident.name.as_str()) {
             return;
         }
@@ -166,6 +172,8 @@ impl ForeignTypeAnalyzer {
         {
             return;
         }
+
+        // A signature without any foreign nominal input has no foreign ownership candidate.
         if !nominal_parameters
             .iter()
             .any(|parameter| !parameter.def_id.is_local())
@@ -234,6 +242,8 @@ impl ForeignTypeAnalyzer {
                         span: parameter.span,
                     })
                     .collect::<Vec<_>>();
+
+                // Functions whose foreign inputs are all ambient infrastructure lack a domain owner.
                 if owners.is_empty() {
                     return None;
                 }

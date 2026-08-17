@@ -177,6 +177,7 @@ impl EarlyLintPass for InvalidBarrelFileItems {
 
     /// Leaves an ignored inline-module body after all of its children have been visited.
     fn check_item_post(&mut self, _: &EarlyContext<'_>, item: &Item) {
+        // Only nested inline modules extend the currently ignored generated region.
         if self.ignored_inline_depth == 0 || !Self::is_inline_module(item) {
             return;
         }
@@ -230,6 +231,7 @@ impl InvalidBarrelFileItems {
 
     /// Returns whether a directory contains an immediate child in either standard Rust layout.
     fn directory_has_child_module_source(directory: &Path) -> bool {
+        // An unreadable directory cannot prove that a sibling module file exists.
         let Ok(entries) = directory.read_dir() else {
             return false;
         };
@@ -244,6 +246,7 @@ impl InvalidBarrelFileItems {
 
     /// Records entry into an inline module so its contents do not receive duplicate warnings.
     const fn enter_inline_module(&mut self, item: &Item) {
+        // Non-module items cannot introduce an inline region to ignore.
         if !Self::is_inline_module(item) {
             return;
         }

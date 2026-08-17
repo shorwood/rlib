@@ -99,9 +99,12 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for UnencapsulatedBinaryEnumClassification {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
         // Analyze only authored conditionals with explicit outcomes.
+        // Expanded expressions are not authored external classification policy.
         if expression.span.from_expansion() {
             return;
         }
+
+        // Binary classification requires both conditional outcomes.
         let ExprKind::If(_, then_expression, Some(else_expression)) = expression.kind else {
             return;
         };
@@ -109,17 +112,24 @@ impl LateLintPass<'_> for UnencapsulatedBinaryEnumClassification {
         // Resolve each pure branch to a local unit-variant constructor.
         let then_expression = Self::branch_outcome(then_expression);
         let else_expression = Self::branch_outcome(else_expression);
+
+        // Generated branch outcomes are not authored variant mappings.
         if then_expression.span.from_expansion() || else_expression.span.from_expansion() {
             return;
         }
+
+        // The true branch must resolve to a local fieldless enum variant.
         let Some(then_variant) = Self::unit_variant(cx, then_expression) else {
             return;
         };
+
+        // The false branch must resolve to a local fieldless enum variant.
         let Some(else_variant) = Self::unit_variant(cx, else_expression) else {
             return;
         };
 
         // Require the two branches to exhaust one exactly-binary fieldless enum.
+        // Repeated or cross-enum outcomes do not define a complete binary mapping.
         if then_variant.enum_definition != else_variant.enum_definition
             || then_variant.variant == else_variant.variant
         {
@@ -129,6 +139,8 @@ impl LateLintPass<'_> for UnencapsulatedBinaryEnumClassification {
 
         // Validate the complete enum shape instead of inferring it from the selected branches.
         let enum_def = cx.tcx.adt_def(enum_definition.to_def_id());
+
+        // Nonbinary or payload-bearing enums require richer construction policy.
         if !enum_def.is_enum()
             || enum_def.variants().len() != BINARY_ENUM_VARIANT_COUNT
             || enum_def
@@ -140,6 +152,7 @@ impl LateLintPass<'_> for UnencapsulatedBinaryEnumClassification {
         }
 
         // Let the enum's inherent implementation own its canonical classification.
+        // Classification is already encapsulated when authored by the enum itself.
         if Self::is_inside_inherent_impl(cx, expression, enum_definition) {
             return;
         }
@@ -159,19 +172,28 @@ impl UnencapsulatedBinaryEnumClassification {
     /// Peels transparent block and explicit-return wrappers from a branch outcome.
     fn branch_outcome<'hir>(mut expression: &'hir Expr<'hir>) -> &'hir Expr<'hir> {
         expression = expression.peel_blocks();
+
+        // A direct explicit return transparently exposes its selected outcome.
         if let ExprKind::Ret(Some(returned)) = expression.kind {
             return returned.peel_blocks();
         }
 
+        // A bare outcome needs no further block-wrapper peeling.
         let ExprKind::Block(block, _) = expression.kind else {
             return expression;
         };
+
+        // Only a solitary statement can be a transparent return wrapper.
         let [statement] = block.stmts else {
             return expression;
         };
+
+        // Nonexpression statements introduce behavior beyond a return wrapper.
         let (StmtKind::Expr(returned) | StmtKind::Semi(returned)) = statement.kind else {
             return expression;
         };
+
+        // Preserve blocks whose sole statement is not an explicit value return.
         let ExprKind::Ret(Some(returned)) = returned.kind else {
             return expression;
         };
@@ -181,9 +203,12 @@ impl UnencapsulatedBinaryEnumClassification {
     /// Resolves a pure path expression to its local unit variant and owning enum.
     fn unit_variant(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<BinaryEnumVariant> {
         // Resolve only a direct path to a fieldless variant constructor.
+        // Compound expressions do not select one pure enum outcome.
         let ExprKind::Path(ref path) = expression.kind else {
             return None;
         };
+
+        // Exclude paths that are not constant constructors for enum variants.
         let Res::Def(DefKind::Ctor(CtorOf::Variant, CtorKind::Const), constructor) =
             cx.qpath_res(path, expression.hir_id)
         else {
@@ -208,9 +233,12 @@ impl UnencapsulatedBinaryEnumClassification {
         cx.tcx
             .hir_parent_iter(expression.hir_id)
             .find_map(|(_, node)| {
+                // Only enclosing items can own an implementation context.
                 let Node::Item(item) = node else {
                     return None;
                 };
+
+                // Continue past enclosing items that are not implementation blocks.
                 let ItemKind::Impl(implementation) = item.kind else {
                     return None;
                 };

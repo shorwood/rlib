@@ -85,12 +85,15 @@ impl CollectionExpressionAnalysis {
         loop {
             expression = match expression.kind {
                 ExprKind::Block(block, None) if block.stmts.is_empty() => {
+                    // An empty block without a tail expression cannot be peeled further.
                     let Some(inner) = block.expr else {
                         return expression;
                     };
                     inner
                 }
                 ExprKind::AddrOf(_, _, inner) | ExprKind::DropTemps(inner) => inner,
+
+                // Any other wrapper can change the collection expression's meaning.
                 _ => return expression,
             };
         }
@@ -104,9 +107,12 @@ impl CollectionExpressionAnalysis {
                     DefKind::Const { .. } | DefKind::AssocConst { .. } | DefKind::Static { .. },
                     definition,
                 ) => definition.as_local()?,
+
+                // Only directly referenced local storage can forward a collection body.
                 _ => return None,
             },
             ExprKind::Call(callee, []) => {
+                // Forwarded helper calls must name a direct function path.
                 let ExprKind::Path(path) = Self::peel_transparent(callee).kind else {
                     return None;
                 };
@@ -114,9 +120,13 @@ impl CollectionExpressionAnalysis {
                     Res::Def(DefKind::Fn | DefKind::AssocFn, definition) => {
                         definition.as_local()?
                     }
+
+                    // Other resolutions cannot provide a local forwarding body.
                     _ => return None,
                 }
             }
+
+            // Only direct references and zero-argument calls can forward a body.
             _ => return None,
         };
 
@@ -139,9 +149,12 @@ impl CollectionExpressionAnalysis {
 
     /// Resolves an expression that names one local unit variant.
     fn unit_variant(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<LocalDefId> {
+        // Unit variants must be written as direct constructor paths.
         let ExprKind::Path(path) = Self::peel_transparent(expression).kind else {
             return None;
         };
+
+        // Only a resolved variant constructor can identify a unit variant.
         let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
             cx.qpath_res(&path, expression.hir_id)
         else {
@@ -178,10 +191,13 @@ impl<'cx, 'tcx> VariantCollector<'cx, 'tcx> {
 
 impl<'tcx> Visitor<'tcx> for VariantCollector<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // A resolved unit variant is a complete leaf in the collected sequence.
         if let Some(variant) = CollectionExpressionAnalysis::unit_variant(self.cx, expression) {
             self.variants.push(variant);
             return;
         }
+
+        // Authored non-variant expressions invalidate an otherwise exact sequence.
         if !expression.span.from_expansion() {
             self.is_invalid = true;
             return;
@@ -220,9 +236,12 @@ impl EnumCollectionAnalysis {
         cx: &LateContext<'_>,
         enum_def: LocalDefId,
     ) -> Option<GeneratedVariantSets> {
+        // Generated membership can be recovered only from a local enum item.
         let Node::Item(item) = cx.tcx.hir_node_by_def_id(enum_def) else {
             return None;
         };
+
+        // Only enum items expose the variants used by collection derives.
         let ItemKind::Enum(_, _, hir_definition) = item.kind else {
             return None;
         };
@@ -264,10 +283,15 @@ impl EnumCollectionAnalysis {
         hir_id: rustc_hir::HirId,
     ) -> Option<LocalDefId> {
         cx.tcx.hir_parent_iter(hir_id).find_map(|(_, node)| {
+            // Only item ancestors can contain an inherent implementation.
             let Node::Item(item) = node else { return None };
+
+            // The candidate must be enclosed by an implementation item.
             let ItemKind::Impl(implementation) = item.kind else {
                 return None;
             };
+
+            // Trait implementations do not establish inherent collection methods.
             if implementation.of_trait.is_some() {
                 return None;
             }
@@ -286,18 +310,25 @@ impl EnumCollectionAnalysis {
         hir_id: rustc_hir::HirId,
     ) -> Option<LocalDefId> {
         cx.tcx.hir_parent_iter(hir_id).find_map(|(_, node)| {
+            // Only item ancestors can contain the requested trait implementation.
             let Node::Item(item) = node else {
                 return None;
             };
+
+            // The candidate must be enclosed by an implementation item.
             let ItemKind::Impl(implementation) = item.kind else {
                 return None;
             };
             let implementation_header = implementation.of_trait?;
+
+            // The trait reference must resolve before its collection surface can be checked.
             let Res::Def(DefKind::Trait, trait_definition) =
                 implementation_header.trait_ref.path.res
             else {
                 return None;
             };
+
+            // Only core's `IntoIterator` implementation supplies this collection surface.
             if cx.tcx.item_name(trait_definition).as_str() != "IntoIterator"
                 || cx.tcx.crate_name(trait_definition.krate).as_str() != "core"
             {
@@ -314,11 +345,14 @@ impl EnumCollectionAnalysis {
 
     /// Reads a non-negative integer literal without accepting computed values.
     fn integer_literal(expression: &Expr<'_>) -> Result<Option<usize>, TryFromIntError> {
+        // Cardinality recognition requires a literal expression.
         let ExprKind::Lit(literal) =
             CollectionExpressionAnalysis::peel_transparent(expression).kind
         else {
             return Ok(None);
         };
+
+        // Only integer literals can encode an enum cardinality.
         let rustc_ast::LitKind::Int(value, _) = literal.node else {
             return Ok(None);
         };
@@ -346,6 +380,7 @@ pub struct CountCandidate {
 impl CountCandidate {
     /// Recovers a constant or method that returns the enum's exact cardinality.
     pub(crate) fn from_impl_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Replacement requires Strum derives to be available in the current crate.
         if item.span.from_expansion() || !CollectionExpressionAnalysis::strum_derives_available(cx)
         {
             return None;
@@ -359,6 +394,8 @@ impl CountCandidate {
             .split('_')
             .map(str::to_ascii_lowercase)
             .collect::<Vec<_>>();
+
+        // The declaration name must indicate a cardinality API.
         if !components.iter().any(|component| {
             matches!(
                 component.as_str(),
@@ -375,14 +412,20 @@ impl CountCandidate {
         let enum_def = EnumCollectionAnalysis::enclosing_inherent_enum(cx, item.hir_id())?;
         let count = match EnumCollectionAnalysis::integer_literal(cx.tcx.hir_body(body).value) {
             Ok(Some(count)) => count,
+
+            // A non-literal value cannot prove exact cardinality.
             Ok(None) => return None,
+
+            // An unrepresentable literal cannot prove exact cardinality.
             Err(_error) => return None,
         };
 
-        // Compare the returned cardinality with the authored enum variant count.
+        // The candidate must resolve to the local enum item being counted.
         let Node::Item(enum_item) = cx.tcx.hir_node_by_def_id(enum_def) else {
             return None;
         };
+
+        // Only enum definitions expose the variants used for the count.
         let ItemKind::Enum(_, _, definition) = enum_item.kind else {
             return None;
         };
@@ -473,11 +516,13 @@ impl VariantSequence {
         /// Maximum helper-call depth followed while resolving a variant sequence.
         const MAXIMUM_FORWARDING_DEPTH: usize = 4;
 
+        // Bounded resolution prevents cyclic or excessively indirect helper analysis.
         if forwarding_depth > MAXIMUM_FORWARDING_DEPTH {
             return None;
         }
         let expression = CollectionExpressionAnalysis::peel_transparent(expression);
 
+        // Arrays are complete owned sequences without additional iterator adaptation.
         if let ExprKind::Array(elements) = expression.kind {
             let variants = elements
                 .iter()
@@ -492,6 +537,7 @@ impl VariantSequence {
             });
         }
 
+        // Recognized adapter methods preserve a forwarded iterator sequence.
         if let ExprKind::MethodCall(segment, receiver, arguments, _) = expression.kind
             && arguments.is_empty()
             && matches!(
@@ -514,6 +560,7 @@ impl VariantSequence {
             });
         }
 
+        // A resolved helper body can contribute the same collection contract.
         if let Some(body) = CollectionExpressionAnalysis::forwarded_body(cx, expression) {
             let sequence = Self::resolve(
                 cx,
@@ -532,6 +579,8 @@ impl VariantSequence {
         if Self::is_vec_expansion(cx, expression.span) {
             let mut collector = VariantCollector::new(cx);
             collector.visit_expr(expression);
+
+            // Macro expansion is usable only when it yields a nonempty pure variant sequence.
             if !collector.is_invalid && !collector.variants.is_empty() {
                 return Some(Self {
                     variants: collector.variants,
@@ -577,6 +626,7 @@ pub struct CollectionCandidate {
 impl CollectionCandidate {
     /// Recovers this contract from one authored declaration.
     pub(crate) fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+        // Macro-expanded declarations are not reliable authored collection evidence.
         if item.span.from_expansion() {
             return None;
         }
@@ -588,6 +638,8 @@ impl CollectionCandidate {
                 body,
                 CollectionExpressionAnalysis::output_surface(cx, item.owner_id.def_id),
             ),
+
+            // Only static storage or zero-input functions can expose a collection contract.
             _ => return None,
         };
 
@@ -596,6 +648,7 @@ impl CollectionCandidate {
 
     /// Recovers a static collection or iterator that yields every variant in order.
     pub(crate) fn from_impl_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
+        // Macro-expanded implementation items are not authored collection evidence.
         if item.span.from_expansion() {
             return None;
         }
@@ -613,10 +666,14 @@ impl CollectionCandidate {
             {
                 (body, CollectionSurface::Iterator)
             }
+
+            // Other implementation items do not expose a supported collection surface.
             _ => return None,
         };
 
         let candidate = Self::from_body(cx, body, item.hir_id(), surface, item.owner_id.def_id)?;
+
+        // An iterator implementation must enumerate the enum targeted by that trait impl.
         if into_iterator_enum.is_some_and(|enum_def| enum_def != candidate.enum_def) {
             return None;
         }
@@ -631,6 +688,7 @@ impl CollectionCandidate {
         declared_surface: CollectionSurface,
         definition: LocalDefId,
     ) -> Option<Self> {
+        // Collection replacement requires Strum derives to be available.
         if !CollectionExpressionAnalysis::strum_derives_available(cx) {
             return None;
         }
@@ -670,6 +728,8 @@ impl CollectionCandidate {
         {
             providers.push(CollectionProvider::StrumEnumIter);
         }
+
+        // No enabled derive matches a collection with a different surface or membership.
         if providers.is_empty() {
             return None;
         }
@@ -694,6 +754,8 @@ impl CollectionCandidate {
         configured: Option<CollectionProvider>,
     ) -> Option<CollectionProvider> {
         let providers = self.providers();
+
+        // A single compatible provider needs no configuration to resolve ownership.
         if providers.len() == 1 {
             return providers.first().copied();
         }

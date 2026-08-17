@@ -108,6 +108,7 @@ impl DeriveMoreNonRoundtrippingDerivedTextContracts {
         let source = AuthoredItemSource::for_item(cx, item)?;
         let item = match syn::parse_str::<syn::ItemStruct>(&source) {
             Ok(item) => item,
+            // Unparseable struct text cannot provide reliable display metadata.
             Err(_error) => return None,
         };
 
@@ -117,6 +118,7 @@ impl DeriveMoreNonRoundtrippingDerivedTextContracts {
             .find(|attribute| attribute.path().is_ident("display"))?;
         let format = match attribute.parse_args::<syn::LitStr>() {
             Ok(format) => format,
+            // Nonliteral display arguments do not expose a static grammar for comparison.
             Err(_error) => return None,
         };
 
@@ -137,12 +139,16 @@ impl DeriveMoreNonRoundtrippingDerivedTextContracts {
     fn numeric_format_roundtrips(contract: &NumericFormat<'_>) -> bool {
         let format = contract.format;
         let field_name = contract.field_name;
+
+        // Additional surrounding text cannot be consumed by a transparent numeric parser.
         let Some(inner) = format
             .strip_prefix('{')
             .and_then(|value| value.strip_suffix('}'))
         else {
             return false;
         };
+
+        // Nested placeholders describe a composite grammar rather than one forwarded value.
         if inner.contains(['{', '}']) {
             return false;
         }
@@ -154,6 +160,8 @@ impl DeriveMoreNonRoundtrippingDerivedTextContracts {
     /// Returns whether the newtype field uses a primitive numeric parser.
     fn has_numeric_field(cx: &LateContext<'_>, definition: LocalDefId) -> bool {
         let definition = cx.tcx.adt_def(definition);
+
+        // A fieldless type has no primitive parser to receive display output.
         let Some(field) = definition.non_enum_variant().fields.iter().next() else {
             return false;
         };
@@ -166,16 +174,23 @@ impl DeriveMoreNonRoundtrippingDerivedTextContracts {
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreNonRoundtrippingDerivedTextContracts {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.catalog.check_item(cx, item);
+
+        // Expanded items provide derive evidence rather than authored display grammar.
         if item.span.from_expansion() {
             return;
         }
+
+        // Only structs can express the supported transparent newtype text contract.
         let ItemKind::Struct(identifier, _, data) = item.kind else {
             return;
         };
 
+        // Multi-field structs cannot forward parsing transparently to one numeric field.
         if data.fields().len() != 1 {
             return;
         }
+
+        // Transparent or unavailable display formats do not prove a round-trip mismatch.
         let Some(format) = Self::explicit_nontransparent_format(cx, item) else {
             return;
         };

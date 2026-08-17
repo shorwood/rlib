@@ -93,6 +93,7 @@ impl<'tcx> LateLintPass<'tcx> for OversizedMatchArms {
         _: Span,
         def_id: LocalDefId,
     ) {
+        // Closures own independent match expressions and are analyzed with their own bodies.
         if matches!(kind, FnKind::Closure) {
             return;
         }

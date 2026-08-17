@@ -75,6 +75,7 @@ dylint_linting::impl_late_lint! {
 impl StrumDocumentationUsedAsEnumMessages {
     /// Resolves the authored name of a directly called function or method.
     fn callable_name(cx: &LateContext<'_>, callee: &Expr<'_>) -> Option<String> {
+        // Only direct paths expose a stable resolved callable name.
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
@@ -116,6 +117,8 @@ impl StrumDocumentationUsedAsEnumMessages {
         const MAXIMUM_OBSERVED_SINK_ANCESTORS: usize = 4;
         for _ in 0..MAXIMUM_OBSERVED_SINK_ANCESTORS {
             let parent = cx.tcx.parent_hir_node(hir_id);
+
+            // Leaving expression ancestry means no nearby call consumes the message.
             let Node::Expr(expression) = parent else {
                 return None;
             };
@@ -129,19 +132,26 @@ impl StrumDocumentationUsedAsEnumMessages {
                 {
                     hir_id = expression.hir_id;
                 }
+                // A consuming free call is the terminal sink for the tracked message value.
                 ExprKind::Call(callee, arguments)
                     if arguments.iter().any(|argument| argument.hir_id == hir_id) =>
                 {
                     let name = Self::callable_name(cx, callee)?;
+
+                    // A consuming free call completes the bounded sink search.
                     return Self::is_observed_name(&name).then_some(name);
                 }
+                // A consuming method argument is the terminal sink for the tracked message value.
                 ExprKind::MethodCall(segment, receiver, arguments, _)
                     if receiver.hir_id != hir_id
                         && arguments.iter().any(|argument| argument.hir_id == hir_id) =>
                 {
                     let name = segment.ident.name.as_str().to_owned();
+
+                    // A consuming method call completes the bounded sink search.
                     return Self::is_observed_name(&name).then_some(name);
                 }
+                // Other parent shapes break the direct message-to-sink flow.
                 _ => return None,
             }
         }
@@ -150,9 +160,12 @@ impl StrumDocumentationUsedAsEnumMessages {
 }
 impl LateLintPass<'_> for StrumDocumentationUsedAsEnumMessages {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        // Documentation retrieval must be expressed as a receiver method call.
         let ExprKind::MethodCall(segment, receiver, ..) = expression.kind else {
             return;
         };
+
+        // Retain only authored documentation reads from documented enum variants.
         if expression.span.from_expansion()
             || segment.ident.name.as_str() != "get_documentation"
             || !Self::receiver_has_documentation(cx, receiver)
@@ -160,6 +173,7 @@ impl LateLintPass<'_> for StrumDocumentationUsedAsEnumMessages {
             return;
         }
 
+        // Unresolved methods cannot establish the Strum message contract.
         let Some(method) = cx.typeck_results().type_dependent_def_id(expression.hir_id) else {
             return;
         };
@@ -170,6 +184,7 @@ impl LateLintPass<'_> for StrumDocumentationUsedAsEnumMessages {
             .trait_item_def_id()
             .unwrap_or(method);
 
+        // Exclude similarly named methods outside Strum's documentation interface.
         if !cx
             .tcx
             .def_path_str(contract)
@@ -178,6 +193,7 @@ impl LateLintPass<'_> for StrumDocumentationUsedAsEnumMessages {
             return;
         }
 
+        // Documentation that never reaches an observed sink remains developer-facing.
         let Some(sink) = Self::observed_sink(cx, expression.hir_id) else {
             return;
         };

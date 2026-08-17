@@ -102,26 +102,36 @@ impl DeriveMoreManualAggregationImpls {
         field_name: Option<&str>,
     ) -> bool {
         let AggregationNames { derive, type_name } = names;
+
+        // Implementations without authored source cannot prove exact aggregation forwarding.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return false;
         };
+
+        // Unparseable source cannot establish the authored aggregation shape.
         let Ok(implementation) = syn::parse_str::<syn::ItemImpl>(&source) else {
             return false;
         };
 
+        // Derivable aggregation implementations contain exactly one trait method.
         let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
             return false;
         };
         let expected_method = derive.to_ascii_lowercase();
+
+        // A differently named method does not implement the selected aggregation operation.
         if method.sig.ident != expected_method {
             return false;
         }
 
+        // Aggregation methods with other arities cannot forward one iterator unchanged.
         let [syn::FnArg::Typed(parameter)] =
             method.sig.inputs.iter().collect::<Vec<_>>().as_slice()
         else {
             return false;
         };
+
+        // Only a simple input binding can be tracked through the iterator pipeline.
         let syn::Pat::Ident(parameter) = parameter.pat.as_ref() else {
             return false;
         };
@@ -151,13 +161,17 @@ impl DeriveMoreManualAggregationImpls {
             return false;
         };
 
+        // The outer call must be the argument-free selected aggregation method.
         if aggregation.method != expected_method || !aggregation.args.is_empty() {
             return false;
         }
+
+        // The aggregation receiver must be the field-projection map call.
         let syn::Expr::MethodCall(map) = aggregation.receiver.as_ref() else {
             return false;
         };
 
+        // Only a one-closure map over the original input proves transparent projection.
         if map.method != "map"
             || !matches!(map.receiver.as_ref(), syn::Expr::Path(path) if path.path.is_ident(&parameter.ident))
             || map.args.len() != 1
@@ -165,10 +179,12 @@ impl DeriveMoreManualAggregationImpls {
             return false;
         }
 
+        // Non-closure map arguments cannot prove direct field projection.
         let Some(syn::Expr::Closure(projection)) = map.args.first() else {
             return false;
         };
 
+        // The projection must bind exactly one aggregate input value.
         let [syn::Pat::Ident(value)] = projection.inputs.iter().collect::<Vec<_>>().as_slice()
         else {
             return false;
@@ -185,13 +201,17 @@ impl DeriveMoreManualAggregationImpls {
 }
 impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only implementation items can define an aggregation trait contract.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
+
+        // Generated implementations do not represent authored aggregation boilerplate.
         if item.span.from_expansion() {
             return;
         }
 
+        // Inherent implementations do not implement a derivable aggregation trait.
         let Some(trait_id) = implementation
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
@@ -201,6 +221,8 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
         let derive_name = cx.tcx.item_name(trait_id);
 
         let derive = derive_name.as_str();
+
+        // Only core aggregation traits have this derive_more replacement.
         if cx.tcx.crate_name(trait_id.krate).as_str() != "core"
             || !matches!(derive, "Sum" | "Product")
         {
@@ -213,15 +235,21 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
             .impl_trait_ref(item.owner_id.def_id)
             .instantiate_identity();
         let self_ty = trait_ref.self_ty();
+
+        // Only nominal wrapper self types can derive aggregation.
         let ty::Adt(definition, _) = self_ty.kind() else {
             return;
         };
+
+        // Aggregation over another item type is not same-wrapper forwarding.
         if trait_ref.args.type_at(1) != self_ty {
             return;
         }
 
         // Resolve the wrapper and its sole field for authored source comparison.
         let name = cx.tcx.item_name(definition.did()).to_string();
+
+        // Only one-field structs match derive_more's transparent aggregation contract.
         if !definition.is_struct() || definition.non_enum_variant().fields.len() != 1 {
             return;
         }
@@ -238,6 +266,7 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
             .all(|character| character.is_ascii_digit()))
         .then(|| field.name.as_str());
 
+        // Source syntax must exactly map the field, aggregate it, and reconstruct the wrapper.
         if !Self::exact_aggregation_source(
             cx,
             item,

@@ -116,9 +116,13 @@ impl<'analysis, 'tcx> SemanticContextVisitor<'analysis, 'tcx> {
             ExprKind::Closure(closure) => self.cx.tcx.hir_body(closure.body).value,
             _ => expression,
         };
+
+        // Non-literal context expressions do not define a stable shared message.
         let ExprKind::Lit(literal) = expression.kind else {
             return None;
         };
+
+        // Only string literals can name an anonymous diagnostic consistently.
         let rustc_ast::LitKind::Str(message, _) = literal.node else {
             return None;
         };
@@ -189,6 +193,7 @@ impl MietteAdHocDiagnosticsAtDomainBoundaries {
 
     /// Extracts literal text with no formatting placeholders.
     fn static_string(expression: &syn::Expr) -> Option<String> {
+        // Non-string expressions cannot provide a static diagnostic message.
         let syn::Expr::Lit(syn::ExprLit {
             lit: syn::Lit::Str(literal),
             ..
@@ -215,9 +220,12 @@ impl MietteAdHocDiagnosticsAtDomainBoundaries {
 
     /// Finds a Miette report directly or in a result error position.
     fn contains_miette_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+        // Non-ADT types cannot be a report or a result containing one.
         let ty::Adt(definition, arguments) = ty.kind() else {
             return false;
         };
+
+        // A direct report type completes the boundary classification.
         if cx.tcx.crate_name(definition.did().krate).as_str() == "miette"
             && cx.tcx.item_name(definition.did()).as_str() == "Report"
         {
@@ -230,6 +238,7 @@ impl MietteAdHocDiagnosticsAtDomainBoundaries {
 }
 impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only authored free functions can establish this kind of domain boundary.
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Fn { .. }) {
             return;
         }
@@ -241,13 +250,17 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
             .skip_binder()
             .output();
 
+        // Functions not returning a report cannot propagate an anonymous Miette diagnostic.
         if !Self::contains_miette_report(cx, output) {
             return;
         }
+
+        // Functions without recoverable authored source cannot be inspected for diagnostic macros.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
+        // Unparseable source cannot establish authored static diagnostic messages.
         let Ok(function) = syn::parse_str::<syn::ItemFn>(&source) else {
             return;
         };
@@ -270,6 +283,7 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Only authored implementation methods can establish this kind of domain boundary.
         if item.span.from_expansion() || !matches!(item.kind, ImplItemKind::Fn(..)) {
             return;
         }
@@ -281,13 +295,17 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
             .skip_binder()
             .output();
 
+        // Methods not returning a report cannot propagate an anonymous Miette diagnostic.
         if !Self::contains_miette_report(cx, output) {
             return;
         }
+
+        // Methods without recoverable source cannot be inspected for diagnostic macros.
         let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
             return;
         };
 
+        // Unparseable source cannot establish authored static diagnostic messages.
         let Ok(method) = syn::parse_str::<syn::ImplItemFn>(&source) else {
             return;
         };
@@ -343,6 +361,7 @@ struct StaticMessageVisitor {
 
 impl<'ast> Visit<'ast> for StaticMessageVisitor {
     fn visit_macro(&mut self, invocation: &'ast syn::Macro) {
+        // Macros without a terminal name cannot match a Miette constructor.
         let Some(name) = invocation
             .path
             .segments
@@ -351,14 +370,19 @@ impl<'ast> Visit<'ast> for StaticMessageVisitor {
         else {
             return;
         };
+
+        // Other macros do not create the anonymous diagnostics governed here.
         if name != "miette" && name != "diagnostic" {
             return;
         }
         let parser = Punctuated::<syn::Expr, syn::Token![,]>::parse_terminated;
 
+        // Unparseable arguments cannot prove a static anonymous diagnostic contract.
         let Ok(arguments) = parser.parse2(invocation.tokens.clone()) else {
             return;
         };
+
+        // A stable diagnostic code already gives this failure a reusable identity.
         if arguments
             .iter()
             .any(MietteAdHocDiagnosticsAtDomainBoundaries::is_code_assignment)
@@ -370,6 +394,8 @@ impl<'ast> Visit<'ast> for StaticMessageVisitor {
             .iter()
             .filter_map(MietteAdHocDiagnosticsAtDomainBoundaries::static_string)
             .collect::<Vec<_>>();
+
+        // Exactly one static literal is required to identify the anonymous message.
         if literals.len() != 1 {
             return;
         }

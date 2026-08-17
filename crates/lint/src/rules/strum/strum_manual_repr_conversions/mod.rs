@@ -84,6 +84,7 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for StrumManualReprConversions {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Implementation items without a complete representation conversion are unrelated.
         let Some(candidate) = ReprConversionCandidate::from_impl_item(cx, item) else {
             return;
         };

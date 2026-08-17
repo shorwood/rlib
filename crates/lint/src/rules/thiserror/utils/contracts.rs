@@ -29,6 +29,7 @@ impl ThiserrorContractCatalog {
 
     /// Correlates a generated `Error` implementation with its authored target.
     fn record_generated_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only implementations emitted by thiserror's `Error` derive establish derive evidence.
         if !matches!(item.kind, ItemKind::Impl(_))
             || !item.span.macro_backtrace().any(|expansion| {
                 expansion.macro_def_id.is_some_and(|definition| {
@@ -40,6 +41,7 @@ impl ThiserrorContractCatalog {
             return;
         }
 
+        // Generated implementations without a local aggregate target cannot be correlated.
         let Some(definition) = cx
             .tcx
             .type_of(item.owner_id)
@@ -54,10 +56,13 @@ impl ThiserrorContractCatalog {
 
     /// Records either generated derive evidence or an authored error-shaped type.
     pub(crate) fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Expanded items contribute only generated implementation evidence.
         if item.span.from_expansion() {
             self.record_generated_impl(cx, item);
             return;
         }
+
+        // Only authored structs and enums can be targets of the error contract.
         let (ItemKind::Struct(..) | ItemKind::Enum(..)) = item.kind else {
             return;
         };
@@ -111,8 +116,11 @@ impl ErrorMessage {
         let attribute = attributes
             .iter()
             .find(|attribute| attribute.path().is_ident("error"))?;
+
+        // Non-literal error arguments cannot establish a static presentation string.
         let message = match attribute.parse_args::<syn::LitStr>() {
             Ok(message) => message.value(),
+            // A parse failure means the attribute does not contain one literal message.
             Err(_error) => return None,
         };
 
@@ -122,6 +130,7 @@ impl ErrorMessage {
             match character {
                 '{' if characters.next_if_eq(&'{').is_some() => rendered.push('{'),
                 '}' if characters.next_if_eq(&'}').is_some() => rendered.push('}'),
+                // Unescaped braces introduce interpolation and make the message dynamic.
                 '{' | '}' => return None,
                 _ => rendered.push(character),
             }

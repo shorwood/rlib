@@ -43,12 +43,17 @@ struct RevalidationReturnFinder<'analysis, 'tcx> {
 impl RevalidationReturnFinder<'_, '_> {
     /// Returns whether a return value directly constructs standard `Ok` or `Some` success.
     fn is_success_variant(&self, value: &Expr<'_>) -> bool {
+        // Success construction must be expressed as a direct call.
         let ExprKind::Call(callee, _) = value.kind else {
             return false;
         };
+
+        // Indirect callees cannot identify a standard success variant.
         let ExprKind::Path(path) = callee.kind else {
             return false;
         };
+
+        // Only enum variant constructors can represent standard success values.
         let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
             self.cx.qpath_res(&path, callee.hir_id)
         else {
@@ -65,10 +70,13 @@ impl RevalidationReturnFinder<'_, '_> {
 
 impl<'tcx> Visitor<'tcx> for RevalidationReturnFinder<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // A direct return completes classification of this expression subtree.
         if let ExprKind::Ret(value) = expression.kind {
             self.has_rejection_return |= value.is_none_or(|value| !self.is_success_variant(value));
             return;
         }
+
+        // Nested closures have independent return boundaries unrelated to this function.
         if matches!(expression.kind, ExprKind::Closure(_)) {
             return;
         }
@@ -120,13 +128,18 @@ impl<'analysis, 'tcx> RevalidationVisitor<'analysis, 'tcx> {
 
     /// Records bindings passed to one invariant-establishing free function.
     fn record_call(&mut self, callee: &'tcx Expr<'tcx>, arguments: &'tcx [Expr<'tcx>]) {
+        // Only direct paths can resolve to a named validation function.
         let ExprKind::Path(path) = callee.kind else {
             return;
         };
+
+        // Unresolved paths cannot establish a known domain invariant.
         let Res::Def(_, def_id) = self.cx.qpath_res(&path, callee.hir_id) else {
             return;
         };
         let name = self.cx.tcx.item_name(def_id);
+
+        // Unrelated calls provide no revalidation evidence for their arguments.
         if !name.establishes_domain_invariant() {
             return;
         }
@@ -142,6 +155,7 @@ impl<'analysis, 'tcx> RevalidationVisitor<'analysis, 'tcx> {
         receiver: &'tcx Expr<'tcx>,
         arguments: &'tcx [Expr<'tcx>],
     ) {
+        // Unrelated methods provide no revalidation evidence for receiver or arguments.
         if !name.establishes_domain_invariant() {
             return;
         }

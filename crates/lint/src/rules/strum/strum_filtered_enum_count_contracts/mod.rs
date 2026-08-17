@@ -124,6 +124,7 @@ impl LateLintPass<'_> for StrumFilteredEnumCountContracts {
     }
 
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        // Expressions unrelated to `EnumCount::COUNT` cannot assume a full-enum count.
         let Some(enum_def) = (StrumAssociatedItem {
             trait_name: "EnumCount",
             item_name: "COUNT",
@@ -131,6 +132,8 @@ impl LateLintPass<'_> for StrumFilteredEnumCountContracts {
         .enum_definition(cx, expression) else {
             return;
         };
+
+        // Only subset-oriented APIs make a full declaration count suspicious.
         if !Self::enclosing_name(cx, expression.hir_id).is_some_and(Self::is_subset_name) {
             return;
         }

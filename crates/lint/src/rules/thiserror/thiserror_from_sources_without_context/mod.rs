@@ -119,11 +119,13 @@ struct TryOperationVisitor<'cx, 'tcx> {
 impl TryOperationVisitor<'_, '_> {
     /// Resolves one authored call beneath a compiler-generated try desugaring.
     fn operation(&self, expression: &Expr<'_>) -> Option<SourceOperation> {
+        // Macro-generated expressions do not identify an authored operation boundary.
         if expression.span.from_expansion() {
             return None;
         }
         let name = match expression.kind {
             ExprKind::Call(callee, _) => {
+                // Indirect callees have no stable authored operation name.
                 let ExprKind::Path(path) = callee.kind else {
                     return None;
                 };
@@ -133,12 +135,17 @@ impl TryOperationVisitor<'_, '_> {
                 }
             }
             ExprKind::MethodCall(segment, ..) => segment.ident.name.to_string(),
+            // Non-call expressions cannot be the operation propagated by `?`.
             _ => return None,
         };
+
+        // Only nominal Result-like outputs can expose a concrete source error.
         let ty::Adt(result, arguments) = self.cx.tcx.typeck(self.owner).expr_ty(expression).kind()
         else {
             return None;
         };
+
+        // Only the standard Result contract represents try propagation here.
         if !self.cx.tcx.is_diagnostic_item(sym::Result, result.did()) {
             return None;
         }
@@ -179,9 +186,12 @@ struct AuthoredOperationFinder<'visitor, 'cx, 'tcx> {
 
 impl<'tcx> Visitor<'tcx> for AuthoredOperationFinder<'_, '_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // The first authored operation is sufficient for this try desugaring.
         if self.operation.is_some() {
             return;
         }
+
+        // A resolved authored operation ends descent at that operation boundary.
         if let Some(operation) = self.visitor.operation(expression) {
             self.operation = Some(operation);
             return;
@@ -220,6 +230,8 @@ impl ThiserrorFromSourcesWithoutContext {
 impl LateLintPass<'_> for ThiserrorFromSourcesWithoutContext {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Generated items do not provide authored error or propagation boundaries.
         if item.span.from_expansion() {
             return;
         }
@@ -261,13 +273,17 @@ impl LateLintPass<'_> for ThiserrorFromSourcesWithoutContext {
 impl ThiserrorFromSourcesWithoutContext {
     /// Records an enum with exactly one transparent `#[from]` variant.
     fn record_error(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Enums without recoverable authored source cannot prove attribute intent.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
+
+        // Unparseable source cannot establish the authored thiserror attributes.
         let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
             return;
         };
 
+        // Only enum HIR can correlate parsed variants with resolved field types.
         let ItemKind::Enum(_, _, hir_definition) = item.kind else {
             return;
         };
@@ -283,12 +299,18 @@ impl ThiserrorFromSourcesWithoutContext {
                             .is_ok_and(|path| path.is_ident("transparent"))
                 });
                 let fields = variant.fields.iter().collect::<Vec<_>>();
+
+                // Transparent conversion variants must contain exactly one source field.
                 let [field] = fields.as_slice() else {
                     return None;
                 };
+
+                // Only transparent fields marked `#[from]` erase operation context automatically.
                 if !transparent || !ThiserrorAttributes::from_attributes(&field.attrs).is_from {
                     return None;
                 }
+
+                // Parsed and HIR variants must agree on their sole source field.
                 let [hir_field] = hir_variant.data.fields() else {
                     return None;
                 };
@@ -305,6 +327,8 @@ impl ThiserrorFromSourcesWithoutContext {
                 })
             })
             .collect::<Vec<_>>();
+
+        // Enums without qualifying transparent conversions need no use-site correlation.
         if variants.is_empty() {
             return;
         }
@@ -320,13 +344,17 @@ impl ThiserrorFromSourcesWithoutContext {
             .skip_binder()
             .output();
 
+        // Non-ADT returns cannot expose the standard Result error slot.
         let ty::Adt(result, arguments) = output.kind() else {
             return;
         };
+
+        // Only standard Result returns support try propagation.
         if !cx.tcx.is_diagnostic_item(sym::Result, result.did()) {
             return;
         }
 
+        // Foreign or nonnominal error types cannot correlate with a local error enum.
         let Some(error) = arguments
             .type_at(1)
             .ty_adt_def()
@@ -335,6 +363,7 @@ impl ThiserrorFromSourcesWithoutContext {
             return;
         };
 
+        // Only free-function bodies are recorded by this item callback.
         let ItemKind::Fn { body, .. } = item.kind else {
             return;
         };

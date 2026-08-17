@@ -193,6 +193,8 @@ impl DeclarationNodeList {
     ) {
         let from = component_of[edge.node];
         let to = component_of[edge.dependency];
+
+        // Dependencies collapsed into the same component add no ordering constraint.
         if from == to {
             return;
         }

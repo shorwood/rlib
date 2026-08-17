@@ -114,9 +114,12 @@ impl LateLintPass<'_> for BonParameterHeavyApisWithoutBuilders {
         _: Span,
         def_id: LocalDefId,
     ) {
+        // Ineligible callables are outside the public authored API policy.
         if !Self::is_eligible(cx, def_id) {
             return;
         }
+
+        // Bodies without an eligible signature cannot establish API parameter pressure.
         let Some(signature) = ParameterSignature::from_body(cx, kind, body, def_id) else {
             return;
         };
@@ -124,6 +127,8 @@ impl LateLintPass<'_> for BonParameterHeavyApisWithoutBuilders {
 
         let boolean_count = signature.boolean_parameters().len();
         let ambiguous_groups = signature.ambiguous_groups().len();
+
+        // APIs below every pressure threshold do not warrant a builder abstraction.
         if parameter_count < Self::AMBIGUOUS_PARAMETER_THRESHOLD
             || (parameter_count < Self::UNCONDITIONAL_PARAMETER_THRESHOLD
                 && boolean_count < Self::BOOLEAN_CHOICE_THRESHOLD

@@ -188,6 +188,8 @@ impl CausalEvidence {
             }
             _ => output,
         };
+
+        // Causal accessors must return a shared reference.
         let ty::Ref(_, inner, rustc_hir::Mutability::Not) = output.kind() else {
             return None;
         };
@@ -266,6 +268,7 @@ const ERROR_INTERFACE_STRUCTURED_DATA_SUFFIXES: &[&str] = &[
 
 /// Resolves a possibly referenced type to one local nominal definition.
 fn local_adt(ty: Ty<'_>) -> Option<LocalDefId> {
+    // Only nominal types can resolve to a local declaration.
     let ty::Adt(definition, _) = ty.peel_refs().kind() else {
         return None;
     };
@@ -317,6 +320,7 @@ fn standard_interface_eligibility_is_inherent_method(
 
 /// Recognizes exact `String` and `Cow<str>` return contracts.
 fn standard_interface_text_is_owned(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+    // Non-ADT outputs cannot be owned textual contracts.
     let ty::Adt(definition, arguments) = ty.kind() else {
         return false;
     };
@@ -337,8 +341,9 @@ fn standard_interface_text_has_neutral_name(
     name: Symbol,
     target: LocalDefId,
 ) -> bool {
-    // Reject explicit formats before accepting target-derived vocabulary.
     let words = identifier_case::words(name.as_str());
+
+    // Empty or policy-specific names cannot claim canonical presentation ownership.
     if words.is_empty()
         || words
             .iter()
@@ -403,37 +408,41 @@ pub struct StandardInterfaceAnalysis {
 impl StandardInterfaceAnalysis {
     /// Records textual fields that provide authored presentation evidence.
     pub fn record_field(&mut self, cx: &LateContext<'_>, field: &FieldDef<'_>) {
-        // Resolve one authored named field back to its local nominal type.
+        // Generated or positional fields cannot provide authored naming evidence.
         if field.span.from_expansion() || field.is_positional() {
             return;
         }
         let parent = cx.tcx.parent(field.def_id.to_def_id());
 
-        // Resolve struct and enum variant ownership.
+        // Only struct fields and enum-variant fields have a local nominal owner.
         let target = match cx.tcx.def_kind(parent) {
             DefKind::Struct => parent.as_local(),
             DefKind::Variant => cx.tcx.parent(parent).as_local(),
             _ => None,
         };
 
-        // Require a declaration retained by the crate-wide analyzer.
+        // Fields outside an eligible local declaration cannot contribute evidence.
         let Some(target) = target else {
             return;
         };
+
+        // Types omitted from the analyzer cannot accumulate presentation evidence.
         let Some(declaration) = self.types.get_mut(&target) else {
             return;
         };
 
-        // Retain public or error-named textual message conventions.
         let name = field.ident.name.as_str();
         let is_message = ["context", "description", "message", "reason"].contains(&name);
         let field_ty = cx.tcx.type_of(field.def_id).instantiate_identity();
+
+        // Only textual message-like fields establish presentation conventions.
         if !is_message || !standard_interface_text_is_textual(cx, field_ty) {
             return;
         }
 
-        // Require public evidence unless error naming already supplies intent.
         let is_public = cx.tcx.visibility(field.def_id).is_public();
+
+        // Private non-error fields do not establish a public presentation contract.
         if !declaration.classification.is_error_named && !is_public {
             return;
         }
@@ -481,7 +490,7 @@ impl StandardInterfaceAnalysis {
                 .map(|evidence| evidence.span)
                 .collect::<Vec<_>>();
 
-            // Infer the exact interface tier from the retained evidence.
+            // Types without presentation evidence need no standard interface diagnostic.
             let requires_error = !causal_spans.is_empty()
                 || (declaration.classification.is_error_named && !presentation_spans.is_empty());
             let requires_display = requires_error || !presentation_spans.is_empty();
@@ -489,7 +498,7 @@ impl StandardInterfaceAnalysis {
                 continue;
             }
 
-            // Report only standard contracts not already implemented.
+            // Fully implemented contracts require no diagnostic.
             let mut missing = Vec::new();
             if requires_error && !self.debug.contains(target) {
                 missing.push(ErrorInterfaceContract::Debug);
@@ -560,7 +569,7 @@ impl StandardInterfaceAnalysis {
         }
         let mut findings = Vec::new();
         for (target, mut family) in families {
-            // Classify missing, competing, or redundant canonical ownership.
+            // Families without surviving helpers provide no formatting finding.
             let problem = if self.display.contains(&target) {
                 family.retain(|candidate| candidate.has_display_delegation);
                 FormattingProblem::RedundantDisplay
@@ -594,12 +603,14 @@ impl StandardInterfaceAnalysis {
 
     /// Records one eligible authored local struct or enum.
     fn record_type(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Reject generated and open generic declarations.
+        // Generated or generic declarations cannot establish a concrete local interface.
         if item.span.from_expansion()
             || standard_interface_eligibility_has_type_or_const_parameters(cx, item.owner_id.def_id)
         {
             return;
         }
+
+        // Anonymous declarations have no name-based interface evidence.
         let Some(ident) = item.kind.ident() else {
             return;
         };
@@ -641,28 +652,38 @@ impl StandardInterfaceAnalysis {
 
     /// Records standard trait occupancy for one local implementation target.
     fn record_implementation(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
-        // Resolve only trait implementations on concrete local types.
+        // Only trait implementations contribute standard interface occupancy.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
+
+        // Inherent implementations do not occupy a standard trait contract.
         let Some(trait_ref) = cx.tcx.impl_opt_trait_ref(item.owner_id.def_id) else {
             return;
         };
         let self_ty = cx.tcx.type_of(item.owner_id.def_id).instantiate_identity();
+
+        // Implementations for nonlocal or nonnominal types are outside this analysis.
         let Some(target) = local_adt(self_ty) else {
             return;
         };
 
         // Record simple presentation and serialization occupancy.
         let path = cx.tcx.def_path_str(trait_ref.instantiate_identity().def_id);
+
+        // Display occupancy needs no further trait classification.
         if path.ends_with("::fmt::Display") {
             self.display.insert(target);
             return;
         }
+
+        // Debug occupancy needs no further trait classification.
         if path.ends_with("::fmt::Debug") {
             self.debug.insert(target);
             return;
         }
+
+        // Serialization occupancy needs no further trait classification.
         if path == "serde::ser::Serialize" || path == "serde_core::ser::Serialize" {
             self.serialized.insert(target);
             return;
@@ -684,10 +705,12 @@ impl StandardInterfaceAnalysis {
             return;
         }
 
-        // Treat an explicit secret-exposure protocol as sensitive ownership.
+        // Only explicit secret-exposure protocols mark a type as sensitive.
         if !path.ends_with("::ExposeSecret") {
             return;
         }
+
+        // Omitted declarations cannot receive sensitive classification.
         let Some(declaration) = self.types.get_mut(&target) else {
             return;
         };
@@ -705,25 +728,30 @@ impl StandardInterfaceAnalysis {
 
     /// Records the first active standard Result use for one local error type.
     fn record_result_type(&mut self, cx: &LateContext<'_>, ty: Ty<'_>, span: Span) {
-        // Resolve only exact standard result values.
+        // Non-Result values cannot establish active error-interface use.
         let ty::Adt(definition, arguments) = ty.peel_refs().kind() else {
             return;
         };
+
+        // Only the standard Result type supplies the expected error slot.
         if !cx.tcx.is_diagnostic_item(sym::Result, definition.did()) {
             return;
         }
         let error = arguments.type_at(1);
+
+        // Nonlocal error types are outside this crate-wide interface analysis.
         let Some(target) = local_adt(error) else {
             return;
         };
 
-        // Require a concrete eligible local error.
+        // Only retained local types can produce an interface finding.
         if !self.types.contains_key(&target) {
             return;
         }
 
-        // Keep one representative active use for a compact diagnostic.
         let uses = self.result_uses.entry(target).or_default();
+
+        // The first active use is sufficient diagnostic evidence.
         if !uses.is_empty() {
             return;
         }
@@ -738,10 +766,10 @@ impl StandardInterfaceAnalysis {
         body: &'tcx Body<'tcx>,
         def_id: LocalDefId,
     ) {
-        // Resolve the authored function.
         let (name, header, is_free) = match kind {
             FnKind::ItemFn(ident, _, header) => (ident.name, header, true),
             FnKind::Method(ident, signature) => (ident.name, signature.header, false),
+            // Closures have no stable authored interface identity.
             FnKind::Closure => return,
         };
         let signature = cx.tcx.fn_sig(def_id).instantiate_identity().skip_binder();
@@ -758,41 +786,48 @@ impl StandardInterfaceAnalysis {
             || header.is_async()
             || matches!(header.constness, rustc_hir::Constness::Const);
 
-        // Reject generated, generic, trait-owned, and multi-input functions.
         let is_ineligible = cx.tcx.def_span(def_id).from_expansion()
             || standard_interface_eligibility_has_type_or_const_parameters(cx, def_id)
             || standard_interface_eligibility_is_trait_method(cx, def_id)
             || body.params.len() != 1;
+
+        // Unsupported signatures cannot serve as simple presentation helpers.
         if has_unsupported_header || is_ineligible {
             return;
         }
 
-        // Require exactly one input after rejecting unsupported headers.
+        // Helpers with other arities cannot represent one target type.
         let [input] = signature.inputs() else {
             return;
         };
 
-        // Resolve the single shared local input and its authored binding.
+        // Only shared references can be canonical presentation helper inputs.
         let ty::Ref(_, receiver, rustc_hir::Mutability::Not) = input.kind() else {
             return;
         };
+
+        // Nonlocal inputs cannot establish a local formatting family.
         let Some(target) = local_adt(*receiver) else {
             return;
         };
 
-        // Require an eligible target and free or inherent ownership.
+        // Targets outside the analyzer cannot receive formatting evidence.
         if !self.types.contains_key(&target) {
             return;
         }
+
+        // Trait-owned methods are governed by their trait contract, not local ownership.
         if !is_free && !standard_interface_eligibility_is_inherent_method(cx, def_id) {
             return;
         }
 
-        // Prove the authored binding contributes to the returned text.
+        // Only simple bindings let the body analysis track target use.
         let PatKind::Binding(_, binding, _, None) = body.params[0].pat.kind else {
             return;
         };
         let evidence = TextBodyEvidence::analyze(cx, body, binding);
+
+        // Helpers that ignore their target do not demonstrate its representation.
         if !evidence.has_input_use {
             return;
         }
@@ -815,7 +850,7 @@ impl StandardInterfaceAnalysis {
             declaration.evidence.causal.push(causal);
         }
 
-        // Retain only canonical-looking owned text helpers.
+        // Only neutral owned-text helpers can claim canonical formatting ownership.
         if !standard_interface_text_is_owned(cx, output)
             || name.as_str() == "to_string"
             || !standard_interface_text_has_neutral_name(cx, name, target)
@@ -842,6 +877,7 @@ impl StandardInterfaceAnalysis {
 
     /// Records inferred standard `Result` expressions as active error-interface evidence.
     pub fn record_expression(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        // Macro-generated expressions do not provide authored active-use evidence.
         if expression.span.from_expansion() {
             return;
         }

@@ -86,6 +86,8 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for StrumManualVariantNames {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Items without a complete string table expose no manual variant-name contract.
         let Some(table) = StringTableCandidate::from_item(cx, item) else {
             return;
         };
@@ -93,6 +95,7 @@ impl LateLintPass<'_> for StrumManualVariantNames {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Implementation items without a complete string table are unrelated.
         let Some(table) = StringTableCandidate::from_impl_item(cx, item) else {
             return;
         };

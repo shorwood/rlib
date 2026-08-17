@@ -107,21 +107,28 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Generated and non-data items cannot combine authored flattening and container policy.
         if item.span.from_expansion()
             || !matches!(item.kind, ItemKind::Struct(..) | ItemKind::Enum(..))
         {
             return;
         }
+
+        // Missing authored source prevents recovery of Serde container and field attributes.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
+        // Items without an authored field model cannot contain a conflicting flattened field.
         let Some(SerdeAuthoredFieldSet {
             attributes, fields, ..
         }) = SerdeAuthoredFieldSet::for_item(item, &source)
         else {
             return;
         };
+
+        // Containers that accept unknown fields have no policy conflict with flattening.
         if !SerdeAttributes::from_attributes(&attributes).has(SerdeFlag::DenyUnknownFields) {
             return;
         }
@@ -138,6 +145,8 @@ impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
                 },
             )
             .collect::<Vec<_>>();
+
+        // A deny-unknown container without active flattened fields has no contradiction.
         if fields.is_empty() {
             return;
         }

@@ -89,6 +89,7 @@ impl DeriveMorePanicProneDerivedVariantAccessors {
         loop {
             expression = match expression.kind {
                 ExprKind::Block(block, None) if block.stmts.is_empty() => {
+                    // An empty block without a tail value cannot expose a construction expression.
                     let Some(inner) = block.expr else {
                         return expression;
                     };
@@ -105,6 +106,7 @@ impl DeriveMorePanicProneDerivedVariantAccessors {
         let receiver = Self::peel_transparent(receiver);
         let resolution = match receiver.kind {
             ExprKind::Call(constructor, _) => {
+                // Indirect constructor calls cannot identify one enum variant statically.
                 let ExprKind::Path(path) = constructor.kind else {
                     return None;
                 };
@@ -112,6 +114,7 @@ impl DeriveMorePanicProneDerivedVariantAccessors {
             }
             ExprKind::Struct(path, ..) => cx.qpath_res(path, receiver.hir_id),
             ExprKind::Path(path) => cx.qpath_res(&path, receiver.hir_id),
+            // Other receiver expressions do not construct a statically known variant directly.
             _ => return None,
         };
 
@@ -130,6 +133,7 @@ impl DeriveMorePanicProneDerivedVariantAccessors {
         receiver: &Expr<'_>,
         method: &str,
     ) -> bool {
+        // Receivers without a direct variant construction cannot satisfy the accessor precondition.
         let Some(variant) = Self::constructed_variant(cx, receiver) else {
             return false;
         };
@@ -145,17 +149,22 @@ impl DeriveMorePanicProneDerivedVariantAccessors {
 }
 impl LateLintPass<'_> for DeriveMorePanicProneDerivedVariantAccessors {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        // Generated calls are not authored unchecked accessor decisions.
         if expression.span.from_expansion() {
             return;
         }
 
+        // Variant accessors must be expressed as receiver method calls.
         let ExprKind::MethodCall(segment, receiver, arguments, _) = expression.kind else {
             return;
         };
+
+        // Retain only zero-argument unwrap-shaped accessors.
         if !arguments.is_empty() || !segment.ident.name.as_str().starts_with("unwrap_") {
             return;
         }
 
+        // Unresolved methods cannot be matched to generated derive output.
         let Some(target) = cx
             .tcx
             .typeck(expression.hir_id.owner.def_id)
@@ -164,10 +173,13 @@ impl LateLintPass<'_> for DeriveMorePanicProneDerivedVariantAccessors {
             return;
         };
 
+        // Manual methods with similar names are outside generated accessor policy.
         if !Self::is_derive_more_unwrap(cx, target) {
             return;
         }
         let method = segment.ident.name.to_string();
+
+        // A directly matching variant construction satisfies the generated precondition.
         if Self::receiver_constructs_expected_variant(cx, receiver, &method) {
             return;
         }

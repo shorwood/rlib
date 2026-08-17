@@ -45,6 +45,7 @@ impl ReactiveCapability {
 
     /// Extracts the represented value from the standard option type.
     fn option_inner<'tcx>(cx: &LateContext<'tcx>, ty: Ty<'tcx>) -> Option<Ty<'tcx>> {
+        // Non-ADT types cannot be the standard optional container.
         let ty::Adt(definition, arguments) = ty.kind() else {
             return None;
         };

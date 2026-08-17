@@ -40,12 +40,15 @@ impl Violation {
                 .doc_str()
                 .is_some_and(|documentation| !documentation.as_str().trim().is_empty())
         });
+
+        // Existing substantive documentation already explains the generated member policy.
         if authored_documents || Self::has_substantive_builder_docs(cx, attributes) {
             return None;
         }
 
         let ty = match cx.sess().source_map().span_to_snippet(ty_span) {
             Ok(ty) => ty,
+            // Missing authored type text prevents source-level optionality classification.
             Err(_error) => return None,
         };
         let behavior = if OptionType::is_option(&ty)
@@ -59,6 +62,7 @@ impl Violation {
         {
             "conversion"
         } else {
+            // Ordinary visible members have no non-obvious generated policy to document.
             if !BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::SKIP)
                 && !BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::FIELD)
             {
@@ -79,9 +83,12 @@ impl Violation {
         cx: &EarlyContext<'_>,
         attributes: &[rustc_ast::Attribute],
     ) -> bool {
+        // Without a builder attribute there can be no nested setter documentation.
         let Some(attribute) = BonAttributeAnalysis::builder(attributes) else {
             return false;
         };
+
+        // Missing authored attribute text prevents nested documentation parsing.
         let Ok(source) = BonAttributeAnalysis::source(cx, attribute) else {
             return false;
         };
@@ -96,6 +103,8 @@ impl Violation {
                 end == bytes.len() || (!bytes[end].is_ascii_alphanumeric() && bytes[end] != b'_');
             if left_boundary && right_boundary {
                 let tail = source[end..].trim_start();
+
+                // A nonempty nested documentation payload satisfies the member contract.
                 if let Some(payload) = tail.strip_prefix('{')
                     && let Some(close) = payload.find('}')
                     && !payload[..close].trim().is_empty()
@@ -183,6 +192,7 @@ impl BonUndocumentedBuilderMembers {
     fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Violation> {
         let member = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
             Ok(member) => member,
+            // Missing pattern text prevents naming the generated setter member.
             Err(_error) => return None,
         };
         Violation::member_violation(cx, &parameter.attrs, parameter.ty.span, &member)
@@ -200,6 +210,7 @@ impl BonUndocumentedBuilderMembers {
 
     /// Defers undocumented public builder methods until their owner visibility is known.
     fn record_implementation(&mut self, cx: &EarlyContext<'_>, implementation: &rustc_ast::Impl) {
+        // Missing self-type text prevents joining the method to its nominal owner.
         let Ok(owner) = cx
             .sess()
             .source_map()
@@ -211,15 +222,19 @@ impl BonUndocumentedBuilderMembers {
         let owner = owner.trim();
         let owner = owner.rsplit("::").next().unwrap_or_default().to_owned();
         for associated in &implementation.items {
+            // Only associated functions can expose generated builder parameters.
             let AssocItemKind::Fn(function) = &associated.kind else {
                 continue;
             };
+
+            // Private or nonbuilder methods do not expose the policy under review.
             if !matches!(associated.vis.kind, VisibilityKind::Public)
                 || BonAttributeAnalysis::builder(&associated.attrs).is_none()
             {
                 continue;
             }
             for parameter in &function.sig.decl.inputs {
+                // Parameters without a documentation violation need no deferred finding.
                 let Some(violation) = Self::parameter_violation(cx, parameter) else {
                     continue;
                 };
@@ -233,15 +248,20 @@ impl BonUndocumentedBuilderMembers {
 }
 impl EarlyLintPass for BonUndocumentedBuilderMembers {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
+        // Module declarations update visibility depth rather than defining builder members.
         if matches!(item.kind, ItemKind::Mod(..)) {
             if !matches!(item.vis.kind, VisibilityKind::Public) {
                 self.private_module_depth += 1;
             }
             return;
         }
+
+        // Declarations inside private modules cannot expose public builder setters externally.
         if self.private_module_depth > 0 {
             return;
         }
+
+        // Public aggregate declarations begin the only builder surface inspected here.
         if matches!(
             item.kind,
             ItemKind::Struct(..) | ItemKind::Enum(..) | ItemKind::Union(..)
@@ -256,6 +276,7 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
                     && BonAttributeAnalysis::builder(&item.attrs).is_some() =>
             {
                 for parameter in &function.sig.decl.inputs {
+                    // Parameters with ordinary documented behavior produce no diagnostic.
                     let Some(violation) = Self::parameter_violation(cx, parameter) else {
                         continue;
                     };
@@ -267,6 +288,7 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
                     && BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
             {
                 for field in data.fields() {
+                    // Fields with ordinary documented behavior produce no diagnostic.
                     let Some(violation) = Self::field_violation(cx, field) else {
                         continue;
                     };
@@ -279,6 +301,7 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
     }
 
     fn check_item_post(&mut self, _: &EarlyContext<'_>, item: &Item) {
+        // Only leaving a private module changes the private nesting depth.
         if !matches!(item.kind, ItemKind::Mod(..))
             || matches!(item.vis.kind, VisibilityKind::Public)
         {
@@ -289,6 +312,7 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
 
     fn check_crate_post(&mut self, cx: &EarlyContext<'_>, _: &rustc_ast::Crate) {
         for AssociatedViolation { owner, violation } in self.associated.drain(..) {
+            // Associated setters on nonpublic nominal types are not public API findings.
             if !self.public_types.contains(&owner) {
                 continue;
             }

@@ -105,6 +105,7 @@ impl<'tcx> FormatEvidence<'tcx> {
 
     /// Converts accumulated evidence into a diagnostic explanation.
     fn finish(self) -> Option<String> {
+        // A direct format dependency is the strongest available coupling evidence.
         if let Some(format) = self.format {
             return Some(format!(
                 "the generic implementation directly depends on the `{format}` format API"
@@ -220,13 +221,17 @@ impl SerdeFormatSpecificSerdeImpls {
 
 impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Only implementation items can define a generic Serde contract.
         let ItemKind::Impl(implementation) = item.kind else {
             return;
         };
+
+        // Generated implementations are outside authored format-policy analysis.
         if item.span.from_expansion() {
             return;
         }
 
+        // Inherent implementations do not implement a generic Serde interface.
         let Some(trait_id) = implementation
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())
@@ -235,6 +240,7 @@ impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
         };
         let trait_name = cx.tcx.item_name(trait_id).to_string();
 
+        // Exclude traits outside Serde's serialization and deserialization contracts.
         if !matches!(trait_name.as_str(), "Serialize" | "Deserialize")
             || !matches!(
                 cx.tcx.crate_name(trait_id.krate).as_str(),
@@ -243,10 +249,13 @@ impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
         {
             return;
         }
+
+        // Missing authored source prevents documentation-policy inspection.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
+        // Explicit format documentation turns the coupling into an authored contract.
         if Self::documents_format_policy(&source) {
             return;
         }
@@ -255,6 +264,8 @@ impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
         for reference in implementation.items {
             visitor.visit_impl_item(cx.tcx.hir_impl_item(*reference));
         }
+
+        // Implementations without concrete or divergent format evidence remain portable.
         let Some(evidence) = visitor.finish() else {
             return;
         };

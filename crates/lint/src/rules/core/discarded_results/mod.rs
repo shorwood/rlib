@@ -127,6 +127,7 @@ dylint_linting::impl_late_lint! {
 
 impl LateLintPass<'_> for DiscardedResults {
     fn check_stmt(&mut self, cx: &LateContext<'_>, statement: &Stmt<'_>) {
+        // Statements outside explicit discard syntax produce no finding.
         let Some(violation) = Self::binding_violation(cx, statement) else {
             return;
         };
@@ -134,6 +135,7 @@ impl LateLintPass<'_> for DiscardedResults {
     }
 
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        // Expressions outside explicit standard drop syntax produce no finding.
         let Some(violation) = Self::drop_violation(cx, expression) else {
             return;
         };
@@ -152,9 +154,12 @@ impl DiscardedResults {
 
         impl<'tcx> Visitor<'tcx> for BindingUse<'_, 'tcx> {
             fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+                // The first matching path is sufficient proof that the binding is used.
                 if self.is_found {
                     return;
                 }
+
+                // A matching local path completes binding-use detection.
                 if let ExprKind::Path(path) = expression.kind
                     && matches!(
                         self.cx.qpath_res(&path, expression.hir_id),
@@ -185,9 +190,12 @@ impl DiscardedResults {
     /// Classifies one authored wildcard or underscore-prefixed binding of a standard result.
     fn binding_violation(cx: &LateContext<'_>, statement: &Stmt<'_>) -> Option<Violation> {
         // Resolve the authored binding syntax and its initializer.
+        // Generated statements are not authored decisions to discard a result.
         if statement.span.from_expansion() {
             return None;
         }
+
+        // Only local bindings can advertise result disposal through their pattern.
         let StmtKind::Let(local) = statement.kind else {
             return None;
         };
@@ -198,9 +206,12 @@ impl DiscardedResults {
             PatKind::Binding(_, binding, ident, None) if ident.name.as_str().starts_with('_') => {
                 (ResultDiscard::UnderscoreBinding, Some(binding))
             }
+            // Ordinary patterns do not explicitly advertise complete disposal.
             _ => return None,
         };
         let initializer = local.init?;
+
+        // A subsequently used underscore binding is not actually discarding its value.
         if binding.is_some_and(|binding| Self::binding_is_used(cx, initializer, binding)) {
             return None;
         }
@@ -221,9 +232,12 @@ impl DiscardedResults {
     /// Classifies one authored standard drop call consuming a result.
     fn drop_violation(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<Violation> {
         // Resolve only authored calls to standard drop with one result argument.
+        // Generated calls are not authored decisions to discard a result.
         if expression.span.from_expansion() {
             return None;
         }
+
+        // The candidate must call a function with exactly one consumed argument.
         let rustc_hir::ExprKind::Call(_, [result]) = expression.kind else {
             return None;
         };

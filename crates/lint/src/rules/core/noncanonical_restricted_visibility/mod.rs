@@ -74,6 +74,7 @@ impl EarlyViolation for Violation {
     fn remediation_message(&self) -> Cow<'_, str> {
         // Explain exact aliases before falling back to architectural remediation.
         if let CanonicalRemediation::Replacement(replacement) = self.remediation {
+            // An empty replacement means the declaration should retain inherited privacy.
             if replacement.is_empty() {
                 return Cow::Borrowed(
                     "remove the explicit self-only visibility and keep the declaration private",
@@ -134,6 +135,8 @@ impl NoncanonicalRestrictedVisibility {
     fn removal_span(cx: &EarlyContext<'_>, span: Span) -> Span {
         // Inspect exactly one following byte without consuming vertical layout.
         let extended = span.with_hi(span.hi() + BytePos(1));
+
+        // Unavailable following source cannot justify extending the removal span.
         let Ok(source) = cx.sess().source_map().span_to_snippet(extended) else {
             return span;
         };
@@ -158,9 +161,13 @@ impl NoncanonicalRestrictedVisibility {
         if visibility.span.from_expansion() {
             return;
         }
+
+        // Unavailable authored visibility text cannot be classified or safely rewritten.
         let Ok(source) = cx.sess().source_map().span_to_snippet(visibility.span) else {
             return;
         };
+
+        // Canonical visibility spellings require neither a diagnostic nor remediation.
         let Some(remediation) = CanonicalRemediation::from_source(&source) else {
             return;
         };
@@ -221,6 +228,7 @@ impl EarlyLintPass for NoncanonicalRestrictedVisibility {
     }
 
     fn check_impl_item(&mut self, cx: &EarlyContext<'_>, item: &AssocItem) {
+        // Unnamed associated items cannot produce a declaration-specific visibility diagnostic.
         let Some(identifier) = item.kind.ident() else {
             return;
         };

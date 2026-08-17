@@ -136,10 +136,13 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedTestDeclarations {
             .enumerate()
             .filter(|(_, item)| item.is_canonical_in_source_test_module(cx))
             .collect::<Vec<_>>();
+
+        // Modules without test blocks have no test-placement contract to enforce.
         let Some((first_index, first)) = tests.first().copied() else {
             return;
         };
 
+        // Multiple test blocks violate the single terminal test-module contract directly.
         if tests.len() > 1 {
             for (_, duplicate) in tests.into_iter().skip(1) {
                 Violation {
@@ -152,6 +155,7 @@ impl<'tcx> LateLintPass<'tcx> for MisorderedTestDeclarations {
             return;
         }
 
+        // A sole test block at the final item position is already canonical.
         let Some(following) = items.get(first_index + 1) else {
             return;
         };

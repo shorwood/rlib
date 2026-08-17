@@ -90,6 +90,7 @@ impl ManualErrorCatalog {
         item: &Item<'_>,
         implementation: &rustc_hir::Impl<'_>,
     ) {
+        // Only standard `Display` and `Error` implementations contribute to this catalog.
         let Some(ManualErrorImpl {
             definition,
             trait_name,
@@ -110,6 +111,7 @@ impl ManualErrorCatalog {
 
     /// Records an authored error type or one of its relevant trait implementations.
     pub(crate) fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Macro-expanded declarations are not reliable authored error evidence.
         if item.span.from_expansion() {
             return;
         }
@@ -149,6 +151,7 @@ enum ManualErrorSource {
 impl ManualErrorSource {
     /// Parses a conventional empty or single-field source implementation.
     fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+        // Source behavior can be analyzed only from an implementation item.
         let ItemKind::Impl(implementation) = item.kind else {
             return None;
         };
@@ -166,20 +169,29 @@ impl ManualErrorSource {
 
     /// Recognizes an explicit source method that returns the standard `Option::None`.
     fn conventional_none(cx: &LateContext<'_>, method: &ImplItem<'_>) -> bool {
+        // Only an unannotated `source` method can use this conventional shape.
         if method.ident.name.as_str() != "source" || !cx.tcx.hir_attrs(method.hir_id()).is_empty() {
             return false;
         }
+
+        // The source implementation must be a function body.
         let ImplItemKind::Fn(_, body_id) = method.kind else {
             return false;
         };
+
+        // The method body must forward exactly one expression.
         let Some(expression) =
             DirectForwarding::single_body_expression(cx.tcx.hir_body(body_id).value)
         else {
             return false;
         };
+
+        // `None` must be expressed as a direct constructor path.
         let ExprKind::Path(path) = expression.kind else {
             return false;
         };
+
+        // Only a resolved variant constructor can be standard `Option::None`.
         let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
             cx.qpath_res(&path, expression.hir_id)
         else {
@@ -194,32 +206,47 @@ impl ManualErrorSource {
 
     /// Parses a conventional `Some(&self.field)` source method.
     fn conventional_field(cx: &LateContext<'_>, method: &ImplItem<'_>) -> Option<String> {
+        // Only an unannotated `source` method can use this conventional shape.
         if method.ident.name.as_str() != "source" || !cx.tcx.hir_attrs(method.hir_id()).is_empty() {
             return None;
         }
+
+        // The source implementation must be a function body.
         let ImplItemKind::Fn(_, body_id) = method.kind else {
             return None;
         };
         let body = cx.tcx.hir_body(body_id);
+
+        // Conventional source methods have exactly one receiver parameter.
         let [parameter] = body.params else {
             return None;
         };
+
+        // The receiver must remain a direct binding for field forwarding.
         let PatKind::Binding(_, receiver, _, None) = parameter.pat.kind else {
             return None;
         };
         let expression = DirectForwarding::single_body_expression(body.value)?;
+
+        // `Some` forwarding must be a one-argument constructor call.
         let ExprKind::Call(callee, [argument]) = expression.kind else {
             return None;
         };
+
+        // The `Some` constructor must be named by a direct path.
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
+
+        // Only a resolved variant constructor can be standard `Option::Some`.
         let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
             cx.qpath_res(&path, callee.hir_id)
         else {
             return None;
         };
         let variant = cx.tcx.parent(constructor);
+
+        // The wrapper must be exactly the standard `Option::Some` variant.
         if cx.tcx.item_name(variant).as_str() != "Some"
             || !cx
                 .tcx
@@ -227,9 +254,13 @@ impl ManualErrorSource {
         {
             return None;
         }
+
+        // The field must be borrowed immutably for an error-source reference.
         let ExprKind::AddrOf(_, Mutability::Not, field) = argument.kind else {
             return None;
         };
+
+        // The borrowed value must be a direct receiver field access.
         let ExprKind::Field(base, name) = field.kind else {
             return None;
         };
@@ -264,6 +295,7 @@ impl ManualErrorImpl {
         item: &Item<'_>,
         implementation: &rustc_hir::Impl<'_>,
     ) -> Option<Self> {
+        // Attributes may alter implementation behavior beyond the recognized convention.
         if !cx.tcx.hir_attrs(item.hir_id()).is_empty() {
             return None;
         }
@@ -271,6 +303,7 @@ impl ManualErrorImpl {
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())?;
 
+        // Only standard-library trait implementations can be manual error contracts.
         if !matches!(cx.tcx.crate_name(trait_id.krate).as_str(), "core" | "std") {
             return None;
         }
@@ -278,6 +311,8 @@ impl ManualErrorImpl {
         let trait_name = match cx.tcx.item_name(trait_id).as_str() {
             "Display" => "Display",
             "Error" => "Error",
+
+            // Other standard traits do not supply error presentation behavior.
             _ => return None,
         };
 
@@ -285,10 +320,13 @@ impl ManualErrorImpl {
             .tcx
             .impl_trait_ref(item.owner_id.def_id)
             .instantiate_identity();
+
+        // The implementation target must be a nominal type.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return None;
         };
 
+        // This recognizer supports struct errors only.
         if !definition.is_struct() {
             return None;
         }
@@ -301,44 +339,64 @@ impl ManualErrorImpl {
     /// Parses a single static `write_str` display implementation.
     fn display_message(cx: &LateContext<'_>, item: &Item<'_>) -> Option<String> {
         let source = AuthoredItemSource::for_item(cx, item)?;
+
+        // Source text must parse as an implementation before its display shape is inspected.
         let implementation = match syn::parse_str::<syn::ItemImpl>(&source) {
             Ok(implementation) => implementation,
+
+            // Invalid source cannot establish the conventional display shape.
             Err(_error) => return None,
         };
 
+        // A conventional display implementation contains one method.
         let [syn::ImplItem::Fn(method)] = implementation.items.as_slice() else {
             return None;
         };
+
+        // That method must be `Display::fmt`.
         if method.sig.ident != "fmt" {
             return None;
         }
         let mut inputs = method.sig.inputs.iter();
 
+        // `fmt` begins with its receiver argument.
         if !matches!(inputs.next(), Some(syn::FnArg::Receiver(_))) {
             return None;
         }
+
+        // `fmt` requires a typed formatter argument after the receiver.
         let Some(syn::FnArg::Typed(formatter)) = inputs.next() else {
             return None;
         };
 
+        // Additional arguments are not part of the standard `fmt` signature.
         if inputs.next().is_some() {
             return None;
         }
+
+        // The formatter argument must have an identifier pattern for receiver matching.
         let syn::Pat::Ident(formatter) = formatter.pat.as_ref() else {
             return None;
         };
 
+        // The body must contain exactly one expression statement.
         let [syn::Stmt::Expr(syn::Expr::MethodCall(call), _)] = method.block.stmts.as_slice()
         else {
             return None;
         };
+
+        // The body must be one non-generic `write_str` call with one argument.
         if call.method != "write_str" || call.turbofish.is_some() || call.args.len() != 1 {
             return None;
         }
+
+        // The call must target the formatter parameter itself.
         if !matches!(call.receiver.as_ref(), syn::Expr::Path(path) if path.path.is_ident(&formatter.ident))
         {
             return None;
         }
+
+        // The sole argument must be a static string literal.
         let syn::Expr::Lit(syn::ExprLit {
             lit: syn::Lit::Str(message),
             ..

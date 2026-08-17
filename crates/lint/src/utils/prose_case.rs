@@ -10,10 +10,13 @@ pub(super) fn sentence(value: &str) -> String {
         .chars()
         .filter(|character| character.is_alphabetic())
         .all(char::is_uppercase);
+
+    // All-uppercase prose needs whole-string normalization rather than first-letter casing.
     if is_shouting {
         return value.to_case(Case::Sentence);
     }
 
+    // Prose without alphabetic characters has no sentence initial to normalize.
     let Some((index, first)) = value
         .char_indices()
         .find(|(_, character)| character.is_alphabetic())

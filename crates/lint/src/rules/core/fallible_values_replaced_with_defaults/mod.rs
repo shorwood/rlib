@@ -150,6 +150,8 @@ impl LateLintPass<'_> for FallibleValuesReplacedWithDefaults {
         if expression.span.from_expansion() {
             return;
         }
+
+        // Expressions outside supported fallback APIs cannot discard a failure channel here.
         let Some(finding) = Self::classify(cx, expression) else {
             return;
         };
@@ -195,6 +197,8 @@ impl FallibleValuesReplacedWithDefaults {
 
         // Recognize a direct error-ignoring closure that yields a default.
         let call = analyzer.call(expression, ResultOperation::UnwrapOrElse)?;
+
+        // This fallback form is meaningful only for its single-argument signature.
         let [fallback] = call.arguments() else {
             return None;
         };

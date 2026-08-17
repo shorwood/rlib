@@ -248,9 +248,13 @@ impl DomainAnalyzer {
             item.kind,
             ItemKind::Struct(..) | ItemKind::Enum(..) | ItemKind::Union(..) | ItemKind::TyAlias(..)
         );
+
+        // Non-type or generated declarations cannot name an authored domain type.
         if !is_type || item.span.in_external_macro(cx.sess().source_map()) {
             return;
         }
+
+        // Types without an identifier cannot participate in exact domain-name matching.
         let Some(ident) = item.kind.ident() else {
             return;
         };
@@ -273,9 +277,13 @@ impl DomainAnalyzer {
         let owner = cx.tcx.parent(field.def_id.to_def_id());
         let is_struct_field = cx.tcx.def_kind(owner) == DefKind::Struct;
         let ty = cx.tcx.type_of(field.def_id).instantiate_identity();
+
+        // Non-struct or non-textual fields do not reinforce a string domain boundary.
         if !is_struct_field || !ty.is_textual(cx) {
             return;
         }
+
+        // Field names without a precise domain contribute no stable grouping vocabulary.
         let Some(domain) = field.ident.name.parameter_domain() else {
             return;
         };
@@ -318,6 +326,8 @@ impl DomainAnalyzer {
                 });
             }
         }
+
+        // Functions that establish the invariant are producers, not repeated downstream validators.
         if signature.name.establishes_domain_invariant() {
             return;
         }

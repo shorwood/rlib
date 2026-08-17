@@ -99,6 +99,7 @@ impl<'tcx> LateLintPass<'tcx> for SerdeDeserializationBypassingInvariants {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.catalog.check_item(cx, item);
         let parsed = AuthoredItemSource::for_item(cx, item).and_then(|source| {
+            // Unparseable authored source cannot expose a `try_from` container attribute.
             let Ok(input) = syn::parse_str::<syn::DeriveInput>(&source) else {
                 return None;
             };

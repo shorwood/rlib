@@ -101,6 +101,8 @@ impl FunctionLayoutProse {
             return true;
         }
         let words = content.split_whitespace().collect::<Vec<_>>();
+
+        // Empty or uniformly shouted text is not ordinary sentence-style prose.
         if words.is_empty() || Self::is_shouting(content, &words) {
             return false;
         }

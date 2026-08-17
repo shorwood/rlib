@@ -43,9 +43,12 @@ struct Candidate {
 impl Candidate {
     /// Recovers the authored error implementation and its target type.
     fn from_item(cx: &LateContext<'_>, item: &Item<'_>) -> Option<Self> {
+        // Only implementation items can provide an Error trait contract.
         let ItemKind::Impl(implementation) = item.kind else {
             return None;
         };
+
+        // Generated or attributed implementations may carry behavior a derive cannot preserve.
         if item.span.from_expansion() || !cx.tcx.hir_attrs(item.hir_id()).is_empty() {
             return None;
         }
@@ -53,6 +56,8 @@ impl Candidate {
         let trait_id = implementation
             .of_trait
             .and_then(|trait_ref| trait_ref.trait_ref.trait_def_id())?;
+
+        // Only the standard error trait has the derive_more replacement contract.
         if cx.tcx.item_name(trait_id).as_str() != "Error"
             || !matches!(cx.tcx.crate_name(trait_id.krate).as_str(), "core" | "std")
         {
@@ -63,9 +68,12 @@ impl Candidate {
             .impl_trait_ref(item.owner_id.def_id)
             .instantiate_identity();
 
+        // Only nominal self types can receive an Error derive.
         let ty::Adt(definition, _) = trait_ref.self_ty().kind() else {
             return None;
         };
+
+        // Only concrete local structs whose implementation adds no behavior are derivable.
         if !definition.is_struct()
             || definition.did().as_local().is_none()
             || !cx.tcx.generics_of(definition.did()).own_params.is_empty()
@@ -187,34 +195,51 @@ impl DeriveMoreManualErrorImpls {
 
     /// Finds the unique field conventionally acting as an error source.
     fn conventional_source(cx: &LateContext<'_>, method: &rustc_hir::ImplItem<'_>) -> bool {
+        // Only an unattributed source method can match derive_more's generated behavior.
         if method.ident.name.as_str() != "source" || !cx.tcx.hir_attrs(method.hir_id()).is_empty() {
             return false;
         }
+
+        // Non-function associated items cannot implement source forwarding.
         let ImplItemKind::Fn(_, body_id) = method.kind else {
             return false;
         };
         let body = cx.tcx.hir_body(body_id);
+
+        // Source methods with other arities cannot forward only their receiver.
         let [parameter] = body.params else {
             return false;
         };
+
+        // Only a simple receiver binding can be tracked to the returned field.
         let PatKind::Binding(_, receiver, _, None) = parameter.pat.kind else {
             return false;
         };
+
+        // Multi-expression bodies contain behavior beyond direct source forwarding.
         let Some(expression) = DirectForwarding::single_body_expression(body.value) else {
             return false;
         };
+
+        // The generated shape is exactly a one-argument Option constructor call.
         let ExprKind::Call(callee, [argument]) = expression.kind else {
             return false;
         };
+
+        // Indirect callees cannot prove construction of the standard Some variant.
         let ExprKind::Path(path) = callee.kind else {
             return false;
         };
+
+        // Only a resolved enum-variant constructor can be the Some wrapper.
         let Res::Def(DefKind::Ctor(CtorOf::Variant, _), constructor) =
             cx.qpath_res(&path, callee.hir_id)
         else {
             return false;
         };
         let variant = cx.tcx.parent(constructor);
+
+        // Only the standard Option::Some constructor matches generated source behavior.
         if cx.tcx.item_name(variant).as_str() != "Some"
             || !cx
                 .tcx
@@ -222,9 +247,13 @@ impl DeriveMoreManualErrorImpls {
         {
             return false;
         }
+
+        // The source must be returned through an immutable reference.
         let ExprKind::AddrOf(_, Mutability::Not, field) = argument.kind else {
             return false;
         };
+
+        // Only direct field access can prove conventional source forwarding.
         let ExprKind::Field(base, name) = field.kind else {
             return false;
         };
@@ -237,6 +266,7 @@ impl DeriveMoreManualErrorImpls {
         item: &Item<'_>,
         definition: ty::AdtDef<'_>,
     ) -> bool {
+        // Only implementation items can be checked for a derivable Error body.
         let ItemKind::Impl(implementation) = item.kind else {
             return false;
         };
@@ -250,6 +280,7 @@ impl DeriveMoreManualErrorImpls {
     /// Resolves the configured provider when several implementations are available.
     fn selected(&self, definition: LocalDefId) -> bool {
         #[cfg(feature = "thiserror")]
+        // Overlapping providers report only when configuration selects derive_more.
         if self.overlaps.contains(definition) {
             return self.config.error_implementation()
                 == Some(ErrorImplementationProvider::DeriveMoreError);
@@ -262,6 +293,8 @@ impl LateLintPass<'_> for DeriveMoreManualErrorImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         #[cfg(feature = "thiserror")]
         self.overlaps.check_item(cx, item);
+
+        // Items without a fully derivable Error implementation are not candidates.
         let Some(candidate) = Candidate::from_item(cx, item) else {
             return;
         };

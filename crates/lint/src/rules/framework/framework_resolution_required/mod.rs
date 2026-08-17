@@ -262,9 +262,12 @@ impl FrameworkResolutionRequired {
     /// Reports an enum collection contract when multiple APIs remain unselected.
     #[cfg(feature = "strum")]
     fn check_candidate(&self, cx: &LateContext<'_>, candidate: Option<CollectionCandidate>) {
+        // Missing collection evidence leaves no framework choice to resolve.
         let Some(candidate) = candidate else {
             return;
         };
+
+        // A unique provider or configured selection already resolves the collection contract.
         if !(candidate.providers().len() > 1 && self.config.enum_variant_collection().is_none()) {
             return;
         }
@@ -304,6 +307,8 @@ impl FrameworkResolutionRequired {
                 Violation::Display { span: display.span }.emit(cx);
             }
         }
+
+        // A unique parser provider or configured selection leaves no unresolved parser contract.
         if StringParserProvider::providers(cx).len() <= 1
             || self.config.enum_string_parsing().is_some()
         {
@@ -361,6 +366,7 @@ impl LateLintPass<'_> for FrameworkResolutionRequired {
         }
         #[cfg(all(feature = "thiserror", feature = "derive_more"))]
         {
+            // Associated items without a manual conversion candidate need no resolution record.
             let Some(candidate) = ManualFromCandidate::from_impl_item(cx, item) else {
                 return;
             };
@@ -396,6 +402,7 @@ impl LateLintPass<'_> for FrameworkResolutionRequired {
         }
         #[cfg(all(feature = "thiserror", feature = "derive_more"))]
         {
+            // An explicitly selected error implementation resolves every manual-error candidate.
             if self.config.error_implementation().is_some() {
                 return;
             }

@@ -77,6 +77,7 @@ impl ContextOperation {
     fn from_definition(cx: &LateContext<'_>, definition: DefId) -> Option<Self> {
         let path = cx.tcx.def_path_str(definition);
 
+        // Exclude functions outside the recognized Leptos context namespace and crates.
         if !path.contains("context")
             || !matches!(
                 cx.tcx.crate_name(definition.krate).as_str(),
@@ -100,9 +101,12 @@ impl ContextOperation {
 
     /// Classifies one free context function.
     fn from_callee(cx: &LateContext<'_>, callee: &Expr<'_>) -> Option<Self> {
+        // Only direct paths can identify a free context function.
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
+
+        // Unresolved paths cannot be classified by their context operation.
         let Res::Def(_, definition) = cx.qpath_res(&path, callee.hir_id) else {
             return None;
         };
@@ -113,6 +117,8 @@ impl ContextOperation {
 /// Returns a primitive or generic container type that lacks a domain identity.
 fn ambiguous_context_type(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
     let ty = ty.peel_refs();
+
+    // Primitive and structural aggregate types lack nominal domain identity directly.
     if ty.is_bool()
         || ty.is_char()
         || ty.is_integral()
@@ -122,6 +128,8 @@ fn ambiguous_context_type(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
     {
         return true;
     }
+
+    // Callable and dynamic nonalgebraic types are likewise broad capability contracts.
     let ty::Adt(definition, _) = ty.kind() else {
         return matches!(ty.kind(), ty::FnDef(..) | ty::FnPtr(..) | ty::Dynamic(..));
     };
@@ -170,6 +178,8 @@ impl LeptosPrimitiveContextValues {
             .tcx
             .typeck(owner)
             .type_dependent_def_id(expression.hir_id)?;
+
+        // Only consumer operations select a context type through method generics.
         if !matches!(
             ContextOperation::from_definition(cx, definition),
             Some(ContextOperation::Consume)
@@ -187,6 +197,7 @@ impl LeptosPrimitiveContextValues {
         match expression.kind {
             ExprKind::Call(callee, arguments) => match ContextOperation::from_callee(cx, callee)? {
                 ContextOperation::Provide => {
+                    // Providers must supply exactly one value whose type becomes the context key.
                     let [value] = arguments else { return None };
                     Some(cx.typeck_results().expr_ty(value))
                 }
@@ -210,13 +221,17 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosPrimitiveContextValues {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Generated calls are implementation details rather than authored context boundaries.
         if expression.span.from_expansion() {
             return;
         }
+
+        // Unrelated expressions do not cross a recognized context boundary.
         let Some(ty) = Self::context_type(cx, expression) else {
             return;
         };
 
+        // Nominal domain types already distinguish the supplied capability.
         if !(ambiguous_context_type(cx, ty)) {
             return;
         }

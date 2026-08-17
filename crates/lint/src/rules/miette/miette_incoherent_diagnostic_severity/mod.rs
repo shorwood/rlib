@@ -100,9 +100,12 @@ struct MietteIncoherentDiagnosticSeverity {
 impl MietteIncoherentDiagnosticSeverity {
     /// Resolves a local diagnostic through transparent standard pointer wrappers.
     fn local_error_type(cx: &LateContext<'_>, ty: ty::Ty<'_>) -> Option<LocalDefId> {
+        // Non-aggregate types cannot name a local diagnostic or transparent pointer wrapper.
         let ty::Adt(definition, arguments) = ty.kind() else {
             return None;
         };
+
+        // A directly local aggregate is the diagnostic identity sought by the caller.
         if let Some(local) = definition.did().as_local() {
             return Some(local);
         }
@@ -131,14 +134,20 @@ impl MietteIncoherentDiagnosticSeverity {
             .instantiate_identity()
             .skip_binder()
             .output();
+
+        // Non-aggregate return types cannot be the standard `Result` boundary.
         let ty::Adt(result, arguments) = output.kind() else {
             return;
         };
+
+        // Only a well-formed standard `Result` exposes a semantic error type argument.
         if !cx.tcx.is_diagnostic_item(sym::Result, result.did())
             || arguments.len() != RESULT_TYPE_ARGUMENTS
         {
             return;
         }
+
+        // External or opaque error types cannot correlate with a local diagnostic declaration.
         let Some(error) = Self::local_error_type(cx, arguments.type_at(1)) else {
             return;
         };
@@ -161,6 +170,8 @@ impl LateLintPass<'_> for MietteIncoherentDiagnosticSeverity {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Record the diagnostic declaration before inspecting function signatures.
         self.catalog.check_item(cx, item);
+
+        // Generated and non-function items do not define authored result boundaries.
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Fn { .. }) {
             return;
         }
@@ -174,6 +185,7 @@ impl LateLintPass<'_> for MietteIncoherentDiagnosticSeverity {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Generated and non-function associated items do not define authored result boundaries.
         if item.span.from_expansion() || !matches!(item.kind, ImplItemKind::Fn(..)) {
             return;
         }

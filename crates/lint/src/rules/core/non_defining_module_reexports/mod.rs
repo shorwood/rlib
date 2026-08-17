@@ -116,6 +116,7 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for NonDefiningModuleReexports {
     /// Checks every expanded import declaration regardless of its local or dependency origin.
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Items outside supported re-export forms cannot cross a defining-module boundary.
         let Some(kind) = ViolationKind::from_item(item) else {
             return;
         };
@@ -125,6 +126,8 @@ impl LateLintPass<'_> for NonDefiningModuleReexports {
         let def_id = item.owner_id.def_id;
         let module = cx.tcx.parent_module_from_def_id(def_id).to_def_id();
         let visibility = cx.tcx.visibility(def_id);
+
+        // Re-exports confined to their defining module do not widen the API boundary.
         if matches!(visibility, ty::Visibility::Restricted(scope) if scope == module) {
             return;
         }

@@ -55,9 +55,12 @@ impl MigrationEdits {
     fn apply_to(&mut self, source: &mut String, outer: Span) -> Option<()> {
         self.0.sort_unstable_by_key(|edit| Reverse(edit.span.lo()));
         for edit in &self.0 {
+            // An edit beginning outside the containing item cannot be applied safely.
             let Ok(start) = usize::try_from((edit.span.lo() - outer.lo()).to_u32()) else {
                 return None;
             };
+
+            // An edit ending outside the containing item cannot be applied safely.
             let Ok(end) = usize::try_from((edit.span.hi() - outer.lo()).to_u32()) else {
                 return None;
             };
@@ -171,6 +174,8 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
     /// Reads the original source text covered by a compiler source range.
     fn snippet(&self, span: Span) -> Option<String> {
         let source_map = self.cx.sess().source_map();
+
+        // Unavailable authored text prevents a source-preserving migration edit.
         let Ok(snippet) = source_map.span_to_snippet(span) else {
             return None;
         };
@@ -199,6 +204,8 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
         let binding_name = self.candidate.migration.binding.name?;
         let parameter = self.snippet(self.candidate.receiver.parameter_span)?;
         let pattern = parameter.split_once(':')?.0.trim();
+
+        // Destructured or otherwise transformed parameters cannot become an equivalent receiver.
         if pattern != binding_name.as_str() && pattern != format!("mut {binding_name}") {
             return None;
         }
@@ -284,6 +291,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
             .into_iter()
             .flatten()
         {
+            // Every binding use must belong to editable source inside the function being moved.
             if !self.candidate.contains(use_.span) || !self.is_editable_in_candidate_file(use_.span)
             {
                 return None;
@@ -312,6 +320,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
             .into_iter()
             .flatten()
         {
+            // A cross-file or expanded reference makes the one-file migration incomplete.
             if !self.is_editable_in_candidate_file(*span) {
                 return None;
             }

@@ -19,7 +19,9 @@ use crate::utils::diagnostic::EarlyViolation;
 
 /// One authored style attribute that does more than bind a CSS custom property.
 struct Violation {
+    /// Authored attribute range receiving the diagnostic.
     span: Span,
+    /// Policy-specific explanation for the rejected inline property.
     message: String,
 }
 
@@ -60,6 +62,7 @@ impl EarlyViolation for Violation {
 
 /// Rejects direct inline CSS while retaining dynamic custom-property bindings.
 struct LeptosStylingInlineStyleProperties {
+    /// Authored source files indexed for early lint callbacks.
     files: AuthoredFiles,
 }
 

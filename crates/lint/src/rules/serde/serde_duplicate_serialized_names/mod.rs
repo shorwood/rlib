@@ -123,8 +123,10 @@ struct SerdeDuplicateSerializedNames {
 impl SerdeDuplicateSerializedNames {
     /// Recovers direct named fields from one authored struct.
     fn struct_groups(source: &str) -> Option<WireGroups> {
+        // Invalid authored struct syntax cannot yield trustworthy wire-name groups.
         let structure = match syn::parse_str::<syn::ItemStruct>(source) {
             Ok(structure) => structure,
+            // Without a parsed struct, field identities and attributes are unavailable.
             Err(_error) => return None,
         };
         let members = structure
@@ -144,13 +146,9 @@ impl SerdeDuplicateSerializedNames {
         })
     }
 
-    /// Recovers variants and per-variant named fields from one authored enum.
-    fn enum_groups(source: &str) -> Option<WireGroups> {
-        let enumeration = match syn::parse_str::<syn::ItemEnum>(source) {
-            Ok(enumeration) => enumeration,
-            Err(_error) => return None,
-        };
-        let field_groups = enumeration
+    /// Recovers named field groups nested under authored enum variants.
+    fn enum_field_groups(enumeration: &syn::ItemEnum) -> Vec<WireFieldGroup> {
+        enumeration
             .variants
             .iter()
             .filter_map(|variant| {
@@ -169,7 +167,17 @@ impl SerdeDuplicateSerializedNames {
                     members,
                 })
             })
-            .collect();
+            .collect()
+    }
+
+    /// Recovers variants and per-variant named fields from one authored enum.
+    fn enum_groups(source: &str) -> Option<WireGroups> {
+        // Invalid authored enum syntax cannot yield trustworthy wire-name groups.
+        let enumeration = match syn::parse_str::<syn::ItemEnum>(source) {
+            Ok(enumeration) => enumeration,
+            // Without a parsed enum, variant identities and attributes are unavailable.
+            Err(_error) => return None,
+        };
         let members = enumeration
             .variants
             .iter()
@@ -179,9 +187,9 @@ impl SerdeDuplicateSerializedNames {
             })
             .collect();
         Some(WireGroups {
+            field_groups: Self::enum_field_groups(&enumeration),
             attributes: enumeration.attrs,
             members,
-            field_groups,
         })
     }
 
@@ -252,9 +260,13 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Generated declarations do not define authored Serde wire-name policy.
         if item.span.from_expansion() {
             return;
         }
+
+        // Missing authored source prevents recovery of direction-specific Serde attributes.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
@@ -265,17 +277,20 @@ impl LateLintPass<'_> for SerdeDuplicateSerializedNames {
             field_groups,
         } = match item.kind {
             ItemKind::Struct(..) => {
+                // Unparseable struct source cannot produce reliable field wire groups.
                 let Some(groups) = Self::struct_groups(&source) else {
                     return;
                 };
                 groups
             }
             ItemKind::Enum(..) => {
+                // Unparseable enum source cannot produce reliable variant wire groups.
                 let Some(groups) = Self::enum_groups(&source) else {
                     return;
                 };
                 groups
             }
+            // Other item kinds do not define struct-field or enum-variant wire groups.
             _ => return,
         };
 

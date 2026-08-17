@@ -99,6 +99,7 @@ impl MietteDuplicateDiagnosticCodes {
         contract: &DiagnosticContract,
         member: &DiagnosticMember,
     ) {
+        // Members without an effective diagnostic code cannot collide with another code.
         let Some(code) = member
             .metadata
             .code
@@ -118,6 +119,7 @@ impl MietteDuplicateDiagnosticCodes {
         codes: &mut BTreeMap<String, Vec<ViolationUse>>,
         contract: &DiagnosticContract,
     ) {
+        // Contracts without members contribute only their type-level diagnostic code.
         if contract.members.is_empty() {
             if let Some(code) = &contract.metadata.code {
                 codes.entry(code.clone()).or_default().push(ViolationUse {

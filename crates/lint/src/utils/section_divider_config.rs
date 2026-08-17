@@ -32,6 +32,7 @@ impl Default for SectionDividerConfig {
 impl SectionDividerConfig {
     /// Rejects section policies that cannot contain a declaration.
     pub(super) fn validate(&self) -> Result<(), String> {
+        // A section limit of zero cannot contain any declaration.
         if self.max_declarations_per_section == 0 {
             return Err(
                 "section_dividers.max_declarations_per_section must be greater than zero"

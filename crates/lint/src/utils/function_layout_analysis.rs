@@ -98,6 +98,8 @@ impl<'analysis, 'tcx> FunctionLayoutNestedSpanCollector<'analysis, 'tcx> {
     fn filtered_line_count(cx: &LateContext<'_>, span: Span, nested_spans: &[Span]) -> usize {
         // Load the authored source and initialize its per-line token mask.
         let span = span.source_callsite();
+
+        // Unavailable authored text contributes no measurable direct code lines.
         let Ok(source) = cx.sess().source_map().span_to_snippet(span) else {
             return 0;
         };
@@ -140,6 +142,7 @@ impl<'tcx> Visitor<'tcx> for FunctionLayoutNestedSpanCollector<'_, 'tcx> {
     }
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // A closure body is an independent layout scope rather than part of its parent entry.
         if let ExprKind::Closure(closure) = expression.kind {
             let body = self.cx.tcx.hir_body(closure.body);
             self.spans.push(body.value.span.source_callsite());
@@ -221,6 +224,7 @@ impl FunctionLayoutEntry {
 
     /// Counts authored code on the containing block's surface.
     fn direct_line_count(&self, cx: &LateContext<'_>) -> usize {
+        // Declarative mappings count as one semantic operation regardless of formatting.
         if self.is_declarative_mapping {
             return 1;
         }
@@ -322,6 +326,8 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
             .map(|entry| entry.direct_line_count(self.cx))
             .collect::<Vec<_>>();
         let total_lines = line_counts.iter().sum::<usize>();
+
+        // Functions already within the configured limit need no phase decomposition.
         if total_lines <= self.config.max_phase_lines {
             return;
         }
@@ -330,6 +336,8 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
             || headers[1..]
                 .iter()
                 .any(|header| !matches!(header, FunctionLayoutPhaseHeader::Continuous));
+
+        // Without an authored boundary, the complete body remains one intentional phase.
         if !has_authored_phases {
             return;
         }
@@ -381,6 +389,7 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
     /// Classifies and analyzes all authored entries in one block.
     fn analyze_block(&mut self, block: &'tcx Block<'tcx>) {
         // Collect authored direct entries while excluding generated blocks.
+        // Generated blocks have no stable authored layout to validate.
         if block.span.from_expansion() {
             return;
         }
@@ -394,6 +403,8 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         if let Some(expression) = block.expr {
             entries.push(FunctionLayoutEntry::from_expression(self.cx, expression));
         }
+
+        // Empty blocks contain no entries or phase boundaries to analyze.
         if entries.is_empty() {
             return;
         }
@@ -417,6 +428,7 @@ impl<'tcx> Visitor<'tcx> for FunctionLayoutAnalyzer<'_, 'tcx> {
     }
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Closure bodies are visited through their own layout scope, not their enclosing expression.
         if matches!(expression.kind, ExprKind::Closure(..)) {
             return;
         }

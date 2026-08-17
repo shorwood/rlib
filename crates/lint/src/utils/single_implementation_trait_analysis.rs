@@ -93,6 +93,7 @@ pub struct SingleImplementationTraitAnalyzer {
 impl SingleImplementationTraitAnalyzer {
     /// Resolves an associated item to its local trait container.
     fn projection_trait(cx: &LateContext<'_>, associated_item: DefId) -> Option<LocalDefId> {
+        // Only associated types can establish an associated-type projection consumer.
         if !matches!(cx.tcx.def_kind(associated_item), DefKind::AssocTy) {
             return None;
         }
@@ -121,9 +122,13 @@ impl SingleImplementationTraitAnalyzer {
         let TyKind::Path(qpath) = ty.kind else {
             return;
         };
+
+        // Unresolved associated paths cannot identify a consumed local trait projection.
         let Some(associated_item) = cx.qpath_res(&qpath, ty.hir_id).opt_def_id() else {
             return;
         };
+
+        // Associated items outside local traits cannot consume a local candidate abstraction.
         let Some(local_trait) = Self::projection_trait(cx, associated_item) else {
             return;
         };
@@ -220,6 +225,7 @@ impl SingleImplementationTraitAnalyzer {
             .effective_visibilities(())
             .is_exported(item.owner_id.def_id);
         let has_private_supertrait = bounds.iter().any(|bound| {
+            // Non-trait bounds cannot structurally seal a trait through visibility.
             let GenericBound::Trait(poly_trait) = bound else {
                 return false;
             };
@@ -274,6 +280,8 @@ impl SingleImplementationTraitAnalyzer {
         let target = cx.tcx.type_of(item.owner_id).instantiate_identity();
         let is_concrete_local_target = matches!(target.kind(), ty::Adt(definition, arguments)
             if definition.did().is_local() && !arguments.has_param());
+
+        // Generic, blanket, or foreign-target impls prove the trait is not single-concrete-use.
         if !implementation.generics.params.is_empty()
             || target.has_param()
             || !is_concrete_local_target

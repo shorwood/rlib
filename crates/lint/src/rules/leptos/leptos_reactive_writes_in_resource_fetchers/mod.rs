@@ -89,11 +89,13 @@ impl<'analysis, 'tcx> FetcherWrites<'analysis, 'tcx> {
 
     /// Returns whether a method is a mutation from a reactive graph write trait.
     fn is_reactive_write(&self, expression: &Expr<'_>) -> bool {
+        // Only method calls can implement a reactive write interface.
         let ExprKind::MethodCall(_, _, _, _) = expression.kind else {
             return false;
         };
         let owner = self.cx.tcx.hir_enclosing_body_owner(expression.hir_id);
 
+        // Unresolved calls cannot be classified through their reactive trait contract.
         let Some(method) = self
             .cx
             .tcx
@@ -117,6 +119,7 @@ impl<'tcx> Visitor<'tcx> for FetcherWrites<'_, 'tcx> {
     fn visit_nested_body(&mut self, body_id: BodyId) {
         // Follow the fetcher closure and its returned async body. A deeper closure is a callback
         // merely created by the fetcher and does not execute as part of loading the value.
+        // Stop before attributing retained callback mutations to the fetch operation.
         if self.body_depth >= Self::MAXIMUM_FETCHER_BODY_DEPTH {
             return;
         }
@@ -126,6 +129,7 @@ impl<'tcx> Visitor<'tcx> for FetcherWrites<'_, 'tcx> {
     }
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // The first reactive write is sufficient evidence and the preferred diagnostic anchor.
         if self.write_span.is_none() && self.is_reactive_write(expression) {
             self.write_span = Some(expression.span);
             return;
@@ -155,16 +159,22 @@ impl LeptosReactiveWritesInResourceFetchers {
         cx: &LateContext<'tcx>,
         expression: &'tcx Expr<'tcx>,
     ) -> Option<&'tcx Expr<'tcx>> {
+        // Resource construction must be expressed as a direct call.
         let ExprKind::Call(callee, arguments) = expression.kind else {
             return None;
         };
+
+        // Indirect callees cannot identify a resource constructor.
         let ExprKind::Path(path) = callee.kind else {
             return None;
         };
 
+        // Only resolved definitions can be matched to framework constructors.
         let Res::Def(_, method) = cx.qpath_res(&path, callee.hir_id) else {
             return None;
         };
+
+        // Calls outside the Leptos server crate do not construct these resources.
         if cx.tcx.crate_name(method.krate).as_str() != "leptos_server" {
             return None;
         }
@@ -190,12 +200,14 @@ impl LeptosReactiveWritesInResourceFetchers {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosReactiveWritesInResourceFetchers {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Unrecognized calls do not establish a resource fetcher boundary.
         let Some(fetcher) = Self::fetcher(cx, expression) else {
             return;
         };
         let mut writes = FetcherWrites::new(cx);
         writes.visit_expr(fetcher);
 
+        // Pure fetchers contain no reactive mutation to report.
         let Some(write_span) = writes.write_span else {
             return;
         };

@@ -235,12 +235,15 @@ impl PolicyApi {
     /// Classifies standard duration, collection, pagination, and concurrency APIs.
     fn standard(identity: &PolicyApiIdentity) -> Option<PolicyApiShape> {
         // Exclude dependency APIs before consulting standard-library path families.
+        // Nonstandard definitions belong to the ecosystem catalog instead.
         if !identity.is_standard() {
             return None;
         }
 
         // Duration constructors assign explicit units to otherwise raw numeric values.
         let item_name = identity.item_name.as_str();
+
+        // A recognized duration constructor completes standard classification.
         if identity.path.contains("::time::Duration::")
             && POLICY_API_STANDARD_DURATION_CONSTRUCTOR_NAMES.contains(&item_name)
         {
@@ -249,6 +252,7 @@ impl PolicyApi {
             } else {
                 &[0][..]
             };
+
             return Some(PolicyApiShape {
                 category: PolicyCategory::Timing,
                 argument_positions,
@@ -262,6 +266,8 @@ impl PolicyApi {
     fn standard_non_duration(identity: &PolicyApiIdentity) -> Option<PolicyApiShape> {
         // Collection allocation methods encode resource-sizing policy.
         let item_name = identity.item_name.as_str();
+
+        // Collection allocation bounds encode capacity policy directly.
         if identity.is_standard_collection()
             && POLICY_API_STANDARD_COLLECTION_CAPACITY_NAMES.contains(&item_name)
         {
@@ -269,14 +275,18 @@ impl PolicyApi {
         }
 
         // Retained length and iterator cardinality control output volume.
+        // Truncation bounds the retained collection size.
         if identity.is_standard_collection() && item_name == "truncate" {
             return Some(PolicyApiShape::single(PolicyCategory::Truncation));
         }
+
+        // Iterator take and skip operations encode pagination boundaries.
         if identity.path.contains("::Iterator::") && matches!(item_name, "take" | "skip") {
             return Some(PolicyApiShape::single(PolicyCategory::Pagination));
         }
 
         // Bounded channels constrain queued messages rather than active workers.
+        // Synchronous channel construction fixes the queue capacity.
         if identity.path.contains("::sync::mpsc::") && item_name == "sync_channel" {
             return Some(PolicyApiShape::single(PolicyCategory::Capacity));
         }
@@ -284,6 +294,8 @@ impl PolicyApi {
         // Barriers define how many participants synchronize concurrently.
         let is_barrier = identity.path.contains("::sync::barrier::Barrier::")
             || identity.path.contains("::sync::Barrier::");
+
+        // Barrier construction fixes the required concurrent participant count.
         if is_barrier && item_name == "new" {
             return Some(PolicyApiShape::single(PolicyCategory::Concurrency));
         }
@@ -298,6 +310,8 @@ impl PolicyApi {
     fn ecosystem(identity: &PolicyApiIdentity) -> Option<PolicyApiShape> {
         // Recognize the shared bounded-channel convention before crate-specific families.
         let crate_name = identity.crate_name.as_str();
+
+        // The shared bounded constructor convention fixes channel capacity.
         if identity.item_name.as_str() == "bounded"
             && POLICY_API_ECOSYSTEM_BOUNDED_CHANNEL_CRATES.contains(&crate_name)
         {
@@ -317,6 +331,8 @@ impl PolicyApi {
     fn tokio(identity: &PolicyApiIdentity) -> Option<PolicyApiShape> {
         // Semaphore permits directly bound concurrent access to a shared resource.
         let item_name = identity.item_name.as_str();
+
+        // Semaphore construction fixes the concurrent permit count.
         if identity.path.contains("::Semaphore::") && matches!(item_name, "new" | "const_new") {
             return Some(PolicyApiShape::single(PolicyCategory::Concurrency));
         }
@@ -346,6 +362,8 @@ impl PolicyApi {
         let item_name = identity.item_name.as_str();
         let is_stream_extension =
             identity.path.contains("::StreamExt::") || identity.path.contains("::TryStreamExt::");
+
+        // Calls outside recognized stream extensions or method names carry no concurrency bound.
         if !is_stream_extension
             || !POLICY_API_ECOSYSTEM_FUTURES_CONCURRENCY_NAMES.contains(&item_name)
         {
@@ -360,6 +378,8 @@ impl PolicyApi {
     fn rayon(identity: &PolicyApiIdentity) -> Option<PolicyApiShape> {
         // Thread-pool builder values directly control parallel resource use.
         let item_name = identity.item_name.as_str();
+
+        // Thread count and stack sizing bound the pool's resource use.
         if identity.path.contains("::ThreadPoolBuilder::")
             && matches!(item_name, "num_threads" | "stack_size")
         {
@@ -367,6 +387,7 @@ impl PolicyApi {
         }
 
         // Indexed iterator limits tune how much work one scheduling unit receives.
+        // Minimum and maximum chunk lengths encode scheduling capacity.
         if identity.path.contains("::IndexedParallelIterator::")
             && matches!(item_name, "with_min_len" | "with_max_len")
         {

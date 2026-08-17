@@ -94,19 +94,26 @@ impl BonRedundantPositionalAndBuilderApis {
 }
 impl EarlyLintPass for BonRedundantPositionalAndBuilderApis {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
+        // Module items update private-scope state but cannot themselves define builder call shapes.
         if matches!(item.kind, ItemKind::Mod(..)) {
+            // Entering a private module suppresses public-API diagnostics for all nested functions.
             if !matches!(item.vis.kind, VisibilityKind::Public) {
                 self.private_module_depth += 1;
             }
             return;
         }
+
+        // Non-function items cannot expose positional and builder invocation forms.
         let ItemKind::Fn(function) = &item.kind else {
             return;
         };
+
+        // Without the builder attribute, this function exposes no redundant invocation form.
         let Some(attribute) = BonAttributeAnalysis::builder(&item.attrs) else {
             return;
         };
 
+        // Private functions and functions nested in private modules are not public API redundancy.
         if self.private_module_depth > 0 || !matches!(item.vis.kind, VisibilityKind::Public) {
             return;
         }
@@ -146,6 +153,7 @@ impl EarlyLintPass for BonRedundantPositionalAndBuilderApis {
     }
 
     fn check_item_post(&mut self, _: &EarlyContext<'_>, item: &Item) {
+        // Only leaving a private module should reduce the tracked private-scope depth.
         if !matches!(item.kind, ItemKind::Mod(..))
             || matches!(item.vis.kind, VisibilityKind::Public)
         {

@@ -65,9 +65,12 @@ impl LeptosServerAuthorizationConfig {
             .chain(&self.protected_endpoint_attributes)
             .chain(&self.public_endpoint_attributes);
 
+        // Blank vocabulary entries cannot identify a meaningful security boundary.
         if entries.clone().any(|entry| entry.trim().is_empty()) {
             return Err("authorization vocabulary entries must not be empty".to_owned());
         }
+
+        // At least one sensitive operation term is required for the policy to observe work.
         if self.sensitive_call_terms.is_empty() {
             return Err("sensitive_call_terms must contain at least one call term".to_owned());
         }
@@ -270,25 +273,34 @@ dylint_linting::impl_pre_expansion_lint! {
 
 impl EarlyLintPass for LeptosServerFunctionsWithoutAuthorizationBoundaries {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
+        // Only functions can define callable server endpoints.
         if !matches!(item.kind, ItemKind::Fn { .. }) {
             return;
         }
+
+        // Missing authored source prevents call-order and scope analysis.
         let Ok(source) = cx.sess().source_map().span_to_snippet(item.span) else {
             return;
         };
 
+        // Ordinary functions do not expose the Leptos server endpoint boundary.
         if !Self::is_server_function(item) {
             return;
         }
+
+        // An explicit configured marker already declares the endpoint's access policy.
         if self.has_marker(item) {
             return;
         }
 
+        // Unparseable function text cannot provide reliable call-order evidence.
         let Ok(function) = syn::parse_str::<syn::ItemFn>(&source) else {
             return;
         };
         let mut collector = CallCollector::default();
         collector.visit_block(&function.block);
+
+        // Endpoints without configured sensitive operations require no authorization proof.
         let Some(SensitiveCall {
             position,
             call: sensitive,
@@ -297,6 +309,7 @@ impl EarlyLintPass for LeptosServerFunctionsWithoutAuthorizationBoundaries {
             return;
         };
 
+        // An earlier same-scope authorization call establishes the required boundary.
         if self.authorization_precedes(&collector.calls, position) {
             return;
         }

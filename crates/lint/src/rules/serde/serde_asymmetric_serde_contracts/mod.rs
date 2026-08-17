@@ -43,13 +43,18 @@ struct DirectionalNames {
 impl DirectionalNames {
     /// Extracts unequal directional names that lack an alias or compatibility explanation.
     fn from_attributes(attributes: &[syn::Attribute]) -> Option<Self> {
+        // Authored compatibility documentation makes directional naming intentional policy.
         if has_compatibility_explanation(attributes) {
             return None;
         }
         let attributes = SerdeAttributes::from_attributes(attributes);
+
+        // One-way skipped declarations do not promise a symmetric round-trip contract.
         if attributes.has(SerdeFlag::SkipSerialize) || attributes.has(SerdeFlag::SkipDeserialize) {
             return None;
         }
+
+        // Comparing directions requires explicit names for both wire operations.
         let (Some(serialize), Some(deserialize)) =
             (attributes.rename_serialize, attributes.rename_deserialize)
         else {
@@ -125,9 +130,13 @@ struct SerdeAsymmetricSerdeContracts {
 impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Expanded items provide derive evidence rather than authored naming policy.
         if item.span.from_expansion() {
             return;
         }
+
+        // Missing authored source prevents declaration-level attribute recovery.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
@@ -136,6 +145,7 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
         let enum_members = || {
             let enumeration = match syn::parse_str::<syn::ItemEnum>(&source) {
                 Ok(enumeration) => enumeration,
+                // Unparseable enum text cannot provide reliable member attributes.
                 Err(_error) => return None,
             };
             let mut members = vec![(enumeration.ident.to_string(), enumeration.attrs)];
@@ -155,6 +165,7 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
 
         let members = match item.kind {
             ItemKind::Struct(..) => {
+                // Unparseable struct text cannot provide reliable member attributes.
                 let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
                     return;
                 };
@@ -172,11 +183,13 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
                 members
             }
             ItemKind::Enum(..) => {
+                // Invalid enum source cannot contribute directional member contracts.
                 let Some(members) = enum_members() else {
                     return;
                 };
                 members
             }
+            // Other declarations do not expose Serde struct or enum member contracts.
             _ => return,
         };
 
@@ -186,6 +199,7 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
                 deserialize,
             }) = DirectionalNames::from_attributes(&attributes)
             else {
+                // Symmetric or explicitly compatible members need no crate-wide comparison.
                 continue;
             };
 
@@ -209,6 +223,8 @@ impl LateLintPass<'_> for SerdeAsymmetricSerdeContracts {
                 .catalog
                 .derived_type(candidate.definition, "Deserialize")
                 .is_some();
+
+            // Both directions must be generated before their names form one round-trip contract.
             if !serializes || !deserializes {
                 continue;
             }
@@ -230,6 +246,7 @@ fn has_compatibility_explanation(attributes: &[syn::Attribute]) -> bool {
         .iter()
         .filter(|attribute| attribute.path().is_ident("doc"))
         .filter_map(|attribute| {
+            // Non-name-value documentation forms provide no literal prose to classify.
             let Ok(value) = attribute.meta.require_name_value() else {
                 return None;
             };

@@ -107,12 +107,18 @@ dylint_linting::impl_late_lint! {
 impl LateLintPass<'_> for ThiserrorDuplicateErrorMessages {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Generated and non-enum items cannot define authored variant-message collisions.
         if item.span.from_expansion() || !matches!(item.kind, ItemKind::Enum(..)) {
             return;
         }
+
+        // Missing authored source prevents reliable recovery of error attributes.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
+
+        // Source that cannot be parsed as its enum cannot provide authored variant messages.
         let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
             return;
         };

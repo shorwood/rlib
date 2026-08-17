@@ -125,10 +125,12 @@ impl LateLintPass<'_> for StrumManualEnumMetadata {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Implementation items without a complete variant-value family expose no metadata table.
         let Some(family) = VariantValueFamily::from_impl_item(cx, item) else {
             return;
         };
 
+        // String conversions, unrelated names, and explicitly governed methods are not metadata.
         if matches!(
             family.method_name.as_str(),
             "as_str" | "as_static_str" | "name"
@@ -149,6 +151,8 @@ impl LateLintPass<'_> for StrumManualEnumMetadata {
         } else {
             "EnumProperty"
         };
+
+        // Existing authored Strum metadata already supplies the generated replacement.
         if self.catalog.contracts().iter().any(|contract| {
             contract.def_id == family.enum_def
                 && if is_message {

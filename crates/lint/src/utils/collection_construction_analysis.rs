@@ -64,6 +64,7 @@ pub enum CollectionProblem {
 impl CollectionProblem {
     /// Classifies ownership for one exact collection family.
     const fn classify(candidate_count: usize, occupancy: CollectionFamilyOccupancy) -> Self {
+        // Multiple candidates leave standard collection-trait ownership ambiguous.
         if candidate_count > 1 {
             return Self::AmbiguousFamily {
                 count: candidate_count,
@@ -188,6 +189,8 @@ impl CollectionConstructionAnalysis {
         let ItemKind::Impl(_) = item.kind else {
             return;
         };
+
+        // Trait occupancy requires a resolved trait implementation reference.
         let Some(trait_ref) = cx.tcx.impl_opt_trait_ref(item.owner_id.def_id) else {
             return;
         };
@@ -195,10 +198,14 @@ impl CollectionConstructionAnalysis {
         // Resolve the local implementation target and standard trait identity.
         let trait_ref = trait_ref.instantiate_identity();
         let self_ty = cx.tcx.type_of(item.owner_id.def_id).instantiate_identity();
+
+        // Only local nominal types can own a collection trait family.
         let Some(target_def_id) = collection_classification_local_adt(self_ty) else {
             return;
         };
         let path = cx.tcx.def_path_str(trait_ref.def_id);
+
+        // Only standard collection traits occupy an ingestion protocol family.
         let Some(contract) = CollectionContract::from_trait_path(&path) else {
             return;
         };
@@ -227,6 +234,8 @@ impl CollectionConstructionAnalysis {
         let (ident, header) = match kind {
             FnKind::ItemFn(ident, _, header) => (ident, header),
             FnKind::Method(ident, signature) => (ident, signature.header),
+
+            // Closures do not define a named collection API.
             FnKind::Closure => return,
         };
 
@@ -242,10 +251,14 @@ impl CollectionConstructionAnalysis {
 
         // Resolve a supported constructor or extension signature and its source.
         let signature = cx.tcx.fn_sig(def_id).instantiate_identity().skip_binder();
+
+        // The signature must match one supported construction or extension shape.
         let Some(shape) = CollectionFunctionShape::classify(signature.inputs(), signature.output())
         else {
             return;
         };
+
+        // The body parameter count must agree with the inferred collection shape.
         if body.params.len() != shape.parameter_count {
             return;
         }
@@ -257,18 +270,24 @@ impl CollectionConstructionAnalysis {
             shape.target_def_id,
             shape.contract,
         );
+
+        // Contextual names indicate policy beyond the standard collection contract.
         if !has_neutral_name {
             return;
         }
 
         // Bind the iterable parameter so body evidence can track its complete consumption.
         let source_parameter = &body.params[shape.source_index];
+
+        // Source-flow analysis requires a direct iterable parameter binding.
         let PatKind::Binding(_, source_binding, _, None) = source_parameter.pat.kind else {
             return;
         };
 
         // Require complete source iteration into storage physically owned by the target.
         let storage = collection_storage_discover(cx, shape.target_def_id);
+
+        // A candidate needs one complete source-to-target-storage ingestion proof.
         let Some(evidence) =
             CollectionEvidence::analyze(cx, body, source_binding, &storage, shape.target_def_id)
         else {
@@ -357,6 +376,7 @@ impl CollectionConstructionAnalysis {
 
 /// Resolves a possibly referenced type to one local nominal definition.
 fn collection_classification_local_adt(ty: Ty<'_>) -> Option<LocalDefId> {
+    // Only nominal types can identify a local collection wrapper.
     let ty::Adt(definition, _) = ty.peel_refs().kind() else {
         return None;
     };
@@ -365,6 +385,7 @@ fn collection_classification_local_adt(ty: Ty<'_>) -> Option<LocalDefId> {
 
 /// Returns whether a function returns a mutable reference to the selected target.
 fn collection_classification_returns_target(output: Ty<'_>, target: LocalDefId) -> bool {
+    // Fluent extension must return a mutable reference to the target wrapper.
     let ty::Ref(_, returned, Mutability::Mut) = output.kind() else {
         return false;
     };
@@ -406,6 +427,8 @@ fn collection_classification_has_neutral_name(
         "New",
     ];
     let words = identifier_case::words(name.as_str());
+
+    // Contextual vocabulary encodes policy that a standard collection trait cannot express.
     if words.iter().any(|word| CONTEXTUAL.contains(&word.as_str())) {
         return false;
     }
@@ -452,6 +475,8 @@ impl CollectionFunctionShape {
         let [receiver, _source] = inputs else {
             return None;
         };
+
+        // The extension receiver must be a mutable reference to its target.
         let ty::Ref(_, target, Mutability::Mut) = receiver.kind() else {
             return None;
         };
@@ -493,26 +518,32 @@ fn collection_storage_discover<'tcx>(
     fields
         .filter_map(|field| {
             let ty = cx.tcx.type_of(field.did).instantiate_identity();
+
+            // Storage discovery considers only nominal standard collection field types.
             let ty::Adt(definition, arguments) = ty.kind() else {
                 return None;
             };
             let path = cx.tcx.def_path_str(definition.did());
-            let item = if path.ends_with("::HashMap") || path.ends_with("::BTreeMap") {
-                format!("({}, {})", arguments.type_at(0), arguments.type_at(1))
-            } else if [
-                "::Vec",
-                "::VecDeque",
-                "::HashSet",
-                "::BTreeSet",
-                "::BinaryHeap",
-                "::LinkedList",
-            ]
-            .iter()
-            .any(|suffix| path.ends_with(suffix))
-            {
-                arguments.type_at(0).to_string()
-            } else {
-                return None;
+            let item = match () {
+                () if path.ends_with("::HashMap") || path.ends_with("::BTreeMap") => {
+                    format!("({}, {})", arguments.type_at(0), arguments.type_at(1))
+                }
+                () if [
+                    "::Vec",
+                    "::VecDeque",
+                    "::HashSet",
+                    "::BTreeSet",
+                    "::BinaryHeap",
+                    "::LinkedList",
+                ]
+                .iter()
+                .any(|suffix| path.ends_with(suffix)) =>
+                {
+                    arguments.type_at(0).to_string()
+                }
+
+                // Other field types cannot prove standard sequence storage.
+                () => return None,
             };
             Some(CollectionStorageField {
                 ty,
@@ -608,6 +639,7 @@ impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
         }
         impl<'tcx> Visitor<'tcx> for SourceFinder<'_, 'tcx> {
             fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+                // One source reference completes this containment search.
                 if let ExprKind::Path(path) = expression.kind
                     && matches!(self.cx.qpath_res(&path, expression.hir_id), Res::Local(binding) if binding == self.source)
                 {
@@ -628,6 +660,7 @@ impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
 
     /// Returns whether an expression is a projection or adapter rooted at the source binding.
     fn is_source_rooted(&self, expression: &'tcx Expr<'tcx>) -> bool {
+        // A direct source path is the base case for source-rooted adapter analysis.
         if let ExprKind::Path(path) = expression.kind {
             return matches!(
                 self.cx.qpath_res(&path, expression.hir_id),
@@ -646,10 +679,13 @@ impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
 
     /// Resolves a receiver expression to one target-owned collection field.
     fn storage_item(&self, receiver: &'tcx Expr<'tcx>) -> Option<String> {
+        // Storage writes must target a field projection.
         let ExprKind::Field(base, _) = receiver.kind else {
             return None;
         };
         let base_ty = self.cx.typeck_results().expr_ty_adjusted(base).peel_refs();
+
+        // The storage field must be owned directly by the candidate wrapper.
         if collection_classification_local_adt(base_ty) != Some(self.target) {
             return None;
         }
@@ -695,6 +731,8 @@ impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
         if !["extend", "insert", "push", "push_back", "push_front"].contains(&name) {
             return;
         }
+
+        // The write receiver must resolve to a recognized target-owned storage field.
         let Some(item_name) = self.storage_item(receiver) else {
             return;
         };
@@ -706,6 +744,8 @@ impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
                 .iter()
                 .any(|argument| self.is_source_rooted(argument));
         let consumes_loop_item = name != "extend" && self.state.source_loop_depth > 0;
+
+        // Storage writes must consume the source directly or an item from its active loop.
         if !consumes_source && !consumes_loop_item {
             return;
         }
@@ -718,6 +758,7 @@ impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
 
     /// Records `Target { field: source.into_iter().collect() }` construction.
     fn record_collected_field(&mut self, expression: &'tcx Expr<'tcx>) {
+        // Collected-field recognition starts from a struct construction expression.
         let ExprKind::Struct(_, fields, _) = expression.kind else {
             return;
         };
@@ -726,6 +767,8 @@ impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
             .typeck_results()
             .expr_ty_adjusted(expression)
             .peel_refs();
+
+        // The struct construction must produce the candidate wrapper itself.
         if collection_classification_local_adt(target_ty) != Some(self.target) {
             return;
         }
@@ -761,11 +804,14 @@ impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
 impl<'tcx> Visitor<'tcx> for CollectionEvidence<'_, 'tcx, '_> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         match expression.kind {
+            // For-loop desugaring needs its own source-loop-depth accounting.
             ExprKind::Match(scrutinee, _, MatchSource::ForLoopDesugar) => {
                 let iterates_source = self.uses_source(scrutinee);
                 self.state.source_loop_depth += usize::from(iterates_source);
                 intravisit::walk_expr(self, expression);
                 self.state.source_loop_depth -= usize::from(iterates_source);
+
+                // The loop traversal fully handles its nested source-depth accounting.
                 return;
             }
             ExprKind::MethodCall(segment, receiver, arguments, _) => {

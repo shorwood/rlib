@@ -165,6 +165,8 @@ impl MethodCandidate {
 
         // Resolve the semantic receiver and require its struct to share the module.
         let semantic_receiver = Self::semantic_receiver(cx, def_id)?;
+
+        // A struct in another module should own behavior through an explicit public abstraction.
         if !Self::shares_module_with_struct(cx, def_id, semantic_receiver.struct_def_id) {
             return None;
         }
@@ -257,13 +259,17 @@ impl MethodCandidate {
         let (kind, receiver_type) = match first_type.kind() {
             ty::Adt(..) => (ReceiverKind::Value, first_type),
             ty::Ref(_, inner, mutability) => (ReceiverKind::Ref(*mutability), *inner),
+            // Other first-parameter shapes cannot become an inherent receiver.
             _ => return None,
         };
 
         // Require the resolved receiver target to be a local struct.
+        // Non-aggregate receiver targets cannot own inherent methods.
         let ty::Adt(adt, _) = receiver_type.kind() else {
             return None;
         };
+
+        // Enums and unions are outside this struct-owned method policy.
         if !adt.is_struct() {
             return None;
         }
@@ -396,6 +402,7 @@ impl MethodCandidate {
             })
             .collect::<Vec<_>>();
 
+        // Without explicit type parameters, only safely movable implicit syntax matters.
         if explicit_type_params.is_empty() {
             // Reject implicit parameters that cannot move to an impl unchanged.
             let has_unsupported_parameter = generics

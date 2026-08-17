@@ -84,6 +84,7 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for MissingSectionDividers {
     fn check_mod(&mut self, cx: &LateContext<'tcx>, module: &'tcx Mod<'tcx>, hir_id: HirId) {
+        // Test modules use a terminal-placement contract rather than production section dividers.
         if matches!(cx.tcx.hir_node(hir_id), Node::Item(item) if item.is_canonical_in_source_test_module(cx))
         {
             return;

@@ -61,6 +61,7 @@ impl ParameterKind {
 
     /// Classifies scalar primitive and directly borrowed textual representations.
     fn scalar(ty: Ty<'_>) -> Option<Self> {
+        // Exact numeric primitives complete scalar classification without further shape checks.
         if let Some(kind) = Self::numeric(ty) {
             return Some(kind);
         }
@@ -74,9 +75,13 @@ impl ParameterKind {
     /// Classifies standard textual ADTs after resolving re-exported definition paths.
     fn adt(cx: &LateContext<'_>, def_id: DefId, arguments: ty::GenericArgsRef<'_>) -> Option<Self> {
         let path = cx.tcx.def_path_str(def_id);
+
+        // The owned standard string directly establishes the textual parameter family.
         if path.ends_with("::string::String") {
             return Some(Self::Text);
         }
+
+        // Other aggregates cannot represent the supported boxed or borrowed text wrappers.
         if !path.ends_with("::boxed::Box") && !path.ends_with("::borrow::Cow") {
             return None;
         }
@@ -120,6 +125,8 @@ impl ParameterTypeExt for Ty<'_> {
         if let Some(kind) = ParameterKind::scalar(ty) {
             return Some(kind);
         }
+
+        // Non-aggregate values cannot be standard textual containers after scalar checks.
         let ty::Adt(definition, arguments) = ty.kind() else {
             return None;
         };

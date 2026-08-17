@@ -33,6 +33,7 @@ impl LateViolation for Violation {
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
+        // Callable parameters need evidence phrased around resolved call sites.
         if self.0.declaration.is_callable {
             return Cow::Owned(format!(
                 "every active authored call resolves `{}` to `{}`; no generic forwarding, callable escape, unnameable type, or second concrete substitution demonstrates that this parameter is consumed polymorphically",
@@ -46,6 +47,7 @@ impl LateViolation for Violation {
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
+        // Callable parameters require signature-specialization guidance.
         if self.0.declaration.is_callable {
             return Cow::Owned(format!(
                 "specialize `{}` as `{}` in the signature and remove the generic parameter until another substitution is required",

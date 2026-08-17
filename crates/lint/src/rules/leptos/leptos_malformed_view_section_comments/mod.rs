@@ -109,6 +109,7 @@ impl LeptosMalformedViewSectionComments {
 
     /// Produces an unambiguous source-only repair when possible.
     fn replacement(&self, heading: &ViewHeading) -> Option<String> {
+        // Multiline and non-line-comment headings cannot be repaired by one safe replacement.
         if !heading.text.starts_with("//") || heading.text.contains('\n') {
             return None;
         }
@@ -131,6 +132,7 @@ impl LeptosMalformedViewSectionComments {
 
     /// Classifies the first failure for one direct-boundary comment.
     fn violation(&self, heading: &ViewHeading, owner: HirId) -> Option<Violation> {
+        // A heading without a following node is detached from any view region.
         let Some(node) = heading.node else {
             return Some(Violation {
                 owner,
@@ -156,6 +158,7 @@ impl LeptosMalformedViewSectionComments {
                 None,
             )
         } else {
+            // A first heading or one separated from prior markup already has valid placement.
             if node == 0 || heading.has_blank_before {
                 return None;
             }
@@ -184,6 +187,7 @@ dylint_linting::impl_late_lint! {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosMalformedViewSectionComments {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Expressions outside authored view macros contain no view-region headings.
         let Some(view) = self.views.analyze(cx, expression) else {
             return;
         };

@@ -117,9 +117,12 @@ impl MietteMalformedDiagnosticCodes {
 
     /// Reports a present code that does not use either accepted shape.
     fn check_code(cx: &LateContext<'_>, span: Span, code: Option<&str>) {
+        // Diagnostics without a code have no code syntax to validate.
         let Some(code) = code else {
             return;
         };
+
+        // Codes matching an accepted shape require no diagnostic.
         if Self::valid_code(code) {
             return;
         }

@@ -87,6 +87,8 @@ impl LeptosUnkeyedReactiveCollections {
         identity: TraitMethodIdentity,
     ) -> bool {
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+
+        // Unresolved calls cannot be attributed to the required semantic trait method.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -121,6 +123,7 @@ impl LeptosUnkeyedReactiveCollections {
 
     /// Returns whether the rendering chain originates in a tracked signal read.
     fn chain_contains_reactive_read(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // A non-method expression terminates the receiver chain without a tracked read.
         let ExprKind::MethodCall(_, receiver, arguments, _) = expression.kind else {
             return false;
         };
@@ -145,6 +148,8 @@ impl LeptosUnkeyedReactiveCollections {
                     },
                 )
         });
+
+        // Finding a tracked read anywhere in the chain establishes reactive collection input.
         if tracked_read {
             return true;
         }
@@ -154,9 +159,12 @@ impl LeptosUnkeyedReactiveCollections {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosUnkeyedReactiveCollections {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Only method calls can terminate in Leptos's collection-view conversion.
         let ExprKind::MethodCall(_, receiver, arguments, _) = expression.kind else {
             return;
         };
+
+        // Calls with arguments or a different semantic method are not `collect_view` terminals.
         if !arguments.is_empty()
             || !Self::method_belongs_to(
                 cx,
@@ -170,10 +178,13 @@ impl<'tcx> LateLintPass<'tcx> for LeptosUnkeyedReactiveCollections {
         {
             return;
         }
+
+        // A direct mapping adapter must immediately precede collection into a view.
         let ExprKind::MethodCall(_, collection, [_], _) = receiver.kind else {
             return;
         };
 
+        // Only mapped children sourced from a tracked read create the unkeyed reactive pattern.
         if !Self::is_view_mapping_adapter(cx, receiver)
             || !Self::chain_contains_reactive_read(cx, collection)
         {

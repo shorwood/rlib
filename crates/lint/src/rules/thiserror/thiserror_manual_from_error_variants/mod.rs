@@ -113,6 +113,7 @@ impl LateLintPass<'_> for ThiserrorManualFromErrorVariants {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // Implementation items without a complete error conversion are unrelated.
         let Some(candidate) = ManualFromCandidate::from_impl_item(cx, item) else {
             return;
         };
@@ -120,6 +121,7 @@ impl LateLintPass<'_> for ThiserrorManualFromErrorVariants {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
+        // Manual conversions are replaceable only when Thiserror owns the error contract.
         if !self.uses_thiserror_provider() {
             return;
         }

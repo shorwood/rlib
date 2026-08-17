@@ -68,12 +68,11 @@ impl CollectionReceiver {
         let ty::Ref(_, collection, mutability) = input.kind() else {
             return None;
         };
-        let element = Self::vec_element_type(cx, *collection).or_else(|| {
-            let ty::Slice(element) = collection.kind() else {
-                return None;
-            };
-            Some(*element)
-        })?;
+        let element =
+            Self::vec_element_type(cx, *collection).or_else(|| match collection.kind() {
+                ty::Slice(element) => Some(*element),
+                _ => None,
+            })?;
 
         // Preserve the reference mutability in the eventual method receiver.
         let receiver = match mutability {
@@ -85,6 +84,7 @@ impl CollectionReceiver {
 
     /// Returns the element type when a type is the standard library's `Vec`.
     fn vec_element_type<'tcx>(cx: &LateContext<'tcx>, vector: Ty<'tcx>) -> Option<Ty<'tcx>> {
+        // Non-ADT types cannot resolve to the standard vector diagnostic item.
         let ty::Adt(vector_def, arguments) = vector.kind() else {
             return None;
         };
@@ -242,6 +242,8 @@ impl<'tcx> Candidate<'tcx> {
         let ty::Adt(vector_def, arguments) = vector.kind() else {
             return None;
         };
+
+        // An arbitrary ADT does not establish the vector ownership contract this lint models.
         if !cx.tcx.is_diagnostic_item(sym::Vec, vector_def.did()) {
             return None;
         }
@@ -262,27 +264,27 @@ impl<'tcx> Candidate<'tcx> {
             && expected
                 .iter()
                 .zip(actual.iter())
-                .all(|(expected, actual)| {
-                    match (expected.as_type(), actual.as_type()) {
-                        (Some(expected), Some(actual)) => {
-                            return Self::same_type_shape(expected, actual);
-                        }
-                        (Some(_), None) | (None, Some(_)) => return false,
-                        (None, None) => {}
-                    }
-                    match (expected.as_const(), actual.as_const()) {
-                        (Some(expected), Some(actual)) => match (expected.kind(), actual.kind()) {
-                            (ty::ConstKind::Param(expected), ty::ConstKind::Param(actual)) => {
-                                expected.index == actual.index
-                            }
-                            _ => expected == actual,
-                        },
+                .all(
+                    |(expected, actual)| match (expected.as_type(), actual.as_type()) {
+                        (Some(expected), Some(actual)) => Self::same_type_shape(expected, actual),
                         (Some(_), None) | (None, Some(_)) => false,
-                        (None, None) => {
-                            expected == actual || (expected.has_param() && actual.has_param())
-                        }
-                    }
-                })
+                        (None, None) => match (expected.as_const(), actual.as_const()) {
+                            (Some(expected), Some(actual)) => {
+                                match (expected.kind(), actual.kind()) {
+                                    (
+                                        ty::ConstKind::Param(expected),
+                                        ty::ConstKind::Param(actual),
+                                    ) => expected.index == actual.index,
+                                    _ => expected == actual,
+                                }
+                            }
+                            (Some(_), None) | (None, Some(_)) => false,
+                            (None, None) => {
+                                expected == actual || (expected.has_param() && actual.has_param())
+                            }
+                        },
+                    },
+                )
     }
 
     /// Compares generic instantiations while treating same-position parameters as alpha-equivalent.
@@ -361,6 +363,7 @@ impl<'tcx> Candidate<'tcx> {
             return CandidateWrapperState::Missing;
         };
 
+        // A canonical name occupied by a non-struct cannot be reused as the collection wrapper.
         let ItemKind::Struct(_, _, fields) = item.kind else {
             return CandidateWrapperState::Conflicting;
         };
@@ -514,6 +517,7 @@ struct Violation {
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
+        // A conflicting canonical name requires guidance that does not prescribe that name.
         if self.has_conflicting_wrapper {
             return Cow::Owned(format!(
                 "free function `{}` needs a dedicated collection wrapper for `{}`",

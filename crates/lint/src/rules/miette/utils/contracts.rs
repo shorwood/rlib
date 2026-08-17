@@ -76,6 +76,8 @@ impl DiagnosticFieldRoles {
                     }
                     Ok(())
                 });
+
+                // Preserve recognized roles when malformed nested metadata stops parsing.
                 if parsing.is_err() {
                     return roles;
                 }
@@ -133,9 +135,12 @@ impl DiagnosticField {
 
     /// Resolves a local field subject through transparent standard pointer wrappers.
     fn local_target(cx: &LateContext<'_>, ty: Ty<'_>) -> Option<LocalDefId> {
+        // Only algebraic types can name local diagnostics or transparent containers.
         let ty::Adt(definition, arguments) = ty.kind() else {
             return None;
         };
+
+        // A directly local definition is already the resolved diagnostic target.
         if let Some(local) = definition.did().as_local() {
             return Some(local);
         }
@@ -181,6 +186,7 @@ impl DiagnosticMetadata {
             .filter(|attribute| attribute.path().is_ident("diagnostic"))
         {
             let parsing = attribute.parse_nested_meta(|nested| {
+                // Transparent metadata is a flag and needs no value parsing.
                 if nested.path.is_ident("transparent") || nested.path.is_ident("is_transparent") {
                     metadata.is_transparent = true;
                     return Ok(());
@@ -208,6 +214,8 @@ impl DiagnosticMetadata {
                 }
                 Ok(())
             });
+
+            // Preserve metadata recognized before malformed nested syntax stopped parsing.
             if parsing.is_err() {
                 return metadata;
             }
@@ -256,11 +264,13 @@ impl DiagnosticContract {
     /// Builds a diagnostic contract from an authored enum declaration.
     fn from_enum(cx: &LateContext<'_>, item: &Item<'_>, source: &str) -> Option<Self> {
         // Confirm the HIR and authored source both describe an enum.
+        // Other HIR item kinds cannot supply variant-level diagnostic contracts.
         let ItemKind::Enum(identifier, _, definition) = item.kind else {
             return None;
         };
         let enumeration = match syn::parse_str::<syn::ItemEnum>(source) {
             Ok(enumeration) => enumeration,
+            // Unparseable authored enum text cannot be correlated with HIR variants.
             Err(_error) => return None,
         };
 
@@ -327,6 +337,7 @@ impl DiagnosticCatalog {
     /// Records the target of a Miette-generated `Diagnostic` implementation.
     fn record_generated_impl(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Macro provenance distinguishes a real derive from unrelated implementations.
+        // Retain only implementation expansions produced by Miette's diagnostic derive.
         if !matches!(item.kind, ItemKind::Impl(_))
             || !item.span.macro_backtrace().any(|expansion| {
                 expansion.macro_def_id.is_some_and(|definition| {
@@ -338,6 +349,7 @@ impl DiagnosticCatalog {
             return;
         }
 
+        // Generated implementations without a local algebraic target provide no catalog key.
         let Some(definition) = cx
             .tcx
             .type_of(item.owner_id)
@@ -352,16 +364,20 @@ impl DiagnosticCatalog {
 
     /// Records authored diagnostic types and generated derive evidence.
     pub fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
+        // Expanded items contribute derive provenance rather than authored contracts.
         if item.span.from_expansion() {
             self.record_generated_impl(cx, item);
             return;
         }
+
+        // Missing authored source prevents attribute and field correlation.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
 
         let contract = match item.kind {
             ItemKind::Struct(identifier, _, data) => {
+                // Unparseable struct text cannot provide authored diagnostic metadata.
                 let Ok(structure) = syn::parse_str::<syn::ItemStruct>(&source) else {
                     return;
                 };
@@ -374,11 +390,13 @@ impl DiagnosticCatalog {
                 }
             }
             ItemKind::Enum(..) => {
+                // Invalid enum contracts cannot enter the derived diagnostic catalog.
                 let Some(contract) = DiagnosticContract::from_enum(cx, item, &source) else {
                     return;
                 };
                 contract
             }
+            // Other declarations cannot derive a nominal diagnostic contract.
             _ => return,
         };
 

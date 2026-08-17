@@ -173,6 +173,7 @@ impl<'tcx> LateLintPass<'tcx> for AmbiguousPrimitiveParameters {
         _: Span,
         def_id: LocalDefId,
     ) {
+        // Bodies without an eligible parameter signature expose no primitive-role ambiguity.
         let Some(signature) = ParameterSignature::from_body(cx, kind, body, def_id) else {
             return;
         };
@@ -181,6 +182,7 @@ impl<'tcx> LateLintPass<'tcx> for AmbiguousPrimitiveParameters {
     }
 
     fn check_trait_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx TraitItem<'tcx>) {
+        // Trait items without a required signature expose no authored parameter contract.
         let Some(signature) = ParameterSignature::from_required_trait(cx, item) else {
             return;
         };

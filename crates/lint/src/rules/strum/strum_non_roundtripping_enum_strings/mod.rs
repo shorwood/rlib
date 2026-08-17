@@ -39,6 +39,7 @@ impl Violation {
         .into_iter()
         .any(|derive| contract.derives(derive));
 
+        // Round-trip analysis requires both generated parsing and a generated string form.
         if !contract.derives(StrumDerive::EnumString) || !has_output {
             return Vec::new();
         }

@@ -52,9 +52,13 @@ impl LoopBodyExt for Block<'_> {
         let mut current = self.hir_id;
         loop {
             let parent = cx.tcx.parent_hir_id(current);
+
+            // Reaching a self-parent means the walk escaped without finding a loop boundary.
             if parent == current {
                 return false;
             }
+
+            // The first structural loop relation determines whether this is the direct body.
             if let Some(is_direct) = LoopBodyRelation::parent(cx, parent, self) {
                 return is_direct;
             }

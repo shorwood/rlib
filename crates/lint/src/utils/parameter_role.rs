@@ -70,6 +70,8 @@ pub(super) fn parameter_role_names_are_conventional(
     {
         return true;
     }
+
+    // Non-text parameters cannot use the generic text-role vocabulary below.
     if kind != ParameterKind::Text {
         return false;
     }

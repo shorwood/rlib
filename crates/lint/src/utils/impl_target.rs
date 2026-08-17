@@ -29,6 +29,8 @@ impl ImplTargetExt for Item<'_> {
 
         // Resolve the implementation target through aliases before checking its kind.
         let self_type = cx.tcx.type_of(self.owner_id).instantiate_identity();
+
+        // Non-ADT targets cannot resolve to a concrete struct declaration.
         let ty::Adt(adt, _) = self_type.kind() else {
             return None;
         };

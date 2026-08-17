@@ -172,6 +172,8 @@ impl<'tcx> LateLintPass<'tcx> for ConstructorLikeFreeFunctions {
         self.constructions
             .record_function(cx, kind, body, span, def_id);
         self.collections.record_function(cx, kind, body, def_id);
+
+        // Only recognized construction functions contribute conversion evidence.
         let Some(candidate) = self.constructions.candidate(def_id) else {
             return;
         };
@@ -215,15 +217,21 @@ impl ConstructorLikeFreeFunctions {
         let Node::Item(item) = cx.tcx.hir_node_by_def_id(def_id) else {
             return None;
         };
+
+        // Non-implementation items cannot supply an inherent construction owner.
         let ItemKind::Impl(implementation) = item.kind else {
             return None;
         };
+
+        // Trait implementations follow an external ownership contract and cannot receive the move.
         if implementation.of_trait.is_some() {
             return None;
         }
 
         // Resolve aliases to the implementation's local nominal target.
         let self_type = cx.tcx.type_of(def_id).instantiate_identity();
+
+        // Non-ADT self types have no nominal declaration that can own the constructor.
         let ty::Adt(definition, _) = self_type.kind() else {
             return None;
         };
@@ -327,9 +335,13 @@ impl ConstructorLikeFreeFunctions {
         let candidate_file = source_map.span_to_filename(candidate.function.item_span);
         let mut edits = Vec::new();
         let references = analysis.function_uses.get(&candidate.function.def_id);
+
+        // Every reference must remain disjoint, authored, and in the definition's source file.
         for span in references.into_iter().flatten() {
             // Reject overlaps, expansions, and cross-file paths before building an edit.
             let overlaps_definition = candidate.function.item_span.contains(*span);
+
+            // One unsafe reference invalidates the migration's all-or-nothing edit set.
             if overlaps_definition
                 || span.from_expansion()
                 || source_map.span_to_filename(*span) != candidate_file
@@ -352,6 +364,8 @@ impl ConstructorLikeFreeFunctions {
         candidate: &ConstructionCandidate,
     ) -> Option<String> {
         let source_map = cx.sess().source_map();
+
+        // Missing authored function text prevents a complete mechanical relocation.
         let Ok(function) = source_map.span_to_snippet(candidate.function.item_span) else {
             return None;
         };
@@ -370,6 +384,8 @@ impl ConstructorLikeFreeFunctions {
             return None;
         }
         let preceding = Self::preceding_target_item(cx, analysis, candidate)?;
+
+        // Comments or other syntax in the ownership gap make automatic wrapping unsafe.
         if !Self::gap_is_whitespace(cx, preceding.span, candidate.function.item_span) {
             return None;
         }

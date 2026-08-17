@@ -49,6 +49,8 @@ impl ComponentProps {
             .tcx
             .impl_opt_trait_ref(item.owner_id.def_id)?
             .instantiate_identity();
+
+        // Implementations of other traits are unrelated to generated component properties.
         if cx.tcx.crate_name(trait_ref.def_id.krate).as_str() != "leptos"
             || cx.tcx.item_name(trait_ref.def_id).as_str() != "Props"
         {
@@ -57,6 +59,8 @@ impl ComponentProps {
 
         // Recover the generated props type and its concrete field arguments.
         let self_ty = cx.tcx.type_of(item.owner_id.def_id).instantiate_identity();
+
+        // A non-aggregate self type cannot represent a generated props structure.
         let ty::Adt(definition, arguments) = self_ty.kind() else {
             return None;
         };
@@ -71,10 +75,14 @@ impl ComponentProps {
 
         // Resolve the authored function body and align generated fields with its parameters.
         let owner = Self::component_owner(cx, definition.did(), component_name.as_str())?;
+
+        // A recovered owner without a function body cannot supply authored prop parameters.
         let ItemKind::Fn { body, .. } = owner.kind else {
             return None;
         };
         let parameters = cx.tcx.hir_body(body).params;
+
+        // Unequal generated fields and authored parameters make positional alignment unsafe.
         if definition.all_fields().count() != parameters.len() {
             return None;
         }
@@ -98,6 +106,8 @@ impl ComponentProps {
         if ty.is_bool() {
             return true;
         }
+
+        // Non-aggregate types cannot be one of the accepted boolean-state wrappers.
         let ty::Adt(definition, arguments) = ty.kind() else {
             return false;
         };
@@ -155,6 +165,8 @@ impl ComponentProps {
             .to_local_def_id();
         cx.tcx.hir_free_items().find_map(|item_id| {
             let item = cx.tcx.hir_item(item_id);
+
+            // Non-function free items cannot be the generated component body owner.
             let ItemKind::Fn { .. } = item.kind else {
                 return None;
             };

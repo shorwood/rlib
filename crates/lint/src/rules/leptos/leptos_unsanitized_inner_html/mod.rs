@@ -80,6 +80,8 @@ impl LeptosUnsanitizedInnerHtml {
     fn is_inner_html(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
         // Accept only standard conversion methods that preserve already-static markup.
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+
+        // Unresolved methods cannot establish the semantic inner HTML operation.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -99,9 +101,13 @@ impl LeptosUnsanitizedInnerHtml {
     /// Returns whether a resolved value is an ordinary owned or borrowed string.
     fn is_raw_text(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
         let ty = ty.peel_refs();
+
+        // Borrowed string slices are ordinary untrusted runtime text.
         if matches!(ty.kind(), ty::Str) {
             return true;
         }
+
+        // Nonalgebraic values cannot be the owned string type.
         let ty::Adt(definition, _) = ty.kind() else {
             return false;
         };
@@ -111,21 +117,27 @@ impl LeptosUnsanitizedInnerHtml {
 
     /// Accepts static authored markup whose complete content is visible at the call site.
     fn is_static_markup(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // A literal string exposes its complete markup for local review.
         if matches!(expression.kind, ExprKind::Lit(literal) if matches!(literal.node, LitKind::Str(..)))
         {
             return true;
         }
 
         // Peel one zero-argument conversion applied to recursively static markup.
+        // Other expression shapes may compute runtime text.
         let ExprKind::MethodCall(_, input, [], _) = expression.kind else {
             return false;
         };
+
+        // Converting dynamic input does not make its markup statically auditable.
         if !Self::is_static_markup(cx, input) {
             return false;
         }
 
         // Resolve whether the conversion is a standard owned-string operation.
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+
+        // Unresolved conversions cannot prove that the static text is preserved.
         let Some(method) = cx
             .tcx
             .typeck(owner)
@@ -135,6 +147,7 @@ impl LeptosUnsanitizedInnerHtml {
         };
 
         // Accept conversions resolved to the standard allocation traits only.
+        // These conversions preserve the already-audited literal content exactly.
         if let Some(trait_id) = cx.tcx.trait_of_assoc(method)
             && matches!(
                 (
@@ -156,13 +169,17 @@ impl LeptosUnsanitizedInnerHtml {
         cx: &LateContext<'tcx>,
         expression: &'tcx Expr<'tcx>,
     ) -> &'tcx Expr<'tcx> {
+        // Only a single-argument call can be the macro's attribute-value conversion.
         let ExprKind::Call(callee, [value]) = expression.kind else {
             return expression;
         };
+
+        // Indirect callees cannot identify the inserted conversion operation.
         let ExprKind::Path(path) = callee.kind else {
             return expression;
         };
 
+        // Unresolved paths cannot be matched to the attribute conversion trait.
         let Res::Def(_, method) = cx.qpath_res(&path, callee.hir_id) else {
             return expression;
         };
@@ -194,15 +211,20 @@ impl LeptosUnsanitizedInnerHtml {
 
 impl<'tcx> LateLintPass<'tcx> for LeptosUnsanitizedInnerHtml {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
+        // Raw HTML assignment must be expressed as a method call.
         let ExprKind::MethodCall(_, _, arguments, _) = expression.kind else {
             return;
         };
+
+        // The semantic inner HTML operation accepts exactly one raw value.
         let [value] = arguments else {
             return;
         };
         let value = Self::authored_output(cx, value);
 
         let owner = cx.tcx.hir_enclosing_body_owner(value.hir_id);
+
+        // Emit only for dynamic ordinary text reaching the semantic raw HTML boundary.
         if !Self::is_inner_html(cx, expression)
             || Self::is_static_markup(cx, value)
             || !Self::is_raw_text(cx, cx.tcx.typeck(owner).expr_ty(value))

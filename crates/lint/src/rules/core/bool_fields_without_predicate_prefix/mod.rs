@@ -89,12 +89,16 @@ impl LateLintPass<'_> for BoolFieldsWithoutPredicatePrefix {
 
         // `check_field_def` also visits fields on enum variants, so restrict the lint to structs.
         let parent = cx.tcx.parent(field.def_id.to_def_id());
+
+        // Boolean fields outside structs are governed by their enclosing data shape.
         if cx.tcx.def_kind(parent) != DefKind::Struct {
             return;
         }
 
         // Ask the type context for the semantic type so aliases to `bool` are covered as well.
         let ty = cx.tcx.type_of(field.def_id).instantiate_identity();
+
+        // Non-boolean fields do not require predicate-style names.
         if !ty.is_bool() {
             return;
         }
@@ -105,6 +109,8 @@ impl LateLintPass<'_> for BoolFieldsWithoutPredicatePrefix {
             name.strip_prefix(prefix)
                 .is_some_and(|predicate| !predicate.is_empty() && !predicate.starts_with('_'))
         });
+
+        // Established predicate prefixes already communicate boolean semantics.
         if has_predicate_name {
             return;
         }

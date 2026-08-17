@@ -116,6 +116,7 @@ impl LateLintPass<'_> for MietteGenericDiagnosticHelp {
 impl MietteGenericDiagnosticHelp {
     /// Reports one configured generic phrase used as static help text.
     fn check_help(&self, cx: &LateContext<'_>, span: Span, help: Option<&str>) {
+        // Diagnostics without static help text expose no generic phrase.
         let Some(help) = help else {
             return;
         };

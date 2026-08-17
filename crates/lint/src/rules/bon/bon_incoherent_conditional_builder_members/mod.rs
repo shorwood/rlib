@@ -39,6 +39,7 @@ impl Violation {
     fn parameter_violation(cx: &EarlyContext<'_>, parameter: &Param) -> Option<Self> {
         let member = match cx.sess().source_map().span_to_snippet(parameter.pat.span) {
             Ok(member) => member,
+            // Missing parameter source prevents a meaningful member name in the diagnostic.
             Err(_error) => return None,
         };
         Self::conditional_policy(cx, &parameter.attrs).map(|span| Self {
@@ -53,12 +54,14 @@ impl Violation {
         attributes: &[rustc_ast::Attribute],
     ) -> Option<Span> {
         attributes.iter().find_map(|attribute| {
+            // Attributes outside `cfg_attr` cannot vary builder policy by configuration.
             if BonAttributeAnalysis::name(attribute).is_none_or(|name| name.as_str() != "cfg_attr")
             {
                 return None;
             }
             let source = match BonAttributeAnalysis::source(cx, attribute) {
                 Ok(source) => source,
+                // Missing attribute source prevents inspection of its conditional payload.
                 Err(_error) => return None,
             };
             Self::builder_payload_changes_contract(&source).then_some(attribute.span)
@@ -126,6 +129,7 @@ struct BonIncoherentConditionalBuilderMembers;
 impl BonIncoherentConditionalBuilderMembers {
     /// Checks every parameter on one free or associated builder function.
     fn check_function(cx: &EarlyContext<'_>, attributes: &[rustc_ast::Attribute], function: &Fn) {
+        // Functions outside the Bon builder contract have no conditional builder members.
         if BonAttributeAnalysis::builder(attributes).is_none() {
             return;
         }

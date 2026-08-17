@@ -86,6 +86,7 @@ impl BonNeedlessBuildersForSmallApis {
 
     /// Counts required parameters when their direct call remains unambiguous.
     fn required_distinct_parameters(cx: &EarlyContext<'_>, inputs: &[Param]) -> Option<usize> {
+        // Empty and larger signatures are respectively trivial or benefit from named setters.
         if inputs.is_empty() || inputs.len() > Self::MAXIMUM_SIMPLE_PARAMETERS {
             return None;
         }
@@ -93,8 +94,10 @@ impl BonNeedlessBuildersForSmallApis {
         let source_map = cx.sess().source_map();
         let mut types = Vec::with_capacity(inputs.len());
         for parameter in inputs {
+            // Unavailable type syntax prevents comparison of the direct call's parameter roles.
             let ty = match source_map.span_to_snippet(parameter.ty.span) {
                 Ok(ty) => ty,
+                // A snippet failure leaves no authored type spelling to compare.
                 Err(_error) => return None,
             };
             types.push(ty);
@@ -140,9 +143,12 @@ impl BonNeedlessBuildersForSmallApis {
         function: &Fn,
         owner: CallableOwner,
     ) {
+        // Any explicit visibility places the callable outside this private-API policy.
         if !matches!(visibility.kind, VisibilityKind::Inherited) {
             return;
         }
+
+        // Functions without a plain Bon builder attribute expose no removable builder layer.
         let Some(span) = BonAttributeAnalysis::plain_builder(cx, attributes) else {
             return;
         };
@@ -156,6 +162,8 @@ impl BonNeedlessBuildersForSmallApis {
         } else {
             inputs
         };
+
+        // Optional, repeated, ambiguous, or larger inputs still benefit from named setters.
         let Some(parameter_count) = Self::required_distinct_parameters(cx, inputs) else {
             return;
         };

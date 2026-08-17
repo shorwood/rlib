@@ -113,9 +113,12 @@ dylint_linting::impl_pre_expansion_lint! {
 
 impl EarlyLintPass for BonSkippedBuilderMembersWithoutPolicy {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
+        // Non-struct items expose no builder fields to skip.
         let ItemKind::Struct(_, _, data) = &item.kind else {
             return;
         };
+
+        // Structs without a derived builder have no generated member surface.
         if !BonAttributeAnalysis::derives_builder(cx, &item.attrs) {
             return;
         }

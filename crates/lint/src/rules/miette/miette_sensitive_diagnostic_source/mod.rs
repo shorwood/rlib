@@ -95,6 +95,8 @@ impl MietteSensitiveDiagnosticSource {
     /// Matches exact and qualified sensitive field names.
     fn sensitive_name(name: &str) -> bool {
         let name = name.strip_prefix("r#").unwrap_or(name).to_ascii_lowercase();
+
+        // Explicit redaction vocabulary marks the source as intentionally sanitized.
         if name
             .split('_')
             .any(|component| matches!(component, "masked" | "redacted" | "sanitized" | "scrubbed"))

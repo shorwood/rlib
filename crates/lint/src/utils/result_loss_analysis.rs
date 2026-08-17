@@ -34,6 +34,8 @@ impl<'tcx> ResultContract<'tcx> {
         let ty::Adt(definition, arguments) = expression_type.peel_refs().kind() else {
             return None;
         };
+
+        // Other ADTs do not carry the standard success-and-error contract.
         if !cx.tcx.is_diagnostic_item(sym::Result, definition.did()) {
             return None;
         }
@@ -158,6 +160,7 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
         loop {
             match value.kind {
                 ExprKind::Block(block, _) if block.stmts.is_empty() => {
+                    // A block without a tail expression cannot transparently yield a value.
                     let Some(inner) = block.expr else {
                         return value;
                     };
@@ -177,6 +180,8 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
     /// Returns whether an expression has the standard `Option` type.
     pub(crate) fn is_option_value(&self, expression: &Expr<'_>) -> bool {
         let expression_type = self.cx.typeck_results().expr_ty(expression).peel_refs();
+
+        // Only ADTs can resolve to the standard `Option` definition.
         let ty::Adt(definition, _) = expression_type.kind() else {
             return false;
         };
@@ -195,6 +200,8 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
         let ExprKind::MethodCall(segment, receiver, arguments, _) = expression.kind else {
             return None;
         };
+
+        // A different method name cannot erase failure through this operation.
         if segment.ident.name.as_str() != operation.name() {
             return None;
         }
@@ -215,9 +222,12 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
 
     /// Resolves a direct call expression to the invoked definition.
     fn resolved_path_definition(&self, expression: &Expr<'_>) -> Option<DefId> {
+        // Only direct paths can resolve an invoked function definition.
         let ExprKind::Path(path) = expression.kind else {
             return None;
         };
+
+        // Only function definitions can serve as direct call targets.
         let Res::Def(DefKind::Fn | DefKind::AssocFn, definition) =
             self.cx.qpath_res(&path, expression.hir_id)
         else {
@@ -230,9 +240,13 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
     pub(crate) fn is_default_value(&self, expression: &Expr<'_>) -> bool {
         // Resolve a direct zero-argument associated function call.
         let value = Self::direct_closure_value(expression);
+
+        // Default values must be constructed by a zero-argument call.
         let ExprKind::Call(callee, []) = value.kind else {
             return false;
         };
+
+        // The callee must resolve to a function definition.
         let Some(definition) = self.resolved_path_definition(callee) else {
             return false;
         };
@@ -248,10 +262,13 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
 
     /// Recognizes an explicit call to standard `drop` with a Result argument.
     pub(crate) fn dropped_result(&self, expression: &Expr<'_>) -> Option<ResultContract<'tcx>> {
+        // Explicit disposal requires a one-argument call expression.
         let ExprKind::Call(callee, [argument]) = expression.kind else {
             return None;
         };
         let definition = self.resolved_path_definition(callee)?;
+
+        // Only the standard `drop` operation intentionally discards a result.
         if !self.cx.tcx.is_diagnostic_item(sym::mem_drop, definition) {
             return None;
         }
@@ -272,6 +289,7 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
 
     /// Returns whether a closure statement explicitly disposes of its error binding.
     fn discards_binding(&self, statement: &Stmt<'_>, binding: HirId) -> bool {
+        // A wildcard binding discards the error when initialized from that binding.
         if let StmtKind::Let(local) = statement.kind
             && matches!(local.pat.kind, PatKind::Wild)
         {
@@ -279,9 +297,13 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
                 .init
                 .is_some_and(|initializer| self.is_binding_path(initializer, binding));
         }
+
+        // Other disposal forms must be expression statements.
         let (StmtKind::Expr(expression) | StmtKind::Semi(expression)) = statement.kind else {
             return false;
         };
+
+        // Explicit disposal must invoke `drop` with exactly one argument.
         let ExprKind::Call(callee, [argument]) = expression.kind else {
             return false;
         };
@@ -292,15 +314,19 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
 
     /// Returns whether a closure ignores its error and directly yields a default value.
     pub(crate) fn is_defaulting_closure(&self, expression: &Expr<'_>) -> bool {
+        // Defaulting behavior is meaningful only for a closure fallback.
         let ExprKind::Closure(closure) = expression.kind else {
             return false;
         };
         let body = self.cx.tcx.hir_body(closure.body);
+
+        // The fallback closure must receive exactly one error parameter.
         let [parameter] = body.params else {
             return false;
         };
         let (statements, value) = match body.value.kind {
             ExprKind::Block(block, _) => {
+                // A block fallback must end in the default value it yields.
                 let Some(value) = block.expr else {
                     return false;
                 };
@@ -308,6 +334,8 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
             }
             _ => (&[][..], Self::direct_closure_value(body.value)),
         };
+
+        // The closure must return a standard default value.
         if !self.is_default_value(value) {
             return false;
         }
@@ -326,6 +354,8 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
         let ExprKind::Path(path) = value.kind else {
             return false;
         };
+
+        // The path must resolve to a named definition before its variant is normalized.
         let Res::Def(kind, definition) = self.cx.qpath_res(&path, value.hir_id) else {
             return false;
         };
@@ -334,6 +364,8 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
         let variant = match kind {
             DefKind::Variant => definition,
             DefKind::Ctor(CtorOf::Variant, _) => self.cx.tcx.parent(definition),
+
+            // Other definitions cannot represent Option's absent variant.
             _ => return false,
         };
 
@@ -349,6 +381,8 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
     pub(crate) fn is_option_absence(&self, expression: &Expr<'_>) -> bool {
         // Accept a direct standard default expression for an option value.
         let value = Self::direct_closure_value(expression);
+
+        // A default value is absent only when it is itself an `Option`.
         if self.is_option_value(value) && self.is_default_value(value) {
             return true;
         }
@@ -359,15 +393,19 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
 
     /// Returns whether a closure directly yields Option absence without side-effect statements.
     pub(crate) fn is_option_absence_closure(&self, expression: &Expr<'_>) -> bool {
+        // Option absence must be produced by a fallback closure.
         let ExprKind::Closure(closure) = expression.kind else {
             return false;
         };
         let body = self.cx.tcx.hir_body(closure.body);
+
+        // The fallback closure must receive exactly one error parameter.
         let [parameter] = body.params else {
             return false;
         };
         let (statements, value) = match body.value.kind {
             ExprKind::Block(block, _) => {
+                // A block fallback must end in the absence value it yields.
                 let Some(value) = block.expr else {
                     return false;
                 };
@@ -375,6 +413,8 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
             }
             _ => (&[][..], Self::direct_closure_value(body.value)),
         };
+
+        // The closure result must be an explicit Option absence.
         if !self.is_option_absence(value) {
             return false;
         }
@@ -406,10 +446,13 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
 
     /// Returns whether an associated item belongs to standard result's inherent impl.
     fn is_result_inherent_method(&self, definition: DefId) -> bool {
+        // Associated items without an implementation cannot be inherent result methods.
         let Some(implementation) = self.cx.tcx.impl_of_assoc(definition) else {
             return false;
         };
         let self_type = self.cx.tcx.type_of(implementation).instantiate_identity();
+
+        // The implementation self type must be an ADT before it can be standard `Result`.
         let ty::Adt(result, _) = self_type.kind() else {
             return false;
         };
@@ -426,6 +469,8 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
         let parts = match expression.kind {
             ExprKind::MethodCall(..) => self.method_call_parts(expression, operation)?,
             ExprKind::Call(..) => self.ufcs_call_parts(expression)?,
+
+            // Other syntax cannot invoke an inherent result operation.
             _ => return None,
         };
 
