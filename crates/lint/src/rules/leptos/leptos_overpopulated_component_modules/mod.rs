@@ -15,10 +15,19 @@ use crate::rules::leptos::utils::component_architecture::{
 };
 use crate::utils::diagnostic::EarlyViolation;
 
+// -----------------------------------------------------------------------------
+// Violation: Component module population diagnostic
+// -----------------------------------------------------------------------------
+
+/// Authored module containing more component declarations than policy allows.
 struct Violation {
+    /// Representative component declaration highlighted by the diagnostic.
     span: Span,
+    /// Authored module name.
     name: String,
+    /// Number of authored components in the module.
     actual: usize,
+    /// Configured maximum components per module.
     maximum: usize,
 }
 
@@ -29,14 +38,17 @@ impl EarlyViolation for Violation {
             self.name, self.actual, self.maximum
         ))
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "crowded component modules blur ownership and make unrelated UI responsibilities change together",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("split the module along cohesive feature or visual responsibilities")
     }
+
     fn emit(self, cx: &EarlyContext<'_>) {
         let p = self.primary_message().into_owned();
         let r = self.rationale_message().into_owned();
@@ -53,8 +65,15 @@ impl EarlyViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// LeptosOverpopulatedComponentModules: Module cohesion policy
+// -----------------------------------------------------------------------------
+
+/// Rejects authored modules that own too many component declarations.
 struct LeptosOverpopulatedComponentModules {
+    /// Project thresholds governing component architecture.
     config: LeptosArchitectureConfig,
+    /// Authored Rust files accumulated across early lint callbacks.
     files: AuthoredFiles,
 }
 
@@ -68,17 +87,19 @@ impl EarlyLintPass for LeptosOverpopulatedComponentModules {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         self.files.observe_item(cx, item);
     }
+
     fn check_crate_post(&mut self, cx: &EarlyContext<'_>, _: &Crate) {
         for module in ArchitectureAnalysis::analyze(self.files.documents(cx)).modules {
-            if module.components > self.config.max_components_per_module {
-                Violation {
-                    span: module.span,
-                    name: module.name,
-                    actual: module.components,
-                    maximum: self.config.max_components_per_module,
-                }
-                .emit(cx);
+            if module.components <= self.config.max_components_per_module {
+                continue;
             }
+            Violation {
+                span: module.span,
+                name: module.name,
+                actual: module.components,
+                maximum: self.config.max_components_per_module,
+            }
+            .emit(cx);
         }
     }
 }

@@ -15,10 +15,19 @@ use crate::rules::leptos::utils::component_architecture::{
 };
 use crate::utils::diagnostic::EarlyViolation;
 
+// -----------------------------------------------------------------------------
+// Violation: Component composition depth diagnostic
+// -----------------------------------------------------------------------------
+
+/// Component that begins a local composition chain beyond the configured depth.
 struct Violation {
+    /// Component declaration highlighted by the diagnostic.
     span: Span,
+    /// Authored component name.
     name: String,
+    /// Deepest local component chain reachable from the component.
     depth: usize,
+    /// Configured maximum component-chain depth.
     maximum: usize,
 }
 
@@ -29,16 +38,19 @@ impl EarlyViolation for Violation {
             self.name, self.depth, self.maximum
         ))
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "long chains of single-purpose wrappers scatter one screen's structure across too many navigation hops",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "collapse pass-through layers or combine children that do not own an independent UI responsibility",
         )
     }
+
     fn emit(self, cx: &EarlyContext<'_>) {
         let p = self.primary_message().into_owned();
         let r = self.rationale_message().into_owned();
@@ -55,8 +67,15 @@ impl EarlyViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// LeptosExcessiveComponentCompositionDepth: Component graph policy
+// -----------------------------------------------------------------------------
+
+/// Rejects local component graphs whose composition chains exceed policy.
 struct LeptosExcessiveComponentCompositionDepth {
+    /// Project thresholds governing component architecture.
     config: LeptosArchitectureConfig,
+    /// Authored Rust files accumulated across early lint callbacks.
     files: AuthoredFiles,
 }
 
@@ -70,6 +89,7 @@ impl EarlyLintPass for LeptosExcessiveComponentCompositionDepth {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         self.files.observe_item(cx, item);
     }
+
     fn check_crate_post(&mut self, cx: &EarlyContext<'_>, _: &Crate) {
         let analysis = ArchitectureAnalysis::analyze(self.files.documents(cx));
         for finding in analysis.excessive_compositions(self.config.max_component_composition_depth)

@@ -15,11 +15,21 @@ use crate::rules::leptos::utils::component_architecture::{
 };
 use crate::utils::diagnostic::EarlyViolation;
 
+// -----------------------------------------------------------------------------
+// Violation: Event handler complexity diagnostic
+// -----------------------------------------------------------------------------
+
+/// Event handler whose statement count or control depth exceeds policy.
 struct Violation {
+    /// Authored handler expression highlighted by the diagnostic.
     span: Span,
+    /// Number of statements in the handler body.
     statements: usize,
+    /// Configured maximum handler statements.
     statement_limit: usize,
+    /// Maximum control-flow depth within the handler.
     depth: usize,
+    /// Configured maximum handler control-flow depth.
     depth_limit: usize,
 }
 
@@ -30,16 +40,19 @@ impl EarlyViolation for Violation {
             self.statements, self.depth, self.statement_limit, self.depth_limit
         ))
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "event bindings should declare intent while testable application logic lives behind a named operation",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "move the handler body into a named action or composable operation and keep the binding declarative",
         )
     }
+
     fn emit(self, cx: &EarlyContext<'_>) {
         let p = self.primary_message().into_owned();
         let r = self.rationale_message().into_owned();
@@ -56,8 +69,15 @@ impl EarlyViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// LeptosOversizedEventHandlers: Declarative event binding policy
+// -----------------------------------------------------------------------------
+
+/// Rejects complex handlers embedded directly in reactive UI ownership boundaries.
 struct LeptosOversizedEventHandlers {
+    /// Project thresholds governing component architecture.
     config: LeptosArchitectureConfig,
+    /// Authored Rust files accumulated across early lint callbacks.
     files: AuthoredFiles,
 }
 
@@ -71,24 +91,26 @@ impl EarlyLintPass for LeptosOversizedEventHandlers {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         self.files.observe_item(cx, item);
     }
+
     fn check_crate_post(&mut self, cx: &EarlyContext<'_>, _: &Crate) {
-        for f in ArchitectureAnalysis::analyze(self.files.documents(cx)).functions {
-            if !f.is_reactive_owner() {
+        for function in ArchitectureAnalysis::analyze(self.files.documents(cx)).functions {
+            if !function.is_reactive_owner() {
                 continue;
             }
-            for handler in f.handlers {
-                if handler.statements > self.config.max_handler_statements
-                    || handler.control_depth > self.config.max_handler_control_flow_depth
+            for handler in function.handlers {
+                if handler.statements <= self.config.max_handler_statements
+                    && handler.control_depth <= self.config.max_handler_control_flow_depth
                 {
-                    Violation {
-                        span: handler.span,
-                        statements: handler.statements,
-                        statement_limit: self.config.max_handler_statements,
-                        depth: handler.control_depth,
-                        depth_limit: self.config.max_handler_control_flow_depth,
-                    }
-                    .emit(cx);
+                    continue;
                 }
+                Violation {
+                    span: handler.span,
+                    statements: handler.statements,
+                    statement_limit: self.config.max_handler_statements,
+                    depth: handler.control_depth,
+                    depth_limit: self.config.max_handler_control_flow_depth,
+                }
+                .emit(cx);
             }
         }
     }

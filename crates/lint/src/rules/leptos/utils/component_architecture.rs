@@ -23,16 +23,27 @@ use crate::utils::config::LibraryConfig;
 #[derive(Clone, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct LeptosArchitectureConfig {
+    /// Maximum non-tail statements allowed before a component view.
     pub(crate) max_setup_statements: usize,
+    /// Maximum reactive primitive constructions allowed in one function.
     pub(crate) max_reactive_primitives: usize,
+    /// Maximum statements allowed in one event handler.
     pub(crate) max_handler_statements: usize,
+    /// Maximum nested control-flow constructs allowed in one event handler.
     pub(crate) max_handler_control_flow_depth: usize,
+    /// Maximum nested RSX element depth allowed in one view.
     pub(crate) max_view_nesting_depth: usize,
+    /// Maximum nested control-flow constructs allowed in one view expression.
     pub(crate) max_view_control_depth: usize,
+    /// Maximum local component call-chain depth allowed from one root.
     pub(crate) max_component_composition_depth: usize,
+    /// Maximum non-children properties allowed on one component.
     pub(crate) max_component_props: usize,
+    /// Maximum component functions allowed in one authored module.
     pub(crate) max_components_per_module: usize,
+    /// Minimum normalized node count for a repeated-fragment candidate.
     pub(crate) min_repeated_fragment_nodes: usize,
+    /// Minimum occurrences required to report a repeated fragment.
     pub(crate) min_repeated_fragment_occurrences: usize,
 }
 
@@ -80,80 +91,234 @@ impl LeptosArchitectureConfig {
 }
 
 // -----------------------------------------------------------------------------
-// ArchitectureAnalysis: Shared authored-source model
+// HandlerAnalysis: Event handler complexity evidence
 // -----------------------------------------------------------------------------
 
 /// One event handler found in a view attribute or `Callback::new` expression.
 pub struct HandlerAnalysis {
+    /// Authored span of the handler closure.
     pub(crate) span: Span,
+    /// Number of statements in the handler body.
     pub(crate) statements: usize,
+    /// Deepest nested control-flow construct in the handler body.
     pub(crate) control_depth: usize,
 }
 
+// -----------------------------------------------------------------------------
+// FragmentAnalysis: Internal normalized view fragment evidence
+// -----------------------------------------------------------------------------
+
 /// One normalized view subtree that is large enough to become a clone candidate.
-pub struct FragmentAnalysis {
-    pub(crate) span: Span,
-    pub(crate) fingerprint: String,
-    pub(crate) nodes: usize,
-    pub(crate) owner: String,
+struct FragmentAnalysis {
+    /// Authored span of the candidate subtree.
+    span: Span,
+    /// Binding- and literal-independent subtree representation.
+    fingerprint: String,
+    /// Number of normalized nodes in the subtree.
+    nodes: usize,
+    /// Fully qualified function name containing the subtree.
+    owner: String,
+    /// Source byte range used to reject overlapping candidates.
     range: Range<usize>,
 }
 
+// -----------------------------------------------------------------------------
+// FunctionAnalysis: Authored function architecture evidence
+// -----------------------------------------------------------------------------
+
 /// Source facts about one authored function.
 pub struct FunctionAnalysis {
+    /// Function identifier used to resolve local calls.
     pub(crate) name: String,
+    /// Authored span of the function identifier.
     pub(crate) span: Span,
+    /// Whether the function is annotated as a Leptos component or island.
     pub(crate) is_component: bool,
-    pub(crate) is_composable: bool,
+    /// Whether the function follows the `use_` composable naming convention.
+    is_composable: bool,
+    /// Number of statements before the function's tail expression.
     pub(crate) setup_statements: usize,
+    /// Spans of reactive primitive constructions in the function.
     pub(crate) reactive_primitives: Vec<Span>,
+    /// Event handlers declared or referenced by the function's view.
     pub(crate) handlers: Vec<HandlerAnalysis>,
+    /// Spans of local task-spawning calls in the function.
     pub(crate) spawned_tasks: Vec<Span>,
+    /// Deepest nested RSX element in the function's view.
     pub(crate) max_view_depth: usize,
+    /// Deepest control-flow expression in the function's view.
     pub(crate) max_view_control_depth: usize,
-    pub(crate) component_calls: BTreeSet<String>,
-    pub(crate) function_calls: BTreeSet<String>,
+    /// Component names invoked from the function's view.
+    component_calls: BTreeSet<String>,
+    /// Function names invoked from the function body.
+    function_calls: BTreeSet<String>,
+    /// Number of non-children component parameters.
     pub(crate) props: usize,
 }
 
 impl FunctionAnalysis {
+    /// Collects architecture facts from one authored function.
+    fn analyze(
+        document: &SourceDocument,
+        offsets: &SourceOffsets,
+        aliases: &BTreeSet<String>,
+        function: &ItemFn,
+        module: &str,
+        fragments: &mut Vec<FragmentAnalysis>,
+    ) -> Self {
+        let name = function.sig.ident.to_string();
+        let is_component = function.attrs.iter().any(|attribute| {
+            attribute.path().segments.last().is_some_and(|segment| {
+                matches!(segment.ident.to_string().as_str(), "component" | "island")
+            })
+        });
+        let is_composable = name.starts_with("use_");
+        let closures = named_closures(&function.block.stmts);
+        let owner = format!("{module}::{name}");
+        let mut collector = FunctionCollector {
+            document,
+            offsets,
+            aliases,
+            closures,
+            owner: &owner,
+            reactive_primitives: Vec::new(),
+            handlers: Vec::new(),
+            handler_ranges: BTreeSet::new(),
+            spawned_tasks: Vec::new(),
+            max_view_depth: 0,
+            max_view_control_depth: 0,
+            component_calls: BTreeSet::new(),
+            function_calls: BTreeSet::new(),
+            fragments,
+        };
+        collector.visit_block(&function.block);
+        let setup_statements = function
+            .block
+            .stmts
+            .len()
+            .saturating_sub(usize::from(matches!(
+                function.block.stmts.last(),
+                Some(Stmt::Expr(_, None))
+            )));
+        let props = function
+            .sig
+            .inputs
+            .iter()
+            .filter(|argument| match argument {
+                FnArg::Receiver(_) => false,
+                FnArg::Typed(argument) => {
+                    let ty = argument.ty.to_token_stream().to_string().replace(' ', "");
+                    let name = match argument.pat.as_ref() {
+                        Pat::Ident(ident) => ident.ident.to_string(),
+                        _ => String::new(),
+                    };
+                    name != "children"
+                        && !ty
+                            .split("::")
+                            .last()
+                            .is_some_and(|ty| ty.starts_with("Children"))
+                }
+            })
+            .count();
+        Self {
+            name,
+            span: document.span(offsets.range(function.sig.ident.span())),
+            is_component,
+            is_composable,
+            setup_statements,
+            reactive_primitives: collector.reactive_primitives,
+            handlers: collector.handlers,
+            spawned_tasks: collector.spawned_tasks,
+            max_view_depth: collector.max_view_depth,
+            max_view_control_depth: collector.max_view_control_depth,
+            component_calls: collector.component_calls,
+            function_calls: collector.function_calls,
+            props,
+        }
+    }
+
+    /// Returns whether the function owns a reactive scope by convention.
     pub(crate) const fn is_reactive_owner(&self) -> bool {
         self.is_component || self.is_composable
     }
 }
 
+// -----------------------------------------------------------------------------
+// ModuleAnalysis: Authored module component-density evidence
+// -----------------------------------------------------------------------------
+
 /// A module containing more authored component entry points than policy permits.
 pub struct ModuleAnalysis {
+    /// Fully qualified authored module name.
     pub(crate) name: String,
+    /// Span of the module's first component.
     pub(crate) span: Span,
+    /// Number of direct component functions in the module.
     pub(crate) components: usize,
 }
 
+// -----------------------------------------------------------------------------
+// UnnamedComposableAnalysis: Reactive helper naming evidence
+// -----------------------------------------------------------------------------
+
 /// One helper that performs reactive work without composable naming.
 pub struct UnnamedComposableAnalysis {
+    /// Authored helper name.
     pub(crate) name: String,
+    /// Authored span of the helper identifier.
     pub(crate) span: Span,
 }
+
+// -----------------------------------------------------------------------------
+// CompositionAnalysis: Component call-chain depth evidence
+// -----------------------------------------------------------------------------
 
 /// One root component whose local composition chain exceeds policy.
 pub struct CompositionAnalysis {
+    /// Root component name.
     pub(crate) name: String,
+    /// Authored span of the root component identifier.
     pub(crate) span: Span,
+    /// Deepest component call chain reachable from the root.
     pub(crate) depth: usize,
 }
 
+// -----------------------------------------------------------------------------
+// RepeatedFragment: Repeated normalized subtree evidence and policy
+// -----------------------------------------------------------------------------
+
 /// One repeated maximal view fragment after literal and binding normalization.
 pub struct RepeatedFragmentAnalysis {
+    /// Authored span of the later repeated fragment.
     pub(crate) span: Span,
+    /// Authored span of the first matching fragment.
     pub(crate) first_span: Span,
+    /// Number of normalized nodes in the fragment.
     pub(crate) nodes: usize,
+    /// Number of nonoverlapping occurrences in the clone group.
     pub(crate) occurrences: usize,
 }
 
+/// Named thresholds for repeated view-fragment detection.
+#[derive(Clone, Copy)]
+pub struct RepeatedFragmentPolicy {
+    /// Minimum normalized node count for a candidate fragment.
+    pub(crate) minimum_nodes: usize,
+    /// Minimum nonoverlapping occurrences required for a finding.
+    pub(crate) minimum_occurrences: usize,
+}
+
+// -----------------------------------------------------------------------------
+// ArchitectureAnalysis: Crate-wide authored-source query model
+// -----------------------------------------------------------------------------
+
 /// Complete crate-wide evidence reused by every architecture policy.
 pub struct ArchitectureAnalysis {
+    /// Facts collected from every authored function.
     pub(crate) functions: Vec<FunctionAnalysis>,
+    /// Component density facts collected from every authored module.
     pub(crate) modules: Vec<ModuleAnalysis>,
+    /// Internal normalized view fragments used for clone detection.
     fragments: Vec<FragmentAnalysis>,
 }
 
@@ -164,9 +329,12 @@ impl ArchitectureAnalysis {
         let mut modules = Vec::new();
         let mut fragments = Vec::new();
         for document in documents {
+            // A syntax error belongs to rustc; architecture findings require a complete source tree.
             let Ok(file) = syn::parse_file(&document.source) else {
                 continue;
             };
+
+            // Resolve file-local names and proc-macro coordinates before collecting evidence.
             let offsets = SourceOffsets::from(document.source.as_str());
             let aliases = spawn_aliases(&file.items);
             let root = document
@@ -175,6 +343,8 @@ impl ArchitectureAnalysis {
                 .and_then(|stem| stem.to_str())
                 .unwrap_or("crate")
                 .to_owned();
+
+            // Merge this authored file into the crate-wide query model.
             collect_items(
                 &document,
                 &offsets,
@@ -195,18 +365,15 @@ impl ArchitectureAnalysis {
 
     /// Resolves the local component graph and reports only roots of overlong chains.
     pub(crate) fn excessive_compositions(&self, maximum: usize) -> Vec<CompositionAnalysis> {
-        let components = unique_function_indices(
-            self.functions
-                .iter()
-                .enumerate()
-                .filter(|(_, function)| function.is_component),
-        );
+        let components =
+            FunctionGraph::unique_indices(&self.functions, |function| function.is_component);
         let mut incoming = vec![0usize; self.functions.len()];
         for function in &self.functions {
             for call in &function.component_calls {
-                if let Some(index) = components.get(call) {
-                    incoming[*index] += 1;
-                }
+                let Some(index) = components.get(call) else {
+                    continue;
+                };
+                incoming[*index] += 1;
             }
         }
         let mut memo = HashMap::new();
@@ -215,42 +382,50 @@ impl ArchitectureAnalysis {
             if !function.is_component {
                 continue;
             }
-            let depth = composition_depth(
+            let depth = FunctionGraph::composition_depth(
                 index,
                 &self.functions,
                 &components,
                 &mut memo,
                 &mut HashSet::new(),
             );
-            if depth > maximum && incoming[index] == 0 {
-                findings.push(CompositionAnalysis {
-                    name: function.name.clone(),
-                    span: function.span,
-                    depth,
-                });
+            if depth <= maximum || incoming[index] != 0 {
+                continue;
+            }
+            findings.push(CompositionAnalysis {
+                name: function.name.clone(),
+                span: function.span,
+                depth,
+            });
+        }
+
+        // A closed cycle has no root; retain one deterministic representative when it exceeds policy.
+        let mut cyclic_candidate = None::<CompositionCandidate<'_>>;
+        if findings.is_empty() {
+            for (index, function) in self.functions.iter().enumerate() {
+                if !function.is_component {
+                    continue;
+                }
+                let depth = FunctionGraph::composition_depth(
+                    index,
+                    &self.functions,
+                    &components,
+                    &mut memo,
+                    &mut HashSet::new(),
+                );
+                if depth <= maximum {
+                    continue;
+                }
+                let replaces_candidate = cyclic_candidate
+                    .as_ref()
+                    .is_none_or(|candidate| function.name < candidate.function.name);
+                if !replaces_candidate {
+                    continue;
+                }
+                cyclic_candidate = Some(CompositionCandidate { function, depth });
             }
         }
-        // A closed cycle has no root; retain one deterministic representative when it exceeds policy.
-        if findings.is_empty()
-            && let Some((index, function, depth)) = self
-                .functions
-                .iter()
-                .enumerate()
-                .filter(|(_, function)| function.is_component)
-                .map(|(index, function)| {
-                    let depth = composition_depth(
-                        index,
-                        &self.functions,
-                        &components,
-                        &mut memo,
-                        &mut HashSet::new(),
-                    );
-                    (index, function, depth)
-                })
-                .filter(|(_, _, depth)| *depth > maximum)
-                .min_by_key(|(_, function, _)| &function.name)
-        {
-            let _ = index;
+        if let Some(CompositionCandidate { function, depth }) = cyclic_candidate {
             findings.push(CompositionAnalysis {
                 name: function.name.clone(),
                 span: function.span,
@@ -262,7 +437,7 @@ impl ArchitectureAnalysis {
 
     /// Finds directly consumed reactive helpers whose names hide their lifecycle role.
     pub(crate) fn unnamed_composables(&self) -> Vec<UnnamedComposableAnalysis> {
-        let indices = unique_function_indices(self.functions.iter().enumerate());
+        let indices = FunctionGraph::unique_indices(&self.functions, |_| true);
         let mut reactive = self
             .functions
             .iter()
@@ -306,21 +481,21 @@ impl ArchitectureAnalysis {
     /// Groups maximal nonoverlapping normalized RSX clones and reports later occurrences.
     pub(crate) fn repeated_fragments(
         &self,
-        minimum_nodes: usize,
-        minimum_occurrences: usize,
+        policy: RepeatedFragmentPolicy,
     ) -> Vec<RepeatedFragmentAnalysis> {
         let mut groups: BTreeMap<&str, Vec<&FragmentAnalysis>> = BTreeMap::new();
         for fragment in &self.fragments {
-            if fragment.nodes >= minimum_nodes {
-                groups
-                    .entry(&fragment.fingerprint)
-                    .or_default()
-                    .push(fragment);
+            if fragment.nodes < policy.minimum_nodes {
+                continue;
             }
+            groups
+                .entry(&fragment.fingerprint)
+                .or_default()
+                .push(fragment);
         }
         let mut repeated = groups
             .into_values()
-            .filter(|group| group.len() >= minimum_occurrences)
+            .filter(|group| group.len() >= policy.minimum_occurrences)
             .collect::<Vec<_>>();
         repeated.sort_by(|left, right| {
             right[0]
@@ -344,7 +519,7 @@ impl ArchitectureAnalysis {
                         })
                 })
                 .collect::<Vec<_>>();
-            if available.len() < minimum_occurrences {
+            if available.len() < policy.minimum_occurrences {
                 continue;
             }
             let first = available[0];
@@ -367,225 +542,135 @@ impl ArchitectureAnalysis {
     }
 }
 
-fn unique_function_indices<'function>(
-    functions: impl Iterator<Item = (usize, &'function FunctionAnalysis)>,
-) -> BTreeMap<String, usize> {
-    let mut grouped: BTreeMap<String, Vec<usize>> = BTreeMap::new();
-    for (index, function) in functions {
-        grouped
-            .entry(function.name.clone())
-            .or_default()
-            .push(index);
-    }
-    grouped
-        .into_iter()
-        .filter_map(|(name, indices)| {
-            let [index] = indices.as_slice() else {
-                return None;
-            };
-            Some((name, *index))
-        })
-        .collect()
-}
+// -----------------------------------------------------------------------------
+// CompositionCandidate: Deterministic cyclic composition representative
+// -----------------------------------------------------------------------------
 
-fn composition_depth(
-    index: usize,
-    functions: &[FunctionAnalysis],
-    components: &BTreeMap<String, usize>,
-    memo: &mut HashMap<usize, usize>,
-    visiting: &mut HashSet<usize>,
-) -> usize {
-    if let Some(depth) = memo.get(&index) {
-        return *depth;
-    }
-    if !visiting.insert(index) {
-        return 1;
-    }
-    let child = functions[index]
-        .component_calls
-        .iter()
-        .filter_map(|name| components.get(name))
-        .map(|child| composition_depth(*child, functions, components, memo, visiting))
-        .max()
-        .unwrap_or(0);
-    visiting.remove(&index);
-    let depth = child + 1;
-    memo.insert(index, depth);
-    depth
+/// One overlong composition candidate used to choose a cyclic representative.
+struct CompositionCandidate<'analysis> {
+    /// Component whose call chain exceeds policy.
+    function: &'analysis FunctionAnalysis,
+    /// Deepest component call chain reachable from the candidate.
+    depth: usize,
 }
 
 // -----------------------------------------------------------------------------
-// Source collection
+// FunctionGraph: Unambiguous local function and component call resolution
 // -----------------------------------------------------------------------------
 
-#[allow(clippy::too_many_arguments)]
-fn collect_items(
-    document: &SourceDocument,
-    offsets: &SourceOffsets,
-    aliases: &BTreeSet<String>,
-    items: &[Item],
-    module: &str,
-    functions: &mut Vec<FunctionAnalysis>,
-    modules: &mut Vec<ModuleAnalysis>,
-    fragments: &mut Vec<FragmentAnalysis>,
-) {
-    let mut module_components = Vec::new();
-    for item in items {
-        match item {
-            Item::Fn(function) => {
-                let analysis =
-                    analyze_function(document, offsets, aliases, function, module, fragments);
-                if analysis.is_component {
-                    module_components.push(analysis.span);
-                }
-                functions.push(analysis);
+/// Helpers for resolving uniquely named functions and component-call depth.
+struct FunctionGraph;
+
+impl FunctionGraph {
+    /// Maps included, uniquely named functions to their crate-wide analysis index.
+    fn unique_indices(
+        functions: &[FunctionAnalysis],
+        include: impl Fn(&FunctionAnalysis) -> bool,
+    ) -> BTreeMap<String, usize> {
+        let mut grouped: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        for (index, function) in functions.iter().enumerate() {
+            if !include(function) {
+                continue;
             }
-            Item::Mod(ItemMod {
-                ident,
-                content: Some((_, nested)),
-                ..
-            }) => {
-                let nested_module = format!("{module}::{ident}");
-                collect_items(
-                    document,
-                    offsets,
-                    aliases,
-                    nested,
-                    &nested_module,
-                    functions,
-                    modules,
-                    fragments,
-                );
-            }
-            _ => {}
+            grouped
+                .entry(function.name.clone())
+                .or_default()
+                .push(index);
         }
-    }
-    if let Some(span) = module_components.first() {
-        modules.push(ModuleAnalysis {
-            name: module.to_owned(),
-            span: *span,
-            components: module_components.len(),
-        });
-    }
-}
-
-fn analyze_function(
-    document: &SourceDocument,
-    offsets: &SourceOffsets,
-    aliases: &BTreeSet<String>,
-    function: &ItemFn,
-    module: &str,
-    fragments: &mut Vec<FragmentAnalysis>,
-) -> FunctionAnalysis {
-    let name = function.sig.ident.to_string();
-    let is_component = function.attrs.iter().any(|attribute| {
-        attribute.path().segments.last().is_some_and(|segment| {
-            matches!(segment.ident.to_string().as_str(), "component" | "island")
-        })
-    });
-    let is_composable = name.starts_with("use_");
-    let closures = named_closures(&function.block.stmts);
-    let owner = format!("{module}::{name}");
-    let mut collector = FunctionCollector {
-        document,
-        offsets,
-        aliases,
-        closures,
-        owner: &owner,
-        has_view: false,
-        reactive_primitives: Vec::new(),
-        handlers: Vec::new(),
-        handler_ranges: BTreeSet::new(),
-        spawned_tasks: Vec::new(),
-        max_view_depth: 0,
-        max_view_control_depth: 0,
-        component_calls: BTreeSet::new(),
-        function_calls: BTreeSet::new(),
-        fragments,
-    };
-    collector.visit_block(&function.block);
-    let setup_statements = function
-        .block
-        .stmts
-        .len()
-        .saturating_sub(usize::from(matches!(
-            function.block.stmts.last(),
-            Some(Stmt::Expr(_, None))
-        )));
-    let props = function
-        .sig
-        .inputs
-        .iter()
-        .filter(|argument| match argument {
-            FnArg::Receiver(_) => false,
-            FnArg::Typed(argument) => {
-                let ty = argument.ty.to_token_stream().to_string().replace(' ', "");
-                let name = match argument.pat.as_ref() {
-                    Pat::Ident(ident) => ident.ident.to_string(),
-                    _ => String::new(),
+        grouped
+            .into_iter()
+            .filter_map(|(name, indices)| {
+                // Ambiguous duplicate names cannot resolve to one local function.
+                let [index] = indices.as_slice() else {
+                    return None;
                 };
-                name != "children"
-                    && !ty
-                        .split("::")
-                        .last()
-                        .is_some_and(|ty| ty.starts_with("Children"))
-            }
-        })
-        .count();
-    FunctionAnalysis {
-        name,
-        span: document.span(offsets.range(function.sig.ident.span())),
-        is_component,
-        is_composable,
-        setup_statements,
-        reactive_primitives: collector.reactive_primitives,
-        handlers: collector.handlers,
-        spawned_tasks: collector.spawned_tasks,
-        max_view_depth: collector.max_view_depth,
-        max_view_control_depth: collector.max_view_control_depth,
-        component_calls: collector.component_calls,
-        function_calls: collector.function_calls,
-        props,
+                Some((name, *index))
+            })
+            .collect()
+    }
+
+    /// Computes the maximum component depth reachable from one function index.
+    fn composition_depth(
+        index: usize,
+        functions: &[FunctionAnalysis],
+        components: &BTreeMap<String, usize>,
+        memo: &mut HashMap<usize, usize>,
+        visiting: &mut HashSet<usize>,
+    ) -> usize {
+        // Reuse completed subgraphs when several roots share a descendant.
+        if let Some(depth) = memo.get(&index) {
+            return *depth;
+        }
+
+        // Count a back edge as one node so closed component cycles remain finite.
+        if !visiting.insert(index) {
+            return 1;
+        }
+        let child = functions[index]
+            .component_calls
+            .iter()
+            .filter_map(|name| components.get(name))
+            .map(|child| Self::composition_depth(*child, functions, components, memo, visiting))
+            .max()
+            .unwrap_or(0);
+        visiting.remove(&index);
+        let depth = child + 1;
+        memo.insert(index, depth);
+        depth
     }
 }
 
-fn named_closures(statements: &[Stmt]) -> BTreeMap<String, ExprClosure> {
-    statements
-        .iter()
-        .filter_map(|statement| {
-            let Stmt::Local(local) = statement else {
-                return None;
-            };
-            let Pat::Ident(binding) = &local.pat else {
-                return None;
-            };
-            let Expr::Closure(closure) = local.init.as_ref()?.expr.as_ref() else {
-                return None;
-            };
-            Some((binding.ident.to_string(), closure.clone()))
-        })
-        .collect()
+// -----------------------------------------------------------------------------
+// HandlerSourceRange: Referenced event-handler deduplication coordinates
+// -----------------------------------------------------------------------------
+
+/// Comparable source coordinates used to deduplicate referenced handler closures.
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+struct HandlerSourceRange {
+    /// Inclusive byte offset of the closure start.
+    start: usize,
+    /// Exclusive byte offset of the closure end.
+    end: usize,
 }
 
+// -----------------------------------------------------------------------------
+// FunctionCollector: Authored function and view evidence collection
+// -----------------------------------------------------------------------------
+
+/// Visitor that accumulates architecture evidence for one authored function.
 struct FunctionCollector<'analysis> {
+    /// File-backed source document used to construct rustc spans.
     document: &'analysis SourceDocument,
+    /// Proc-macro line and column converter for the source document.
     offsets: &'analysis SourceOffsets,
+    /// Names that resolve to the Leptos `spawn_local` function.
     aliases: &'analysis BTreeSet<String>,
+    /// Named local closures that may be referenced as event handlers.
     closures: BTreeMap<String, ExprClosure>,
+    /// Fully qualified name of the function being visited.
     owner: &'analysis str,
-    has_view: bool,
+    /// Spans of reactive primitive constructions.
     reactive_primitives: Vec<Span>,
+    /// Event handler complexity evidence.
     handlers: Vec<HandlerAnalysis>,
-    handler_ranges: BTreeSet<(usize, usize)>,
+    /// Source ranges used to avoid collecting one handler more than once.
+    handler_ranges: BTreeSet<HandlerSourceRange>,
+    /// Spans of calls that launch local asynchronous work.
     spawned_tasks: Vec<Span>,
+    /// Deepest nested RSX element in the function.
     max_view_depth: usize,
+    /// Deepest control-flow expression in the function's views.
     max_view_control_depth: usize,
+    /// Component names invoked from the function's views.
     component_calls: BTreeSet<String>,
+    /// Function names invoked from the function body.
     function_calls: BTreeSet<String>,
+    /// Crate-wide destination for normalized view-fragment candidates.
     fragments: &'analysis mut Vec<FragmentAnalysis>,
 }
 
 impl FunctionCollector<'_> {
+    /// Collects one closure-valued event handler without duplicate references.
     fn collect_handler(&mut self, expression: &Expr) {
         let closure = match expression {
             Expr::Closure(closure) => Some(closure),
@@ -596,9 +681,18 @@ impl FunctionCollector<'_> {
                 .and_then(|segment| self.closures.get(&segment.ident.to_string())),
             _ => None,
         };
-        let Some(closure) = closure else { return };
+
+        // Expressions that do not resolve to a closure are not event handlers.
+        let Some(closure) = closure else {
+            return;
+        };
         let range = self.offsets.range(closure.span());
-        if !self.handler_ranges.insert((range.start, range.end)) {
+
+        // A named closure may be referenced by several attributes but is one handler.
+        if !self.handler_ranges.insert(HandlerSourceRange {
+            start: range.start,
+            end: range.end,
+        }) {
             return;
         }
         let (statements, body) = match closure.body.as_ref() {
@@ -614,6 +708,7 @@ impl FunctionCollector<'_> {
         });
     }
 
+    /// Normalizes one RSX node and recursively collects its nested evidence.
     fn collect_view_node(&mut self, node: &Node, depth: usize) -> Option<Fingerprint> {
         match node {
             Node::Element(element) => Some(self.collect_element(element, depth + 1)),
@@ -644,6 +739,7 @@ impl FunctionCollector<'_> {
         }
     }
 
+    /// Normalizes one RSX element and records it as a clone candidate.
     fn collect_element(
         &mut self,
         element: &NodeElement<rstml::Infallible>,
@@ -703,10 +799,12 @@ impl FunctionCollector<'_> {
         fingerprint
     }
 
+    /// Parses and collects one Leptos `view!` macro invocation.
     fn collect_view(&mut self, mac: &Macro) {
-        self.has_view = true;
         let parser = rstml::Parser::new(rstml::ParserConfig::default().recover_block(true));
         let (nodes, errors) = parser.parse_recoverable(mac.tokens.clone()).split_vec();
+
+        // Rstml recovery may return partial nodes that are unsafe to compare as complete views.
         if !errors.is_empty() {
             return;
         }
@@ -721,7 +819,7 @@ impl<'ast> Visit<'ast> for FunctionCollector<'_> {
         let terminal = call_terminal(&call.func);
         if let Some(terminal) = terminal.as_deref() {
             self.function_calls.insert(terminal.to_owned());
-            if is_reactive_primitive(call, terminal) {
+            if reactive_primitive_call(call, terminal) {
                 self.reactive_primitives
                     .push(self.document.span(self.offsets.range(call.span())));
             }
@@ -752,13 +850,99 @@ impl<'ast> Visit<'ast> for FunctionCollector<'_> {
     }
 }
 
+/// Recursively collects functions and component counts from an authored module tree.
+#[allow(clippy::too_many_arguments)]
+fn collect_items(
+    document: &SourceDocument,
+    offsets: &SourceOffsets,
+    aliases: &BTreeSet<String>,
+    items: &[Item],
+    module: &str,
+    functions: &mut Vec<FunctionAnalysis>,
+    modules: &mut Vec<ModuleAnalysis>,
+    fragments: &mut Vec<FragmentAnalysis>,
+) {
+    let mut module_components = Vec::new();
+    for item in items {
+        match item {
+            Item::Fn(function) => {
+                let analysis = FunctionAnalysis::analyze(
+                    document, offsets, aliases, function, module, fragments,
+                );
+                if analysis.is_component {
+                    module_components.push(analysis.span);
+                }
+                functions.push(analysis);
+            }
+            Item::Mod(ItemMod {
+                ident,
+                content: Some((_, nested)),
+                ..
+            }) => {
+                let nested_module = format!("{module}::{ident}");
+                collect_items(
+                    document,
+                    offsets,
+                    aliases,
+                    nested,
+                    &nested_module,
+                    functions,
+                    modules,
+                    fragments,
+                );
+            }
+            _ => {}
+        }
+    }
+
+    // Modules without direct components do not contribute density evidence.
+    let Some(span) = module_components.first() else {
+        return;
+    };
+    modules.push(ModuleAnalysis {
+        name: module.to_owned(),
+        span: *span,
+        components: module_components.len(),
+    });
+}
+
+/// Returns named local closures that can be referenced from view attributes.
+fn named_closures(statements: &[Stmt]) -> BTreeMap<String, ExprClosure> {
+    statements
+        .iter()
+        .filter_map(|statement| {
+            // Only local bindings can provide handler aliases.
+            let Stmt::Local(local) = statement else {
+                return None;
+            };
+            // Destructuring patterns cannot be referenced as one handler name.
+            let Pat::Ident(binding) = &local.pat else {
+                return None;
+            };
+            // Non-closure values are irrelevant to handler complexity.
+            let Expr::Closure(closure) = local.init.as_ref()?.expr.as_ref() else {
+                return None;
+            };
+            Some((binding.ident.to_string(), closure.clone()))
+        })
+        .collect()
+}
+
+// -----------------------------------------------------------------------------
+// Fingerprint: Binding-independent RSX subtree representation
+// -----------------------------------------------------------------------------
+
+/// Normalized RSX subtree text and its meaningful node count.
 #[derive(Clone)]
 struct Fingerprint {
+    /// Binding- and literal-independent subtree text.
     text: String,
+    /// Number of meaningful nodes represented by the text.
     nodes: usize,
 }
 
 impl Fingerprint {
+    /// Joins child fingerprints under one normalized container name.
     fn join(name: &str, children: &[Self]) -> Self {
         Self {
             text: format!(
@@ -774,13 +958,21 @@ impl Fingerprint {
     }
 }
 
+// -----------------------------------------------------------------------------
+// ControlDepth: Nested handler and view control-flow measurement
+// -----------------------------------------------------------------------------
+
+/// Visitor state for the maximum nested control-flow depth in one expression.
 #[derive(Default)]
 struct ControlDepth {
+    /// Current control-flow depth during traversal.
     current: usize,
+    /// Maximum control-flow depth observed during traversal.
     maximum: usize,
 }
 
 impl ControlDepth {
+    /// Visits one nested control-flow construct while maintaining depth state.
     fn nested(&mut self, visit: impl FnOnce(&mut Self)) {
         self.current += 1;
         self.maximum = self.maximum.max(self.current);
@@ -793,22 +985,29 @@ impl<'ast> Visit<'ast> for ControlDepth {
     fn visit_expr_if(&mut self, expression: &'ast syn::ExprIf) {
         self.nested(|visitor| visit::visit_expr_if(visitor, expression));
     }
+
     fn visit_expr_match(&mut self, expression: &'ast syn::ExprMatch) {
         self.nested(|visitor| visit::visit_expr_match(visitor, expression));
     }
+
     fn visit_expr_for_loop(&mut self, expression: &'ast syn::ExprForLoop) {
         self.nested(|visitor| visit::visit_expr_for_loop(visitor, expression));
     }
+
     fn visit_expr_while(&mut self, expression: &'ast syn::ExprWhile) {
         self.nested(|visitor| visit::visit_expr_while(visitor, expression));
     }
+
     fn visit_expr_loop(&mut self, expression: &'ast syn::ExprLoop) {
         self.nested(|visitor| visit::visit_expr_loop(visitor, expression));
     }
+
     fn visit_expr_closure(&mut self, expression: &'ast ExprClosure) {
         self.nested(|visitor| visit::visit_expr_closure(visitor, expression));
     }
+
     fn visit_expr_call(&mut self, expression: &'ast ExprCall) {
+        // Spawned work has an independent control-flow lifecycle and is linted separately.
         if call_terminal(&expression.func).as_deref() == Some("spawn_local") {
             return;
         }
@@ -829,49 +1028,13 @@ impl<'ast> Visit<'ast> for ControlDepth {
     }
 }
 
-fn is_reactive_primitive(call: &ExprCall, terminal: &str) -> bool {
-    if matches!(
-        terminal,
-        "signal"
-            | "create_signal"
-            | "create_rw_signal"
-            | "create_memo"
-            | "create_effect"
-            | "create_resource"
-            | "create_local_resource"
-            | "create_action"
-            | "create_node_ref"
-            | "create_trigger"
-            | "store_value"
-    ) {
-        return true;
-    }
-    if !matches!(terminal, "new" | "new_local" | "derive") {
-        return false;
-    }
-    let path = path_text(&call.func).replace(' ', "");
-    [
-        "RwSignal::new",
-        "ArcRwSignal::new",
-        "Store::new",
-        "Resource::new",
-        "LocalResource::new",
-        "Action::new",
-        "Action::new_local",
-        "MultiAction::new",
-        "MultiAction::new_local",
-        "Memo::new",
-        "Signal::derive",
-        "Effect::new",
-        "NodeRef::new",
-        "Trigger::new",
-        "StoredValue::new",
-    ]
-    .iter()
-    .any(|suffix| path.ends_with(suffix))
-}
+// -----------------------------------------------------------------------------
+// CallTerminal: Direct function-path terminal extraction
+// -----------------------------------------------------------------------------
 
+/// Returns the terminal identifier when an expression is a direct function path.
 fn call_terminal(expression: &Expr) -> Option<String> {
+    // Method calls and computed callees have no stable local function identifier.
     let Expr::Path(path) = expression else {
         return None;
     };
@@ -881,10 +1044,75 @@ fn call_terminal(expression: &Expr) -> Option<String> {
         .map(|segment| segment.ident.to_string())
 }
 
+// -----------------------------------------------------------------------------
+// PathText: Rust expression path rendering
+// -----------------------------------------------------------------------------
+
+/// Renders an expression path without depending on rustc lowering.
 fn path_text(expression: &Expr) -> String {
     expression.to_token_stream().to_string()
 }
 
+// -----------------------------------------------------------------------------
+// ReactivePrimitive: Reactive construction classification
+// -----------------------------------------------------------------------------
+
+/// Free functions that directly construct one Leptos reactive primitive.
+const REACTIVE_PRIMITIVE_FUNCTIONS: &[&str] = &[
+    "signal",
+    "create_signal",
+    "create_rw_signal",
+    "create_memo",
+    "create_effect",
+    "create_resource",
+    "create_local_resource",
+    "create_action",
+    "create_node_ref",
+    "create_trigger",
+    "store_value",
+];
+
+/// Associated call suffixes that directly construct one Leptos reactive primitive.
+const REACTIVE_PRIMITIVE_PATH_SUFFIXES: &[&str] = &[
+    "RwSignal::new",
+    "ArcRwSignal::new",
+    "Store::new",
+    "Resource::new",
+    "LocalResource::new",
+    "Action::new",
+    "Action::new_local",
+    "MultiAction::new",
+    "MultiAction::new_local",
+    "Memo::new",
+    "Signal::derive",
+    "Effect::new",
+    "NodeRef::new",
+    "Trigger::new",
+    "StoredValue::new",
+];
+
+/// Returns whether a call directly constructs one Leptos reactive primitive.
+fn reactive_primitive_call(call: &ExprCall, terminal: &str) -> bool {
+    // Free constructor functions unambiguously create reactive state.
+    if REACTIVE_PRIMITIVE_FUNCTIONS.contains(&terminal) {
+        return true;
+    }
+
+    // Only conventional associated constructors need path-level classification.
+    if !matches!(terminal, "new" | "new_local" | "derive") {
+        return false;
+    }
+    let path = path_text(&call.func).replace(' ', "");
+    REACTIVE_PRIMITIVE_PATH_SUFFIXES
+        .iter()
+        .any(|suffix| path.ends_with(suffix))
+}
+
+// -----------------------------------------------------------------------------
+// ExpressionFamily: Binding-independent expression classification
+// -----------------------------------------------------------------------------
+
+/// Classifies an expression while deliberately discarding literals and binding names.
 const fn expression_family(expression: &Expr) -> &'static str {
     match expression {
         Expr::Array(_) => "array",
@@ -905,6 +1133,7 @@ const fn expression_family(expression: &Expr) -> &'static str {
     }
 }
 
+/// Classifies the tail expression of an RSX block.
 fn expression_family_block(block: &syn::Block) -> &'static str {
     block
         .stmts
@@ -915,57 +1144,87 @@ fn expression_family_block(block: &syn::Block) -> &'static str {
         })
 }
 
-fn spawn_aliases(items: &[Item]) -> BTreeSet<String> {
-    let mut aliases = BTreeSet::from(["spawn_local".to_owned()]);
-    collect_spawn_aliases_from_items(items, &mut aliases);
-    aliases
+// -----------------------------------------------------------------------------
+// SpawnAliasScope: Imported local-task launcher discovery
+// -----------------------------------------------------------------------------
+
+/// Import-tree position used while resolving aliases of `spawn_local`.
+#[derive(Clone, Copy)]
+enum SpawnAliasScope {
+    /// Traversal is outside a `spawn_local` import path.
+    Ordinary,
+    /// Traversal is beneath a `spawn_local` import path.
+    BeneathSpawn,
 }
 
-fn collect_spawn_aliases_from_items(items: &[Item], aliases: &mut BTreeSet<String>) {
-    for item in items {
-        match item {
-            Item::Use(item) => collect_spawn_alias(&item.tree, false, aliases),
-            Item::Mod(ItemMod {
-                content: Some((_, nested)),
-                ..
-            }) => {
-                collect_spawn_aliases_from_items(nested, aliases);
-            }
-            _ => {}
-        }
-    }
-}
-
-fn collect_spawn_alias(tree: &syn::UseTree, beneath_spawn: bool, aliases: &mut BTreeSet<String>) {
+/// Resolves aliases while retaining whether traversal is beneath `spawn_local`.
+fn spawn_alias_collect_tree(
+    tree: &syn::UseTree,
+    scope: SpawnAliasScope,
+    aliases: &mut BTreeSet<String>,
+) {
     match tree {
         syn::UseTree::Path(path) => {
-            collect_spawn_alias(
-                &path.tree,
-                beneath_spawn || path.ident == "spawn_local",
-                aliases,
-            );
+            let nested_scope = if path.ident == "spawn_local" {
+                SpawnAliasScope::BeneathSpawn
+            } else {
+                scope
+            };
+            spawn_alias_collect_tree(&path.tree, nested_scope, aliases);
         }
-        syn::UseTree::Name(name) if beneath_spawn || name.ident == "spawn_local" => {
+        syn::UseTree::Name(name)
+            if matches!(scope, SpawnAliasScope::BeneathSpawn) || name.ident == "spawn_local" =>
+        {
             aliases.insert(name.ident.to_string());
         }
-        syn::UseTree::Rename(rename) if beneath_spawn || rename.ident == "spawn_local" => {
+        syn::UseTree::Rename(rename)
+            if matches!(scope, SpawnAliasScope::BeneathSpawn) || rename.ident == "spawn_local" =>
+        {
             aliases.insert(rename.rename.to_string());
         }
         syn::UseTree::Group(group) => {
             for item in &group.items {
-                collect_spawn_alias(item, beneath_spawn, aliases);
+                spawn_alias_collect_tree(item, scope, aliases);
             }
         }
         _ => {}
     }
 }
 
+/// Recursively discovers `spawn_local` aliases in one module tree.
+fn spawn_alias_collect_items(items: &[Item], aliases: &mut BTreeSet<String>) {
+    for item in items {
+        match item {
+            Item::Use(item) => {
+                spawn_alias_collect_tree(&item.tree, SpawnAliasScope::Ordinary, aliases);
+            }
+            Item::Mod(ItemMod {
+                content: Some((_, nested)),
+                ..
+            }) => {
+                spawn_alias_collect_items(nested, aliases);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Returns every authored name that resolves to Leptos `spawn_local`.
+fn spawn_aliases(items: &[Item]) -> BTreeSet<String> {
+    let mut aliases = BTreeSet::from(["spawn_local".to_owned()]);
+    spawn_alias_collect_items(items, &mut aliases);
+    aliases
+}
+
 // -----------------------------------------------------------------------------
 // SourceOffsets: Proc-macro span conversion
 // -----------------------------------------------------------------------------
 
+/// Converts proc-macro line and column coordinates into source byte offsets.
 struct SourceOffsets {
+    /// Byte offset at which each authored source line begins.
     line_starts: Vec<usize>,
+    /// Total source length used to clamp invalid recovered spans.
     source_len: usize,
 }
 
@@ -986,6 +1245,7 @@ impl From<&str> for SourceOffsets {
 }
 
 impl SourceOffsets {
+    /// Converts one proc-macro coordinate into a clamped source byte offset.
     fn offset(&self, position: LineColumn) -> usize {
         self.line_starts
             .get(position.line.saturating_sub(1))
@@ -995,13 +1255,14 @@ impl SourceOffsets {
             .min(self.source_len)
     }
 
+    /// Converts one proc-macro span into a clamped source byte range.
     fn range(&self, span: TokenSpan) -> Range<usize> {
         self.offset(span.start())..self.offset(span.end())
     }
 }
 
 // -----------------------------------------------------------------------------
-// Tests
+// Tests: Component architecture source-analysis unit coverage
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]

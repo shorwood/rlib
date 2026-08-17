@@ -13,8 +13,15 @@ use crate::rules::leptos::utils::authored_files::AuthoredFiles;
 use crate::rules::leptos::utils::component_architecture::ArchitectureAnalysis;
 use crate::utils::diagnostic::EarlyViolation;
 
+// -----------------------------------------------------------------------------
+// Violation: Reactive helper naming diagnostic
+// -----------------------------------------------------------------------------
+
+/// Reactive helper whose lifecycle ownership is hidden by an ordinary function name.
 struct Violation {
+    /// Authored helper declaration highlighted by the diagnostic.
     span: Span,
+    /// Authored helper name missing the composable prefix.
     name: String,
 }
 
@@ -25,17 +32,20 @@ impl EarlyViolation for Violation {
             self.name
         ))
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "reactive ownership and lifecycle behavior should be visible at the call site",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "rename `{}` with a `use_` prefix that names the owned responsibility",
             self.name
         ))
     }
+
     fn emit(self, cx: &EarlyContext<'_>) {
         let p = self.primary_message().into_owned();
         let r = self.rationale_message().into_owned();
@@ -52,7 +62,13 @@ impl EarlyViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// LeptosUnnamedComposables: Reactive helper naming policy
+// -----------------------------------------------------------------------------
+
+/// Collects authored helpers and rejects reactive owners without composable names.
 struct LeptosUnnamedComposables {
+    /// Authored Rust files accumulated across early lint callbacks.
     files: AuthoredFiles,
 }
 
@@ -66,6 +82,7 @@ impl EarlyLintPass for LeptosUnnamedComposables {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         self.files.observe_item(cx, item);
     }
+
     fn check_crate_post(&mut self, cx: &EarlyContext<'_>, _: &Crate) {
         let analysis = ArchitectureAnalysis::analyze(self.files.documents(cx));
         for finding in analysis.unnamed_composables() {

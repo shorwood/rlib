@@ -15,10 +15,19 @@ use crate::rules::leptos::utils::component_architecture::{
 };
 use crate::utils::diagnostic::EarlyViolation;
 
+// -----------------------------------------------------------------------------
+// Violation: Reactive setup size diagnostic
+// -----------------------------------------------------------------------------
+
+/// Reactive owner whose setup phase exceeds the configured statement limit.
 struct Violation {
+    /// Component or composable declaration highlighted by the diagnostic.
     span: Span,
+    /// Authored reactive-owner name.
     name: String,
+    /// Number of authored setup statements.
     actual: usize,
+    /// Configured maximum setup statements.
     maximum: usize,
 }
 
@@ -29,14 +38,17 @@ impl EarlyViolation for Violation {
             self.name, self.actual, self.maximum
         ))
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "large setup phases mix unrelated state, effects, loading, and mutation responsibilities",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("extract cohesive reactive responsibilities into named `use_*` composables")
     }
+
     fn emit(self, cx: &EarlyContext<'_>) {
         let primary = self.primary_message().into_owned();
         let rationale = self.rationale_message().into_owned();
@@ -53,8 +65,15 @@ impl EarlyViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// LeptosOversizedReactiveSetups: Reactive setup policy
+// -----------------------------------------------------------------------------
+
+/// Rejects components and composables with oversized setup phases.
 struct LeptosOversizedReactiveSetups {
+    /// Project thresholds governing component architecture.
     config: LeptosArchitectureConfig,
+    /// Authored Rust files accumulated across early lint callbacks.
     files: AuthoredFiles,
 }
 
@@ -69,19 +88,21 @@ impl EarlyLintPass for LeptosOversizedReactiveSetups {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         self.files.observe_item(cx, item);
     }
+
     fn check_crate_post(&mut self, cx: &EarlyContext<'_>, _krate: &Crate) {
         for function in ArchitectureAnalysis::analyze(self.files.documents(cx)).functions {
-            if function.is_reactive_owner()
-                && function.setup_statements > self.config.max_setup_statements
+            if !function.is_reactive_owner()
+                || function.setup_statements <= self.config.max_setup_statements
             {
-                Violation {
-                    span: function.span,
-                    name: function.name,
-                    actual: function.setup_statements,
-                    maximum: self.config.max_setup_statements,
-                }
-                .emit(cx);
+                continue;
             }
+            Violation {
+                span: function.span,
+                name: function.name,
+                actual: function.setup_statements,
+                maximum: self.config.max_setup_statements,
+            }
+            .emit(cx);
         }
     }
 }

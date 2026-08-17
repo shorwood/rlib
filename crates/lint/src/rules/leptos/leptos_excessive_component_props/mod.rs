@@ -15,10 +15,19 @@ use crate::rules::leptos::utils::component_architecture::{
 };
 use crate::utils::diagnostic::EarlyViolation;
 
+// -----------------------------------------------------------------------------
+// Violation: Component property count diagnostic
+// -----------------------------------------------------------------------------
+
+/// Component whose authored non-children property surface exceeds policy.
 struct Violation {
+    /// Component declaration highlighted by the diagnostic.
     span: Span,
+    /// Authored component name.
     name: String,
+    /// Number of authored non-children properties.
     actual: usize,
+    /// Configured maximum component properties.
     maximum: usize,
 }
 
@@ -29,16 +38,19 @@ impl EarlyViolation for Violation {
             self.name, self.actual, self.maximum
         ))
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "large prop surfaces expose internal coordination and make call sites difficult to understand",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "group cohesive domain input into a typed value or split the component by independent responsibility",
         )
     }
+
     fn emit(self, cx: &EarlyContext<'_>) {
         let p = self.primary_message().into_owned();
         let r = self.rationale_message().into_owned();
@@ -55,8 +67,15 @@ impl EarlyViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// LeptosExcessiveComponentProps: Component api policy
+// -----------------------------------------------------------------------------
+
+/// Rejects components with excessive authored property surfaces.
 struct LeptosExcessiveComponentProps {
+    /// Project thresholds governing component architecture.
     config: LeptosArchitectureConfig,
+    /// Authored Rust files accumulated across early lint callbacks.
     files: AuthoredFiles,
 }
 
@@ -70,17 +89,19 @@ impl EarlyLintPass for LeptosExcessiveComponentProps {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         self.files.observe_item(cx, item);
     }
+
     fn check_crate_post(&mut self, cx: &EarlyContext<'_>, _: &Crate) {
-        for f in ArchitectureAnalysis::analyze(self.files.documents(cx)).functions {
-            if f.is_component && f.props > self.config.max_component_props {
-                Violation {
-                    span: f.span,
-                    name: f.name,
-                    actual: f.props,
-                    maximum: self.config.max_component_props,
-                }
-                .emit(cx);
+        for function in ArchitectureAnalysis::analyze(self.files.documents(cx)).functions {
+            if !function.is_component || function.props <= self.config.max_component_props {
+                continue;
             }
+            Violation {
+                span: function.span,
+                name: function.name,
+                actual: function.props,
+                maximum: self.config.max_component_props,
+            }
+            .emit(cx);
         }
     }
 }
