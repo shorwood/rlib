@@ -45,6 +45,7 @@ impl ReceiverKind {
         }
     }
 }
+
 /// Semantic first-parameter type resolved independently of its source spelling.
 #[derive(Clone, Copy)]
 struct ReceiverSemantics {
@@ -549,6 +550,7 @@ impl MethodCandidate {
         format!("{struct_path}::{}", self.function.name)
     }
 }
+
 /// One place where the first parameter's name is used inside the function body.
 #[derive(Clone, Copy)]
 pub struct MethodCandidateBindingUse {

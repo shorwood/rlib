@@ -15,7 +15,8 @@ but its ownership is left for the author to resolve rather than being changed au
 Dense associated-item blocks hide where one contract or operation ends and the next begins.
 Stable visual boundaries make implementations easier to scan, reduce accidental reading of
 one item's documentation as another item's context, and give automated editors a predictable
-representation without forcing unrelated module declarations apart.
+representation. Use `unseparated_module_items` for declarations directly owned
+by a module.
 
 For example, these methods run together:
 

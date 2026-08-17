@@ -22,6 +22,7 @@ pub struct BonMemberPath<'name> {
     /// Builder member name.
     pub member: &'name str,
 }
+
 /// Configured snapshot of previously published Bon builder members.
 #[derive(Clone, Default, Deserialize)]
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]

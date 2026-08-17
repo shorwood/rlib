@@ -6,14 +6,18 @@
 
 // Attributes may change compilation or formatting and must travel deliberately.
 struct Attributed;
+
 fn attributed_separator() {}
 #[doc = "This documentation belongs to the impl."]
+
 impl Attributed {}
 
 // The comment may describe the impl, so an automatic move must not orphan it.
 struct Commented;
+
 fn commented_separator() {}
 // This behavior deliberately has an explanation attached.
+
 impl Commented {}
 
 // Moving across a macro definition can change which macro a method resolves.
@@ -24,6 +28,7 @@ macro_rules! value {
     };
 }
 fn macro_separator() {}
+
 impl MacroCrossing {
     fn value(&self) -> u8 {
         value!()
@@ -32,6 +37,7 @@ impl MacroCrossing {
 
 // Included source is not owned by a one-file editor suggestion.
 struct Included;
+
 fn included_separator() {}
 include!("included_impl.inc");
 

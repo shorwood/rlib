@@ -25,7 +25,7 @@ LL |     pub(in super) const PARENT_VALUE: usize = 1;
    = note: a small visibility vocabulary makes module boundaries immediately comparable and prevents arbitrary ancestor paths from encoding fragile file topology
 
 warning: static item `CRATE_VALUE` uses noncanonical restricted visibility `pub(in crate)`
-  --> $DIR/fix.rs:9:5
+  --> $DIR/fix.rs:10:5
    |
 LL |     pub(in crate) static CRATE_VALUE: usize = 2;
    |     ^^^^^^^^^^^^^ help: write the equivalent canonical `pub(crate)` visibility: `pub(crate)`

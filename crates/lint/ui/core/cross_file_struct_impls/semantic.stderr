@@ -14,12 +14,12 @@ LL | pub(crate) struct Inherent;
    = note: `#[warn(cross_file_struct_impls)]` on by default
 
 warning: impl block for `Traited` is not colocated with its definition
-  --> $DIR/support/implementations.inc:4:1
+  --> $DIR/support/implementations.inc:5:1
    |
 LL | impl Behavior for owner::Traited {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this impl is defined in `implementations.inc`
    |
-  ::: $DIR/support/owner.inc:2:1
+  ::: $DIR/support/owner.inc:3:1
    |
 LL | pub(crate) struct Traited;
    | ------------------------- `Traited` is defined in `owner.inc`
@@ -28,12 +28,12 @@ LL | pub(crate) struct Traited;
    = help: move this complete impl block into `owner.inc` beside `Traited`
 
 warning: impl block for `Aliased` is not colocated with its definition
-  --> $DIR/support/implementations.inc:5:1
+  --> $DIR/support/implementations.inc:7:1
    |
 LL | impl owner::Alias {}
    | ^^^^^^^^^^^^^^^^^^^^ this impl is defined in `implementations.inc`
    |
-  ::: $DIR/support/owner.inc:4:1
+  ::: $DIR/support/owner.inc:5:1
    |
 LL | pub(crate) struct Aliased;
    | ------------------------- `Aliased` is defined in `owner.inc`
@@ -42,12 +42,12 @@ LL | pub(crate) struct Aliased;
    = help: move this complete impl block into `owner.inc` beside `Aliased`
 
 warning: impl block for `Generic` is not colocated with its definition
-  --> $DIR/support/implementations.inc:6:1
+  --> $DIR/support/implementations.inc:9:1
    |
 LL | impl owner::Generic<u8> {}
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^ this impl is defined in `implementations.inc`
    |
-  ::: $DIR/support/owner.inc:7:1
+  ::: $DIR/support/owner.inc:9:1
    |
 LL | pub(crate) struct Generic<T>(pub(crate) T);
    | ---------------------------- `Generic` is defined in `owner.inc`

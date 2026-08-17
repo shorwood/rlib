@@ -119,6 +119,7 @@ impl StrumManualEnumMetadata {
         })
     }
 }
+
 impl LateLintPass<'_> for StrumManualEnumMetadata {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

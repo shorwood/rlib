@@ -190,6 +190,7 @@ impl DeriveMoreManualConversionImpls {
             .then(|| cx.tcx.item_name(definition.did()).to_string())
     }
 }
+
 impl LateLintPass<'_> for DeriveMoreManualConversionImpls {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         // Conversion candidates must be function implementation items.

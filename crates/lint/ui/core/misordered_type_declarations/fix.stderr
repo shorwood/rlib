@@ -2,6 +2,7 @@ warning: local types should be declared before their use
   --> $DIR/fix.rs:13:1
    |
 LL | / struct Consumer(Dependency);
+LL | |
 LL | | impl Consumer {}
    | |________________^ this declaration is the first out of order
    |
@@ -14,9 +15,10 @@ LL | #![warn(misordered_type_declarations)]
 help: move declarations into this order: `Dependency`, `Consumer`
    |
 LL + struct Dependency;
+LL |
 LL + struct Consumer(Dependency);
+LL +
 LL + impl Consumer {}
    |
 
 warning: 1 warning emitted
-

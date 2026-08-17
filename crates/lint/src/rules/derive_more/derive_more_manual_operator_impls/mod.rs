@@ -338,6 +338,7 @@ impl DeriveMoreManualOperatorImpls {
         }
     }
 }
+
 impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Only implementation items can define an operator trait contract.

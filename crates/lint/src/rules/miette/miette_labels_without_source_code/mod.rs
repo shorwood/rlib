@@ -149,6 +149,7 @@ impl MietteLabelsWithoutSourceCode {
         .emit(cx);
     }
 }
+
 impl LateLintPass<'_> for MietteLabelsWithoutSourceCode {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

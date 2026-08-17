@@ -21,6 +21,9 @@ use syn::visit::Visit;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
+/// Smallest use count that proves a message is repeated.
+const MINIMUM_REPEATED_MESSAGE_USES: usize = 2;
+
 // -----------------------------------------------------------------------------
 // Violation: Repeated anonymous diagnostic at a domain boundary
 // -----------------------------------------------------------------------------
@@ -236,6 +239,7 @@ impl MietteAdHocDiagnosticsAtDomainBoundaries {
             && Self::contains_miette_report(cx, arguments.type_at(1))
     }
 }
+
 impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Only authored free functions can establish this kind of domain boundary.
@@ -328,9 +332,6 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
     }
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
-        /// Smallest use count that proves a message is repeated.
-        const MINIMUM_REPEATED_MESSAGE_USES: usize = 2;
-
         for (message, uses) in mem::take(&mut self.messages) {
             if !(uses.len() >= MINIMUM_REPEATED_MESSAGE_USES
                 && uses.iter().any(|usage| usage.is_public))
@@ -341,6 +342,7 @@ impl LateLintPass<'_> for MietteAdHocDiagnosticsAtDomainBoundaries {
         }
     }
 }
+
 impl MietteAdHocDiagnosticsAtDomainBoundaries {
     /// Associates every message found in a function with that boundary.
     fn record_messages(&mut self, messages: BTreeSet<String>, usage: &ViolationUse) {
@@ -352,6 +354,7 @@ impl MietteAdHocDiagnosticsAtDomainBoundaries {
         }
     }
 }
+
 /// Finds uncoded literal messages in Miette macros and wrapping calls.
 #[derive(Default)]
 struct StaticMessageVisitor {

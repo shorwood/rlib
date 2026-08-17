@@ -167,6 +167,7 @@ impl SerdeManualDeserializeImpls {
             if path.path.is_ident(&deserializer.ident))
     }
 }
+
 impl LateLintPass<'_> for SerdeManualDeserializeImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Only implementation items can define a manual deserializer.

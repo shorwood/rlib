@@ -1,5 +1,5 @@
 warning: section `Transport` mixes 41 declarations from several naming families, exceeding the configured maximum of 40
-  --> $DIR/semantic.rs:49:1
+  --> $DIR/semantic.rs:88:1
    |
 LL | / // -----------------------------------------------------------------------------
 LL | | // Transport: Mixed transport concepts
@@ -15,7 +15,7 @@ LL | #![warn(overloaded_declaration_sections)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: section `NominalMixed` mixes 41 declarations from several naming families, exceeding the configured maximum of 40
-  --> $DIR/semantic.rs:141:1
+  --> $DIR/semantic.rs:260:1
    |
 LL | / // -----------------------------------------------------------------------------
 LL | | // NominalMixed: A nominal type must not hide unrelated values
@@ -26,7 +26,7 @@ LL | | // ----------------------------------------------------------------------
    = help: reconsider whether these declarations express smaller coherent concepts and rename them around those concepts; add another divider only for a genuinely independent family
 
 warning: section `ModuleNamespace` mixes 41 declarations from several naming families, exceeding the configured maximum of 40
-  --> $DIR/semantic.rs:188:5
+  --> $DIR/semantic.rs:347:5
    |
 LL | /     // -----------------------------------------------------------------------------
 LL | |     // ModuleNamespace: Module-owned operations

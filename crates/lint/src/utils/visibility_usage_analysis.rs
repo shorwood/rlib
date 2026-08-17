@@ -92,6 +92,7 @@ impl VisibilityUseKind {
         }
     }
 }
+
 /// One resolved local use carrying the module and test topology that require visibility.
 #[derive(Clone, Copy)]
 pub struct VisibilityUse {

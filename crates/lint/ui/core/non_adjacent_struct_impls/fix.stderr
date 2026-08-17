@@ -1,8 +1,9 @@
 warning: impl blocks for `EarlyMovable` should immediately follow its definition
-  --> $DIR/fix.rs:12:1
+  --> $DIR/fix.rs:13:1
    |
 LL | impl EarlyMovable {}
    | -------------------- this impl is outside `EarlyMovable`'s impl group
+LL |
 LL | struct EarlyMovable;
    | ^^^^^^^^^^^^^^^^^^^^
    |
@@ -11,17 +12,18 @@ LL | struct EarlyMovable;
 help: move this impl block immediately after `EarlyMovable`
    |
 LL + 
+LL |
 LL ~ struct EarlyMovable;
 LL + 
 LL + impl EarlyMovable {}
    |
 
 warning: impl blocks for `Movable` should immediately follow its definition
-  --> $DIR/fix.rs:14:1
+  --> $DIR/fix.rs:15:1
    |
 LL |   struct Movable;
    |   ^^^^^^^^^^^^^^^
-LL |   fn movable_separator() {}
+...
 LL | / impl Movable {
 LL | |     fn value(&self) -> u8 {
 LL | |         1
@@ -42,11 +44,11 @@ LL + }
    |
 
 warning: impl blocks for `Multiple` should immediately follow its definition
-  --> $DIR/fix.rs:22:1
+  --> $DIR/fix.rs:25:1
    |
 LL | struct Multiple;
    | ^^^^^^^^^^^^^^^^
-LL | fn multiple_separator() {}
+...
 LL | impl Multiple {}
    | ---------------- this impl is outside `Multiple`'s impl group
    |
@@ -61,7 +63,7 @@ LL + impl Behavior for Multiple {}
    |
 
 warning: impl blocks for `Split` should immediately follow its definition
-  --> $DIR/fix.rs:27:1
+  --> $DIR/fix.rs:33:1
    |
 LL | struct Split;
    | ^^^^^^^^^^^^^
@@ -77,6 +79,7 @@ LL +
 LL + impl Split {}
 LL + 
 LL + impl Behavior for Split {}
+LL |
 LL + 
    |
 

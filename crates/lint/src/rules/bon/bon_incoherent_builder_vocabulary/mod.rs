@@ -187,6 +187,7 @@ impl BonIncoherentBuilderVocabulary {
         }
     }
 }
+
 impl EarlyLintPass for BonIncoherentBuilderVocabulary {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         match &item.kind {

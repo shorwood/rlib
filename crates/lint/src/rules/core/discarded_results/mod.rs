@@ -117,14 +117,6 @@ impl LateViolation for Violation {
 /// Finds authored Result values consumed without an explicit success or error policy.
 struct DiscardedResults;
 
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub DISCARDED_RESULTS,
-    Warn,
-    "rejects Result values discarded without an explicit failure policy",
-    DiscardedResults
-}
-
 impl LateLintPass<'_> for DiscardedResults {
     fn check_stmt(&mut self, cx: &LateContext<'_>, statement: &Stmt<'_>) {
         // Statements outside explicit discard syntax produce no finding.
@@ -146,39 +138,8 @@ impl LateLintPass<'_> for DiscardedResults {
 impl DiscardedResults {
     /// Returns whether an underscore-prefixed binding is subsequently read in its body.
     fn binding_is_used(cx: &LateContext<'_>, expression: &Expr<'_>, binding: HirId) -> bool {
-        struct BindingUse<'analysis, 'tcx> {
-            cx: &'analysis LateContext<'tcx>,
-            binding: HirId,
-            is_found: bool,
-        }
-
-        impl<'tcx> Visitor<'tcx> for BindingUse<'_, 'tcx> {
-            fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-                // The first matching path is sufficient proof that the binding is used.
-                if self.is_found {
-                    return;
-                }
-
-                // A matching local path completes binding-use detection.
-                if let ExprKind::Path(path) = expression.kind
-                    && matches!(
-                        self.cx.qpath_res(&path, expression.hir_id),
-                        Res::Local(binding) if binding == self.binding
-                    )
-                {
-                    self.is_found = true;
-                    return;
-                }
-                intravisit::walk_expr(self, expression);
-            }
-
-            fn visit_nested_body(&mut self, body: rustc_hir::BodyId) {
-                self.visit_body(self.cx.tcx.hir_body(body));
-            }
-        }
-
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
-        let mut usage = BindingUse {
+        let mut usage = DiscardedBindingUse {
             cx,
             binding,
             is_found: false,
@@ -253,5 +214,41 @@ impl DiscardedResults {
             contract,
             ResultDiscard::DropCall,
         ))
+    }
+}
+
+dylint_linting::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub DISCARDED_RESULTS,
+    Warn,
+    "rejects Result values discarded without an explicit failure policy",
+    DiscardedResults
+}
+
+struct DiscardedBindingUse<'analysis, 'tcx> {
+    cx: &'analysis LateContext<'tcx>,
+    binding: HirId,
+    is_found: bool,
+}
+
+impl<'tcx> Visitor<'tcx> for DiscardedBindingUse<'_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if self.is_found {
+            return;
+        }
+        if let ExprKind::Path(path) = expression.kind
+            && matches!(
+                self.cx.qpath_res(&path, expression.hir_id),
+                Res::Local(binding) if binding == self.binding
+            )
+        {
+            self.is_found = true;
+            return;
+        }
+        intravisit::walk_expr(self, expression);
+    }
+
+    fn visit_nested_body(&mut self, body: rustc_hir::BodyId) {
+        self.visit_body(self.cx.tcx.hir_body(body));
     }
 }

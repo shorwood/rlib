@@ -175,6 +175,7 @@ impl ThiserrorAmbiguousErrorSources {
         matches!(name, "cause" | "error" | "source") || name.ends_with("_error")
     }
 }
+
 impl LateLintPass<'_> for ThiserrorAmbiguousErrorSources {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

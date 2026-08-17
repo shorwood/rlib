@@ -8,6 +8,7 @@
 )]
 
 struct Concrete;
+
 struct Alternative;
 
 struct OnlyStruct<T> {
@@ -29,6 +30,7 @@ union OnlyUnion<T: Copy> {
 type OnlyUnionUse = OnlyUnion<u64>;
 
 type OnlyAlias<T> = Option<T>;
+
 type OnlyAliasUse = OnlyAlias<u16>;
 
 struct Mixed<T, U> {
@@ -37,6 +39,7 @@ struct Mixed<T, U> {
 }
 
 type MixedFirst = Mixed<u8, u16>;
+
 type MixedSecond = Mixed<u8, u32>;
 
 pub struct ClosedPackage<T> {
@@ -46,7 +49,9 @@ pub struct ClosedPackage<T> {
 type ClosedPackageUse = ClosedPackage<Concrete>;
 
 struct Several<T>(T);
+
 type SeveralFirst = Several<Concrete>;
+
 type SeveralSecond = Several<Alternative>;
 
 struct Forwarded<T>(T);
@@ -72,21 +77,27 @@ impl Provider for ProviderImpl {
 }
 
 struct Projected<T>(T);
+
 type ProjectedUse = Projected<<ProviderImpl as Provider>::Output>;
 
 trait Behavior {}
+
 impl Behavior for Concrete {}
 
 struct ObjectBoundary<T: ?Sized>(std::marker::PhantomData<T>);
+
 type ObjectUse = ObjectBoundary<dyn Behavior>;
 
 type ConcreteAlias = Concrete;
+
 struct AliasBoundary<T>(T);
+
 type AliasUse = AliasBoundary<ConcreteAlias>;
 
 struct NeverUsed<T>(T);
 
 struct WithLifetimeAndConst<'a, T, const N: usize>(&'a [T; N]);
+
 type WithLifetimeAndConstUse = WithLifetimeAndConst<'static, Concrete, 1>;
 
 macro_rules! generated_declaration {

@@ -4,6 +4,7 @@
 #![allow(dead_code, method_like_free_functions)]
 
 struct Production;
+
 struct Substitute;
 
 fn test_substitution<T>(value: T) -> T {

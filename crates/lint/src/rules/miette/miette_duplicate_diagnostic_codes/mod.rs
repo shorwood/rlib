@@ -134,6 +134,7 @@ impl MietteDuplicateDiagnosticCodes {
         }
     }
 }
+
 impl LateLintPass<'_> for MietteDuplicateDiagnosticCodes {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

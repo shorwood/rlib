@@ -8,6 +8,7 @@ LL | | // ----------------------------------------------------------------------
 ...
 LL |   struct MethodLikeFreeFunctionsSourceEdits;
    |   ------------------------------------------ `MethodLikeFreeFunctionsSourceEdits` obscures the inferred `MigrationEdits` role
+LL |
 LL | / struct MethodLikeFreeFunctionsMigrationBuilder {
 LL | |     edits: MethodLikeFreeFunctionsSourceEdits,
 LL | | }

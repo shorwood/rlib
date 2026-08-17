@@ -64,6 +64,7 @@ struct DomainEvidenceKey {
     /// Inferred `PascalCase` domain concept.
     domain: String,
 }
+
 /// Free function contributing behavior to an inferred string domain.
 #[derive(Clone)]
 struct DomainEvidenceFunction {
@@ -78,6 +79,7 @@ struct DomainEvidenceFunction {
     /// Inferred domain concept.
     domain: String,
 }
+
 /// Raw textual field reinforcing an inferred string domain.
 #[derive(Clone)]
 struct DomainEvidenceField {
@@ -114,6 +116,7 @@ struct DomainEvidenceRevalidationConsumer {
     /// Authored consumer name.
     name: Symbol,
 }
+
 /// Consumer that establishes an invariant on a raw string parameter.
 #[derive(Clone)]
 struct DomainEvidenceRevalidation {

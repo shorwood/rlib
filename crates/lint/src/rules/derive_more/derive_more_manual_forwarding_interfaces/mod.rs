@@ -245,6 +245,7 @@ impl DeriveMoreManualForwardingInterfaces {
             && DirectForwarding::is_binding(cx, index, bindings[1])
     }
 }
+
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualForwardingInterfaces {
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
         // Only exact forwarding methods contribute a derive contract to the family.
@@ -281,6 +282,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualForwardingInterfaces {
         }
     }
 }
+
 /// Connects a forwarding contract to the local wrapper that implements it.
 struct ContractTarget {
     /// Local wrapper type receiving the implementation.

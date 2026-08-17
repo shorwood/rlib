@@ -47,7 +47,7 @@ LL |     // Prepare the second value.
    = help: use `//` followed by concise sentence-style prose immediately before the phase
 
 warning: this code phase comment must immediately precede its phase
-  --> $DIR/semantic.rs:62:5
+  --> $DIR/semantic.rs:63:5
    |
 LL |     // Prepare work that never follows.
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

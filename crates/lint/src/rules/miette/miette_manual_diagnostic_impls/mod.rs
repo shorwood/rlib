@@ -30,6 +30,7 @@ struct Violation {
     /// Derivable methods used to explain the finding.
     methods: Vec<String>,
 }
+
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
@@ -255,6 +256,7 @@ impl MietteManualDiagnosticImpls {
         Some(names)
     }
 }
+
 impl LateLintPass<'_> for MietteManualDiagnosticImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Only implementation items can be manual `Diagnostic` implementations.

@@ -227,6 +227,7 @@ impl ThiserrorFromSourcesWithoutContext {
     /// Smallest propagation chain that demonstrates repeated context loss.
     const MINIMUM_PROPAGATION_OPERATIONS: usize = 2;
 }
+
 impl LateLintPass<'_> for ThiserrorFromSourcesWithoutContext {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -270,6 +271,7 @@ impl LateLintPass<'_> for ThiserrorFromSourcesWithoutContext {
         }
     }
 }
+
 impl ThiserrorFromSourcesWithoutContext {
     /// Records an enum with exactly one transparent `#[from]` variant.
     fn record_error(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {

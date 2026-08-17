@@ -47,6 +47,7 @@ pub struct FormattingCandidateSource {
     /// Identifier span used by diagnostics.
     pub span: Span,
 }
+
 /// One authored textual helper retained for diagnostic evidence.
 #[derive(Clone)]
 pub struct FormattingCandidate {

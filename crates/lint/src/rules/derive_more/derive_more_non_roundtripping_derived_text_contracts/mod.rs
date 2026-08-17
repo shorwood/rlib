@@ -171,6 +171,7 @@ impl DeriveMoreNonRoundtrippingDerivedTextContracts {
         )
     }
 }
+
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreNonRoundtrippingDerivedTextContracts {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.catalog.check_item(cx, item);

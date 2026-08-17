@@ -11,7 +11,9 @@
 // -----------------------------------------------------------------------------
 
 struct Dependency;
+
 struct Consumer(Dependency);
+
 impl Consumer {}
 
 fn main() {}

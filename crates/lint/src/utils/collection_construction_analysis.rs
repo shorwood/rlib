@@ -47,6 +47,7 @@ impl CollectionContract {
         }
     }
 }
+
 /// Why an otherwise valid collection protocol remains reportable.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CollectionProblem {
@@ -95,6 +96,7 @@ pub struct CollectionFamilyCandidateSource {
     /// Storage operation proving complete item ingestion.
     pub evidence_span: Span,
 }
+
 /// Inferred standard collection contract shown in diagnostics.
 #[derive(Clone)]
 pub struct CollectionFamilyCandidateProtocol {
@@ -131,6 +133,7 @@ pub struct CollectionFamilyFinding<'candidate> {
     /// Missing, ambiguous, or competing protocol ownership.
     pub problem: CollectionProblem,
 }
+
 /// Local target and standard trait used for occupancy checks.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 struct CollectionFamilyOccupancyKey {
@@ -139,6 +142,7 @@ struct CollectionFamilyOccupancyKey {
     /// Construction or extension contract.
     contract: CollectionContract,
 }
+
 /// Exact target, trait, and item family used for ambiguity analysis.
 #[derive(Eq, Hash, PartialEq)]
 struct CollectionFamilyKey {
@@ -149,6 +153,7 @@ struct CollectionFamilyKey {
     /// Stored item family.
     item_name: String,
 }
+
 /// Whether a standard trait already owns one collection family.
 #[derive(Clone, Copy)]
 enum CollectionFamilyOccupancy {
@@ -399,42 +404,46 @@ fn collection_classification_is_trait_method(cx: &LateContext<'_>, def_id: Local
         .is_some_and(|parent| matches!(cx.tcx.def_kind(parent), DefKind::Impl { of_trait: true }))
 }
 
-/// Returns whether a name claims an unqualified collection protocol.
+/// Context words that make a collection-oriented name specific enough.
+const COLLECTION_CONTEXTUAL_NAMES: &[&str] = &[
+    "Deduplicate",
+    "Filtered",
+    "First",
+    "Last",
+    "Limited",
+    "Lossy",
+    "Policy",
+    "Sorted",
+    "Strict",
+    "Truncated",
+    "Validated",
+    "With",
+];
+
+/// Generic collection words that cannot establish protocol ownership alone.
+const COLLECTION_NEUTRAL_NAMES: &[&str] = &[
+    "Add", "All", "Append", "Build", "Collect", "Create", "Entries", "Extend", "From", "Items",
+    "New",
+];
+
 fn collection_classification_has_neutral_name(
     cx: &LateContext<'_>,
     name: Symbol,
     target: LocalDefId,
     contract: CollectionContract,
 ) -> bool {
-    /// Vocabulary exposing policy that standard collection traits cannot carry.
-    const CONTEXTUAL: &[&str] = &[
-        "Deduplicate",
-        "Filtered",
-        "First",
-        "Last",
-        "Limited",
-        "Lossy",
-        "Policy",
-        "Sorted",
-        "Strict",
-        "Truncated",
-        "Validated",
-        "With",
-    ];
-    /// Vocabulary that adds no policy beyond sequence ingestion.
-    const NEUTRAL: &[&str] = &[
-        "Add", "All", "Append", "Build", "Collect", "Create", "Entries", "Extend", "From", "Items",
-        "New",
-    ];
     let words = identifier_case::words(name.as_str());
 
     // Contextual vocabulary encodes policy that a standard collection trait cannot express.
-    if words.iter().any(|word| CONTEXTUAL.contains(&word.as_str())) {
+    if words
+        .iter()
+        .any(|word| COLLECTION_CONTEXTUAL_NAMES.contains(&word.as_str()))
+    {
         return false;
     }
     let target_words = identifier_case::words(cx.tcx.item_name(target.to_def_id()).as_str());
     words.into_iter().all(|word| {
-        NEUTRAL.contains(&word.as_str())
+        COLLECTION_NEUTRAL_NAMES.contains(&word.as_str())
             || target_words.contains(&word)
             || (contract == CollectionContract::Extend && word == "Insert")
     })
@@ -566,6 +575,7 @@ struct CollectionEvidenceResult {
     /// Whether storage delegates through a standard `extend` operation.
     has_standard_trait_delegation: bool,
 }
+
 /// Mutable facts accumulated while traversing one collection-like body.
 #[derive(Default)]
 struct CollectionEvidenceState {
@@ -625,31 +635,29 @@ impl CollectionEvidence<'_, '_, '_> {
     }
 }
 
+/// Finds a reference to an iterable source binding.
+struct CollectionSourceFinder<'analysis, 'tcx> {
+    cx: &'analysis LateContext<'tcx>,
+    source: HirId,
+    has_found: bool,
+}
+
+impl<'tcx> Visitor<'tcx> for CollectionSourceFinder<'_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if let ExprKind::Path(path) = expression.kind
+            && matches!(self.cx.qpath_res(&path, expression.hir_id), Res::Local(binding) if binding == self.source)
+        {
+            self.has_found = true;
+            return;
+        }
+        intravisit::walk_expr(self, expression);
+    }
+}
+
 impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
     /// Returns whether an expression references the iterable source parameter.
     fn uses_source(&self, expression: &'tcx Expr<'tcx>) -> bool {
-        /// Finds a reference to the exact iterable source binding.
-        struct SourceFinder<'analysis, 'tcx> {
-            /// Compiler context used to resolve local paths.
-            cx: &'analysis LateContext<'tcx>,
-            /// Source binding being searched.
-            source: HirId,
-            /// Whether traversal reached the source binding.
-            has_found: bool,
-        }
-        impl<'tcx> Visitor<'tcx> for SourceFinder<'_, 'tcx> {
-            fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-                // One source reference completes this containment search.
-                if let ExprKind::Path(path) = expression.kind
-                    && matches!(self.cx.qpath_res(&path, expression.hir_id), Res::Local(binding) if binding == self.source)
-                {
-                    self.has_found = true;
-                    return;
-                }
-                intravisit::walk_expr(self, expression);
-            }
-        }
-        let mut finder = SourceFinder {
+        let mut finder = CollectionSourceFinder {
             cx: self.cx,
             source: self.source,
             has_found: false,

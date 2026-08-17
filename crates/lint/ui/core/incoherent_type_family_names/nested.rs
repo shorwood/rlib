@@ -7,6 +7,7 @@ mod nested_context {
     // -----------------------------------------------------------------------------
 
     struct NestedContext;
+
     struct NestedContextTarjan;
 }
 

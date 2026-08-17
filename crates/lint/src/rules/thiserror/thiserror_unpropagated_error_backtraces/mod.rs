@@ -287,6 +287,7 @@ impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
         }
     }
 }
+
 impl ThiserrorUnpropagatedErrorBacktraces {
     /// Recursively determines whether an error captures or forwards a trace.
     fn provides_backtrace(

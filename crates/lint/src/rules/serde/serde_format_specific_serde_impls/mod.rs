@@ -16,6 +16,16 @@ use rustc_span::Span;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
+/// Serialization crates that make a generic Serde implementation format-specific.
+const FORMATS: &[&str] = &[
+    "serde_json",
+    "serde_yaml",
+    "serde_cbor",
+    "toml",
+    "bincode",
+    "rmp_serde",
+];
+
 // -----------------------------------------------------------------------------
 // Violation: Format-specific Serde implementation
 // -----------------------------------------------------------------------------
@@ -128,15 +138,6 @@ impl<'tcx> Visitor<'tcx> for FormatEvidence<'tcx> {
     }
 
     fn visit_path(&mut self, path: &Path<'tcx>, _: rustc_hir::HirId) {
-        /// Serialization crates that make a generic Serde implementation format-specific.
-        const FORMATS: &[&str] = &[
-            "serde_json",
-            "serde_yaml",
-            "serde_cbor",
-            "toml",
-            "bincode",
-            "rmp_serde",
-        ];
         if let Some(definition) = path.res.opt_def_id() {
             let krate = self.tcx.crate_name(definition.krate).to_string();
             if FORMATS.contains(&krate.as_str()) {

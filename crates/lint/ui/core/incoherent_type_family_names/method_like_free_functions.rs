@@ -6,7 +6,9 @@
 // -----------------------------------------------------------------------------
 
 struct MethodLikeFreeFunctions;
+
 struct MethodLikeFreeFunctionsSourceEdits;
+
 struct MethodLikeFreeFunctionsMigrationBuilder {
     edits: MethodLikeFreeFunctionsSourceEdits,
 }

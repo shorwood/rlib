@@ -21,18 +21,26 @@ struct Item;
 fn ItemList() {}
 
 fn owned(items: Vec<Item>) {}
+
 fn mutable_owned(mut items: Vec<Item>) {}
+
 fn shared_vector(items: &Vec<Item>) {}
+
 fn mutable_vector(items: &mut Vec<Item>) {}
+
 fn shared_slice(items: &[Item]) {}
+
 fn mutable_slice(items: &mut [Item]) {}
 
 // Transparent aliases do not hide the collection or its element from the rule.
 type ItemAlias = Item;
+
 type Items = Vec<ItemAlias>;
+
 type ItemSlice<'a> = &'a [ItemAlias];
 
 fn aliased_vector(items: Items) {}
+
 fn aliased_slice(items: ItemSlice<'_>) {}
 
 // Generic element structs use a correspondingly generic wrapper recipe.
@@ -42,6 +50,7 @@ fn generic<T>(items: Vec<Generic<T>>) {}
 
 // A compatible canonical wrapper should be reused instead of recreated.
 struct Existing;
+
 struct ExistingList {
     items: Vec<Existing>,
     label: String,
@@ -53,6 +62,7 @@ fn use_existing(items: &[Existing]) {}
 
 // A compatible wrapper remains usable even when it does not have an impl block yet.
 struct NoImpl;
+
 struct NoImplList {
     items: Vec<NoImpl>,
 }
@@ -61,6 +71,7 @@ fn use_existing_without_impl(items: &[NoImpl]) {}
 
 // Sharing only the generic element definition does not make an instantiation compatible.
 struct FixedGeneric<T>(T);
+
 struct FixedGenericList {
     items: Vec<FixedGeneric<u8>>,
 }
@@ -68,6 +79,7 @@ struct FixedGenericList {
 fn mismatched_generic_wrapper<T>(items: Vec<FixedGeneric<T>>) {}
 
 struct GenericExisting<T>(T);
+
 struct GenericExistingList<U> {
     items: Vec<GenericExisting<U>>,
 }
@@ -76,6 +88,7 @@ fn use_generic_existing<T>(items: Vec<GenericExisting<T>>) {}
 
 // An occupied canonical name needs a manual naming decision.
 struct Conflict;
+
 struct ConflictList {
     other: usize,
 }
@@ -104,10 +117,15 @@ fn __component_generated(items: Vec<Item>) {}
 
 // Only a direct collection in the first parameter is governed by this rule.
 fn second_parameter(count: usize, items: Vec<Item>) {}
+
 fn boxed_elements(items: Vec<Box<Item>>) {}
+
 fn referenced_elements(items: Vec<&Item>) {}
+
 fn fixed_array(items: [Item; 2]) {}
+
 fn deque(items: VecDeque<Item>) {}
+
 fn unknown_element<T>(items: Vec<T>) {}
 
 enum NotAStruct {
@@ -119,7 +137,9 @@ union NotAStructEither {
 }
 
 fn enum_elements(items: Vec<NotAStruct>) {}
+
 fn union_elements(items: Vec<NotAStructEither>) {}
+
 extern "C" fn foreign_abi(items: Vec<Item>) {}
 
 // Cross-module functions still belong on a wrapper beside the element struct.
@@ -127,6 +147,7 @@ mod elsewhere {
     pub(super) struct Other;
 
     pub(super) struct Reusable;
+
     pub(super) struct ReusableList {
         items: Vec<Reusable>,
     }
@@ -134,6 +155,7 @@ mod elsewhere {
     impl ReusableList {}
 
     pub(super) struct Occupied;
+
     pub(super) enum OccupiedList {
         Value,
     }
@@ -143,17 +165,15 @@ mod elsewhere {
 struct OtherList;
 
 fn different_module(items: Vec<elsewhere::Other>) {}
+
 fn reuse_different_module(items: &[elsewhere::Reusable]) {}
+
 fn conflict_different_module(items: Vec<elsewhere::Occupied>) {}
+
 fn different_file(items: &[remote::Remote]) {}
 
 mod child {
     fn different_module(items: Vec<super::Item>) {}
-}
-
-fn nested_function_is_out_of_scope() {
-    struct Local;
-    fn nested(items: Vec<Local>) {}
 }
 
 // Associated functions are already organized under a type and are not free functions.

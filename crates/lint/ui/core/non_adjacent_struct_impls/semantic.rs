@@ -24,34 +24,47 @@ impl Behavior for Ordered {}
 
 // Tuple, unit, generic, and alias spellings all resolve to their struct.
 struct Tuple(u8);
+
 impl Tuple {}
 
 struct Generic<T>(T);
+
 impl<T> Generic<T> {}
+
 impl Generic<u8> {}
 
 type Alias = Aliased;
+
 struct Aliased;
+
 impl Alias {}
 
 // A different definition between the struct and its impl is a violation.
 struct Delayed;
+
 fn delayed_separator() {}
+
 impl Delayed {}
 
 // An impl before its struct is also outside the required group.
 impl Early {}
+
 struct Early;
 
 // All impl blocks must stay together after the struct.
 struct Split;
+
 impl Split {}
+
 fn split_separator() {}
+
 impl Behavior for Split {}
 
 // Reference self-types are not direct impls for the struct.
 trait ReferenceBehavior {}
+
 struct Referenced;
+
 impl ReferenceBehavior for &Referenced {}
 
 // Cross-module placement belongs to the separate colocation rule.

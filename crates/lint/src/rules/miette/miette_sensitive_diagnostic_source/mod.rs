@@ -39,6 +39,7 @@ struct Violation {
     /// Field name shown to the author.
     field: String,
 }
+
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
@@ -126,6 +127,7 @@ impl MietteSensitiveDiagnosticSource {
         }
     }
 }
+
 impl LateLintPass<'_> for MietteSensitiveDiagnosticSource {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

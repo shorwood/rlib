@@ -214,6 +214,7 @@ impl DeriveMoreManualConstructors {
                 .all(|(input, field)| *input == field.ty(cx.tcx, arguments))
     }
 }
+
 impl LateLintPass<'_> for DeriveMoreManualConstructors {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         // Constructor candidates must be function implementation items.

@@ -6,7 +6,9 @@
 // -----------------------------------------------------------------------------
 
 struct Candidate;
+
 struct CandidateReceiver;
+
 struct CandidateBindingUse;
 
 fn main() {}

@@ -32,10 +32,11 @@ fn deliver() -> Result<(), ()> {
     Ok(())
 }
 
-fn retries_use_named_constants() -> Result<(), ()> {
-    const MAX_DELIVERY_ATTEMPTS: usize = 7;
-    const DELIVERY_TIMEOUT: Duration = Duration::from_secs(45);
+const MAX_DELIVERY_ATTEMPTS: usize = 7;
 
+const DELIVERY_TIMEOUT: Duration = Duration::from_secs(45);
+
+fn retries_use_named_constants() -> Result<(), ()> {
     for _attempt in 0..MAX_DELIVERY_ATTEMPTS {
         deliver()?;
     }

@@ -65,6 +65,7 @@ struct Violation {
     /// Source-code field names shown to the author.
     sources: Vec<String>,
 }
+
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("diagnostic retains source code without a focus")
@@ -189,6 +190,7 @@ impl MietteSourceCodeWithoutLabels {
         .emit(cx);
     }
 }
+
 impl LateLintPass<'_> for MietteSourceCodeWithoutLabels {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

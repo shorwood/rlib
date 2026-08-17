@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 pub(self) struct SelfVisible;
+
 pub(in crate) type CrateAlias = usize;
 
 pub(in crate) mod restricted_module {}
@@ -20,6 +21,7 @@ mod parent {
     }
 
     pub(in super) const PARENT_VALUE: usize = 1;
+
     pub(in crate) static CRATE_VALUE: usize = 2;
 }
 

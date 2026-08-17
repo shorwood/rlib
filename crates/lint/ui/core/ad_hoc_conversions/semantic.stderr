@@ -1,5 +1,5 @@
 warning: `account_from_record` is a canonical-looking conversion from `Record` to `Account` outside `From`
-  --> $DIR/semantic.rs:15:4
+  --> $DIR/semantic.rs:16:4
    |
 LL | fn account_from_record(record: Record) -> Account {
    |    ^^^^^^^^^^^^^^^^^^^ -------------- the sole `Record` source reaches `Account` construction
@@ -13,7 +13,7 @@ LL | #![warn(ad_hoc_conversions)]
    |         ^^^^^^^^^^^^^^^^^^
 
 warning: `into_session` is a canonical-looking conversion from `Token` to `Session` outside `From`
-  --> $DIR/semantic.rs:23:8
+  --> $DIR/semantic.rs:25:8
    |
 LL |     fn into_session(self) -> Session {
    |        ^^^^^^^^^^^^ ---- the sole `Token` source reaches `Session` construction
@@ -22,7 +22,7 @@ LL |     fn into_session(self) -> Session {
    = help: implement `From<Token> for Session`; callers also receive `Into<Session> for Token`
 
 warning: `packet_from_bytes` is a canonical-looking conversion from `Bytes` to `Packet` outside `TryFrom`
-  --> $DIR/semantic.rs:31:4
+  --> $DIR/semantic.rs:34:4
    |
 LL | fn packet_from_bytes(bytes: Bytes) -> Result<Packet, &'static str> {
    |    ^^^^^^^^^^^^^^^^^ ------------ the sole `Bytes` source reaches `Packet` construction
@@ -31,7 +31,7 @@ LL | fn packet_from_bytes(bytes: Bytes) -> Result<Packet, &'static str> {
    = help: implement `TryFrom<Bytes> for Packet` with `Error = &'static str`; callers also receive `TryInto<Packet> for Bytes`
 
 warning: `assemble` constructs `Destination` from one `Source` value through an ad hoc conversion API
-  --> $DIR/semantic.rs:38:4
+  --> $DIR/semantic.rs:42:4
    |
 LL | fn assemble(source: Source) -> Destination {
    |    ^^^^^^^^ -------------- the sole `Source` source reaches `Destination` construction
@@ -40,7 +40,7 @@ LL | fn assemble(source: Source) -> Destination {
    = help: if this is canonical, implement `From<Source> for Destination`; callers also receive `Into<Destination> for Source`; otherwise retain a named API but make its format, policy, or required context explicit in the name or source wrapper
 
 warning: `local_from_input` is a canonical-looking conversion from `remote::Input` to `Local` outside `From`
-  --> $DIR/semantic.rs:49:4
+  --> $DIR/semantic.rs:53:4
    |
 LL | fn local_from_input(input: remote::Input) -> Local {
    |    ^^^^^^^^^^^^^^^^ -------------------- the sole `remote::Input` source reaches `Local` construction
@@ -49,7 +49,7 @@ LL | fn local_from_input(input: remote::Input) -> Local {
    = help: implement `From<remote::Input> for Local`; callers also receive `Into<Local> for remote::Input`
 
 warning: `borrowed_from_str` is a canonical-looking conversion from `&str` to `Borrowed<'_>` outside `TryFrom`
-  --> $DIR/semantic.rs:92:4
+  --> $DIR/semantic.rs:99:4
    |
 LL | fn borrowed_from_str(source: &str) -> Result<Borrowed<'_>, ()> {
    |    ^^^^^^^^^^^^^^^^^ ------------ the sole `&str` source reaches `Borrowed<'_>` construction
@@ -58,7 +58,7 @@ LL | fn borrowed_from_str(source: &str) -> Result<Borrowed<'_>, ()> {
    = help: implement `TryFrom<&str> for Borrowed<'_>` with `Error = ()`; callers also receive `TryInto<Borrowed<'_>> for &str`
 
 warning: `early_target_from_source` is a canonical-looking conversion from `EarlySource` to `EarlyTarget` outside `From`
-  --> $DIR/semantic.rs:134:4
+  --> $DIR/semantic.rs:145:4
    |
 LL | fn early_target_from_source(source: EarlySource) -> EarlyTarget {
    |    ^^^^^^^^^^^^^^^^^^^^^^^^ ------------------- the sole `EarlySource` source reaches `EarlyTarget` construction

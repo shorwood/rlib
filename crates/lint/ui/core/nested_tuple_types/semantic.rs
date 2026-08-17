@@ -2,14 +2,18 @@
 #![allow(dead_code, misordered_module_declarations)]
 
 struct Participant;
+
 struct NameTokens;
 
 type Affected<'a> = &'a [(&'a Participant, NameTokens)];
+
 type MixedCallable = Result<
     Vec<(Participant, NameTokens)>,
     Box<dyn Fn(Participant, NameTokens) -> Participant>,
 >;
+
 type CallableOnly = Box<dyn Fn(Participant, NameTokens) -> Participant>;
+
 type AssociatedTuple = Box<dyn Iterator<Item = (Participant, NameTokens)>>;
 
 struct Stored {

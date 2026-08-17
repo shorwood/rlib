@@ -14,6 +14,7 @@ fn main() {}
 // -----------------------------------------------------------------------------
 
 struct Request;
+
 struct RequestBuilder;
 
 // -----------------------------------------------------------------------------
@@ -21,6 +22,7 @@ struct RequestBuilder;
 // -----------------------------------------------------------------------------
 
 struct Payload;
+
 struct Response;
 
 // -----------------------------------------------------------------------------
@@ -34,6 +36,7 @@ struct Standalone;
 // -----------------------------------------------------------------------------
 
 struct Violation;
+
 struct ConflictEvidence;
 
 mod serde {
@@ -43,7 +46,9 @@ mod serde {
         // -----------------------------------------------------------------------------
 
         struct SerdeDirection;
+
         struct SerdeAttributes;
+
         struct SerdeFlag;
     }
 }
@@ -53,6 +58,7 @@ mod serde {
 // -----------------------------------------------------------------------------
 
 fn handler_parse() {}
+
 fn render_response() {}
 
 mod identifier_case {
@@ -63,6 +69,7 @@ mod identifier_case {
     pub fn words() {
         super::render_response();
     }
+
     pub fn is_pascal() {}
 }
 
@@ -71,6 +78,7 @@ mod identifier_case {
 // -----------------------------------------------------------------------------
 
 const REQUEST_LIMIT: usize = 1;
+
 static REQUEST_TOTAL: usize = 2;
 
 // -----------------------------------------------------------------------------

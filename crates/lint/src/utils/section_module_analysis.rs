@@ -35,6 +35,7 @@ struct ModulePrefixMismatch<'name> {
     /// Shared prefix inferred from the declarations.
     expected: &'name str,
 }
+
 /// Validated section prefix passed through module-level checks.
 #[derive(Clone, Copy)]
 struct ModuleSectionPrefix<'name> {

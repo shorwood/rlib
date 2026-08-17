@@ -6,6 +6,7 @@
 // -----------------------------------------------------------------------------
 
 struct SectionDividerConfig;
+
 struct SectionDividerLibraryConfig {
     section_dividers: SectionDividerConfig,
 }

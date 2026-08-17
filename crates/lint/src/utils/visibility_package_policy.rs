@@ -13,6 +13,7 @@ struct CargoPackage {
     /// Boolean or registry-list form accepted by Cargo.
     publish: Option<toml::Value>,
 }
+
 /// Cargo fields needed to distinguish publishable and closed packages.
 #[derive(Deserialize)]
 struct CargoManifest {

@@ -296,6 +296,7 @@ impl SerdeAmbiguousUntaggedEnums {
         if path.path.segments.last().is_some_and(|segment| segment.ident == "Option"))
     }
 }
+
 impl LateLintPass<'_> for SerdeAmbiguousUntaggedEnums {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

@@ -13,7 +13,7 @@ LL | #![warn(misordered_type_declarations)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: local types should be declared before their use
-  --> $DIR/no_fix.rs:21:5
+  --> $DIR/no_fix.rs:22:5
    |
 LL |     struct User(Dependency);
    |     ^^^^^^^^^^^^^^^^^^^^^^^^ this declaration is the first out of order
@@ -22,7 +22,7 @@ LL |     struct User(Dependency);
    = help: move declarations into this order: `Dependency`, `User`
 
 warning: local types should be declared before their use
-  --> $DIR/no_fix.rs:31:5
+  --> $DIR/no_fix.rs:33:5
    |
 LL |     struct User(Dependency);
    |     ^^^^^^^^^^^^^^^^^^^^^^^^ this declaration is the first out of order

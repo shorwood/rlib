@@ -66,6 +66,7 @@ pub struct SectionGroup {
     /// Distinct declarations governed by the divider.
     pub(super) participants: Vec<SectionParticipant>,
 }
+
 /// Findings split by lint identity so each rule remains independently configurable.
 #[derive(Default)]
 pub struct SectionAnalysis {

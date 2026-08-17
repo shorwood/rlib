@@ -118,6 +118,7 @@ impl StrumFilteredEnumCountContracts {
             .any(|component| vocabulary.contains(&component))
     }
 }
+
 impl LateLintPass<'_> for StrumFilteredEnumCountContracts {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

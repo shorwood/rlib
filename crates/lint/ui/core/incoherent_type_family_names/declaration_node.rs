@@ -14,6 +14,7 @@ generated_collision!();
 // -----------------------------------------------------------------------------
 
 struct DeclarationNode;
+
 struct DeclarationNodeTarjan;
 
 fn main() {}

@@ -198,22 +198,23 @@ impl<'tcx> Visitor<'tcx> for TextBodyAnalyzer<'_, 'tcx> {
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
 }
 
+struct TextBindingCollector<'set> {
+    bindings: &'set mut HashSet<HirId>,
+}
+
+impl<'tcx> Visitor<'tcx> for TextBindingCollector<'_> {
+    fn visit_pat(&mut self, pattern: &'tcx Pat<'tcx>) {
+        if let PatKind::Binding(_, binding, _, _) = pattern.kind {
+            self.bindings.insert(binding);
+        }
+        intravisit::walk_pat(self, pattern);
+    }
+}
+
 impl TextBodyAnalyzer<'_, '_> {
     /// Adds every plain binding introduced by a receiver-derived pattern.
     fn record_bindings(&mut self, pattern: &Pat<'_>) {
-        /// Collects binding identities from one pattern.
-        struct BindingCollector<'set> {
-            bindings: &'set mut HashSet<HirId>,
-        }
-        impl<'tcx> Visitor<'tcx> for BindingCollector<'_> {
-            fn visit_pat(&mut self, pattern: &'tcx Pat<'tcx>) {
-                if let PatKind::Binding(_, binding, _, _) = pattern.kind {
-                    self.bindings.insert(binding);
-                }
-                intravisit::walk_pat(self, pattern);
-            }
-        }
-        BindingCollector {
+        TextBindingCollector {
             bindings: &mut self.bindings,
         }
         .visit_pat(pattern);

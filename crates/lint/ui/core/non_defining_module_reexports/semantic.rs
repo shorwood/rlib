@@ -3,8 +3,11 @@
 
 mod defining {
     pub struct PublicItem;
+
     pub struct CrateItem;
+
     pub struct RestrictedItem;
+
     pub struct ParentItem;
 
     pub enum Choice {

@@ -33,6 +33,7 @@ pub struct IteratorCandidateSource {
     /// State advance or delegated `next` operation.
     pub evidence_span: Span,
 }
+
 /// Inferred iterator contract shown in diagnostics.
 #[derive(Clone)]
 pub struct IteratorCandidateProtocol {
@@ -41,6 +42,7 @@ pub struct IteratorCandidateProtocol {
     /// Concrete yielded item spelling.
     pub item_name: String,
 }
+
 /// One unique stateful traversal that should use Rust's iterator protocol.
 #[derive(Clone)]
 pub struct IteratorCandidate {
@@ -412,6 +414,66 @@ struct IteratorEvidence<'analysis, 'tcx> {
     state: IteratorEvidenceState,
 }
 
+struct IteratorReceiverUse<'set, 'analysis, 'tcx> {
+    cx: &'analysis LateContext<'tcx>,
+    receiver: HirId,
+    receiver_derived: &'set HashSet<HirId>,
+    is_found: bool,
+}
+
+impl<'tcx> Visitor<'tcx> for IteratorReceiverUse<'_, '_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if iterator_evidence_is_receiver_rooted(self.cx, self.receiver, expression)
+            || matches!(
+                expression.kind,
+                ExprKind::Path(path)
+                    if matches!(
+                        self.cx.qpath_res(&path, expression.hir_id),
+                        Res::Local(binding) if self.receiver_derived.contains(&binding)
+                    )
+            )
+        {
+            self.is_found = true;
+            return;
+        }
+        if matches!(expression.kind, ExprKind::Closure(_)) {
+            return;
+        }
+        intravisit::walk_expr(self, expression);
+    }
+
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+}
+
+struct IteratorFieldUse<'set, 'analysis, 'tcx> {
+    cx: &'analysis LateContext<'tcx>,
+    receiver: HirId,
+    aliases: &'set HashMap<HirId, HashSet<Symbol>>,
+    fields: HashSet<Symbol>,
+}
+
+impl<'tcx> Visitor<'tcx> for IteratorFieldUse<'_, '_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if let ExprKind::Field(base, field) = expression.kind
+            && iterator_evidence_is_direct_receiver(self.cx, self.receiver, base)
+        {
+            self.fields.insert(field.name);
+        }
+        if let ExprKind::Path(path) = expression.kind
+            && let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id)
+            && let Some(fields) = self.aliases.get(&binding)
+        {
+            self.fields.extend(fields);
+        }
+        if matches!(expression.kind, ExprKind::Closure(_)) {
+            return;
+        }
+        intravisit::walk_expr(self, expression);
+    }
+
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+}
+
 impl<'analysis, 'tcx> IteratorEvidence<'analysis, 'tcx> {
     /// Analyzes one body for persistent cursor advancement.
     fn analyze(
@@ -478,41 +540,7 @@ impl<'analysis, 'tcx> IteratorEvidence<'analysis, 'tcx> {
 
     /// Returns whether an expression reads receiver-owned state directly or through a local.
     fn uses_receiver_value(&self, expression: &'tcx Expr<'tcx>) -> bool {
-        struct ReceiverUse<'set, 'analysis, 'tcx> {
-            cx: &'analysis LateContext<'tcx>,
-            receiver: HirId,
-            receiver_derived: &'set HashSet<HirId>,
-            is_found: bool,
-        }
-
-        impl<'tcx> Visitor<'tcx> for ReceiverUse<'_, '_, 'tcx> {
-            fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-                // A receiver-derived read completes this expression's provenance search.
-                if iterator_evidence_is_receiver_rooted(self.cx, self.receiver, expression)
-                    || matches!(
-                        expression.kind,
-                        ExprKind::Path(path)
-                            if matches!(
-                                self.cx.qpath_res(&path, expression.hir_id),
-                                Res::Local(binding) if self.receiver_derived.contains(&binding)
-                            )
-                    )
-                {
-                    self.is_found = true;
-                    return;
-                }
-
-                // Closure bodies have independent receiver and return semantics.
-                if matches!(expression.kind, ExprKind::Closure(_)) {
-                    return;
-                }
-                intravisit::walk_expr(self, expression);
-            }
-
-            fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
-        }
-
-        let mut use_finder = ReceiverUse {
+        let mut use_finder = IteratorReceiverUse {
             cx: self.cx,
             receiver: self.receiver,
             receiver_derived: &self.receiver_derived,
@@ -524,38 +552,7 @@ impl<'analysis, 'tcx> IteratorEvidence<'analysis, 'tcx> {
 
     /// Collects top-level receiver fields read by an expression and its aliases.
     fn receiver_fields(&self, expression: &'tcx Expr<'tcx>) -> HashSet<Symbol> {
-        struct FieldUse<'set, 'analysis, 'tcx> {
-            cx: &'analysis LateContext<'tcx>,
-            receiver: HirId,
-            aliases: &'set HashMap<HirId, HashSet<Symbol>>,
-            fields: HashSet<Symbol>,
-        }
-
-        impl<'tcx> Visitor<'tcx> for FieldUse<'_, '_, 'tcx> {
-            fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-                if let ExprKind::Field(base, field) = expression.kind
-                    && iterator_evidence_is_direct_receiver(self.cx, self.receiver, base)
-                {
-                    self.fields.insert(field.name);
-                }
-                if let ExprKind::Path(path) = expression.kind
-                    && let Res::Local(binding) = self.cx.qpath_res(&path, expression.hir_id)
-                    && let Some(fields) = self.aliases.get(&binding)
-                {
-                    self.fields.extend(fields);
-                }
-
-                // Closure bodies do not contribute fields to the surrounding iterator result.
-                if matches!(expression.kind, ExprKind::Closure(_)) {
-                    return;
-                }
-                intravisit::walk_expr(self, expression);
-            }
-
-            fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
-        }
-
-        let mut field_use = FieldUse {
+        let mut field_use = IteratorFieldUse {
             cx: self.cx,
             receiver: self.receiver,
             aliases: &self.receiver_derived_fields,
@@ -655,22 +652,7 @@ struct IteratorResultCollector {
 impl IteratorResultCollector {
     /// Adds every non-closure expression contributing to one result value.
     fn visit_value_expr(&mut self, expression: &Expr<'_>) {
-        struct ValueCollector<'set> {
-            expressions: &'set mut HashSet<HirId>,
-        }
-        impl<'tcx> Visitor<'tcx> for ValueCollector<'_> {
-            fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-                // Closure values do not expose their body expressions as outer return values.
-                if matches!(expression.kind, ExprKind::Closure(_)) {
-                    return;
-                }
-                self.expressions.insert(expression.hir_id);
-                intravisit::walk_expr(self, expression);
-            }
-
-            fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
-        }
-        ValueCollector {
+        IteratorValueCollector {
             expressions: &mut self.expressions,
         }
         .visit_expr(expression);
@@ -726,6 +708,22 @@ impl<'tcx> Visitor<'tcx> for IteratorResultCollector {
             ExprKind::Closure(_) => {}
             _ => intravisit::walk_expr(self, expression),
         }
+    }
+
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+}
+
+struct IteratorValueCollector<'set> {
+    expressions: &'set mut HashSet<HirId>,
+}
+
+impl<'tcx> Visitor<'tcx> for IteratorValueCollector<'_> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if matches!(expression.kind, ExprKind::Closure(_)) {
+            return;
+        }
+        self.expressions.insert(expression.hir_id);
+        intravisit::walk_expr(self, expression);
     }
 
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}

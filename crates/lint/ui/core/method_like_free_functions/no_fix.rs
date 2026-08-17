@@ -5,6 +5,7 @@
 #![register_tool(rlib_lint)]
 
 struct Item<T>(T);
+
 struct Unit;
 
 impl Unit {
@@ -30,6 +31,7 @@ fn unrelated_generic<T>(item: Token) {}
 
 // An alias can hide the reference shape and its lifetime contract.
 type UnitRef<'a> = &'a Unit;
+
 fn alias_reference(item: UnitRef<'_>) {}
 
 // Moving an imported function or creating a duplicate method needs an API decision.

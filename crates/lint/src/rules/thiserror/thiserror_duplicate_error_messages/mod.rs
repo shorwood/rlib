@@ -15,6 +15,9 @@ use super::utils::contracts::{ErrorMessage, ThiserrorContractCatalog};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::AuthoredItemSource;
 
+/// Smallest variant count that establishes a duplicate message.
+const MINIMUM_DUPLICATE_MESSAGE_VARIANTS: usize = 2;
+
 // -----------------------------------------------------------------------------
 // Violation: Duplicate static variant messages
 // -----------------------------------------------------------------------------
@@ -133,8 +136,6 @@ impl LateLintPass<'_> for ThiserrorDuplicateErrorMessages {
                 .push(format!("`{}`", variant.ident));
         }
         for (message, variants) in messages {
-            /// Smallest variant count that establishes a duplicate message.
-            const MINIMUM_DUPLICATE_MESSAGE_VARIANTS: usize = 2;
             if variants.len() < MINIMUM_DUPLICATE_MESSAGE_VARIANTS {
                 continue;
             }

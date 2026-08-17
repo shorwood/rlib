@@ -5,8 +5,10 @@ LL | / #![allow(dead_code)]
 LL | | #![warn(incoherent_type_family_names)]
 LL | |
 LL | | struct UnsectionedContext;
+LL | |
 LL | | struct UnsectionedContextParser;
    | | -------------------------------- `UnsectionedContextParser` obscures the inferred `Parser` role
+LL | |
 LL | | struct UnsectionedContextPolicy;
    | | -------------------------------- `UnsectionedContextPolicy` obscures the inferred `Policy` role
 LL | |

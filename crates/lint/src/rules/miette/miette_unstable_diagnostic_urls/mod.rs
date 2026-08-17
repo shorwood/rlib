@@ -179,6 +179,7 @@ impl MietteUnstableDiagnosticUrls {
         .emit(cx);
     }
 }
+
 impl LateLintPass<'_> for MietteUnstableDiagnosticUrls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

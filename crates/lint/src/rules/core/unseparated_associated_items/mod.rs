@@ -1,60 +1,27 @@
 extern crate rustc_errors;
 extern crate rustc_hir;
-extern crate rustc_span;
 
 use std::borrow::Cow;
 
 use rustc_errors::{Applicability, DiagDecorator};
-use rustc_hir::{HirId, ImplItemId, Item, ItemKind, TraitItemId};
-use rustc_lint::{LateContext, LateLintPass, LintContext};
-use rustc_span::Span;
+use rustc_hir::{ImplItemId, Item, ItemKind, TraitItemId};
+use rustc_lint::{LateContext, LateLintPass};
 
 use crate::utils::diagnostic::LateViolation;
-
-// -----------------------------------------------------------------------------
-// AssociatedItemSource: Authored associated item boundary
-// -----------------------------------------------------------------------------
-
-/// Source identity needed to compare one associated item with its successor.
-struct AssociatedItemSource {
-    /// HIR node used to respect lint levels on the following item.
-    hir_id: HirId,
-    /// Declaration span used to label the item in the diagnostic.
-    span: Span,
-    /// Human-readable associated-item name used in remediation guidance.
-    name: String,
-}
-
-impl AssociatedItemSource {
-    /// Captures the source identity shared by impl and trait associated items.
-    const fn new(hir_id: HirId, span: Span, name: String) -> Self {
-        Self { hir_id, span, name }
-    }
-}
+use crate::utils::item_separation::{Analyzer, Finding, Source};
 
 // -----------------------------------------------------------------------------
 // Violation: Unseparated associated item diagnostic
 // -----------------------------------------------------------------------------
 
 /// Adjacent associated items lacking a visually empty line between them.
-struct Violation {
-    /// Following item used to respect its local lint level.
-    hir_id: HirId,
-    /// Following declaration highlighted as the unreadable boundary.
-    span: Span,
-    /// Name of the item immediately before the missing boundary.
-    previous_name: String,
-    /// Name of the item immediately after the missing boundary.
-    following_name: String,
-    /// Zero-width insertion point when leading context can retain its ownership.
-    insertion: Option<Span>,
-}
+struct Violation(Finding);
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "associated items `{}` and `{}` are not separated by a blank line",
-            self.previous_name, self.following_name
+            self.0.previous_name, self.0.following_name
         ))
     }
 
@@ -67,7 +34,7 @@ impl LateViolation for Violation {
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
             "insert one blank line before `{}`",
-            self.following_name
+            self.0.following_name
         ))
     }
 
@@ -79,13 +46,13 @@ impl LateViolation for Violation {
         // Suggest a source edit only when no comment or other syntax occupies the boundary.
         cx.tcx.emit_node_span_lint(
             UNSEPARATED_ASSOCIATED_ITEMS,
-            self.hir_id,
-            self.span,
+            self.0.hir_id,
+            self.0.span,
             DiagDecorator(|diag| {
                 diag.primary_message(primary);
-                diag.span_label(self.span, "this associated item needs visual separation");
+                diag.span_label(self.0.span, "this associated item needs visual separation");
                 diag.note(self.rationale_message().into_owned());
-                if let Some(insertion) = self.insertion {
+                if let Some(insertion) = self.0.insertion {
                     diag.span_suggestion(
                         insertion,
                         remediation,
@@ -116,88 +83,19 @@ dylint_linting::impl_late_lint! {
 }
 
 impl UnseparatedAssociatedItems {
-    /// Returns whether the source gap contains a complete visually empty line.
-    fn has_blank_line(source: &str) -> bool {
-        let mut saw_line_break = false;
-        let mut line_is_empty = true;
-        for byte in source.bytes() {
-            if byte != b'\n' {
-                line_is_empty &= !saw_line_break || matches!(byte, b' ' | b'\t' | b'\r');
-                continue;
-            }
-
-            // A second line break after only horizontal whitespace proves a blank physical line.
-            if saw_line_break && line_is_empty {
-                return true;
-            }
-            saw_line_break = true;
-            line_is_empty = true;
-        }
-        false
-    }
-
-    /// Returns whether inserting after the previous item preserves comment ownership.
-    fn has_safe_insertion(source: &str) -> bool {
-        // A single-line gap provides no stable line boundary for insertion.
-        let Some((same_line, following_lines)) = source.split_once('\n') else {
-            return false;
-        };
-
-        // Syntax following the prior item on its line makes that insertion point unsafe.
-        if !same_line.trim().is_empty() {
-            return false;
-        }
-        !following_lines.lines().any(|line| {
-            let line = line.trim_start();
-            (line.starts_with("//") && !line.starts_with("///"))
-                || (line.starts_with("/*") && !line.starts_with("/**"))
-        })
-    }
-
     /// Diagnoses every adjacent authored pair without an intervening empty line.
-    fn check_items(cx: &LateContext<'_>, items: &[AssociatedItemSource]) {
-        let source_map = cx.sess().source_map();
-        for pair in items.windows(2) {
-            // Resolve the exact authored gap between neighboring declarations.
-            let [previous, following] = pair else {
-                continue;
-            };
-            if previous.span.from_expansion() || following.span.from_expansion() {
-                continue;
-            }
-            let gap = Span::with_root_ctxt(previous.span.hi(), following.span.lo());
-            let Ok(source) = source_map.span_to_snippet(gap) else {
-                continue;
-            };
-
-            // Retain only boundaries that lack a complete visually empty line.
-            if Self::has_blank_line(&source) {
-                continue;
-            }
-
-            // Capture precise remediation context without reassigning ordinary comments.
-            let insertion = Self::has_safe_insertion(&source).then(|| previous.span.shrink_to_hi());
-
-            // Preserve both neighboring names so the diagnostic explains the exact boundary.
-            let violation = Violation {
-                hir_id: following.hir_id,
-                span: following.span,
-                previous_name: previous.name.clone(),
-                following_name: following.name.clone(),
-                insertion,
-            };
-
-            // Render the classified boundary through the shared diagnostic contract.
-            violation.emit(cx);
+    fn check_items(cx: &LateContext<'_>, items: &[Source]) {
+        for finding in Analyzer::findings(cx, items) {
+            Violation(finding).emit(cx);
         }
     }
 
     /// Resolves directly authored implementation items into comparable source identities.
-    fn impl_items(cx: &LateContext<'_>, item_ids: &[ImplItemId]) -> Vec<AssociatedItemSource> {
+    fn impl_items(cx: &LateContext<'_>, item_ids: &[ImplItemId]) -> Vec<Source> {
         let mut sources = Vec::new();
         for id in item_ids {
             let item = cx.tcx.hir_impl_item(*id);
-            sources.push(AssociatedItemSource::new(
+            sources.push(Source::new(
                 item.hir_id(),
                 item.span,
                 item.ident.name.to_string(),
@@ -207,11 +105,11 @@ impl UnseparatedAssociatedItems {
     }
 
     /// Resolves directly authored trait items into comparable source identities.
-    fn trait_items(cx: &LateContext<'_>, item_ids: &[TraitItemId]) -> Vec<AssociatedItemSource> {
+    fn trait_items(cx: &LateContext<'_>, item_ids: &[TraitItemId]) -> Vec<Source> {
         let mut sources = Vec::new();
         for id in item_ids {
             let item = cx.tcx.hir_trait_item(*id);
-            sources.push(AssociatedItemSource::new(
+            sources.push(Source::new(
                 item.hir_id(),
                 item.span,
                 item.ident.name.to_string(),

@@ -1,5 +1,5 @@
 warning: type parameter `T` on struct `OnlyStruct` has only one concrete substitution
-  --> $DIR/semantic.rs:13:19
+  --> $DIR/semantic.rs:14:19
    |
 LL | struct OnlyStruct<T> {
    |                   ^
@@ -16,7 +16,7 @@ LL | #![warn(unconsumed_generic_abstractions)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: type parameter `T` on enum `OnlyEnum` has only one concrete substitution
-  --> $DIR/semantic.rs:19:15
+  --> $DIR/semantic.rs:20:15
    |
 LL | enum OnlyEnum<T> {
    |               ^
@@ -28,7 +28,7 @@ LL | type OnlyEnumUse = OnlyEnum<u32>;
    = help: replace `T` with `u32` until a second real substitution is required
 
 warning: type parameter `T` on union `OnlyUnion` has only one concrete substitution
-  --> $DIR/semantic.rs:25:17
+  --> $DIR/semantic.rs:26:17
    |
 LL | union OnlyUnion<T: Copy> {
    |                 ^
@@ -40,10 +40,11 @@ LL | type OnlyUnionUse = OnlyUnion<u64>;
    = help: replace `T` with `u64` until a second real substitution is required
 
 warning: type parameter `T` on type alias `OnlyAlias` has only one concrete substitution
-  --> $DIR/semantic.rs:31:16
+  --> $DIR/semantic.rs:32:16
    |
 LL | type OnlyAlias<T> = Option<T>;
    |                ^
+LL |
 LL | type OnlyAliasUse = OnlyAlias<u16>;
    |                     -------------- `u16` is supplied here
    |
@@ -51,13 +52,14 @@ LL | type OnlyAliasUse = OnlyAlias<u16>;
    = help: replace `T` with `u16` until a second real substitution is required
 
 warning: type parameter `T` on struct `Mixed` has only one concrete substitution
-  --> $DIR/semantic.rs:34:14
+  --> $DIR/semantic.rs:36:14
    |
 LL | struct Mixed<T, U> {
    |              ^
 ...
 LL | type MixedFirst = Mixed<u8, u16>;
    |                   -------------- `u8` is supplied here
+LL |
 LL | type MixedSecond = Mixed<u8, u32>;
    |                    -------------- `u8` is supplied here
    |
@@ -65,7 +67,7 @@ LL | type MixedSecond = Mixed<u8, u32>;
    = help: replace `T` with `u8` until a second real substitution is required
 
 warning: type parameter `T` on struct `ClosedPackage` has only one concrete substitution
-  --> $DIR/semantic.rs:42:26
+  --> $DIR/semantic.rs:45:26
    |
 LL | pub struct ClosedPackage<T> {
    |                          ^
@@ -78,10 +80,11 @@ LL | type ClosedPackageUse = ClosedPackage<Concrete>;
    = help: replace `T` with `Concrete` until a second real substitution is required
 
 warning: type parameter `T` on struct `WithLifetimeAndConst` has only one concrete substitution
-  --> $DIR/semantic.rs:89:33
+  --> $DIR/semantic.rs:99:33
    |
 LL | struct WithLifetimeAndConst<'a, T, const N: usize>(&'a [T; N]);
    |                                 ^
+LL |
 LL | type WithLifetimeAndConstUse = WithLifetimeAndConst<'static, Concrete, 1>;
    |                                ------------------------------------------ `Concrete` is supplied here
    |

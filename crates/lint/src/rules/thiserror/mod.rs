@@ -1,5 +1,4 @@
 pub(super) mod utils;
-
 pub mod thiserror_ambiguous_error_sources;
 pub mod thiserror_duplicate_error_messages;
 pub mod thiserror_dynamic_errors_in_library_interfaces;

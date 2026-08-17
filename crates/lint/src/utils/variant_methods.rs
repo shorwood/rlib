@@ -23,6 +23,12 @@ use rustc_span::symbol::sym;
 use rustc_span::{Span, Symbol};
 use serde::Deserialize;
 
+/// Exact arm count for a boolean predicate match.
+const BOOLEAN_MATCH_ARM_COUNT: usize = 2;
+
+/// Owned, shared, and mutable accessors expected for each variant.
+const ACCESSOR_MODES_PER_VARIANT: usize = 3;
+
 // -----------------------------------------------------------------------------
 // VariantMethods: Generated method contracts and shared evidence
 // -----------------------------------------------------------------------------
@@ -619,9 +625,6 @@ impl VariantMethodMatch {
         expression: &Expr<'_>,
         receiver: rustc_hir::HirId,
     ) -> Option<Self> {
-        /// Exact arm count for a boolean predicate match.
-        const BOOLEAN_MATCH_ARM_COUNT: usize = 2;
-
         let expression = peel_transparent(expression);
 
         // Predicate recognition starts with an explicit match expression.
@@ -1158,9 +1161,6 @@ impl AccessorFamilyAnalyzer {
 
     /// Returns only families matching all three generated modes for every tuple variant.
     pub(crate) fn complete_families(&self, cx: &LateContext<'_>) -> Vec<AccessorFamily> {
-        /// Owned, shared, and mutable accessors expected for each variant.
-        const ACCESSOR_MODES_PER_VARIANT: usize = 3;
-
         let mut families = self
             .methods
             .iter()

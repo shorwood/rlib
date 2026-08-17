@@ -10,6 +10,7 @@
 )]
 
 struct Record(String);
+
 struct Account(String);
 
 fn account_from_record(record: Record) -> Account {
@@ -17,6 +18,7 @@ fn account_from_record(record: Record) -> Account {
 }
 
 struct Token(String);
+
 struct Session(String);
 
 impl Token {
@@ -26,6 +28,7 @@ impl Token {
 }
 
 struct Bytes(Vec<u8>);
+
 struct Packet(Vec<u8>);
 
 fn packet_from_bytes(bytes: Bytes) -> Result<Packet, &'static str> {
@@ -33,6 +36,7 @@ fn packet_from_bytes(bytes: Bytes) -> Result<Packet, &'static str> {
 }
 
 struct Source(String);
+
 struct Destination(String);
 
 fn assemble(source: Source) -> Destination {
@@ -51,6 +55,7 @@ fn local_from_input(input: remote::Input) -> Local {
 }
 
 struct AmbiguousSource(String);
+
 struct AmbiguousTarget(String);
 
 fn alpha_conversion(source: AmbiguousSource) -> AmbiguousTarget {
@@ -62,6 +67,7 @@ fn beta_conversion(source: AmbiguousSource) -> AmbiguousTarget {
 }
 
 struct ExistingSource(String);
+
 struct ExistingTarget(String);
 
 impl From<ExistingSource> for ExistingTarget {
@@ -75,6 +81,7 @@ fn existing_from_source(source: ExistingSource) -> ExistingTarget {
 }
 
 struct PolicySource(i64);
+
 struct PolicyTarget(i64);
 
 fn policy_source_to_target_lossy(source: PolicySource) -> PolicyTarget {
@@ -100,6 +107,7 @@ fn generic_from_array<const LENGTH: usize>(source: [u8; LENGTH]) -> GenericTarge
 }
 
 struct DiscardedSource(String);
+
 struct DiscardedTarget(String);
 
 // False-positive boundary: constructing and discarding a target is not a conversion result.
@@ -109,6 +117,7 @@ fn discarded_target_from_source(source: DiscardedSource) -> DiscardedTarget {
 }
 
 struct ReassignedSource(String);
+
 struct ReassignedTarget(String);
 
 // False-positive boundary: assignment from unrelated data kills source provenance.
@@ -119,6 +128,7 @@ fn reassigned_target_from_source(source: ReassignedSource) -> ReassignedTarget {
 }
 
 struct DormantSource(String);
+
 struct DormantTarget(String);
 
 // False-positive boundary: an uncalled closure cannot establish the function's result flow.
@@ -128,6 +138,7 @@ fn dormant_target_from_source(source: DormantSource) -> DormantTarget {
 }
 
 struct EarlySource(String);
+
 struct EarlyTarget(String);
 
 // False-negative boundary: an explicit return still owns a source-to-target conversion path.

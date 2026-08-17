@@ -1,5 +1,4 @@
 pub mod utils;
-
 pub mod miette_ad_hoc_diagnostics_at_domain_boundaries;
 pub mod miette_duplicate_diagnostic_codes;
 pub mod miette_generic_diagnostic_help;

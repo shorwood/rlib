@@ -239,6 +239,7 @@ impl DeriveMoreManualFromStrImpls {
         }
     }
 }
+
 impl LateLintPass<'_> for DeriveMoreManualFromStrImpls {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         // Only function implementation items can define a parser body.

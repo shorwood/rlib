@@ -129,6 +129,7 @@ impl SerdeDefaultsHidingMissingData {
             .is_some_and(|definition| cx.tcx.is_diagnostic_item(sym::Option, definition.did()))
     }
 }
+
 impl LateLintPass<'_> for SerdeDefaultsHidingMissingData {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

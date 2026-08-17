@@ -1,5 +1,5 @@
 warning: literal `3` encodes an unnamed retry bound
-  --> $DIR/semantic.rs:47:24
+  --> $DIR/semantic.rs:48:24
    |
 LL |     for _attempt in 0..3 {
    |                        ^
@@ -13,7 +13,7 @@ LL | #![warn(unnamed_policy_literals)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: literal `4` encodes an unnamed retry bound
-  --> $DIR/semantic.rs:51:33
+  --> $DIR/semantic.rs:52:33
    |
 LL |     let max_delivery_attempts = 4;
    |                                 ^
@@ -22,7 +22,7 @@ LL |     let max_delivery_attempts = 4;
    = help: introduce a domain-specific constant such as `MAX_DELIVERY_ATTEMPTS` and use it here; preserve the controlled operation and unit in the name
 
 warning: literal `11` encodes an unnamed retry bound
-  --> $DIR/semantic.rs:56:17
+  --> $DIR/semantic.rs:57:17
    |
 LL |     let bound = 11;
    |                 ^^
@@ -31,7 +31,7 @@ LL |     let bound = 11;
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `250` encodes an unnamed timing policy
-  --> $DIR/semantic.rs:64:40
+  --> $DIR/semantic.rs:65:40
    |
 LL |     let _delay = Duration::from_millis(250);
    |                                        ^^^
@@ -40,7 +40,7 @@ LL |     let _delay = Duration::from_millis(250);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `2 * 60` encodes an unnamed timing policy
-  --> $DIR/semantic.rs:65:47
+  --> $DIR/semantic.rs:66:47
    |
 LL |     let _computed_delay = Duration::from_secs(2 * 60);
    |                                               ^^^^^^
@@ -49,7 +49,7 @@ LL |     let _computed_delay = Duration::from_secs(2 * 60);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `-2.5` encodes an unnamed timing policy
-  --> $DIR/semantic.rs:66:51
+  --> $DIR/semantic.rs:67:51
    |
 LL |     let _negative_delay = Duration::from_secs_f64(-2.5);
    |                                                   ^^^^
@@ -58,7 +58,7 @@ LL |     let _negative_delay = Duration::from_secs_f64(-2.5);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `64` encodes an unnamed capacity policy
-  --> $DIR/semantic.rs:67:47
+  --> $DIR/semantic.rs:68:47
    |
 LL |     let mut values = Vec::<u8>::with_capacity(64);
    |                                               ^^
@@ -67,7 +67,7 @@ LL |     let mut values = Vec::<u8>::with_capacity(64);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `32` encodes an unnamed capacity policy
-  --> $DIR/semantic.rs:68:26
+  --> $DIR/semantic.rs:69:26
    |
 LL |     values.reserve_exact(32);
    |                          ^^
@@ -76,7 +76,7 @@ LL |     values.reserve_exact(32);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `16` encodes an unnamed truncation policy
-  --> $DIR/semantic.rs:69:21
+  --> $DIR/semantic.rs:70:21
    |
 LL |     values.truncate(16);
    |                     ^^
@@ -85,7 +85,7 @@ LL |     values.truncate(16);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `5` encodes an unnamed pagination policy
-  --> $DIR/semantic.rs:70:36
+  --> $DIR/semantic.rs:71:36
    |
 LL |     let _page = values.iter().skip(5).take(10);
    |                                    ^
@@ -94,7 +94,7 @@ LL |     let _page = values.iter().skip(5).take(10);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `10` encodes an unnamed pagination policy
-  --> $DIR/semantic.rs:70:44
+  --> $DIR/semantic.rs:71:44
    |
 LL |     let _page = values.iter().skip(5).take(10);
    |                                            ^^
@@ -103,7 +103,7 @@ LL |     let _page = values.iter().skip(5).take(10);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `8` encodes an unnamed capacity policy
-  --> $DIR/semantic.rs:71:56
+  --> $DIR/semantic.rs:72:56
    |
 LL |     let _channel = std::sync::mpsc::sync_channel::<u8>(8);
    |                                                        ^
@@ -112,7 +112,7 @@ LL |     let _channel = std::sync::mpsc::sync_channel::<u8>(8);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `6` encodes an unnamed concurrency policy
-  --> $DIR/semantic.rs:72:44
+  --> $DIR/semantic.rs:73:44
    |
 LL |     let _barrier = std::sync::Barrier::new(6);
    |                                            ^
@@ -121,7 +121,7 @@ LL |     let _barrier = std::sync::Barrier::new(6);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `20` encodes an unnamed concurrency policy
-  --> $DIR/semantic.rs:76:50
+  --> $DIR/semantic.rs:77:50
    |
 LL |     let _semaphore = tokio::sync::Semaphore::new(20);
    |                                                  ^^
@@ -130,7 +130,7 @@ LL |     let _semaphore = tokio::sync::Semaphore::new(20);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `24` encodes an unnamed capacity policy
-  --> $DIR/semantic.rs:77:53
+  --> $DIR/semantic.rs:78:53
    |
 LL |     let _channel = tokio::sync::mpsc::channel::<u8>(24);
    |                                                     ^^
@@ -139,7 +139,7 @@ LL |     let _channel = tokio::sync::mpsc::channel::<u8>(24);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `12` encodes an unnamed concurrency policy
-  --> $DIR/semantic.rs:78:49
+  --> $DIR/semantic.rs:79:49
    |
 LL |     let _buffered = vec![1_u8].buffer_unordered(12);
    |                                                 ^^
@@ -148,7 +148,7 @@ LL |     let _buffered = vec![1_u8].buffer_unordered(12);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `6` encodes an unnamed concurrency policy
-  --> $DIR/semantic.rs:79:61
+  --> $DIR/semantic.rs:80:61
    |
 LL |     let _pool = rayon::ThreadPoolBuilder::new().num_threads(6);
    |                                                             ^
@@ -157,7 +157,7 @@ LL |     let _pool = rayon::ThreadPoolBuilder::new().num_threads(6);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `32` encodes an unnamed capacity policy
-  --> $DIR/semantic.rs:80:53
+  --> $DIR/semantic.rs:81:53
    |
 LL |     let _bounded = crossbeam_channel::bounded::<u8>(32);
    |                                                     ^^
@@ -166,7 +166,7 @@ LL |     let _bounded = crossbeam_channel::bounded::<u8>(32);
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `5` encodes an unnamed retry bound
-  --> $DIR/semantic.rs:85:23
+  --> $DIR/semantic.rs:86:23
    |
 LL |         max_attempts: 5,
    |                       ^
@@ -175,7 +175,7 @@ LL |         max_attempts: 5,
    = help: introduce a domain-specific constant such as `MAX_DELIVERY_ATTEMPTS` and use it here; preserve the controlled operation and unit in the name
 
 warning: literal `30` encodes an unnamed timing policy
-  --> $DIR/semantic.rs:86:38
+  --> $DIR/semantic.rs:87:38
    |
 LL |         timeout: Duration::from_secs(30),
    |                                      ^^
@@ -184,7 +184,7 @@ LL |         timeout: Duration::from_secs(30),
    = help: introduce a domain-specific constant such as `DELIVERY_TIMEOUT` and use it here; preserve the controlled operation and unit in the name
 
 warning: literal `1024` encodes an unnamed behavioral threshold
-  --> $DIR/semantic.rs:91:24
+  --> $DIR/semantic.rs:92:24
    |
 LL |     if payload.len() > 1024 {
    |                        ^^^^
@@ -193,7 +193,7 @@ LL |     if payload.len() > 1024 {
    = help: introduce a domain-specific constant whose name states the controlled operation, policy role, and unit where applicable
 
 warning: literal `15` encodes an unnamed timing policy
-  --> $DIR/semantic.rs:129:42
+  --> $DIR/semantic.rs:130:42
    |
 LL |     let _timeout = Duration::from_millis(15);
    |                                          ^^

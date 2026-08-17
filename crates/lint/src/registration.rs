@@ -76,6 +76,7 @@ define_lint_registration! {
         duplicate_section_divider_prefixes,
         fallible_values_replaced_with_defaults,
         foreign_type_method_like_free_functions,
+        function_local_items,
         incoherent_extension_traits,
         incoherent_type_family_names,
         implicit_first_wins_deduplication,
@@ -115,6 +116,7 @@ define_lint_registration! {
         unnamed_policy_literals,
         unnecessarily_broad_visibility,
         unseparated_associated_items,
+        unseparated_module_items,
         unparenthesized_mixed_boolean_operators,
         visibility_required_only_by_tests,
     }

@@ -108,6 +108,7 @@ impl SerdeLossyConditionalSerialization {
             .is_some_and(|definition| cx.tcx.is_diagnostic_item(sym::Option, definition.did()))
     }
 }
+
 impl LateLintPass<'_> for SerdeLossyConditionalSerialization {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

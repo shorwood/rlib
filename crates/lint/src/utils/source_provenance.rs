@@ -44,9 +44,10 @@ pub trait ItemProvenanceExt {
 
 impl ItemProvenanceExt for Item<'_> {
     fn is_framework_generated(&self) -> bool {
-        self.kind
-            .ident()
-            .is_some_and(|identifier| identifier.name.as_str().starts_with("__component_"))
+        self.kind.ident().is_some_and(|identifier| {
+            let name = identifier.name.as_str();
+            name.starts_with("__component_") || name.starts_with("__orig_")
+        })
     }
 }
 

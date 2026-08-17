@@ -1,5 +1,5 @@
 warning: this use declaration reexports an item from a non-defining module
-  --> $DIR/semantic.rs:15:1
+  --> $DIR/semantic.rs:18:1
    |
 LL | pub use defining::PublicItem;
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -13,7 +13,7 @@ LL | #![warn(non_defining_module_reexports)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: this use declaration reexports an item from a non-defining module
-  --> $DIR/semantic.rs:18:1
+  --> $DIR/semantic.rs:21:1
    |
 LL | pub use defining::Choice::*;
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -22,7 +22,7 @@ LL | pub use defining::Choice::*;
    = help: import the item through its defining module; expose that module at the required visibility, or define a local wrapper that owns the abstraction
 
 warning: this use declaration reexports an item from a non-defining module
-  --> $DIR/semantic.rs:19:1
+  --> $DIR/semantic.rs:22:1
    |
 LL | pub use std::fmt::Debug as ExternalDebug;
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -31,7 +31,7 @@ LL | pub use std::fmt::Debug as ExternalDebug;
    = help: import the item through its defining module; expose that module at the required visibility, or define a local wrapper that owns the abstraction
 
 warning: this use declaration reexports an item from a non-defining module
-  --> $DIR/semantic.rs:22:5
+  --> $DIR/semantic.rs:25:5
    |
 LL |     pub(super) use crate::defining::ParentItem;
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -40,7 +40,7 @@ LL |     pub(super) use crate::defining::ParentItem;
    = help: import the item through its defining module; expose that module at the required visibility, or define a local wrapper that owns the abstraction
 
 warning: this use declaration reexports an item from a non-defining module
-  --> $DIR/semantic.rs:23:5
+  --> $DIR/semantic.rs:26:5
    |
 LL |     pub(crate) use crate::defining::CrateItem;
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -49,7 +49,7 @@ LL |     pub(crate) use crate::defining::CrateItem;
    = help: import the item through its defining module; expose that module at the required visibility, or define a local wrapper that owns the abstraction
 
 warning: this use declaration reexports an item from a non-defining module
-  --> $DIR/semantic.rs:24:5
+  --> $DIR/semantic.rs:27:5
    |
 LL |     pub(in crate) use crate::defining::RestrictedItem;
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -58,7 +58,7 @@ LL |     pub(in crate) use crate::defining::RestrictedItem;
    = help: import the item through its defining module; expose that module at the required visibility, or define a local wrapper that owns the abstraction
 
 warning: this extern crate declaration reexports a dependency from a non-defining module
-  --> $DIR/semantic.rs:32:1
+  --> $DIR/semantic.rs:35:1
    |
 LL | pub extern crate core as exported_core;
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -67,7 +67,7 @@ LL | pub extern crate core as exported_core;
    = help: remove the outward visibility and have consumers depend on and import the external crate directly
 
 warning: this use declaration reexports an item from a non-defining module
-  --> $DIR/semantic.rs:36:9
+  --> $DIR/semantic.rs:39:9
    |
 LL |         pub use defining::CrateItem as GeneratedItem;
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

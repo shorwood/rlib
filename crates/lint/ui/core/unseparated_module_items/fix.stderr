@@ -1,0 +1,47 @@
+warning: module-level declarations `Repository` and `MemoryRepository` are not separated by a blank line
+  --> $DIR/fix.rs:9:1
+   |
+LL | struct MemoryRepository;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^ this declaration needs visual separation
+   |
+   = note: visually separating module-level declarations makes ownership and declaration boundaries easier to scan
+note: the lint level is defined here
+  --> $DIR/fix.rs:5:9
+   |
+LL | #![warn(unseparated_module_items)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^
+help: insert one blank line before `MemoryRepository`
+   |
+LL | struct Repository;
+   |                   +
+
+warning: module-level declarations `MemoryRepository` and `impl MemoryRepository` are not separated by a blank line
+  --> $DIR/fix.rs:10:1
+   |
+LL | / impl MemoryRepository {
+LL | |     fn open() -> Self {
+LL | |         Self
+LL | |     }
+LL | | }
+   | |_^ this declaration needs visual separation
+   |
+   = note: visually separating module-level declarations makes ownership and declaration boundaries easier to scan
+help: insert one blank line before `impl MemoryRepository`
+   |
+LL | struct MemoryRepository;
+   |                         +
+
+warning: module-level declarations `impl MemoryRepository` and `close` are not separated by a blank line
+  --> $DIR/fix.rs:15:1
+   |
+LL | fn close() {}
+   | ^^^^^^^^^^^^^ this declaration needs visual separation
+   |
+   = note: visually separating module-level declarations makes ownership and declaration boundaries easier to scan
+help: insert one blank line before `close`
+   |
+LL | }
+   |  +
+
+warning: 3 warnings emitted
+

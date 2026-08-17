@@ -230,12 +230,11 @@ impl LeptosEffectsSynchronizingSignals {
     }
 }
 
+/// Dependency and callback closures supplied to `watch`.
+const WATCH_CLOSURE_COUNT: usize = 2;
+
 impl<'tcx> LateLintPass<'tcx> for LeptosEffectsSynchronizingSignals {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
-        /// Dependency and callback closures supplied to `watch`.
-        // Bound the operation-specific closure scan.
-        const WATCH_CLOSURE_COUNT: usize = 2;
-
         // Effect candidates must be expressed as direct calls with inspectable arguments.
         let ExprKind::Call(_, arguments) = expression.kind else {
             return;

@@ -51,6 +51,9 @@ impl BuilderOption {
 /// Owns source-level analysis of Bon-related attributes.
 pub struct BonAttributeAnalysis;
 
+/// Byte width of each Rust comment delimiter inspected below.
+const COMMENT_MARKER_BYTES: usize = 2;
+
 impl BonAttributeAnalysis {
     /// Returns the final path component of an attribute.
     pub fn name(attribute: &Attribute) -> Option<Symbol> {
@@ -207,7 +210,6 @@ impl BonAttributeAnalysis {
 
     /// Removes line and block comments from a short attribute option segment.
     fn without_comments(source: &str) -> String {
-        const COMMENT_MARKER_BYTES: usize = 2;
         let bytes = source.as_bytes();
         let mut result = String::with_capacity(source.len());
         let mut index = 0_usize;

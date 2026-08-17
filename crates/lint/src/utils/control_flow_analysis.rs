@@ -40,6 +40,7 @@ pub struct ControlFlowDeepFinding {
     /// Refactoring guidance for reducing nesting.
     pub(crate) help: String,
 }
+
 /// Findings split by public lint identity.
 #[derive(Default)]
 pub struct ControlFlowAnalysis {
@@ -66,6 +67,7 @@ enum ControlFlowAnalyzerGuardExit {
     /// A direct loop body can invert the condition and continue early.
     Continue,
 }
+
 /// Return behavior of the outer function under analysis.
 #[derive(Clone, Copy)]
 pub(super) enum ControlFlowAnalyzerFunctionReturn {
@@ -85,6 +87,7 @@ impl ControlFlowAnalyzerFunctionReturn {
         }
     }
 }
+
 /// Mutable traversal state shared by the control-flow readability analyses.
 #[derive(Default)]
 struct ControlFlowAnalyzerState {
@@ -104,6 +107,7 @@ impl ControlFlowAnalyzerState {
             .any(|guardable| guardable.lo() == span.lo() && guardable.hi() == span.hi())
     }
 }
+
 /// More specific remediation available for an excessive-depth finding.
 #[derive(Clone, Copy)]
 enum ControlFlowAnalyzerDepthRemedy {

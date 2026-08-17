@@ -117,6 +117,7 @@ impl BonManualBuilderImplementations {
         matches!(ty.kind(), ty::Adt(definition, _) if cx.tcx.is_diagnostic_item(sym::Result, definition.did()) || cx.tcx.is_diagnostic_item(sym::Option, definition.did()))
     }
 }
+
 impl LateLintPass<'_> for BonManualBuilderImplementations {
     fn check_item(&mut self, _cx: &LateContext<'_>, item: &Item<'_>) {
         // Only structs can establish the field-backed protocol of a manual builder.

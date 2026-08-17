@@ -16,6 +16,9 @@ use rustc_span::{Span, sym};
 use super::utils::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
 
+/// Type arguments required by the standard result type.
+const RESULT_TYPE_ARGUMENTS: usize = 2;
+
 // -----------------------------------------------------------------------------
 // Violation: Advisory diagnostic propagated as an error
 // -----------------------------------------------------------------------------
@@ -39,6 +42,7 @@ struct Violation {
     /// Functions returning the type as an error.
     uses: Vec<ViolationUse>,
 }
+
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
@@ -127,7 +131,6 @@ impl MietteIncoherentDiagnosticSeverity {
         span: Span,
         function: String,
     ) {
-        const RESULT_TYPE_ARGUMENTS: usize = 2;
         let output = cx
             .tcx
             .fn_sig(definition)

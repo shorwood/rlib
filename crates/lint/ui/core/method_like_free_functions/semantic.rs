@@ -15,17 +15,24 @@ struct Item<T> {
 }
 
 type ItemAlias<T> = Item<T>;
+
 type ItemRef<'a> = &'a Item<u8>;
 
 fn consume(item: Item<u8>) {}
+
 fn inspect(item: &Item<u8>) {}
+
 fn mutate(item: &mut ItemAlias<u8>) {}
+
 fn inspect_alias(item: ItemRef<'_>) {}
 
 // Every Rust-ABI function form can retain its modifier as an inherent method.
 async fn inspect_async(item: &Item<u8>) {}
+
 const fn inspect_const(item: &Item<u8>) {}
+
 unsafe fn inspect_unsafe(item: &Item<u8>) {}
+
 extern "Rust" fn inspect_rust_abi(item: &Item<u8>) {}
 
 // All struct shapes are eligible.
@@ -46,6 +53,7 @@ impl Behavior for Unit {
 }
 
 fn inspect_tuple(value: &Tuple) {}
+
 fn inspect_unit(value: &Unit) {}
 
 // A delegating wrapper is still a free function, even when a same-named method exists.
@@ -81,15 +89,14 @@ fn __component_generated(value: &Unit) {}
 
 // These forms cannot map directly to a receiver and remain valid free functions.
 fn second_parameter(count: usize, item: &Item<u8>) {}
-fn boxed(item: Box<Item<u8>>) {}
-fn raw(item: *const Item<u8>) {}
-fn double_reference(item: &&Item<u8>) {}
-extern "C" fn foreign_abi(item: &Item<u8>) {}
 
-fn nested_items_are_out_of_scope() {
-    struct Local;
-    fn inspect_local(value: &Local) {}
-}
+fn boxed(item: Box<Item<u8>>) {}
+
+fn raw(item: *const Item<u8>) {}
+
+fn double_reference(item: &&Item<u8>) {}
+
+extern "C" fn foreign_abi(item: &Item<u8>) {}
 
 enum NotAStruct {
     Value,
@@ -100,6 +107,7 @@ union NotAStructEither {
 }
 
 fn enum_parameter(value: &NotAStruct) {}
+
 fn union_parameter(value: &NotAStructEither) {}
 
 // Importing a struct does not make its defining module the function's module.

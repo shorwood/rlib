@@ -7,6 +7,7 @@ use super::identifier_case;
 /// Vocabulary that proves a repeated-operation policy.
 const POLICY_BOUNDARY_VOCABULARY_RETRY: &[&str] =
     &["attempt", "attempts", "retry", "retries", "backoff"];
+
 /// Vocabulary that proves a time-based policy.
 const POLICY_BOUNDARY_VOCABULARY_TIMING: &[&str] = &[
     "delay",
@@ -17,6 +18,7 @@ const POLICY_BOUNDARY_VOCABULARY_TIMING: &[&str] = &[
     "interval",
     "duration",
 ];
+
 /// Vocabulary that proves a general behavioral bound.
 const POLICY_BOUNDARY_VOCABULARY_THRESHOLD: &[&str] = &[
     "threshold",
@@ -36,6 +38,7 @@ const POLICY_BOUNDARY_VOCABULARY_THRESHOLD: &[&str] = &[
 const POLICY_RESOURCE_VOCABULARY_CAPACITY: &[&str] = &[
     "capacity", "buffer", "queue", "stack", "batch", "chunk", "size",
 ];
+
 /// Vocabulary that proves a parallel-execution policy.
 const POLICY_RESOURCE_VOCABULARY_CONCURRENCY: &[&str] = &[
     "concurrency",
@@ -53,6 +56,7 @@ const POLICY_RESOURCE_VOCABULARY_CONCURRENCY: &[&str] = &[
 
 /// Vocabulary that proves a paging policy.
 const POLICY_OUTPUT_VOCABULARY_PAGINATION: &[&str] = &["page", "pages", "offset", "pagination"];
+
 /// Vocabulary that proves a retained-length policy.
 const POLICY_OUTPUT_VOCABULARY_TRUNCATION: &[&str] = &["truncate", "truncation", "retained"];
 

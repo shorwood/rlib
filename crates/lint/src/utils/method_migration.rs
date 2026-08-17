@@ -35,6 +35,7 @@ impl MigrationEdit {
         self.replacement
     }
 }
+
 /// A group of replacements made inside one larger source range.
 #[derive(Default)]
 struct MigrationEdits(

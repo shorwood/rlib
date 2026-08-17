@@ -707,6 +707,7 @@ struct PolicyComparison<'tcx> {
     /// Simple opposite-side identifier available for constant-name inference.
     subject_name: Option<String>,
 }
+
 /// Finds numeric comparison expressions without entering nested closures.
 #[derive(Default)]
 struct PolicyComparisonCollector<'tcx> {

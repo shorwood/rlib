@@ -92,6 +92,7 @@ impl BonRedundantPositionalAndBuilderApis {
     /// Denominator for the maximum one-half positional share.
     const POSITIONAL_SHARE_DENOMINATOR: usize = 2;
 }
+
 impl EarlyLintPass for BonRedundantPositionalAndBuilderApis {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         // Module items update private-scope state but cannot themselves define builder call shapes.

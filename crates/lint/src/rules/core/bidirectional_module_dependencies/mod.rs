@@ -82,6 +82,7 @@ struct ModuleDependency {
     /// Import span used to relate both directions of a cycle.
     span: Span,
 }
+
 /// One directed module pair that has already produced a diagnostic.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 struct ModulePair {

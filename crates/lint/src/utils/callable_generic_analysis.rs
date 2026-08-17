@@ -53,6 +53,7 @@ struct CallableGenericDeclaration {
     /// Own authored type parameters evaluated independently.
     parameters: Vec<CallableGenericParameter>,
 }
+
 /// Stable evidence key for one callable parameter.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 struct CallableGenericParameterId {
@@ -61,6 +62,7 @@ struct CallableGenericParameterId {
     /// Absolute compiler generic-argument index.
     argument_index: usize,
 }
+
 /// Complete resolved call evidence for one callable parameter.
 #[derive(Default)]
 struct CallableGenericEvidence {

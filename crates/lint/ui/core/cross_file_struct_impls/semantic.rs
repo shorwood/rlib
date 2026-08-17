@@ -13,13 +13,13 @@ use external_macro::external_impl;
 mod implementations;
 #[path = "support/owner.inc"]
 mod owner;
-
 #[path = "support/left/model.inc"]
 mod left_model;
 #[path = "support/right/model.inc"]
 mod right_model;
 
 trait Behavior {}
+
 trait ReferenceBehavior {}
 
 // Different modules are allowed when both declarations are in this physical file.
@@ -33,6 +33,7 @@ mod same_file_implementation {
 
 // Reference self-types and non-struct self-types are outside this rule.
 impl ReferenceBehavior for &owner::Referenced {}
+
 impl Behavior for owner::Choice {}
 
 // External macro output is not editable and remains ignored.

@@ -1,5 +1,5 @@
 warning: this explicit type contains an unnamed tuple shape
-  --> $DIR/semantic.rs:7:21
+  --> $DIR/semantic.rs:8:21
    |
 LL | type Affected<'a> = &'a [(&'a Participant, NameTokens)];
    |                     ^^^^^-----------------------------^
@@ -15,7 +15,7 @@ LL | #![warn(nested_tuple_types)]
    |         ^^^^^^^^^^^^^^^^^^
 
 warning: this explicit type contains an unnamed tuple shape
-  --> $DIR/semantic.rs:8:22
+  --> $DIR/semantic.rs:10:22
    |
 LL |   type MixedCallable = Result<
    |  ______________________^
@@ -29,7 +29,7 @@ LL | | >;
    = help: replace the tuple with a concept-specific record struct and named fields
 
 warning: this explicit type contains an unnamed tuple shape
-  --> $DIR/semantic.rs:13:24
+  --> $DIR/semantic.rs:17:24
    |
 LL | type AssociatedTuple = Box<dyn Iterator<Item = (Participant, NameTokens)>>;
    |                        ^^^^^^^^^^^^^^^^^^^^^^^^-------------------------^^
@@ -40,7 +40,7 @@ LL | type AssociatedTuple = Box<dyn Iterator<Item = (Participant, NameTokens)>>;
    = help: replace the tuple with a concept-specific record struct and named fields
 
 warning: this explicit type contains an unnamed tuple shape
-  --> $DIR/semantic.rs:16:15
+  --> $DIR/semantic.rs:20:15
    |
 LL |     affected: Vec<(&'static Participant, NameTokens)>,
    |               ^^^^----------------------------------^
@@ -51,7 +51,7 @@ LL |     affected: Vec<(&'static Participant, NameTokens)>,
    = help: replace the tuple with a concept-specific record struct and named fields
 
 warning: this explicit type contains an unnamed tuple shape
-  --> $DIR/semantic.rs:20:12
+  --> $DIR/semantic.rs:24:12
    |
 LL |     input: Option<(&Participant, NameTokens)>,
    |            ^^^^^^^--------------------------^
@@ -62,7 +62,7 @@ LL |     input: Option<(&Participant, NameTokens)>,
    = help: replace the tuple with a concept-specific record struct and named fields
 
 warning: this explicit type contains an unnamed tuple shape
-  --> $DIR/semantic.rs:21:6
+  --> $DIR/semantic.rs:25:6
    |
 LL | ) -> Result<Vec<(&Participant, NameTokens)>, ()> {
    |      ^^^^^^^^^^^--------------------------^^^^^^

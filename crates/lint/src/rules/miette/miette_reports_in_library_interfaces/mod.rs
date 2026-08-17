@@ -32,6 +32,7 @@ struct Violation {
     /// Function name shown to the author.
     function: String,
 }
+
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
@@ -201,6 +202,7 @@ impl MietteReportsInLibraryInterfaces {
         .emit(cx);
     }
 }
+
 impl LateLintPass<'_> for MietteReportsInLibraryInterfaces {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Executables may choose their final rendering boundary freely.

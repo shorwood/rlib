@@ -10,6 +10,7 @@ mod attributed {
 
     #[repr(C)]
     struct User(Dependency);
+
     struct Dependency;
 }
 
@@ -20,6 +21,7 @@ mod commented {
 
     struct User(Dependency);
     // This comment has deliberately ambiguous ownership.
+
     struct Dependency;
 }
 

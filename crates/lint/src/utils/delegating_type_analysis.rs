@@ -48,6 +48,7 @@ struct DelegatingTypeCandidate {
     /// Resolved stored type rendered in guidance.
     inner_type: String,
 }
+
 /// Complete crate evidence retained for one wrapper `candidate`.
 #[derive(Default)]
 struct DelegatingTypeEvidence {

@@ -113,6 +113,7 @@ impl StrumManualVariantArrays {
         .emit(cx);
     }
 }
+
 impl LateLintPass<'_> for StrumManualVariantArrays {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.check(cx, CollectionCandidate::from_item(cx, item));

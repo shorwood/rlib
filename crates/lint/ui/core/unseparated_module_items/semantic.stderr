@@ -1,0 +1,16 @@
+warning: module-level declarations `DenseType` and `impl DenseType` are not separated by a blank line
+  --> $DIR/semantic.rs:6:1
+   |
+LL | impl DenseType {}
+   | ^^^^^^^^^^^^^^^^^ this declaration needs visual separation
+   |
+   = note: visually separating module-level declarations makes ownership and declaration boundaries easier to scan
+   = help: insert one blank line before `impl DenseType`
+note: the lint level is defined here
+  --> $DIR/semantic.rs:2:9
+   |
+LL | #![warn(unseparated_module_items)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: 1 warning emitted
+

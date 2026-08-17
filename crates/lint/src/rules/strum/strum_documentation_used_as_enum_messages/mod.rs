@@ -11,6 +11,9 @@ use rustc_span::Span;
 
 use crate::utils::diagnostic::LateViolation;
 
+/// Maximum parent expressions inspected for an observed message sink.
+const MAXIMUM_OBSERVED_SINK_ANCESTORS: usize = 4;
+
 // -----------------------------------------------------------------------------
 // Violation: Documentation reused as a runtime message
 // -----------------------------------------------------------------------------
@@ -113,8 +116,6 @@ impl StrumDocumentationUsedAsEnumMessages {
 
     /// Finds the nearby user-visible call that consumes a generated enum message.
     fn observed_sink(cx: &LateContext<'_>, mut hir_id: rustc_hir::HirId) -> Option<String> {
-        /// Maximum parent expressions inspected for an observed message sink.
-        const MAXIMUM_OBSERVED_SINK_ANCESTORS: usize = 4;
         for _ in 0..MAXIMUM_OBSERVED_SINK_ANCESTORS {
             let parent = cx.tcx.parent_hir_node(hir_id);
 
@@ -158,6 +159,7 @@ impl StrumDocumentationUsedAsEnumMessages {
         None
     }
 }
+
 impl LateLintPass<'_> for StrumDocumentationUsedAsEnumMessages {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
         // Documentation retrieval must be expressed as a receiver method call.

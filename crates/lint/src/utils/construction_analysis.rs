@@ -33,6 +33,7 @@ pub enum ConstructionReturn {
     /// The function returns exactly `Result<T, E>` for the constructed `T`.
     FallibleDirect,
 }
+
 /// Whether a constructor-like function is free or already associated with a type.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ConstructionOrigin {
@@ -41,6 +42,7 @@ pub enum ConstructionOrigin {
     /// A receiver-free function in an inherent implementation.
     Inherent,
 }
+
 /// Structural facts needed to recognize a canonical owned string parser.
 #[derive(Clone, Copy)]
 pub struct ConstructionParserFacts {
@@ -51,6 +53,7 @@ pub struct ConstructionParserFacts {
     /// Whether the target declares a lifetime that `FromStr` cannot return.
     has_target_lifetime: bool,
 }
+
 /// Authored source properties used by conservative constructor relocation.
 #[derive(Clone, Copy)]
 pub struct ConstructionMigrationFacts {
@@ -77,6 +80,7 @@ pub struct ConstructionCandidateFunction {
     /// Module containing the function and its construction target.
     pub(crate) module: LocalDefId,
 }
+
 /// Constructed local type and the return contract that reaches it.
 #[derive(Clone)]
 pub struct ConstructionCandidateTarget {
@@ -87,6 +91,7 @@ pub struct ConstructionCandidateTarget {
     /// Standard-container shape around the constructed value.
     pub(super) return_shape: ConstructionReturn,
 }
+
 /// Function ownership facts used to select the responsible lint policy.
 #[derive(Clone, Copy)]
 pub struct ConstructionCandidateOwnership {
@@ -97,6 +102,7 @@ pub struct ConstructionCandidateOwnership {
     /// Whether the function and constructed type are defined in the same module.
     pub(crate) is_target_same_module: bool,
 }
+
 /// One authored function proven to construct a local nominal type.
 #[derive(Clone)]
 pub struct ConstructionCandidate {
@@ -189,6 +195,7 @@ struct ConstructionInputSource {
     /// Whether attributes decorate the declaration.
     has_attributes: bool,
 }
+
 /// Outermost container used to distinguish exact `Result<T, E>` returns.
 #[derive(Clone, Copy)]
 enum ConstructionInputContainerRoot {
@@ -211,6 +218,7 @@ pub struct ConstructionAnalysisModuleItem {
     /// Authored source range of the item.
     pub(crate) span: Span,
 }
+
 /// Crate-wide construction discovery shared by ownership and parser lints.
 #[derive(Default)]
 pub struct ConstructionAnalysis {
@@ -895,6 +903,34 @@ struct ConstructionResultCollector<'analysis, 'tcx> {
     bindings: HashMap<HirId, HashSet<HirId>>,
 }
 
+/// Finds target-producing expressions beneath one result expression.
+struct ConstructionTargetFinder<'collector, 'analysis, 'tcx> {
+    collector: &'collector ConstructionResultCollector<'analysis, 'tcx>,
+    targets: HashSet<HirId>,
+}
+
+impl<'tcx> Visitor<'tcx> for ConstructionTargetFinder<'_, '_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if self.collector.produces_target(expression) {
+            self.targets.insert(expression.hir_id);
+            return;
+        }
+        if let ExprKind::Path(path) = expression.kind
+            && let Res::Local(binding) = self.collector.cx.qpath_res(&path, expression.hir_id)
+            && let Some(targets) = self.collector.bindings.get(&binding)
+        {
+            self.targets.extend(targets);
+            return;
+        }
+        if matches!(expression.kind, ExprKind::Closure(_)) {
+            return;
+        }
+        intravisit::walk_expr(self, expression);
+    }
+
+    fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
+}
+
 impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
     /// Returns whether an expression directly constructs the target type.
     fn produces_target(&self, expression: &Expr<'_>) -> bool {
@@ -913,40 +949,7 @@ impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
 
     /// Collects target-producing expressions nested beneath one expression.
     fn targets_in(&self, expression: &'tcx Expr<'tcx>) -> HashSet<HirId> {
-        struct TargetFinder<'collector, 'analysis, 'tcx> {
-            collector: &'collector ConstructionResultCollector<'analysis, 'tcx>,
-            targets: HashSet<HirId>,
-        }
-
-        impl<'tcx> Visitor<'tcx> for TargetFinder<'_, '_, 'tcx> {
-            fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-                // A direct construction is a complete target-producing leaf.
-                if self.collector.produces_target(expression) {
-                    self.targets.insert(expression.hir_id);
-                    return;
-                }
-
-                // A bound target value contributes all of its recorded construction sites.
-                if let ExprKind::Path(path) = expression.kind
-                    && let Res::Local(binding) =
-                        self.collector.cx.qpath_res(&path, expression.hir_id)
-                    && let Some(targets) = self.collector.bindings.get(&binding)
-                {
-                    self.targets.extend(targets);
-                    return;
-                }
-
-                // Nested closures cannot contribute targets to the outer return value.
-                if matches!(expression.kind, ExprKind::Closure(_)) {
-                    return;
-                }
-                intravisit::walk_expr(self, expression);
-            }
-
-            fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
-        }
-
-        let mut finder = TargetFinder {
+        let mut finder = ConstructionTargetFinder {
             collector: self,
             targets: HashSet::new(),
         };

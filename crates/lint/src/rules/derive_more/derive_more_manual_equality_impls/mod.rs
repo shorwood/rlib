@@ -219,6 +219,7 @@ impl DeriveMoreManualEqualityImpls {
         Some(())
     }
 }
+
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualEqualityImpls {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         // Only recognized equality trait implementations contribute an `Eq` companion.
@@ -265,6 +266,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualEqualityImpls {
         }
     }
 }
+
 /// Summarizes a structural equality implementation.
 struct StructuralEquality {
     /// Local type compared by the implementation.

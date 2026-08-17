@@ -13,7 +13,7 @@ LL | #![warn(missing_section_dividers)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: independently named module concepts are not separated by section dividers
-  --> $DIR/semantic.rs:65:5
+  --> $DIR/semantic.rs:107:5
    |
 LL |     struct Reader;
    |     ^^^^^^^^^^^^^^
@@ -22,7 +22,7 @@ LL |     struct Reader;
    = help: add responsibility-based sections for the independently named concepts `Reader`, `Writer`
 
 warning: independently named module concepts are not separated by section dividers
-  --> $DIR/semantic.rs:76:9
+  --> $DIR/semantic.rs:120:9
    |
 LL |         struct SerdeAttributes;
    |         ^^^^^^^^^^^^^^^^^^^^^^^

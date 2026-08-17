@@ -12,6 +12,9 @@ use rustc_span::Span;
 use super::utils::contracts::DiagnosticCatalog;
 use crate::utils::diagnostic::LateViolation;
 
+/// Namespace and local name required by a qualified diagnostic code.
+const MINIMUM_QUALIFIED_CODE_SEGMENTS: usize = 2;
+
 // -----------------------------------------------------------------------------
 // Violation: Malformed diagnostic code
 // -----------------------------------------------------------------------------
@@ -80,9 +83,6 @@ dylint_linting::impl_late_lint! {
 impl MietteMalformedDiagnosticCodes {
     /// Accepts namespaced snake-case codes and conventional letter-number codes.
     fn valid_code(code: &str) -> bool {
-        /// Namespace and local name required by a qualified diagnostic code.
-        const MINIMUM_QUALIFIED_CODE_SEGMENTS: usize = 2;
-
         let segments = code.split("::").collect::<Vec<_>>();
 
         // Qualified codes reserve each segment for a stable machine-oriented name.
@@ -134,6 +134,7 @@ impl MietteMalformedDiagnosticCodes {
         .emit(cx);
     }
 }
+
 impl LateLintPass<'_> for MietteMalformedDiagnosticCodes {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

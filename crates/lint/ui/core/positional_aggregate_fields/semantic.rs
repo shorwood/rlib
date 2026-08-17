@@ -4,7 +4,9 @@
 struct Span;
 
 struct Rename(Span, String);
+
 struct Coordinates(i32, i32, i32);
+
 struct EmptyTuple();
 
 enum Finding {
@@ -18,6 +20,7 @@ enum Finding {
 }
 
 struct UserId(u64);
+
 struct Marker;
 
 fn main() {}

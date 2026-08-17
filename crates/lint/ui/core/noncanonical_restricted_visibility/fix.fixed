@@ -6,6 +6,7 @@ struct PrivateValue;
 
 mod parent {
     pub(super) const PARENT_VALUE: usize = 1;
+
     pub(crate) static CRATE_VALUE: usize = 2;
 }
 

@@ -99,6 +99,7 @@ impl MietteGenericDiagnosticHelp {
             .to_ascii_lowercase()
     }
 }
+
 impl LateLintPass<'_> for MietteGenericDiagnosticHelp {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -113,6 +114,7 @@ impl LateLintPass<'_> for MietteGenericDiagnosticHelp {
         }
     }
 }
+
 impl MietteGenericDiagnosticHelp {
     /// Reports one configured generic phrase used as static help text.
     fn check_help(&self, cx: &LateContext<'_>, span: Span, help: Option<&str>) {

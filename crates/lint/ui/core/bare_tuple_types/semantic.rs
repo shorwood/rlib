@@ -2,6 +2,7 @@
 #![allow(dead_code, misordered_module_declarations)]
 
 struct Accepted;
+
 struct Rejected;
 
 type PartitionAlias = (Accepted, Rejected);
@@ -11,8 +12,11 @@ struct Stored {
 }
 
 type Unit = ();
+
 type Singleton = (Accepted,);
+
 type NestedOnly = Option<(Accepted, Rejected)>;
+
 type Callable = dyn Fn(Accepted, Rejected) -> Accepted;
 
 trait PartitionContract {

@@ -58,6 +58,7 @@ struct GenericAbstractionDeclaration {
     /// Explicit authored type parameters evaluated independently.
     parameters: Vec<GenericAbstractionParameter>,
 }
+
 /// Stable parameter identity used as the evidence-map key.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 struct GenericAbstractionParameterId {
@@ -88,6 +89,7 @@ struct GenericSubstitutionEvidence {
     /// Whether any active use inferred, projected, aliased, or forwarded this parameter.
     has_open_boundary: bool,
 }
+
 /// Visibility context carried into one diagnostic.
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum GenericSubstitutionVisibilityContext {

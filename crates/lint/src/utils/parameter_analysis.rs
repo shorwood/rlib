@@ -69,6 +69,7 @@ pub struct ParameterGroup<'signature> {
     /// Parameters carrying distinct roles through names alone.
     pub(crate) parameters: Vec<&'signature Parameter>,
 }
+
 /// One authored function or method signature with simple named parameters.
 #[derive(Clone)]
 pub struct ParameterSignature {

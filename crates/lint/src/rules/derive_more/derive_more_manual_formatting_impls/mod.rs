@@ -267,6 +267,7 @@ impl DeriveMoreManualFormattingImpls {
             && Self::has_one_placeholder(&format.value())
     }
 }
+
 impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualFormattingImpls {
     fn check_impl_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx ImplItem<'tcx>) {
         // Only exact formatting implementations contribute to a derive family.
@@ -303,6 +304,7 @@ impl<'tcx> LateLintPass<'tcx> for DeriveMoreManualFormattingImpls {
         }
     }
 }
+
 /// Identifies one exact formatting implementation.
 struct ExactFormatting {
     /// Local type receiving the formatting implementation.

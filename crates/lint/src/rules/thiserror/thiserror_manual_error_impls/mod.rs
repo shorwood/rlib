@@ -106,6 +106,7 @@ impl ThiserrorManualErrorImpls {
         }
     }
 }
+
 impl LateLintPass<'_> for ThiserrorManualErrorImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

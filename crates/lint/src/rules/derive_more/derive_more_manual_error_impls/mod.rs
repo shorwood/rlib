@@ -289,6 +289,7 @@ impl DeriveMoreManualErrorImpls {
         true
     }
 }
+
 impl LateLintPass<'_> for DeriveMoreManualErrorImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         #[cfg(feature = "thiserror")]

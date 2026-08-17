@@ -128,7 +128,7 @@ fn lint_documentation_is_canonical_for_active_lints() {
     #[cfg(feature = "leptos_styling")]
     lint_documentation_collect_directories(&rules.join("leptos_styling"), &mut lint_directories);
 
-    let expected = 63
+    let expected = 65
         + 14 * usize::from(cfg!(feature = "bon"))
         + 37 * usize::from(cfg!(feature = "leptos"))
         + 6 * usize::from(cfg!(feature = "leptos_styling"))

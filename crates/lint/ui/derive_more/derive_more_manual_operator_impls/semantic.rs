@@ -53,6 +53,7 @@ impl Neg for Named {
 }
 
 struct Other(i64);
+
 struct Mixed(i64);
 
 impl Add<Other> for Mixed {

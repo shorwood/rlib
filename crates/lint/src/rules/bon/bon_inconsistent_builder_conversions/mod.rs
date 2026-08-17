@@ -190,6 +190,7 @@ impl BonInconsistentBuilderConversions {
         );
     }
 }
+
 impl EarlyLintPass for BonInconsistentBuilderConversions {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         match &item.kind {

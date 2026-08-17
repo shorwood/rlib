@@ -30,6 +30,7 @@ enum CollectionReceiver {
     /// Collection is borrowed through a mutable reference.
     Mutable,
 }
+
 /// Mutability of an owned collection's parameter binding.
 #[derive(Clone, Copy)]
 enum CollectionBindingMutability {

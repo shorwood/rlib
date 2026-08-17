@@ -19,6 +19,9 @@ use serde::Deserialize;
 
 use crate::utils::variant_methods::VariantMetadata;
 
+/// Maximum helper-call depth followed while resolving a variant sequence.
+const MAXIMUM_FORWARDING_DEPTH: usize = 4;
+
 // -----------------------------------------------------------------------------
 // Collection: Configured generated API surface
 // -----------------------------------------------------------------------------
@@ -513,9 +516,6 @@ impl VariantSequence {
         declared_surface: CollectionSurface,
         forwarding_depth: usize,
     ) -> Option<Self> {
-        /// Maximum helper-call depth followed while resolving a variant sequence.
-        const MAXIMUM_FORWARDING_DEPTH: usize = 4;
-
         // Bounded resolution prevents cyclic or excessively indirect helper analysis.
         if forwarding_depth > MAXIMUM_FORWARDING_DEPTH {
             return None;

@@ -32,6 +32,7 @@ struct Violation {
     /// Detected relationship inversion.
     kind: ViolationKind,
 }
+
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(match self.kind {
@@ -172,6 +173,7 @@ impl MietteMisclassifiedRelatedDiagnostics {
         }
     }
 }
+
 impl LateLintPass<'_> for MietteMisclassifiedRelatedDiagnostics {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

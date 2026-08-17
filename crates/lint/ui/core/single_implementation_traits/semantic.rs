@@ -42,6 +42,7 @@ trait Several {
 }
 
 struct First;
+
 struct Second;
 
 impl Several for First {
@@ -133,11 +134,13 @@ impl AliasConsumer for AliasConsumerImpl {
 trait Alias = AliasConsumer;
 
 trait Marker {}
+
 impl Marker for Database {}
 
 unsafe trait UnsafeContract {
     fn unsafe_contract(&self);
 }
+
 unsafe impl UnsafeContract for Database {
     fn unsafe_contract(&self) {}
 }
@@ -154,6 +157,7 @@ pub trait IntentionallySealed: sealing::Sealed {
 }
 
 impl sealing::Sealed for Database {}
+
 impl IntentionallySealed for Database {
     fn sealed(&self) {}
 }

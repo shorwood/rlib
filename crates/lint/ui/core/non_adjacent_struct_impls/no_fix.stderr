@@ -13,7 +13,7 @@ LL | impl Attributed {}
    = note: `#[warn(non_adjacent_struct_impls)]` on by default
 
 warning: impl blocks for `Commented` should immediately follow its definition
-  --> $DIR/no_fix.rs:14:1
+  --> $DIR/no_fix.rs:16:1
    |
 LL | struct Commented;
    | ^^^^^^^^^^^^^^^^^
@@ -26,7 +26,7 @@ LL | impl Commented {}
    = help: move this impl block immediately after `Commented`
 
 warning: impl blocks for `MacroCrossing` should immediately follow its definition
-  --> $DIR/no_fix.rs:20:1
+  --> $DIR/no_fix.rs:24:1
    |
 LL |   struct MacroCrossing;
    |   ^^^^^^^^^^^^^^^^^^^^^
@@ -43,7 +43,7 @@ LL | | }
    = help: move this impl block immediately after `MacroCrossing`
 
 warning: impl blocks for `Included` should immediately follow its definition
-  --> $DIR/no_fix.rs:34:1
+  --> $DIR/no_fix.rs:39:1
    |
 LL | struct Included;
    | ^^^^^^^^^^^^^^^^

@@ -13,7 +13,7 @@ LL | #![warn(positional_aggregate_fields)]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: this tuple struct has multiple positional fields
-  --> $DIR/semantic.rs:7:1
+  --> $DIR/semantic.rs:8:1
    |
 LL | struct Coordinates(i32, i32, i32);
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -22,7 +22,7 @@ LL | struct Coordinates(i32, i32, i32);
    = help: use record fields whose names explain each component's semantic role
 
 warning: this tuple-like enum variant has multiple positional fields
-  --> $DIR/semantic.rs:11:5
+  --> $DIR/semantic.rs:13:5
    |
 LL |     Replacement(Span, String),
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^

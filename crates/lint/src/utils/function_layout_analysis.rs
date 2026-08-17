@@ -23,6 +23,7 @@ pub struct FunctionLayoutAnalysis {
     /// Authored phase comments that violate syntax or placement rules.
     pub(crate) malformed: Vec<FunctionLayoutFinding>,
 }
+
 /// Whether a measured code phase already has an explanatory header.
 #[derive(Clone, Copy)]
 enum FunctionLayoutPhaseHeader {

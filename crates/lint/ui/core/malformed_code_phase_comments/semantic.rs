@@ -50,10 +50,11 @@ fn closure_is_independent() {
     };
 }
 
+/// Documents a helper rather than a phase of executable work.
+fn documented_helper() {}
+
 fn doc_comment_is_not_a_phase() {
-    /// Documents a block-local helper.
-    fn helper() {}
-    helper();
+    documented_helper();
 }
 
 fn trailing_header() {

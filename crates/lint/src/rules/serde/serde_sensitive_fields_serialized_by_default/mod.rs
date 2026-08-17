@@ -166,6 +166,7 @@ impl SerdeSensitiveFieldsSerializedByDefault {
             .any(|term| path.contains(term))
     }
 }
+
 impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

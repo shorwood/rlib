@@ -148,6 +148,7 @@ impl BonPublicBuilderImplementationTypes {
         }
     }
 }
+
 impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
         self.catalog.check_item(cx, item);
@@ -211,6 +212,7 @@ impl<'tcx> LateLintPass<'tcx> for BonPublicBuilderImplementationTypes {
         }
     }
 }
+
 impl BonPublicBuilderImplementationTypes {
     /// Adds every named definition nested in one public type.
     fn collect_ty(&mut self, cx: &LateContext<'_>, ty: Ty<'_>, span: Span) {

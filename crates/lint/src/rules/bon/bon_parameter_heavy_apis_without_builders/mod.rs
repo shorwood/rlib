@@ -104,6 +104,7 @@ impl BonParameterHeavyApisWithoutBuilders {
             })
     }
 }
+
 impl LateLintPass<'_> for BonParameterHeavyApisWithoutBuilders {
     fn check_fn(
         &mut self,

@@ -166,6 +166,7 @@ impl ThiserrorDynamicErrorsInLibraryInterfaces {
         .emit(cx);
     }
 }
+
 impl LateLintPass<'_> for ThiserrorDynamicErrorsInLibraryInterfaces {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Only free functions expose callable item boundaries.

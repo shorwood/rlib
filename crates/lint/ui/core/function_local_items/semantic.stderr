@@ -1,0 +1,143 @@
+warning: item `fmt` is declared inside a function body
+  --> $DIR/semantic.rs:9:5
+   |
+LL |     use std::fmt;
+   |     ^^^^^^^^^^^^^ this declaration is nested in executable code
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+note: the lint level is defined here
+  --> $DIR/semantic.rs:2:9
+   |
+LL | #![warn(function_local_items)]
+   |         ^^^^^^^^^^^^^^^^^^^^
+
+warning: item `CAPACITY` is declared inside a function body
+  --> $DIR/semantic.rs:11:5
+   |
+LL |     const CAPACITY: usize = 4;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^ this declaration is nested in executable code
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+
+warning: item `ENABLED` is declared inside a function body
+  --> $DIR/semantic.rs:13:5
+   |
+LL |     static ENABLED: bool = true;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this declaration is nested in executable code
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+
+warning: item `Identifier` is declared inside a function body
+  --> $DIR/semantic.rs:15:5
+   |
+LL |     type Identifier = usize;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^ this declaration is nested in executable code
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+
+warning: item `Local` is declared inside a function body
+  --> $DIR/semantic.rs:17:5
+   |
+LL |     struct Local;
+   |     ^^^^^^^^^^^^^ this declaration is nested in executable code
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+
+warning: item `State` is declared inside a function body
+  --> $DIR/semantic.rs:19:5
+   |
+LL | /     enum State {
+LL | |         Ready,
+LL | |     }
+   | |_____^ this declaration is nested in executable code
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+
+warning: item `Value` is declared inside a function body
+  --> $DIR/semantic.rs:23:5
+   |
+LL | /     union Value {
+LL | |         integer: u8,
+LL | |     }
+   | |_____^ this declaration is nested in executable code
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+
+warning: item `Operation` is declared inside a function body
+  --> $DIR/semantic.rs:27:5
+   |
+LL |     trait Operation {}
+   |     ^^^^^^^^^^^^^^^^^^ this declaration is nested in executable code
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+
+warning: item `<contains_local_items::Local as contains_local_items::Operation>` is declared inside a function body
+  --> $DIR/semantic.rs:29:5
+   |
+LL |     impl Operation for Local {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ this declaration is nested in executable code
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+
+warning: item `helper` is declared inside a function body
+  --> $DIR/semantic.rs:31:5
+   |
+LL |     fn helper() {}
+   |     ^^^^^^^^^^^^^^ this declaration is nested in executable code
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+
+warning: item `support` is declared inside a function body
+  --> $DIR/semantic.rs:33:5
+   |
+LL |     mod support {}
+   |     ^^^^^^^^^^^^^^ this declaration is nested in executable code
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+
+warning: item `local_macro` is declared inside a function body
+  --> $DIR/semantic.rs:35:5
+   |
+LL | /     macro_rules! local_macro {
+LL | |         () => {};
+LL | |     }
+   | |_____^ this declaration is nested in executable code
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+
+warning: item `ClosureLocal` is declared inside a function body
+  --> $DIR/semantic.rs:46:9
+   |
+LL |         struct ClosureLocal;
+   |         ^^^^^^^^^^^^^^^^^^^^ this declaration is nested in executable code
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+
+warning: item `GeneratedLocal` is declared inside a function body
+  --> $DIR/semantic.rs:53:9
+   |
+LL |         struct GeneratedLocal;
+   |         ^^^^^^^^^^^^^^^^^^^^^^ this declaration is nested in executable code
+...
+LL |     generated_local_item!();
+   |     ----------------------- in this macro invocation
+   |
+   = note: function-local items hide reusable structure inside executable control flow and make ownership harder to discover
+   = help: move the item to module scope or its nearest semantic owner and pass required state explicitly
+   = note: this warning originates in the macro `generated_local_item` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: 14 warnings emitted
+

@@ -71,6 +71,7 @@ struct MigrationEdit {
     /// Replacement text, empty for deletion edits.
     replacement: String,
 }
+
 /// Source condition that prevents a trustworthy automatic implementation-group move.
 #[derive(Clone, Copy)]
 enum MigrationBarrier {

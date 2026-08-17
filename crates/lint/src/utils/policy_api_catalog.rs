@@ -27,6 +27,7 @@ const POLICY_API_STANDARD_DURATION_CONSTRUCTOR_NAMES: &[&str] = &[
     "try_from_secs_f32",
     "try_from_secs_f64",
 ];
+
 /// Standard collection APIs whose argument reserves resources.
 const POLICY_API_STANDARD_COLLECTION_CAPACITY_NAMES: &[&str] = &[
     "with_capacity",
@@ -37,6 +38,7 @@ const POLICY_API_STANDARD_COLLECTION_CAPACITY_NAMES: &[&str] = &[
     "try_reserve",
     "try_reserve_exact",
 ];
+
 /// Definition-path segments for standard growable collections.
 const POLICY_API_STANDARD_COLLECTION_PATH_SEGMENTS: &[&str] = &[
     "::Vec::",
@@ -60,6 +62,7 @@ const POLICY_API_ECOSYSTEM_TOKIO_RUNTIME_NAMES: &[&str] = &[
     "event_interval",
     "max_io_events_per_tick",
 ];
+
 /// Futures extension methods whose argument bounds concurrent work.
 const POLICY_API_ECOSYSTEM_FUTURES_CONCURRENCY_NAMES: &[&str] = &[
     "buffered",
@@ -69,6 +72,7 @@ const POLICY_API_ECOSYSTEM_FUTURES_CONCURRENCY_NAMES: &[&str] = &[
     "try_buffer_unordered",
     "try_for_each_concurrent",
 ];
+
 /// Ecosystem crates whose `bounded` constructor sets channel capacity.
 const POLICY_API_ECOSYSTEM_BOUNDED_CHANNEL_CRATES: &[&str] =
     &["crossbeam_channel", "async_channel", "flume"];

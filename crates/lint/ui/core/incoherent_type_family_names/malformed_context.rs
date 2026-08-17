@@ -6,6 +6,7 @@
 // -----------------------------------------------------------------------------
 
 struct MalformedContext;
+
 struct MalformedContextState;
 
 fn main() {}

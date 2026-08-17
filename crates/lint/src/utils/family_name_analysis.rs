@@ -22,6 +22,7 @@ use super::source_provenance::ItemProvenanceExt;
 
 /// Minimum confidence score at which the analyzer reports an incoherent family.
 const THRESHOLD_REPORT: i32 = 7;
+
 /// Minimum confidence score at which exact replacement names are trustworthy.
 const THRESHOLD_SUGGESTION: i32 = 9;
 
@@ -237,6 +238,7 @@ enum ConfidenceSignal {
     /// Multiple dependency owners imply incompatible family stems.
     CompetingStem,
 }
+
 /// Namespace availability of an inferred exact replacement.
 #[derive(Clone, Copy)]
 enum ConfidenceNameAvailability {
@@ -263,6 +265,7 @@ impl ConfidenceNameAvailability {
         }
     }
 }
+
 /// Ordered confidence signals collected while evaluating one family.
 #[derive(Default)]
 struct ConfidenceEvidence(
@@ -318,6 +321,7 @@ struct FamilyCandidate<'section> {
     /// Role-bearing name tokens left after removing the section prefix.
     name: NameTokens,
 }
+
 /// Directed dependency relationship between two affected candidates.
 #[derive(Clone, Copy)]
 struct FamilyCandidateRelationship {

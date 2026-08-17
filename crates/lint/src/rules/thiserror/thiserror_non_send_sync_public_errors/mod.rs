@@ -179,6 +179,7 @@ impl ThiserrorNonSendSyncPublicErrors {
         }
     }
 }
+
 impl LateLintPass<'_> for ThiserrorNonSendSyncPublicErrors {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
@@ -236,6 +237,7 @@ impl LateLintPass<'_> for ThiserrorNonSendSyncPublicErrors {
         }
     }
 }
+
 impl ThiserrorNonSendSyncPublicErrors {
     /// Records local errors transported by one public channel-returning function.
     fn record_public_channel_boundary(

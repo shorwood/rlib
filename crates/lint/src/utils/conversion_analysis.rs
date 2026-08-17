@@ -62,6 +62,7 @@ enum ConversionType {
         elements: Vec<Self>,
     },
 }
+
 /// Concrete generic argument retained in a nominal conversion type.
 #[derive(Clone, PartialEq, Eq, Hash)]
 enum ConversionTypeArgument {
@@ -201,6 +202,7 @@ struct ConversionPair {
     /// Concrete result family owned by the conversion API.
     target: ConversionType,
 }
+
 /// Standard conversion contract implied by a `candidate`'s exact return shape.
 #[derive(Clone)]
 pub enum ConversionContract {
@@ -256,6 +258,7 @@ impl<'tcx> ConversionReturn<'tcx> {
             })
     }
 }
+
 /// How directly the authored name claims to be a general conversion.
 #[derive(Clone, Copy)]
 pub enum ConversionConfidence {
@@ -265,11 +268,12 @@ pub enum ConversionConfidence {
     Structural,
 }
 
+/// Neutral words that explicitly claim general conversion semantics.
+const CONVERSION: &[&str] = &["Conversion", "Convert", "From", "Into", "To", "Try"];
+
 impl ConversionConfidence {
     /// Classifies authored words against neutral conversion and type vocabulary.
     fn for_conversion_vocabulary(authored: &[String], semantic: &HashSet<String>) -> Self {
-        /// Neutral words that explicitly claim general conversion semantics.
-        const CONVERSION: &[&str] = &["Conversion", "Convert", "From", "Into", "To", "Try"];
         let has_marker = Self::has_conversion_marker(authored, CONVERSION);
         let has_only_neutral_words = Self::has_only_neutral_words(authored, semantic, CONVERSION);
         match (has_marker, has_only_neutral_words) {
@@ -331,6 +335,7 @@ impl ConversionCandidateIdentity {
         }
     }
 }
+
 /// Concrete type and trait context retained for one conversion diagnostic.
 #[derive(Clone)]
 pub struct ConversionCandidateSemantics {
@@ -360,6 +365,7 @@ impl ConversionCandidateSemantics {
         }
     }
 }
+
 /// One unique, effect-free conversion that should use a standard trait.
 #[derive(Clone)]
 pub struct ConversionCandidate {
@@ -387,6 +393,48 @@ pub struct ConversionAnalysis {
     target_owned_definitions: HashSet<LocalDefId>,
 }
 
+/// Vocabulary that signals a noncanonical policy, context, or effect.
+const EXCLUDED: &[&str] = &[
+    "Canonicalize",
+    "Canonicalized",
+    "Ceil",
+    "Clamp",
+    "Clamped",
+    "Fetch",
+    "Filter",
+    "Filtered",
+    "First",
+    "Floor",
+    "For",
+    "Last",
+    "Load",
+    "Lookup",
+    "Lossy",
+    "Missing",
+    "Normalize",
+    "Normalized",
+    "Open",
+    "Partial",
+    "Prefix",
+    "Query",
+    "Read",
+    "Resolve",
+    "Round",
+    "Rounded",
+    "Saturating",
+    "Save",
+    "Select",
+    "Selected",
+    "Store",
+    "Truncate",
+    "Truncated",
+    "Unchecked",
+    "Using",
+    "With",
+    "Wrapping",
+    "Write",
+];
+
 impl ConversionAnalysis {
     /// Extracts only direct and exact `Result<T, E>` conversion contracts.
     fn return_contract<'tcx>(
@@ -404,47 +452,6 @@ impl ConversionAnalysis {
 
     /// Rejects names that explicitly advertise policy, context, or effects.
     fn has_hard_name_exclusion(name: &str) -> bool {
-        /// Vocabulary that signals a noncanonical policy, context, or effect.
-        const EXCLUDED: &[&str] = &[
-            "Canonicalize",
-            "Canonicalized",
-            "Ceil",
-            "Clamp",
-            "Clamped",
-            "Fetch",
-            "Filter",
-            "Filtered",
-            "First",
-            "Floor",
-            "For",
-            "Last",
-            "Load",
-            "Lookup",
-            "Lossy",
-            "Missing",
-            "Normalize",
-            "Normalized",
-            "Open",
-            "Partial",
-            "Prefix",
-            "Query",
-            "Read",
-            "Resolve",
-            "Round",
-            "Rounded",
-            "Saturating",
-            "Save",
-            "Select",
-            "Selected",
-            "Store",
-            "Truncate",
-            "Truncated",
-            "Unchecked",
-            "Using",
-            "With",
-            "Wrapping",
-            "Write",
-        ];
         identifier_case::words(name)
             .iter()
             .any(|word| EXCLUDED.contains(&word.as_str()))

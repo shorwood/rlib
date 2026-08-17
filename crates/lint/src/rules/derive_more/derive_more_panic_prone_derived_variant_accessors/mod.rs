@@ -147,6 +147,7 @@ impl DeriveMorePanicProneDerivedVariantAccessors {
             || method == format!("{expected}_mut")
     }
 }
+
 impl LateLintPass<'_> for DeriveMorePanicProneDerivedVariantAccessors {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
         // Generated calls are not authored unchecked accessor decisions.

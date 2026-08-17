@@ -246,6 +246,7 @@ impl BonUndocumentedBuilderMembers {
         }
     }
 }
+
 impl EarlyLintPass for BonUndocumentedBuilderMembers {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         // Module declarations update visibility depth rather than defining builder members.

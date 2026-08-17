@@ -5,7 +5,9 @@ pub(in self) use std::mem;
 mod inline_child {
     // The inline module receives one warning as a whole. Its children must not receive duplicates.
     fn nested_implementation() {}
+
     struct NestedType;
+
     mod deeper {
         fn still_part_of_the_parent_violation() {}
     }
@@ -14,6 +16,7 @@ mod inline_child {
 extern crate core;
 
 fn implementation() {}
+
 struct ImplementedHere;
 
 macro_rules! make_item {

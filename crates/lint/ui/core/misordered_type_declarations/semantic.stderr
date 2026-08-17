@@ -29,6 +29,7 @@ LL +     fn make(value: Leaf) -> Alias;
 LL + }
 LL |
 LL + struct GenericDependency;
+LL |
 LL + type Generic<T = GenericDependency> = T;
    |
 

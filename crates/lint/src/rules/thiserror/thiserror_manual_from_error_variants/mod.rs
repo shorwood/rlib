@@ -107,6 +107,7 @@ impl ThiserrorManualFromErrorVariants {
         }
     }
 }
+
 impl LateLintPass<'_> for ThiserrorManualFromErrorVariants {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);

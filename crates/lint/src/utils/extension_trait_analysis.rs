@@ -103,8 +103,6 @@ struct ExtensionTraitAnalyzerDefinition {
     subjects: HashSet<DefId>,
 }
 
-// TODO: Enforce newline between things such as struct and impl.
-
 /// One authored impl that makes a local trait an extension trait.
 struct ExtensionTraitAnalyzerImpl {
     /// Impl definition identity.
@@ -116,6 +114,7 @@ struct ExtensionTraitAnalyzerImpl {
     /// Complete impl span.
     span: Span,
 }
+
 /// Collects the shared semantic model used by extension-trait policy lints.
 #[derive(Default)]
 pub struct ExtensionTraitAnalyzer {

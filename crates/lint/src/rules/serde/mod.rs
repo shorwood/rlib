@@ -1,5 +1,4 @@
 mod utils;
-
 pub mod serde_ambiguous_untagged_enums;
 pub mod serde_asymmetric_serde_contracts;
 pub mod serde_catch_all_variants_hiding_schema_drift;

@@ -39,6 +39,25 @@ struct ExclusiveBinding<'analysis, 'tcx> {
     has_escaped: bool,
 }
 
+/// Detects any local binding in one tracked authority set.
+struct TrackedBindingFinder<'analysis, 'tcx> {
+    cx: &'analysis LateContext<'tcx>,
+    tracked: &'analysis HashSet<HirId>,
+    has_found: bool,
+}
+
+impl<'tcx> Visitor<'tcx> for TrackedBindingFinder<'_, 'tcx> {
+    fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        if let ExprKind::Path(path) = expression.kind
+            && matches!(self.cx.qpath_res(&path, expression.hir_id), Res::Local(binding) if self.tracked.contains(&binding))
+        {
+            self.has_found = true;
+            return;
+        }
+        intravisit::walk_expr(self, expression);
+    }
+}
+
 impl<'analysis, 'tcx> ExclusiveBinding<'analysis, 'tcx> {
     /// Builds analysis for one authored component parameter.
     fn new(cx: &'analysis LateContext<'tcx>, owner: LocalDefId, binding: HirId) -> Self {
@@ -53,30 +72,7 @@ impl<'analysis, 'tcx> ExclusiveBinding<'analysis, 'tcx> {
 
     /// Returns whether an expression contains any currently tracked binding.
     fn contains_tracked(&self, expression: &'tcx Expr<'tcx>) -> bool {
-        /// Visitor that detects any local binding in the tracked authority set.
-        struct Finder<'analysis, 'tcx> {
-            /// Compiler context used to resolve local paths.
-            cx: &'analysis LateContext<'tcx>,
-            /// Parameter and alias bindings representing the capability.
-            tracked: &'analysis HashSet<HirId>,
-            /// Whether a tracked path has been encountered.
-            has_found: bool,
-        }
-
-        impl<'tcx> Visitor<'tcx> for Finder<'_, 'tcx> {
-            fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-                // A matching tracked path completes the search for this expression subtree.
-                if let ExprKind::Path(path) = expression.kind
-                    && matches!(self.cx.qpath_res(&path, expression.hir_id), Res::Local(binding) if self.tracked.contains(&binding))
-                {
-                    self.has_found = true;
-                    return;
-                }
-                intravisit::walk_expr(self, expression);
-            }
-        }
-
-        let mut finder = Finder {
+        let mut finder = TrackedBindingFinder {
             cx: self.cx,
             tracked: &self.tracked,
             has_found: false,

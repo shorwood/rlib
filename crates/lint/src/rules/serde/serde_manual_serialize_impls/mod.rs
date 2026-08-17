@@ -158,6 +158,7 @@ impl SerdeManualSerializeImpls {
         }
     }
 }
+
 impl LateLintPass<'_> for SerdeManualSerializeImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Only implementation items can define a manual serializer.

@@ -97,6 +97,7 @@ impl StrumManualEnumPredicates {
         }
     }
 }
+
 impl LateLintPass<'_> for StrumManualEnumPredicates {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         self.analyzer.check_impl_item(cx, item);

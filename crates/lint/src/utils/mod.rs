@@ -14,6 +14,7 @@ pub mod impl_item_dependencies;
 pub mod impl_target;
 pub mod iterator_analysis;
 pub mod item_dependencies;
+pub mod item_separation;
 pub mod parameter_kind;
 mod parameter_role;
 pub mod parameter_analysis;

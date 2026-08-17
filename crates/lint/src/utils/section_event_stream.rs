@@ -186,6 +186,7 @@ impl SectionEventStreamEntry {
         }
     }
 }
+
 /// Declarations accumulated before the next divider boundary.
 #[derive(Default)]
 pub(super) struct SectionEventStreamCandidates(
@@ -417,6 +418,7 @@ pub(super) struct SectionEventStreamGroup {
     /// Declarations governed by the divider.
     pub(super) participants: SectionEventStreamCandidates,
 }
+
 /// Mutable reducer state for a module's section event stream.
 #[derive(Default)]
 pub(super) struct SectionEventStreamState {

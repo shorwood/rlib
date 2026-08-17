@@ -1,9 +1,9 @@
 warning: impl blocks for `Delayed` should immediately follow its definition
-  --> $DIR/semantic.rs:38:1
+  --> $DIR/semantic.rs:43:1
    |
 LL | struct Delayed;
    | ^^^^^^^^^^^^^^^
-LL | fn delayed_separator() {}
+...
 LL | impl Delayed {}
    | --------------- this impl is outside `Delayed`'s impl group
    |
@@ -13,10 +13,11 @@ LL | impl Delayed {}
    = note: `#[warn(non_adjacent_struct_impls)]` on by default
 
 warning: impl blocks for `Early` should immediately follow its definition
-  --> $DIR/semantic.rs:44:1
+  --> $DIR/semantic.rs:52:1
    |
 LL | impl Early {}
    | ------------- this impl is outside `Early`'s impl group
+LL |
 LL | struct Early;
    | ^^^^^^^^^^^^^
    |
@@ -25,7 +26,7 @@ LL | struct Early;
    = help: move this impl block immediately after `Early`
 
 warning: impl blocks for `Split` should immediately follow its definition
-  --> $DIR/semantic.rs:47:1
+  --> $DIR/semantic.rs:55:1
    |
 LL | struct Split;
    | ^^^^^^^^^^^^^
@@ -38,7 +39,7 @@ LL | impl Behavior for Split {}
    = help: move all 2 impl blocks immediately after `Split`
 
 warning: impl blocks for `FromLocalMacro` should immediately follow its definition
-  --> $DIR/semantic.rs:69:9
+  --> $DIR/semantic.rs:82:9
    |
 LL |         struct FromLocalMacro;
    |         ^^^^^^^^^^^^^^^^^^^^^^

@@ -215,31 +215,32 @@ impl LeptosHydrationDivergentViews {
         }
     }
 
+    /// Classifies one parsed condition expression by its selected environment.
+    fn classify_environment_condition(expression: &syn::Expr) -> Option<TrueEnvironment> {
+        match expression {
+            syn::Expr::Macro(expression) if expression.mac.path.is_ident("cfg") => {
+                let Ok(meta) = syn::parse2::<Meta>(expression.mac.tokens.clone()) else {
+                    return None;
+                };
+                Self::environment_meta(&meta)
+            }
+            syn::Expr::Unary(expression) if matches!(expression.op, UnOp::Not(_)) => {
+                Self::classify_environment_condition(&expression.expr)
+                    .map(TrueEnvironment::inverted)
+            }
+            syn::Expr::Group(expression) => Self::classify_environment_condition(&expression.expr),
+            syn::Expr::Paren(expression) => Self::classify_environment_condition(&expression.expr),
+            _ => None,
+        }
+    }
+
     /// Recognizes a condition that selects server or browser execution.
     fn environment_condition(source: &str) -> Option<TrueEnvironment> {
-        fn classify(expression: &syn::Expr) -> Option<TrueEnvironment> {
-            match expression {
-                syn::Expr::Macro(expression) if expression.mac.path.is_ident("cfg") => {
-                    // Invalid configuration syntax has no reliable environment meaning.
-                    let Ok(meta) = syn::parse2::<Meta>(expression.mac.tokens.clone()) else {
-                        return None;
-                    };
-                    LeptosHydrationDivergentViews::environment_meta(&meta)
-                }
-                syn::Expr::Unary(expression) if matches!(expression.op, UnOp::Not(_)) => {
-                    classify(&expression.expr).map(TrueEnvironment::inverted)
-                }
-                syn::Expr::Group(expression) => classify(&expression.expr),
-                syn::Expr::Paren(expression) => classify(&expression.expr),
-                _ => None,
-            }
-        }
-
         // Unparseable conditions cannot be matched to supported configuration forms.
         let Ok(expression) = syn::parse_str(source) else {
             return None;
         };
-        classify(&expression)
+        Self::classify_environment_condition(&expression)
     }
 
     /// Reduces one branch to the element and text structure relevant to hydration.

@@ -98,6 +98,7 @@ impl StrumDeclarationOrderDomainContracts {
         })
     }
 }
+
 impl LateLintPass<'_> for StrumDeclarationOrderDomainContracts {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
         // Generated expressions and order-insensitive contexts cannot expose this contract.

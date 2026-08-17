@@ -95,6 +95,7 @@ impl DeriveMoreManualVariantAccessors {
         }
     }
 }
+
 impl LateLintPass<'_> for DeriveMoreManualVariantAccessors {
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
         self.analyzer.check_impl_item(cx, item);

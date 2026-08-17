@@ -199,6 +199,7 @@ impl DeriveMoreManualAggregationImpls {
         )
     }
 }
+
 impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Only implementation items can define an aggregation trait contract.
