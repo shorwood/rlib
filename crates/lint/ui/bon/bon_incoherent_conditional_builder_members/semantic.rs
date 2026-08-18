@@ -1,8 +1,8 @@
 #![allow(
     dead_code,
-    bon_implicit_optional_builder_members,
-    bon_needless_builders_for_small_apis,
-    misordered_module_declarations,
+    rlib::bon_implicit_optional_builder_members,
+    rlib::bon_needless_builders_for_small_apis,
+    rlib::misordered_module_declarations,
     unexpected_cfgs,
     unknown_lints
 )]

@@ -1,8 +1,8 @@
 #![allow(
     dead_code,
-    leptos_mismatched_view_attribute_groups,
-    leptos_missing_view_section_comments,
-    leptos_oversized_view_attribute_groups,
+    rlib::leptos_mismatched_view_attribute_groups,
+    rlib::leptos_missing_view_section_comments,
+    rlib::leptos_oversized_view_attribute_groups,
     unknown_lints
 )]
 

@@ -1,8 +1,7 @@
 // aux-build: foreign_types.rs
-// edition:2024
 
-#![warn(non_adjacent_extension_trait_impls)]
-#![allow(dead_code, non_adjacent_struct_impls, unused_variables)]
+#![warn(rlib::non_adjacent_extension_trait_impls)]
+#![allow(dead_code, rlib::non_adjacent_struct_impls, unused_variables)]
 
 extern crate foreign_types;
 

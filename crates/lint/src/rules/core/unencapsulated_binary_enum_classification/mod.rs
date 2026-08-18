@@ -88,7 +88,7 @@ struct BinaryEnumVariant {
 /// Finds exhaustive boolean-to-enum mappings outside the enum's inherent implementation.
 struct UnencapsulatedBinaryEnumClassification;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub UNENCAPSULATED_BINARY_ENUM_CLASSIFICATION,
     Warn,

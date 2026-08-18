@@ -19,3 +19,7 @@ view! { <main><section><div><div><div><div><div><div>"value"</div></div></div></
 ```rust,ignore
 view! { <main><SummarySection /></main> }
 ```
+
+## Configuration
+
+`leptos-view-nesting-depth-threshold` (default `7`) and `leptos-view-control-flow-depth-threshold` (default `3`) define the limits.

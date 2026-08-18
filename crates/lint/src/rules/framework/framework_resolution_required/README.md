@@ -24,14 +24,18 @@ impl Stage {
 Select the intended provider explicitly in the workspace-root `dylint.toml`:
 
 ```rust,ignore
-[rlib-lint.derive_resolution]
-enum_variant_collection = "strum_variant_array"
-enum_variant_predicates = "strum_enum_is"
-enum_display = "strum_display"
-enum_string_parsing = "strum_enum_string"
-error_implementation = "thiserror_error"
-error_variant_conversion = "thiserror_from"
+[rlib-lint]
+enum-variant-collection-provider = "strum_variant_array"
+enum-variant-predicate-provider = "strum_enum_is"
+enum-display-provider = "strum_display"
+enum-string-parsing-provider = "strum_enum_string"
+error-implementation-provider = "thiserror_error"
+error-variant-conversion-provider = "thiserror_from"
 ```
 
 Only configure choices that apply to the enabled libraries. The lint does not pick a provider or
 silently prefer one based on dependency order.
+
+## Configuration
+
+The six flat `*-provider` keys select an implementation when multiple enabled frameworks can satisfy the same contract.

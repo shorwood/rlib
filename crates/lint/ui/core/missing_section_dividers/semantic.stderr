@@ -9,8 +9,8 @@ LL | struct Missing;
 note: the lint level is defined here
   --> $DIR/semantic.rs:8:9
    |
-LL | #![warn(missing_section_dividers)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::missing_section_dividers)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: independently named module concepts are not separated by section dividers
   --> $DIR/semantic.rs:107:5

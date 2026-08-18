@@ -9,7 +9,7 @@ LL |     fn new(value: u8) -> Result<Self, OutOfRange> {
    |
    = note: the derived component-wise operations reconstruct restricted state without passing through the type's fallible invariant boundary
    = help: remove the Add, Sum derives and retain only operations that preserve or revalidate the invariant
-   = note: `#[warn(derive_more_operator_derives_bypassing_invariants)]` on by default
+   = note: `#[warn(rlib::derive_more_operator_derives_bypassing_invariants)]` on by default
 
 warning: derive_more operators can bypass `Signed` invariants
   --> $DIR/semantic.rs:28:12

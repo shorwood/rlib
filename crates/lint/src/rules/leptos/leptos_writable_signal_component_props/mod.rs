@@ -75,7 +75,7 @@ impl LateViolation for Violation {
 /// Late lint pass that rejects writable reactive authority in Leptos component properties.
 struct LeptosWritableSignalComponentProps;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_WRITABLE_SIGNAL_COMPONENT_PROPS,
     Warn,

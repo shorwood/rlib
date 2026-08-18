@@ -1,6 +1,6 @@
 // compile-flags: --test
 
-#![warn(undocumented_items)]
+#![warn(rlib::undocumented_items)]
 
 fn helper() {}
 

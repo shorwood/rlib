@@ -1,11 +1,11 @@
 #![allow(
     dead_code,
-    misordered_inherent_impl_items,
-    misordered_module_declarations,
-    misordered_type_declarations,
-    non_adjacent_struct_impls
+    rlib::misordered_inherent_impl_items,
+    rlib::misordered_module_declarations,
+    rlib::misordered_type_declarations,
+    rlib::non_adjacent_struct_impls
 )]
-#![warn(missing_section_dividers)]
+#![warn(rlib::missing_section_dividers)]
 
 struct Missing;
 

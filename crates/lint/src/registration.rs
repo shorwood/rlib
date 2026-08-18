@@ -30,20 +30,40 @@ macro_rules! define_lint_registration {
             sess: &rustc_session::Session,
             lint_store: &mut rustc_lint::LintStore,
         ) {
+            dylint_linting::init_config(sess);
+            crate::config::store::ConfigStore::initialize(sess);
+            let all_lint_start = lint_store.get_lints().len();
             let core_lint_start = lint_store.get_lints().len();
             $(rules::core::$core_lint::register_lints(sess, lint_store);)+
             let core_lints = lint_store.get_lints()[core_lint_start..]
                 .iter()
                 .map(|lint| LintId::of(lint))
                 .collect();
-            lint_store.register_group(true, "rlib_core", None, core_lints);
+            lint_store.register_group(true, "rlib::core", None, core_lints);
 
             $(
                 #[cfg(feature = $feature)]
                 {
+                    let layer_lint_start = lint_store.get_lints().len();
                     $(rules::$layer::$lint::register_lints(sess, lint_store);)+
+                    let layer_lints = lint_store.get_lints()[layer_lint_start..]
+                        .iter()
+                        .map(|lint| LintId::of(lint))
+                        .collect();
+                    lint_store.register_group(
+                        true,
+                        concat!("rlib::", stringify!($layer)),
+                        None,
+                        layer_lints,
+                    );
                 }
             )*
+
+            let all_lints = lint_store.get_lints()[all_lint_start..]
+                .iter()
+                .map(|lint| LintId::of(lint))
+                .collect();
+            lint_store.register_group(true, "rlib::all", None, all_lints);
         }
     };
 }

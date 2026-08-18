@@ -1,7 +1,7 @@
 #![allow(
     unknown_lints,
-    leptos_noncanonical_view_formatting,
-    leptos_overpopulated_component_modules
+    rlib::leptos_noncanonical_view_formatting,
+    rlib::leptos_overpopulated_component_modules
 )]
 
 use leptos::prelude::*;

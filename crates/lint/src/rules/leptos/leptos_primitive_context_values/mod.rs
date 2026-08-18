@@ -211,7 +211,7 @@ impl LeptosPrimitiveContextValues {
     }
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_PRIMITIVE_CONTEXT_VALUES,
     Warn,

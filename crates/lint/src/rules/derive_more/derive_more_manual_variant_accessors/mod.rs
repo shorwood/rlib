@@ -9,9 +9,10 @@ use rustc_hir::ImplItem;
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::{Span, Symbol};
 
-use crate::utils::config::LibraryConfig;
+use crate::config::providers::PredicateProvider;
+use crate::config::store::ConfigStore;
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer, PredicateProvider};
+use crate::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer};
 
 // -----------------------------------------------------------------------------
 // Violation: Derivable variant accessor family
@@ -76,7 +77,7 @@ struct DeriveMoreManualVariantAccessors {
     provider: Option<PredicateProvider>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub DERIVE_MORE_MANUAL_VARIANT_ACCESSORS,
     Warn,
@@ -89,7 +90,7 @@ impl DeriveMoreManualVariantAccessors {
     fn new() -> Self {
         Self {
             analyzer: PredicateFamilyAnalyzer::default(),
-            provider: LibraryConfig::load()
+            provider: ConfigStore::get()
                 .derive_resolution
                 .enum_variant_predicates(),
         }

@@ -174,7 +174,7 @@ struct ThiserrorUnpropagatedErrorBacktraces {
     shapes: HashMap<LocalDefId, Vec<BacktraceShape>>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub THISERROR_UNPROPAGATED_ERROR_BACKTRACES,
     Warn,

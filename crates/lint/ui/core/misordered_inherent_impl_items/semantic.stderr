@@ -10,8 +10,8 @@ LL | |     }
 note: the lint level is defined here
   --> $DIR/semantic.rs:7:9
    |
-LL | #![warn(misordered_inherent_impl_items)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::misordered_inherent_impl_items)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 help: move associated items into this order: `Output`, `LIMIT`, `new`, `helper`, `prepare`, `render`
    |
 LL ~     type Output = Self;

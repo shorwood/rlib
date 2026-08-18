@@ -29,3 +29,7 @@ fn names(values: &[String]) -> Vec<String> {
     populated.cloned().collect()
 }
 ```
+
+## Configuration
+
+`method-chain-calls-threshold` sets the maximum number of chained calls (default `3`).

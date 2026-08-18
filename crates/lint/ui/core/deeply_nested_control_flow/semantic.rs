@@ -1,5 +1,5 @@
-#![warn(deeply_nested_control_flow)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::deeply_nested_control_flow)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 fn too_deep(first: bool, second: bool, third: bool, fourth: bool) {
     if first {
@@ -43,7 +43,7 @@ fn guardable_depth_still_counts(first: bool, second: bool, third: bool, fourth: 
     }
 }
 
-#[warn(needlessly_nested_control_flow)]
+#[warn(rlib::needlessly_nested_control_flow)]
 fn guardable_depth_is_deferred(first: bool, second: bool, third: bool, fourth: bool) {
     if first {
         while second {
@@ -102,7 +102,7 @@ macro_rules! generated_nesting {
 
 generated_nesting!();
 
-#[allow(deeply_nested_control_flow)]
+#[allow(rlib::deeply_nested_control_flow)]
 fn explicitly_allowed(first: bool, second: bool, third: bool, fourth: bool) {
     if first {
         while second {

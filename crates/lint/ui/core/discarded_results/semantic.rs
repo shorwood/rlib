@@ -1,4 +1,4 @@
-#![warn(discarded_results)]
+#![warn(rlib::discarded_results)]
 
 struct Failure(&'static str);
 

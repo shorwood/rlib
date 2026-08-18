@@ -9,7 +9,7 @@ LL | | }
    |
    = note: label fields `span` cannot render excerpts without a local or forwarded source
    = help: add a `#[source_code]` field, forward a diagnostic source, or remove the unusable labels
-   = note: `#[warn(miette_labels_without_source_code)]` on by default
+   = note: `#[warn(rlib::miette_labels_without_source_code)]` on by default
 
 warning: diagnostic labels have no source code
   --> $DIR/semantic.rs:25:1

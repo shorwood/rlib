@@ -60,7 +60,7 @@ impl LateViolation for Violation {
 /// Detects Strum APIs whose behavior depends on variant declaration order.
 struct StrumDeclarationOrderDomainContracts;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub STRUM_DECLARATION_ORDER_DOMAIN_CONTRACTS,
     Warn,

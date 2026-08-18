@@ -4,7 +4,7 @@
 // aux-build: tokio.rs
 // compile-flags: --test
 
-#![warn(unnamed_policy_literals)]
+#![warn(rlib::unnamed_policy_literals)]
 #![allow(dead_code, unused_variables)]
 
 extern crate crossbeam_channel;

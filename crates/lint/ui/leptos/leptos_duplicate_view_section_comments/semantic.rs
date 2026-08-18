@@ -55,7 +55,7 @@ fn separate_nested_scopes() -> impl IntoView {
     }
 }
 
-#[allow(leptos_duplicate_view_section_comments)]
+#[allow(rlib::leptos_duplicate_view_section_comments)]
 fn suppressed() -> impl IntoView {
     view! {
         <main>

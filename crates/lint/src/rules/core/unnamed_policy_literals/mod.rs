@@ -100,7 +100,7 @@ impl LateViolation for Violation {
 /// Analyzes each executable body for literals with proven operational meaning.
 struct UnnamedPolicyLiterals;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub UNNAMED_POLICY_LITERALS,
     Warn,

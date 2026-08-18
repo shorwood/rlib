@@ -6,7 +6,16 @@ LL | mod split;
    |
    = note: `split.rs` and `split/` make readers check two locations for one module
    = help: move `split.rs` to `split/mod.rs` so the module and its companion files share one directory
-   = note: `#[warn(mixed_module_file_layouts)]` on by default
+   = note: `#[warn(rlib::mixed_module_file_layouts)]` on by default
+
+warning: module `flat_parent` splits its files across two source roots
+  --> $DIR/auxiliary/conventional/mod.rs:1:1
+   |
+LL | mod flat_parent;
+   | ^^^^^^^^^^^^^^^^
+   |
+   = note: `flat_parent.rs` and `flat_parent/` make readers check two locations for one module
+   = help: move `flat_parent.rs` to `flat_parent/mod.rs` so the module and its companion files share one directory
 
 warning: module `inner` splits its files across two source roots
   --> $DIR/auxiliary/conventional/flat_parent.rs:1:1
@@ -17,5 +26,14 @@ LL | mod inner;
    = note: `inner.rs` and `inner/` make readers check two locations for one module
    = help: move `inner.rs` to `inner/mod.rs` so the module and its companion files share one directory
 
-warning: 2 warnings emitted
+warning: module `flat_with_child` splits its files across two source roots
+  --> $DIR/auxiliary/rust_child_parent.rs:1:1
+   |
+LL | mod flat_with_child;
+   | ^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `flat_with_child.rs` and `flat_with_child/` make readers check two locations for one module
+   = help: move `flat_with_child.rs` to `flat_with_child/mod.rs` so the module and its companion files share one directory
+
+warning: 4 warnings emitted
 

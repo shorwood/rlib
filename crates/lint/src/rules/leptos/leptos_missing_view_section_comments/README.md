@@ -43,3 +43,7 @@ view! {
     </main>
 }
 ```
+
+## Configuration
+
+`leptos-unnamed-view-complexity-threshold` sets when a view section needs a heading (default `4`).

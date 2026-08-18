@@ -1,7 +1,7 @@
 #![allow(
-    bon_undocumented_builder_members,
+    rlib::bon_undocumented_builder_members,
     dead_code,
-    misordered_module_declarations,
+    rlib::misordered_module_declarations,
     unknown_lints
 )]
 

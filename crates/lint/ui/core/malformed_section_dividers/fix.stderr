@@ -10,8 +10,8 @@ LL | | // ----------------------------------------------------------------------
 note: the lint level is defined here
   --> $DIR/fix.rs:3:9
    |
-LL | #![warn(malformed_section_dividers)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::malformed_section_dividers)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 help: render this divider canonically
    |
 LL + // -----------------------------------------------------------------------------

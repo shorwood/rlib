@@ -7,88 +7,11 @@ use proc_macro2::{LineColumn, Span as TokenSpan};
 use quote::ToTokens;
 use rstml::node::{Node, NodeAttribute, NodeElement};
 use rustc_span::Span;
-use serde::Deserialize;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 use syn::{Expr, ExprCall, ExprClosure, FnArg, Item, ItemFn, ItemMod, Macro, Pat, Stmt};
 
 use super::authored_files::SourceDocument;
-use crate::utils::config::LibraryConfig;
-
-// -----------------------------------------------------------------------------
-// LeptosArchitectureConfig: Authored component architecture policy
-// -----------------------------------------------------------------------------
-
-/// Thresholds shared by the source-oriented Leptos architecture lint family.
-#[derive(Clone, Deserialize)]
-#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
-pub struct LeptosArchitectureConfig {
-    /// Maximum non-tail statements allowed before a component view.
-    pub(crate) max_setup_statements: usize,
-    /// Maximum reactive primitive constructions allowed in one function.
-    pub(crate) max_reactive_primitives: usize,
-    /// Maximum statements allowed in one event handler.
-    pub(crate) max_handler_statements: usize,
-    /// Maximum nested control-flow constructs allowed in one event handler.
-    pub(crate) max_handler_control_flow_depth: usize,
-    /// Maximum nested RSX element depth allowed in one view.
-    pub(crate) max_view_nesting_depth: usize,
-    /// Maximum nested control-flow constructs allowed in one view expression.
-    pub(crate) max_view_control_depth: usize,
-    /// Maximum local component call-chain depth allowed from one root.
-    pub(crate) max_component_composition_depth: usize,
-    /// Maximum non-children properties allowed on one component.
-    pub(crate) max_component_props: usize,
-    /// Maximum component functions allowed in one authored module.
-    pub(crate) max_components_per_module: usize,
-    /// Minimum normalized node count for a repeated-fragment candidate.
-    pub(crate) min_repeated_fragment_nodes: usize,
-    /// Minimum occurrences required to report a repeated fragment.
-    pub(crate) min_repeated_fragment_occurrences: usize,
-}
-
-impl Default for LeptosArchitectureConfig {
-    fn default() -> Self {
-        Self {
-            max_setup_statements: 8,
-            max_reactive_primitives: 4,
-            max_handler_statements: 3,
-            max_handler_control_flow_depth: 1,
-            max_view_nesting_depth: 7,
-            max_view_control_depth: 3,
-            max_component_composition_depth: 10,
-            max_component_props: 6,
-            max_components_per_module: 8,
-            min_repeated_fragment_nodes: 6,
-            min_repeated_fragment_occurrences: 2,
-        }
-    }
-}
-
-impl LeptosArchitectureConfig {
-    /// Loads the configured architecture policy and rejects inert zero limits.
-    pub(crate) fn from_config() -> Self {
-        let config = LibraryConfig::load().leptos_architecture;
-        let values = [
-            config.max_setup_statements,
-            config.max_reactive_primitives,
-            config.max_handler_statements,
-            config.max_handler_control_flow_depth,
-            config.max_view_nesting_depth,
-            config.max_view_control_depth,
-            config.max_component_composition_depth,
-            config.max_component_props,
-            config.max_components_per_module,
-            config.min_repeated_fragment_nodes,
-            config.min_repeated_fragment_occurrences,
-        ];
-        assert!(
-            values.into_iter().all(|value| value > 0),
-            "invalid Leptos architecture configuration: every limit must be greater than zero"
-        );
-        config
-    }
-}
 
 // -----------------------------------------------------------------------------
 // HandlerAnalysis: Event handler complexity evidence

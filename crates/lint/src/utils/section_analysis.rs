@@ -7,7 +7,8 @@ use rustc_hir::{HirId, Mod};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::{BytePos, Span};
 
-use super::config::LibraryConfig;
+use crate::config::core::SectionDividerConfig;
+use crate::config::store::ConfigStore;
 
 #[path = "section_template.rs"]
 mod template;
@@ -122,21 +123,21 @@ impl SectionAnalyzer {
     /// Loads and validates the shared library configuration.
     pub(crate) fn from_config() -> Self {
         // Load the divider-specific project configuration.
-        let config = LibraryConfig::load().section_dividers;
-        config
-            .validate()
-            .unwrap_or_else(|message| panic!("invalid section divider configuration: {message}"));
+        let config = &ConfigStore::get().section_dividers;
 
         // Parse the source template before retaining the complete semantic policy.
         // Fail during lint construction when the project template is invalid.
-        let parsed_template = Template::parse(&config.template, config.max_line_length);
+        let parsed_template = Template::parse(
+            SectionDividerConfig::TEMPLATE,
+            SectionDividerConfig::MAX_LINE_LENGTH,
+        );
         let template = parsed_template
             .unwrap_or_else(|message| panic!("invalid section divider template: {message}"));
 
         // Retain the parsed template beside both configured limits.
         Self {
             template,
-            max_line_length: config.max_line_length,
+            max_line_length: SectionDividerConfig::MAX_LINE_LENGTH,
             max_declarations_per_section: config.max_declarations_per_section,
         }
     }
@@ -202,33 +203,5 @@ impl SectionAnalyzer {
                 .collect::<Vec<_>>()
                 .join(&format!("\n{}", request.indentation))
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::utils::config::LibraryConfig;
-    use crate::utils::section_divider_config::SectionDividerConfig;
-
-    #[test]
-    fn parses_custom_section_declaration_limit() {
-        let config = toml::from_str::<LibraryConfig>(
-            r"
-                [section_dividers]
-                max_declarations_per_section = 12
-            ",
-        )
-        .expect("custom section declaration limit should parse");
-        assert_eq!(config.section_dividers.max_declarations_per_section, 12);
-        assert!(config.section_dividers.validate().is_ok());
-    }
-
-    #[test]
-    fn rejects_zero_section_declaration_limit() {
-        let config = SectionDividerConfig {
-            max_declarations_per_section: 0,
-            ..SectionDividerConfig::default()
-        };
-        assert!(config.validate().is_err());
     }
 }

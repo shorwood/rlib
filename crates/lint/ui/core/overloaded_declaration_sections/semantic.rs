@@ -1,5 +1,5 @@
-#![allow(dead_code, misordered_module_declarations)]
-#![warn(overloaded_declaration_sections)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
+#![warn(rlib::overloaded_declaration_sections)]
 
 // -----------------------------------------------------------------------------
 // Accepted: Boundary-sized family

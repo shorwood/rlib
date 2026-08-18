@@ -11,10 +11,9 @@ use rustc_span::Span;
 
 use super::utils::contracts::ThiserrorContractCatalog;
 use super::utils::error_conversions::Candidate as ManualFromCandidate;
-use crate::rules::framework::utils::config::{
-    DeriveResolutionConfig, ErrorVariantConversionProvider,
-};
-use crate::utils::config::LibraryConfig;
+use crate::config::framework::DeriveResolutionConfig;
+use crate::config::providers::ErrorVariantConversionProvider;
+use crate::config::store::ConfigStore;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -77,7 +76,7 @@ struct ThiserrorManualFromErrorVariants {
     candidates: Vec<ManualFromCandidate>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub THISERROR_MANUAL_FROM_ERROR_VARIANTS,
     Warn,
@@ -90,7 +89,7 @@ impl ThiserrorManualFromErrorVariants {
     fn new() -> Self {
         Self {
             catalog: ThiserrorContractCatalog::default(),
-            config: LibraryConfig::load().derive_resolution,
+            config: ConfigStore::get().derive_resolution.clone(),
             candidates: Vec::new(),
         }
     }

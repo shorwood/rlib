@@ -69,113 +69,117 @@ use dylint_testing::ui::Test;
 // -----------------------------------------------------------------------------
 
 /// Cross-cutting lints excluded while each fixture isolates its own diagnostic contract.
-const FIXTURE_CROSS_CUTTING_LINT_ALLOWS: [&str; 106] = [
+const FIXTURE_CROSS_CUTTING_LINT_ALLOWS: [&str; 110] = [
+    "-Zcrate-attr=feature(register_tool)",
+    "-Zcrate-attr=register_tool(rlib)",
     "-A",
-    "ad_hoc_collection_construction",
+    "duplicate_features",
     "-A",
-    "ad_hoc_conversions",
+    "rlib::ad_hoc_collection_construction",
     "-A",
-    "ad_hoc_equality",
+    "rlib::ad_hoc_conversions",
     "-A",
-    "ad_hoc_error_interfaces",
+    "rlib::ad_hoc_equality",
     "-A",
-    "ad_hoc_formatting",
+    "rlib::ad_hoc_error_interfaces",
     "-A",
-    "ad_hoc_iterators",
+    "rlib::ad_hoc_formatting",
     "-A",
-    "ad_hoc_ordering",
+    "rlib::ad_hoc_iterators",
     "-A",
-    "ad_hoc_string_parsers",
+    "rlib::ad_hoc_ordering",
     "-A",
-    "ambiguous_primitive_parameters",
+    "rlib::ad_hoc_string_parsers",
     "-A",
-    "bare_tuple_types",
+    "rlib::ambiguous_primitive_parameters",
     "-A",
-    "bidirectional_module_dependencies",
+    "rlib::bare_tuple_types",
     "-A",
-    "boolean_function_arguments",
+    "rlib::bidirectional_module_dependencies",
     "-A",
-    "constructor_like_free_functions",
+    "rlib::boolean_function_arguments",
     "-A",
-    "deeply_nested_control_flow",
+    "rlib::constructor_like_free_functions",
     "-A",
-    "discarded_results",
+    "rlib::deeply_nested_control_flow",
     "-A",
-    "documentation_after_attributes",
+    "rlib::discarded_results",
     "-A",
-    "duplicate_section_divider_prefixes",
+    "rlib::documentation_after_attributes",
     "-A",
-    "fallible_values_replaced_with_defaults",
+    "rlib::duplicate_section_divider_prefixes",
     "-A",
-    "foreign_type_method_like_free_functions",
+    "rlib::fallible_values_replaced_with_defaults",
     "-A",
-    "incoherent_extension_traits",
+    "rlib::foreign_type_method_like_free_functions",
     "-A",
-    "incoherent_type_family_names",
+    "rlib::incoherent_extension_traits",
     "-A",
-    "implicit_first_wins_deduplication",
+    "rlib::incoherent_type_family_names",
     "-A",
-    "long_method_chains",
+    "rlib::implicit_first_wins_deduplication",
     "-A",
-    "malformed_code_phase_comments",
+    "rlib::long_method_chains",
     "-A",
-    "malformed_section_dividers",
+    "rlib::malformed_code_phase_comments",
     "-A",
-    "mismatched_section_divider_prefixes",
+    "rlib::malformed_section_dividers",
     "-A",
-    "missing_code_phase_comments",
+    "rlib::mismatched_section_divider_prefixes",
     "-A",
-    "missing_section_dividers",
+    "rlib::missing_code_phase_comments",
     "-A",
-    "misordered_test_declarations",
+    "rlib::missing_section_dividers",
     "-A",
-    "needless_delegating_types",
+    "rlib::misordered_test_declarations",
     "-A",
-    "needlessly_nested_control_flow",
+    "rlib::needless_delegating_types",
     "-A",
-    "nested_tuple_types",
+    "rlib::needlessly_nested_control_flow",
     "-A",
-    "non_defining_module_reexports",
+    "rlib::nested_tuple_types",
     "-A",
-    "noncanonical_restricted_visibility",
+    "rlib::non_defining_module_reexports",
     "-A",
-    "non_adjacent_extension_trait_impls",
+    "rlib::noncanonical_restricted_visibility",
     "-A",
-    "overloaded_declaration_sections",
+    "rlib::non_adjacent_extension_trait_impls",
     "-A",
-    "oversized_match_arms",
+    "rlib::overloaded_declaration_sections",
     "-A",
-    "positional_aggregate_fields",
+    "rlib::oversized_match_arms",
     "-A",
-    "repeated_identical_statements",
+    "rlib::positional_aggregate_fields",
     "-A",
-    "results_converted_to_options",
+    "rlib::repeated_identical_statements",
     "-A",
-    "revalidated_string_parameters",
+    "rlib::results_converted_to_options",
     "-A",
-    "single_implementation_traits",
+    "rlib::revalidated_string_parameters",
     "-A",
-    "stringly_typed_domain_function_families",
+    "rlib::single_implementation_traits",
     "-A",
-    "unconsumed_generic_abstractions",
+    "rlib::stringly_typed_domain_function_families",
     "-A",
-    "undocumented_early_returns",
+    "rlib::unconsumed_generic_abstractions",
     "-A",
-    "undocumented_items",
+    "rlib::undocumented_early_returns",
     "-A",
-    "unencapsulated_binary_enum_classification",
+    "rlib::undocumented_items",
     "-A",
-    "unnamed_policy_literals",
+    "rlib::unencapsulated_binary_enum_classification",
     "-A",
-    "unnecessarily_broad_visibility",
+    "rlib::unnamed_policy_literals",
     "-A",
-    "unseparated_associated_items",
+    "rlib::unnecessarily_broad_visibility",
     "-A",
-    "unseparated_module_items",
+    "rlib::unseparated_associated_items",
     "-A",
-    "unparenthesized_mixed_boolean_operators",
+    "rlib::unseparated_module_items",
     "-A",
-    "visibility_required_only_by_tests",
+    "rlib::unparenthesized_mixed_boolean_operators",
+    "-A",
+    "rlib::visibility_required_only_by_tests",
 ];
 
 // Core fixtures exercise analogous language-level contracts intentionally. Framework-provider
@@ -187,17 +191,17 @@ const FIXTURE_CORE_FRAMEWORK_LINT_ALLOWS: [&str; 14] = [
     "-A",
     "unknown_lints",
     "-A",
-    "derive_more_manual_equality_impls",
+    "rlib::derive_more_manual_equality_impls",
     "-A",
-    "derive_more_manual_error_impls",
+    "rlib::derive_more_manual_error_impls",
     "-A",
-    "derive_more_manual_formatting_impls",
+    "rlib::derive_more_manual_formatting_impls",
     "-A",
-    "derive_more_manual_forwarding_interfaces",
+    "rlib::derive_more_manual_forwarding_interfaces",
     "-A",
-    "framework_resolution_required",
+    "rlib::framework_resolution_required",
     "-A",
-    "thiserror_manual_error_impls",
+    "rlib::thiserror_manual_error_impls",
 ];
 
 // Leptos macro expansion intentionally produces shapes covered by these core lints. Keeping the
@@ -206,81 +210,81 @@ const FIXTURE_CORE_FRAMEWORK_LINT_ALLOWS: [&str; 14] = [
 #[cfg(feature = "leptos")]
 const FIXTURE_LEPTOS_GENERATED_CORE_LINT_ALLOWS: [&str; 20] = [
     "-A",
-    "bool_fields_without_predicate_prefix",
+    "rlib::bool_fields_without_predicate_prefix",
     "-A",
-    "collection_method_like_free_functions",
+    "rlib::collection_method_like_free_functions",
     "-A",
-    "cross_file_struct_impls",
+    "rlib::cross_file_struct_impls",
     "-A",
-    "invalid_barrel_file_items",
+    "rlib::invalid_barrel_file_items",
     "-A",
-    "method_like_free_functions",
+    "rlib::method_like_free_functions",
     "-A",
-    "misordered_inherent_impl_items",
+    "rlib::misordered_inherent_impl_items",
     "-A",
-    "misordered_module_declarations",
+    "rlib::misordered_module_declarations",
     "-A",
-    "misordered_type_declarations",
+    "rlib::misordered_type_declarations",
     "-A",
-    "needless_function_wrappers",
+    "rlib::needless_function_wrappers",
     "-A",
-    "non_adjacent_struct_impls",
+    "rlib::non_adjacent_struct_impls",
 ];
 
 /// New source-wide policies excluded from the pre-existing Leptos fixture snapshots.
 #[cfg(feature = "leptos")]
 const FIXTURE_LEPTOS_SOURCE_POLICY_ALLOWS: [&str; 34] = [
     "-A",
-    "leptos_noncanonical_view_formatting",
+    "rlib::leptos_noncanonical_view_formatting",
     "-A",
-    "leptos_excessive_component_composition_depth",
+    "rlib::leptos_excessive_component_composition_depth",
     "-A",
-    "leptos_excessive_component_props",
+    "rlib::leptos_excessive_component_props",
     "-A",
-    "leptos_excessively_nested_views",
+    "rlib::leptos_excessively_nested_views",
     "-A",
-    "leptos_fragmented_reactive_state",
+    "rlib::leptos_fragmented_reactive_state",
     "-A",
-    "leptos_overpopulated_component_modules",
+    "rlib::leptos_overpopulated_component_modules",
     "-A",
-    "leptos_oversized_event_handlers",
+    "rlib::leptos_oversized_event_handlers",
     "-A",
-    "leptos_oversized_reactive_setups",
+    "rlib::leptos_oversized_reactive_setups",
     "-A",
-    "leptos_repeated_view_fragments",
+    "rlib::leptos_repeated_view_fragments",
     "-A",
-    "leptos_unnamed_composables",
+    "rlib::leptos_unnamed_composables",
     "-A",
-    "leptos_unscoped_spawned_tasks",
+    "rlib::leptos_unscoped_spawned_tasks",
     "-A",
-    "leptos_styling_inline_style_properties",
+    "rlib::leptos_styling_inline_style_properties",
     "-A",
-    "leptos_styling_non_colocated_component_styles",
+    "rlib::leptos_styling_non_colocated_component_styles",
     "-A",
-    "leptos_styling_noncanonical_css",
+    "rlib::leptos_styling_noncanonical_css",
     "-A",
-    "leptos_styling_unscoped_component_selectors",
+    "rlib::leptos_styling_unscoped_component_selectors",
     "-A",
-    "leptos_styling_unused_stylesheet_classes",
+    "rlib::leptos_styling_unused_stylesheet_classes",
     "-A",
-    "leptos_styling_untyped_component_classes",
+    "rlib::leptos_styling_untyped_component_classes",
 ];
 
 /// Styling policies excluded while each Leptos architecture fixture isolates its target lint.
 #[cfg(feature = "leptos")]
 const FIXTURE_LEPTOS_STYLING_POLICY_ALLOWS: [&str; 12] = [
     "-A",
-    "leptos_styling_inline_style_properties",
+    "rlib::leptos_styling_inline_style_properties",
     "-A",
-    "leptos_styling_non_colocated_component_styles",
+    "rlib::leptos_styling_non_colocated_component_styles",
     "-A",
-    "leptos_styling_noncanonical_css",
+    "rlib::leptos_styling_noncanonical_css",
     "-A",
-    "leptos_styling_unscoped_component_selectors",
+    "rlib::leptos_styling_unscoped_component_selectors",
     "-A",
-    "leptos_styling_unused_stylesheet_classes",
+    "rlib::leptos_styling_unused_stylesheet_classes",
     "-A",
-    "leptos_styling_untyped_component_classes",
+    "rlib::leptos_styling_untyped_component_classes",
 ];
 
 /// Makes Dylint's internal `cargo build` preserve the test process's feature set.
@@ -394,6 +398,7 @@ fn fixture_run_standalone() {
         |fixture| format!("ui/core/{fixture}"),
     );
     let mut test = Test::src_base(env!("CARGO_PKG_NAME"), source);
+    test.rustc_flags(["--edition=2024"]);
     test.rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS);
     #[cfg(any(feature = "derive_more", feature = "framework", feature = "thiserror"))]
     test.rustc_flags(FIXTURE_CORE_FRAMEWORK_LINT_ALLOWS);
@@ -427,6 +432,7 @@ fn fixture_selected_framework() -> Option<String> {
 }
 
 /// Runs the compatibility fixture that requires an authored Bon API baseline.
+#[cfg(feature = "bon")]
 fn fixture_run_bon_compatibility() {
     Test::example(
         env!("CARGO_PKG_NAME"),
@@ -435,14 +441,12 @@ fn fixture_run_bon_compatibility() {
     .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
     .dylint_toml(
         r#"
-                [rlib-lint.bon_api_baseline.builders.Request]
-                members = ["host"]
-
-                [rlib-lint.bon_api_baseline.builders.upload]
-                members = ["path"]
-
-                [rlib-lint.bon_api_baseline.builders."Client::connect"]
-                members = ["host"]
+                [rlib-lint]
+                bon-api-baseline = [
+                    { builder = "Request", members = ["host"] },
+                    { builder = "upload", members = ["path"] },
+                    { builder = "Client::connect", members = ["host"] },
+                ]
             "#,
     )
     .run();
@@ -533,8 +537,8 @@ fn fixture_run_derive_more() {
         .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
         .dylint_toml(
             r#"
-                [rlib-lint.derive_resolution]
-                enum_variant_predicates = "derive_more_is_variant"
+                [rlib-lint]
+                enum-variant-predicate-provider = "derive_more_is_variant"
             "#,
         )
         .run();
@@ -556,8 +560,8 @@ fn fixture_run_derive_more() {
         .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
         .dylint_toml(
             r#"
-                    [rlib-lint.derive_resolution]
-                    error_implementation = "derive_more_error"
+                    [rlib-lint]
+                    error-implementation-provider = "derive_more_error"
                 "#,
         )
         .run();
@@ -627,7 +631,7 @@ fn fixture_run_miette() {
         test.rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS);
         #[cfg(feature = "thiserror")]
         if example == "miette_ad_hoc_diagnostics_at_domain_boundaries" {
-            test.rustc_flags(["-A", "thiserror_dynamic_errors_in_library_interfaces"]);
+            test.rustc_flags(["-A", "rlib::thiserror_dynamic_errors_in_library_interfaces"]);
         }
         test.run();
     }
@@ -646,7 +650,7 @@ fn fixture_run_miette() {
     test.rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
         .rustc_flags(["--crate-type=lib"]);
     #[cfg(feature = "thiserror")]
-    test.rustc_flags(["-A", "thiserror_dynamic_errors_in_library_interfaces"]);
+    test.rustc_flags(["-A", "rlib::thiserror_dynamic_errors_in_library_interfaces"]);
     test.run();
 }
 
@@ -707,8 +711,8 @@ fn fixture_run_thiserror() {
             .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
             .dylint_toml(
                 r#"
-                    [rlib-lint.derive_resolution]
-                    error_implementation = "thiserror_error"
+                    [rlib-lint]
+                    error-implementation-provider = "thiserror_error"
                 "#,
             )
             .run();
@@ -728,14 +732,15 @@ fn fixture_run_thiserror() {
     .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
     .dylint_toml(
         r#"
-                [rlib-lint.derive_resolution]
-                error_variant_conversion = "thiserror_from"
+                [rlib-lint]
+                error-variant-conversion-provider = "thiserror_from"
             "#,
     )
     .run();
 }
 
 /// Runs the authorization fixture with representative endpoint vocabulary.
+#[cfg(feature = "leptos")]
 fn fixture_run_leptos_authorization() {
     Test::example(
         env!("CARGO_PKG_NAME"),
@@ -746,11 +751,11 @@ fn fixture_run_leptos_authorization() {
     .rustc_flags(FIXTURE_LEPTOS_SOURCE_POLICY_ALLOWS)
     .dylint_toml(
         r#"
-                [rlib-lint.leptos_server_authorization]
-                sensitive_call_terms = ["delete_account", "read_private_profile"]
-                authorization_functions = ["authorize_account_admin"]
-                protected_endpoint_attributes = ["protected_endpoint"]
-                public_endpoint_attributes = ["public_endpoint"]
+                [rlib-lint]
+                leptos-sensitive-call-terms = ["delete_account", "read_private_profile"]
+                leptos-authorization-functions = ["authorize_account_admin"]
+                leptos-protected-endpoint-attributes = ["protected_endpoint"]
+                leptos-public-endpoint-attributes = ["public_endpoint"]
             "#,
     )
     .run();
@@ -911,8 +916,8 @@ fn fixture_run_strum() {
             .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
             .dylint_toml(
                 r#"
-                [rlib-lint.derive_resolution]
-                enum_variant_collection = "strum_variant_array"
+                [rlib-lint]
+                enum-variant-collection-provider = "strum_variant_array"
             "#,
             )
             .run();
@@ -925,8 +930,8 @@ fn fixture_run_strum() {
             .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
             .dylint_toml(
                 r#"
-                [rlib-lint.derive_resolution]
-                enum_variant_predicates = "strum_enum_is"
+                [rlib-lint]
+                enum-variant-predicate-provider = "strum_enum_is"
             "#,
             )
             .run();
@@ -942,8 +947,8 @@ fn fixture_run_strum() {
         .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
         .dylint_toml(
             r#"
-                [rlib-lint.derive_resolution]
-                enum_display = "strum_display"
+                [rlib-lint]
+                enum-display-provider = "strum_display"
             "#,
         )
         .run();
@@ -960,8 +965,8 @@ fn fixture_run_strum() {
         .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
         .dylint_toml(
             r#"
-                    [rlib-lint.derive_resolution]
-                    enum_string_parsing = "strum_enum_string"
+                    [rlib-lint]
+                    enum-string-parsing-provider = "strum_enum_string"
                 "#,
         )
         .run();

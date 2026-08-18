@@ -1,5 +1,5 @@
-#![warn(nested_tuple_types)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::nested_tuple_types)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 struct Participant;
 

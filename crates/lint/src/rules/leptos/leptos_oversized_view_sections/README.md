@@ -40,3 +40,7 @@ view! {
     </main>
 }
 ```
+
+## Configuration
+
+`leptos-view-section-complexity-threshold` sets the maximum named-section complexity (default `4`).

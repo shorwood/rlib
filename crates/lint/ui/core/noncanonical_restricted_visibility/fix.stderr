@@ -8,8 +8,8 @@ LL | pub(self) struct PrivateValue;
 note: the lint level is defined here
   --> $DIR/fix.rs:2:9
    |
-LL | #![warn(noncanonical_restricted_visibility)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::noncanonical_restricted_visibility)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 help: remove the explicit self-only visibility and keep the declaration private
    |
 LL - pub(self) struct PrivateValue;

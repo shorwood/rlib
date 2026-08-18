@@ -1,10 +1,10 @@
 #![allow(
-    leptos_noncanonical_view_formatting,
-    leptos_styling_inline_style_properties,
-    leptos_styling_non_colocated_component_styles,
-    leptos_styling_noncanonical_css,
-    leptos_styling_unscoped_component_selectors,
-    leptos_styling_unused_stylesheet_classes,
+    rlib::leptos_noncanonical_view_formatting,
+    rlib::leptos_styling_inline_style_properties,
+    rlib::leptos_styling_non_colocated_component_styles,
+    rlib::leptos_styling_noncanonical_css,
+    rlib::leptos_styling_unscoped_component_selectors,
+    rlib::leptos_styling_unused_stylesheet_classes,
     unknown_lints
 )]
 

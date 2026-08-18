@@ -7,7 +7,7 @@ LL | pub const STAGES: &[Stage] = &[Stage::Planned, Stage::Running, Stage::Compl
    = note: the exhaustive declaration-order array duplicates the enum definition and can become stale
    = note: this API is public; `VariantArray::VARIANTS` is a shared slice, so migration requires a compatibility review
    = help: derive `strum::VariantArray`, import its trait, and migrate callers to `Type::VARIANTS`
-   = note: `#[warn(strum_manual_variant_arrays)]` on by default
+   = note: `#[warn(rlib::strum_manual_variant_arrays)]` on by default
 
 warning: `Stage` variants are repeated in a manual array
   --> $DIR/semantic.rs:16:28
@@ -44,7 +44,7 @@ LL | const ENABLED_STAGES: &[DisabledStage] = &[DisabledStage::Active];
    |
    = note: the exhaustive declaration-order sequence duplicates the enum definition and can become stale
    = help: derive `strum::EnumIter`, import `strum::IntoEnumIterator`, and migrate callers to `Type::iter()`
-   = note: `#[warn(strum_manual_enum_iteration)]` on by default
+   = note: `#[warn(rlib::strum_manual_enum_iteration)]` on by default
 
 warning: `SerializedStage` variants are repeated in a manual array
   --> $DIR/semantic.rs:42:6

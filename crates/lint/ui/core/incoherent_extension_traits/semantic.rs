@@ -1,7 +1,6 @@
 // aux-build: foreign_types.rs
-// edition:2024
 
-#![warn(incoherent_extension_traits)]
+#![warn(rlib::incoherent_extension_traits)]
 #![allow(dead_code, unused_variables)]
 
 extern crate foreign_types;

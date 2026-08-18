@@ -9,8 +9,8 @@ LL | fn render(minify: bool) {}
 note: the lint level is defined here
   --> $DIR/semantic.rs:3:9
    |
-LL | #![warn(boolean_function_arguments)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::boolean_function_arguments)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: 2 boolean parameters create an unreadable positional flag combination
   --> $DIR/semantic.rs:14:11

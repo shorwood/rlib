@@ -122,7 +122,7 @@ impl EarlyViolation for Violation {
 /// Early lint pass over authored visibility-bearing declarations.
 struct NoncanonicalRestrictedVisibility;
 
-dylint_linting::impl_early_lint! {
+crate::impl_early_lint! {
     #[doc = include_str!("README.md")]
     pub NONCANONICAL_RESTRICTED_VISIBILITY,
     Warn,

@@ -48,3 +48,7 @@ fn prepare() {
     consume(length, empty);
 }
 ```
+
+## Configuration
+
+`function-phase-lines-threshold` sets the maximum size of an unnamed function phase (default `7`).

@@ -1,17 +1,17 @@
 #![feature(register_tool)]
 #![allow(
     dead_code,
-    leptos_boolean_component_props,
-    leptos_effects_synchronizing_signals,
-    leptos_implicit_default_component_props,
-    leptos_manual_resource_refetch_signals,
-    leptos_needlessly_cloned_signal_values,
-    leptos_reactive_writes_during_view_construction,
-    leptos_reactive_writes_in_resource_fetchers,
-    leptos_unkeyed_reactive_collections,
-    leptos_unreactive_signal_reads_in_views,
-    leptos_unsanitized_inner_html,
-    leptos_writable_signal_component_props,
+    rlib::leptos_boolean_component_props,
+    rlib::leptos_effects_synchronizing_signals,
+    rlib::leptos_implicit_default_component_props,
+    rlib::leptos_manual_resource_refetch_signals,
+    rlib::leptos_needlessly_cloned_signal_values,
+    rlib::leptos_reactive_writes_during_view_construction,
+    rlib::leptos_reactive_writes_in_resource_fetchers,
+    rlib::leptos_unkeyed_reactive_collections,
+    rlib::leptos_unreactive_signal_reads_in_views,
+    rlib::leptos_unsanitized_inner_html,
+    rlib::leptos_writable_signal_component_props,
     unknown_lints
 )]
 #![register_tool(rlib_lint)]
@@ -85,7 +85,7 @@ fn deferred_callback_is_independent() {
     let _ = callback;
 }
 
-#[allow(leptos_read_then_replace_signals)]
+#[allow(rlib::leptos_read_then_replace_signals)]
 fn suppressed() {
     let count = RwSignal::new(0);
     count.set(count.get() + 1);

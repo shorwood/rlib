@@ -17,7 +17,7 @@ pub const STAGE_NAMES: &[&str] = &["Planned", "Complete"];
 const BACKSTAGE_NAMES: &[&str] = &["Planned", "Complete"];
 
 #[derive(strum::VariantNames)]
-#[allow(strum_conflicting_enum_serializations)]
+#[allow(rlib::strum_conflicting_enum_serializations)]
 #[strum(serialize_all = "snake_case", prefix = "api-", suffix = "-v1")]
 enum WireState {
     HttpReady,

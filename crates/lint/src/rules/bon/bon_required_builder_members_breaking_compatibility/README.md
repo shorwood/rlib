@@ -14,8 +14,8 @@ compatibility change that cannot be inferred safely without historical evidence.
 ## Example
 
 ```toml
-[rlib-lint.bon_api_baseline.builders.Request]
-members = ["host"]
+[rlib-lint]
+bon-api-baseline = [{ builder = "Request", members = ["host"] }]
 ```
 
 ```rust,ignore
@@ -36,3 +36,7 @@ pub struct Request {
     port: u16,
 }
 ```
+
+## Configuration
+
+`bon-api-baseline` records builders and their previously required members as `{ builder, members }` entries.

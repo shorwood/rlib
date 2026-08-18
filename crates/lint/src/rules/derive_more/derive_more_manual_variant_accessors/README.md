@@ -28,3 +28,7 @@ enum Message { Write(Vec<u8>), Quit }
 
 When Strum is also enabled, set `derive_resolution.enum_variant_predicates` explicitly; dependency
 presence never chooses between `strum::EnumIs` and `derive_more::IsVariant`.
+
+## Configuration
+
+`enum-variant-predicate-provider` selects `derive_more_is_variant` or `strum_enum_is`.

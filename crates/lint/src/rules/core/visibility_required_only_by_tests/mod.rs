@@ -160,7 +160,7 @@ struct VisibilityRequiredOnlyByTests {
     analyzer: VisibilityUsageAnalyzer,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub VISIBILITY_REQUIRED_ONLY_BY_TESTS,
     Warn,

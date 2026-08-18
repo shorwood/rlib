@@ -6,7 +6,7 @@ LL |     provide_context(set_theme);
    |
    = note: context lookup is type-based, so broad types can collide and do not name the capability descendants depend on
    = help: wrap this value in a local domain type and expose the narrowest capability descendants require
-   = note: `#[warn(leptos_primitive_context_values)]` on by default
+   = note: `#[warn(rlib::leptos_primitive_context_values)]` on by default
 
 warning: Leptos context type `leptos::prelude::WriteSignal<bool>` has no domain identity
   --> $DIR/semantic.rs:11:22

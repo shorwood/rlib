@@ -1,7 +1,7 @@
 // compile-flags: --test
 
-#![warn(needless_delegating_types)]
-#![allow(dead_code, method_like_free_functions, non_adjacent_struct_impls)]
+#![warn(rlib::needless_delegating_types)]
+#![allow(dead_code, rlib::method_like_free_functions, rlib::non_adjacent_struct_impls)]
 
 struct Inner;
 

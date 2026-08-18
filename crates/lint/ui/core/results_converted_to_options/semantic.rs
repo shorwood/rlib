@@ -1,4 +1,4 @@
-#![warn(results_converted_to_options, fallible_values_replaced_with_defaults)]
+#![warn(rlib::results_converted_to_options, rlib::fallible_values_replaced_with_defaults)]
 
 #[derive(Debug)]
 struct Failure;

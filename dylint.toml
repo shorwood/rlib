@@ -1,8 +1,6 @@
-[rlib-lint.function_structure]
-max_phase_lines = 15
-max_control_flow_depth = 4
-max_match_arm_lines = 15
-max_method_chain_calls = 5
-
-[rlib-lint.section_dividers]
-max_declarations_per_section = 40
+[rlib-lint]
+function-phase-lines-threshold = 15
+control-flow-depth-threshold = 4
+match-arm-lines-threshold = 15
+method-chain-calls-threshold = 5
+declarations-per-section-threshold = 40

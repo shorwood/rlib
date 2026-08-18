@@ -98,7 +98,7 @@ struct SerdeSensitiveFieldsSerializedByDefault {
     candidates: Vec<Candidate>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub SERDE_SENSITIVE_FIELDS_SERIALIZED_BY_DEFAULT,
     Warn,

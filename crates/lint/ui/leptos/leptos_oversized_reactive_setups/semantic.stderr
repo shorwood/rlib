@@ -6,7 +6,7 @@ LL | fn CrowdedSetup() -> impl IntoView {
    |
    = note: large setup phases mix unrelated state, effects, loading, and mutation responsibilities
    = help: extract cohesive reactive responsibilities into named `use_*` composables
-   = note: `#[warn(leptos_oversized_reactive_setups)]` on by default
+   = note: `#[warn(rlib::leptos_oversized_reactive_setups)]` on by default
 
 warning: 1 warning emitted
 

@@ -1,9 +1,9 @@
-#![warn(ad_hoc_collection_construction)]
+#![warn(rlib::ad_hoc_collection_construction)]
 #![allow(
     dead_code,
-    misordered_module_declarations,
-    missing_section_dividers,
-    non_adjacent_struct_impls
+    rlib::misordered_module_declarations,
+    rlib::missing_section_dividers,
+    rlib::non_adjacent_struct_impls
 )]
 
 struct Entry(u64);

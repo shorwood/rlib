@@ -9,9 +9,11 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
+use crate::config::leptos::LeptosArchitectureConfig;
+use crate::config::store::ConfigStore;
 use crate::rules::leptos::utils::authored_files::AuthoredFiles;
 use crate::rules::leptos::utils::component_architecture::{
-    ArchitectureAnalysis, LeptosArchitectureConfig, RepeatedFragmentPolicy,
+    ArchitectureAnalysis, RepeatedFragmentPolicy,
 };
 use crate::utils::diagnostic::EarlyViolation;
 
@@ -81,11 +83,11 @@ struct LeptosRepeatedViewFragments {
     files: AuthoredFiles,
 }
 
-dylint_linting::impl_early_lint! {
+crate::impl_early_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_REPEATED_VIEW_FRAGMENTS,Warn,
     "rejects repeated normalized Leptos view fragments",
-    LeptosRepeatedViewFragments{config:LeptosArchitectureConfig::from_config(),files:AuthoredFiles::default()}
+    LeptosRepeatedViewFragments{config:ConfigStore::get().leptos_architecture.clone(),files:AuthoredFiles::default()}
 }
 impl EarlyLintPass for LeptosRepeatedViewFragments {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {

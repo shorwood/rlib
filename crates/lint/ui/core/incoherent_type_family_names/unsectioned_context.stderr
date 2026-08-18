@@ -2,7 +2,7 @@ warning: type names in the `UnsectionedContext` section repeat organizational co
   --> $DIR/unsectioned_context.rs:1:1
    |
 LL | / #![allow(dead_code)]
-LL | | #![warn(incoherent_type_family_names)]
+LL | | #![warn(rlib::incoherent_type_family_names)]
 LL | |
 LL | | struct UnsectionedContext;
 LL | |
@@ -20,8 +20,8 @@ LL | | fn main() {}
 note: the lint level is defined here
   --> $DIR/unsectioned_context.rs:2:9
    |
-LL | #![warn(incoherent_type_family_names)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::incoherent_type_family_names)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: 1 warning emitted
 

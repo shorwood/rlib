@@ -11,8 +11,9 @@ use rustc_errors::{Applicability, DiagDecorator};
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
+use crate::config::leptos::LeptosStylingCssFormattingConfig;
+use crate::config::store::ConfigStore;
 use crate::rules::leptos::utils::authored_files::{AuthoredFiles, SourceDocument};
-use crate::rules::leptos_styling::utils::config::LeptosStylingCssFormattingConfig;
 use crate::rules::leptos_styling::utils::source::ComponentStyleAnalysis;
 use crate::utils::diagnostic::EarlyViolation;
 
@@ -93,13 +94,13 @@ impl LeptosStylingNoncanonicalCss {
     /// Builds a formatter pass from the project configuration.
     fn new() -> Self {
         Self {
-            config: LeptosStylingCssFormattingConfig::from_config(),
+            config: ConfigStore::get().leptos_styling_css_formatting.clone(),
             files: AuthoredFiles::default(),
         }
     }
 }
 
-dylint_linting::impl_early_lint! {
+crate::impl_early_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_STYLING_NONCANONICAL_CSS,
     Warn,

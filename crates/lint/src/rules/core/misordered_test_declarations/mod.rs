@@ -105,7 +105,7 @@ impl LateViolation for Violation {
 /// Late lint pass enforcing one terminal canonical in-source test module.
 struct MisorderedTestDeclarations;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MISORDERED_TEST_DECLARATIONS,
     Warn,

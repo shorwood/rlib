@@ -84,7 +84,7 @@ impl LateViolation for Violation {
 /// Finds policy-free constructors reproducible by `derive_more`'s `Constructor` derive.
 struct DeriveMoreManualConstructors;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub DERIVE_MORE_MANUAL_CONSTRUCTORS,
     Warn,

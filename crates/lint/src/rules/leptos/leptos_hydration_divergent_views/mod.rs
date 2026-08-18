@@ -147,7 +147,7 @@ impl<'ast> Visit<'ast> for ViewShape {
 /// Rejects environment branches that produce incompatible hydration structures.
 struct LeptosHydrationDivergentViews;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_HYDRATION_DIVERGENT_VIEWS,
     Warn,

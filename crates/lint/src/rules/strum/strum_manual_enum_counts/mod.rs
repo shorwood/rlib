@@ -68,7 +68,7 @@ impl LateViolation for Violation {
 /// Finds fixed enum counts that `EnumCount` can derive from the declaration.
 struct StrumManualEnumCounts;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub STRUM_MANUAL_ENUM_COUNTS,
     Warn,

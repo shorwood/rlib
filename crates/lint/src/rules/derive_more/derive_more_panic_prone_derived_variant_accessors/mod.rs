@@ -65,7 +65,7 @@ impl LateViolation for Violation {
 /// Finds generated variant accessors called without a statically proven matching variant.
 struct DeriveMorePanicProneDerivedVariantAccessors;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub DERIVE_MORE_PANIC_PRONE_DERIVED_VARIANT_ACCESSORS,
     Warn,

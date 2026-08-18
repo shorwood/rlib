@@ -11,7 +11,7 @@ LL | |         }
    = note: the exhaustive integer-to-unit-variant match duplicates resolved discriminants and `Option` failure behavior
    = note: this conversion is public; generated visibility, constness, and signature require a compatibility review
    = help: derive `strum::FromRepr` and remove the equivalent inherent conversion
-   = note: `#[warn(strum_manual_repr_conversions)]` on by default
+   = note: `#[warn(rlib::strum_manual_repr_conversions)]` on by default
 
 warning: `SparseStatus::from_repr` repeats the enum discriminant mapping
   --> $DIR/semantic.rs:45:9

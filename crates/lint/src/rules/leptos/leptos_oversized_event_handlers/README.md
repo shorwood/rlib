@@ -20,3 +20,7 @@ view! { <button on:click=move |_| { validate(); save(); refresh(); close(); }>"S
 let save = use_save_contact();
 view! { <button on:click=move |_| save.dispatch(())>"Save"</button> }
 ```
+
+## Configuration
+
+`leptos-event-handler-statements-threshold` (default `3`) and `leptos-event-handler-control-flow-depth-threshold` (default `1`) define the limits.

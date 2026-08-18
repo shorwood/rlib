@@ -136,7 +136,7 @@ impl LateViolation for Violation {
 /// Finds standard Result fallbacks that replace errors with unmarked default values.
 struct FallibleValuesReplacedWithDefaults;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub FALLIBLE_VALUES_REPLACED_WITH_DEFAULTS,
     Warn,

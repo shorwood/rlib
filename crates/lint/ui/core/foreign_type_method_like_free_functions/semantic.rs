@@ -1,11 +1,10 @@
 // aux-build: foreign_types.rs
-// edition:2024
 
-#![warn(foreign_type_method_like_free_functions)]
+#![warn(rlib::foreign_type_method_like_free_functions)]
 #![allow(
     dead_code,
-    method_like_free_functions,
-    misordered_module_declarations,
+    rlib::method_like_free_functions,
+    rlib::misordered_module_declarations,
     unused_variables
 )]
 

@@ -75,7 +75,7 @@ impl LateViolation for Violation {
 /// Recommends named construction for large or ambiguous public signatures.
 struct BonParameterHeavyApisWithoutBuilders;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub BON_PARAMETER_HEAVY_APIS_WITHOUT_BUILDERS,
     Warn,

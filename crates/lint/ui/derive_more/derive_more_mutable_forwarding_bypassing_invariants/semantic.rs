@@ -1,4 +1,4 @@
-#![allow(dead_code, misordered_module_declarations, unknown_lints)]
+#![allow(dead_code, rlib::misordered_module_declarations, unknown_lints)]
 
 #[derive(derive_more::Deref, derive_more::DerefMut)]
 pub struct SortedValues(Vec<u32>);

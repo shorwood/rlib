@@ -1,4 +1,4 @@
-pub mod utils;
+pub(super) mod utils;
 pub mod strum_conflicting_enum_serializations;
 pub mod strum_defaulted_payload_enum_construction;
 pub mod strum_declaration_order_domain_contracts;

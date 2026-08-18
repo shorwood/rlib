@@ -1,8 +1,8 @@
 #![allow(
-    bon_escaping_incomplete_builders,
+    rlib::bon_escaping_incomplete_builders,
     dead_code,
-    misordered_module_declarations,
-    needless_function_wrappers,
+    rlib::misordered_module_declarations,
+    rlib::needless_function_wrappers,
     unknown_lints
 )]
 

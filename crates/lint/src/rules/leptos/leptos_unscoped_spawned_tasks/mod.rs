@@ -68,7 +68,7 @@ struct LeptosUnscopedSpawnedTasks {
     files: AuthoredFiles,
 }
 
-dylint_linting::impl_early_lint! {
+crate::impl_early_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_UNSCOPED_SPAWNED_TASKS,Warn,
     "rejects detached local tasks in Leptos components and composables",

@@ -127,7 +127,7 @@ struct InvalidBarrelFileItems {
     ignored_inline_depth: usize,
 }
 
-dylint_linting::impl_pre_expansion_lint! {
+crate::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub INVALID_BARREL_FILE_ITEMS,
     Warn,

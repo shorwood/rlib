@@ -78,7 +78,7 @@ struct StrumManualEnumMetadata {
     catalog: ContractCatalog,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub STRUM_MANUAL_ENUM_METADATA,
     Warn,

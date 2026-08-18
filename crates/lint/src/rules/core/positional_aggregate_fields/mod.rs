@@ -58,7 +58,7 @@ impl LateViolation for Violation {
 /// Late lint pass that rejects aggregates with several unnamed field roles.
 struct PositionalAggregateFields;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub POSITIONAL_AGGREGATE_FIELDS,
     Warn,

@@ -70,7 +70,7 @@ impl LateViolation for Violation {
 /// Finds transparent manual serializers reproducible by Serde derives.
 struct SerdeManualSerializeImpls;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub SERDE_MANUAL_SERIALIZE_IMPLS,
     Warn,

@@ -8,39 +8,10 @@ use rustc_errors::DiagDecorator;
 use rustc_hir::{Item, TraitItem};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{Span, Symbol};
-use serde::Deserialize;
 
-use crate::utils::config::LibraryConfig;
+use crate::config::store::ConfigStore;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::extension_trait_analysis::{ExtensionTraitAnalyzer, ExtensionTraitProblem};
-
-// -----------------------------------------------------------------------------
-// ExtensionTraitConfig: Focused extension trait limits
-// -----------------------------------------------------------------------------
-/// Limits that prevent extension traits from becoming catch-all APIs.
-#[derive(Clone, Deserialize)]
-#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
-pub struct ExtensionTraitConfig {
-    /// Maximum methods permitted in one focused extension trait.
-    max_methods: usize,
-}
-
-impl Default for ExtensionTraitConfig {
-    fn default() -> Self {
-        Self { max_methods: 8 }
-    }
-}
-
-impl ExtensionTraitConfig {
-    /// Rejects configuration that cannot express a coherent policy.
-    fn validate(&self) -> Result<(), String> {
-        // A zero method limit cannot admit any coherent extension trait.
-        if self.max_methods == 0 {
-            return Err("extension_traits.max_methods must be greater than zero".to_owned());
-        }
-        Ok(())
-    }
-}
 
 // -----------------------------------------------------------------------------
 // Violation: Incoherent extension trait diagnostic
@@ -131,10 +102,7 @@ impl IncoherentExtensionTraits {
     /// Builds the pass from validated extension-trait configuration.
     fn new() -> Self {
         // Reject invalid limits before constructing the shared semantic analyzer.
-        let config = LibraryConfig::load().extension_traits;
-        config
-            .validate()
-            .unwrap_or_else(|message| panic!("invalid extension trait configuration: {message}"));
+        let config = &ConfigStore::get().extension_traits;
 
         // Couple the validated method budget with a fresh crate analysis.
         Self {
@@ -144,7 +112,7 @@ impl IncoherentExtensionTraits {
     }
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub INCOHERENT_EXTENSION_TRAITS,
     Warn,
@@ -171,32 +139,5 @@ impl LateLintPass<'_> for IncoherentExtensionTraits {
             }
             .emit(cx);
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{ExtensionTraitConfig, LibraryConfig};
-
-    #[test]
-    fn parses_custom_method_limit() {
-        let config = toml::from_str::<LibraryConfig>(
-            r"
-                [extension_traits]
-                max_methods = 5
-            ",
-        )
-        .expect("custom extension trait limit should parse");
-        assert_eq!(config.extension_traits.max_methods, 5);
-    }
-
-    #[test]
-    fn uses_eight_methods_by_default() {
-        assert_eq!(ExtensionTraitConfig::default().max_methods, 8);
-    }
-
-    #[test]
-    fn rejects_zero_methods() {
-        assert!(ExtensionTraitConfig { max_methods: 0 }.validate().is_err());
     }
 }

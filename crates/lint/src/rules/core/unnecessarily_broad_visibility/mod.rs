@@ -187,7 +187,7 @@ struct UnnecessarilyBroadVisibility {
     delegating_type_analyzer: DelegatingTypeAnalyzer,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub UNNECESSARILY_BROAD_VISIBILITY,
     Warn,

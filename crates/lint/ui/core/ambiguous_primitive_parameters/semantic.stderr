@@ -11,8 +11,8 @@ LL | fn schedule(user: UserNumber, project: u64, delay: u64) {}
 note: the lint level is defined here
   --> $DIR/semantic.rs:3:9
    |
-LL | #![warn(ambiguous_primitive_parameters)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::ambiguous_primitive_parameters)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: textual parameters `user`, `organization`, `token` carry distinct roles but remain interchangeable
   --> $DIR/semantic.rs:18:17

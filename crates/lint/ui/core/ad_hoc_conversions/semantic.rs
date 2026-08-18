@@ -1,11 +1,11 @@
-#![warn(ad_hoc_conversions)]
+#![warn(rlib::ad_hoc_conversions)]
 #![allow(
-    constructor_like_free_functions,
+    rlib::constructor_like_free_functions,
     dead_code,
-    method_like_free_functions,
-    misordered_module_declarations,
-    missing_section_dividers,
-    non_adjacent_struct_impls,
+    rlib::method_like_free_functions,
+    rlib::misordered_module_declarations,
+    rlib::missing_section_dividers,
+    rlib::non_adjacent_struct_impls,
     unused_variables
 )]
 

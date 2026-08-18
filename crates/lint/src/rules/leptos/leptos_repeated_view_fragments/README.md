@@ -20,3 +20,7 @@ view! { <label class=style::FIELD><span>"Email"</span><input prop:value=email />
 ```rust,ignore
 view! { <FormField label="Name" value=name /><FormField label="Email" value=email /> }
 ```
+
+## Configuration
+
+`leptos-repeated-view-fragment-nodes-threshold` (default `6`) and `leptos-repeated-view-fragment-occurrences-threshold` (default `2`) define a repeated fragment.

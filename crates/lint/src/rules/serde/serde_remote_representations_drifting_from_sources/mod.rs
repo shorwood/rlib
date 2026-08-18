@@ -115,7 +115,7 @@ struct SerdeRemoteRepresentationsDriftingFromSources {
     candidates: Vec<RemoteCandidate>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub SERDE_REMOTE_REPRESENTATIONS_DRIFTING_FROM_SOURCES,
     Warn,

@@ -12,8 +12,8 @@ LL | |     }
 note: the lint level is defined here
   --> $DIR/active_tests.rs:4:9
    |
-LL | #![warn(missing_section_dividers)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::missing_section_dividers)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: 1 warning emitted
 

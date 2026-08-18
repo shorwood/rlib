@@ -1,6 +1,5 @@
-#![warn(missing_code_phase_comments)]
-#![allow(dead_code, misordered_module_declarations)]
-// edition:2024
+#![warn(rlib::missing_code_phase_comments)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 fn missing() {
     let _one = 1;
@@ -50,7 +49,7 @@ fn exact_limit() {
     let _fifteen = 15;
 }
 
-#[allow(missing_code_phase_comments)]
+#[allow(rlib::missing_code_phase_comments)]
 fn explicitly_allowed() {
     let _one = 1;
     let _two = 2;

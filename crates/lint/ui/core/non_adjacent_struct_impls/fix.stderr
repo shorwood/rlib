@@ -1,5 +1,5 @@
 warning: impl blocks for `EarlyMovable` should immediately follow its definition
-  --> $DIR/fix.rs:13:1
+  --> $DIR/fix.rs:12:1
    |
 LL | impl EarlyMovable {}
    | -------------------- this impl is outside `EarlyMovable`'s impl group
@@ -8,7 +8,7 @@ LL | struct EarlyMovable;
    | ^^^^^^^^^^^^^^^^^^^^
    |
    = note: keeping this direct impl block adjacent lets readers and tools understand `EarlyMovable` without searching the module
-   = note: `#[warn(non_adjacent_struct_impls)]` on by default
+   = note: `#[warn(rlib::non_adjacent_struct_impls)]` on by default
 help: move this impl block immediately after `EarlyMovable`
    |
 LL + 
@@ -19,7 +19,7 @@ LL + impl EarlyMovable {}
    |
 
 warning: impl blocks for `Movable` should immediately follow its definition
-  --> $DIR/fix.rs:15:1
+  --> $DIR/fix.rs:14:1
    |
 LL |   struct Movable;
    |   ^^^^^^^^^^^^^^^
@@ -44,7 +44,7 @@ LL + }
    |
 
 warning: impl blocks for `Multiple` should immediately follow its definition
-  --> $DIR/fix.rs:25:1
+  --> $DIR/fix.rs:24:1
    |
 LL | struct Multiple;
    | ^^^^^^^^^^^^^^^^
@@ -63,7 +63,7 @@ LL + impl Behavior for Multiple {}
    |
 
 warning: impl blocks for `Split` should immediately follow its definition
-  --> $DIR/fix.rs:33:1
+  --> $DIR/fix.rs:32:1
    |
 LL | struct Split;
    | ^^^^^^^^^^^^^

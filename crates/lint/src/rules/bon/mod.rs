@@ -1,4 +1,4 @@
-pub mod utils;
+mod utils;
 pub mod bon_builders_bypassing_construction_invariants;
 pub mod bon_escaping_incomplete_builders;
 pub mod bon_implicit_optional_builder_members;

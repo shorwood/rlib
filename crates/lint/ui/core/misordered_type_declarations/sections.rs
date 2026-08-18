@@ -1,5 +1,5 @@
-#![allow(dead_code, misordered_inherent_impl_items, misordered_module_declarations)]
-#![warn(misordered_type_declarations)]
+#![allow(dead_code, rlib::misordered_inherent_impl_items, rlib::misordered_module_declarations)]
+#![warn(rlib::misordered_type_declarations)]
 
 mod authored {
     // -----------------------------------------------------------------------------

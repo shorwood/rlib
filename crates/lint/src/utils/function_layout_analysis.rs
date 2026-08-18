@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LintContext};
 use rustc_span::{BytePos, Span};
 
 use super::function_layout_comments::{FunctionLayoutEntryGap, FunctionLayoutFinding};
-use super::function_structure_config::FunctionStructureConfig;
+use crate::config::core::FunctionStructureConfig;
 
 // -----------------------------------------------------------------------------
 // FunctionLayout: Analyze direct code phases
@@ -303,7 +303,7 @@ impl<'analysis, 'tcx> FunctionLayoutAnalyzer<'analysis, 'tcx> {
         } else {
             format!(
                 "replace the blank-line boundary with a concise `{}` explanation or extract a named operation",
-                self.config.phase_comment_prefix
+                FunctionStructureConfig::PHASE_COMMENT_PREFIX
             )
         };
 

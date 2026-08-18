@@ -63,7 +63,7 @@ impl LateViolation for Violation {
 /// Late lint pass that keeps direct reactive mutation out of suspended view construction.
 struct LeptosReactiveWritesDuringViewConstruction;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_REACTIVE_WRITES_DURING_VIEW_CONSTRUCTION,
     Warn,

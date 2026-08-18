@@ -1,7 +1,6 @@
-#![warn(misordered_test_declarations)]
+#![warn(rlib::misordered_test_declarations)]
 #![allow(dead_code)]
 // compile-flags: --test
-// edition:2024
 
 mod nonterminal {
     #[cfg(test)]
@@ -56,7 +55,7 @@ mod generated {
     fn production_declaration() {}
 }
 
-#[allow(misordered_test_declarations)]
+#[allow(rlib::misordered_test_declarations)]
 mod explicitly_allowed {
     #[cfg(test)]
     mod tests {}

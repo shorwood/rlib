@@ -58,3 +58,7 @@ struct ResponseBody;
 Configure the scale threshold through `section_dividers.max_declarations_per_section`.
 Sections at the maximum are accepted. Larger sections are rejected only when their names
 also show more than one conceptual family.
+
+## Configuration
+
+`declarations-per-section-threshold` sets the maximum declarations in one section (default `5`).

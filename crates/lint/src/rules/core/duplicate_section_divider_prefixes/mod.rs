@@ -73,7 +73,7 @@ impl DuplicateSectionDividerPrefixes {
     }
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub DUPLICATE_SECTION_DIVIDER_PREFIXES,
     Warn,

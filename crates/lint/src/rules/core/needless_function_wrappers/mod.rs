@@ -278,7 +278,7 @@ impl LateViolation for Violation {
 /// Late lint pass that detects semantically empty forwarding functions.
 struct NeedlessFunctionWrappers;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub NEEDLESS_FUNCTION_WRAPPERS,
     Warn,

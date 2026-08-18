@@ -21,3 +21,7 @@ fn Page() -> impl IntoView { view! { <PageShell /> } }
 #[component]
 fn Page() -> impl IntoView { view! { <main><PageContent /></main> } }
 ```
+
+## Configuration
+
+`leptos-component-composition-depth-threshold` sets the maximum composition depth (default `10`).

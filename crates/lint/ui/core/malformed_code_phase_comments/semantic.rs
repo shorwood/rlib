@@ -1,5 +1,5 @@
-#![warn(malformed_code_phase_comments)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::malformed_code_phase_comments)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 fn empty_content() {
     //
@@ -37,7 +37,7 @@ fn canonical_headers() {
     let _second = 2;
 }
 
-#[allow(malformed_code_phase_comments)]
+#[allow(rlib::malformed_code_phase_comments)]
 fn explicitly_allowed() {
     // THIS IS ALLOWED
     let _value = 1;

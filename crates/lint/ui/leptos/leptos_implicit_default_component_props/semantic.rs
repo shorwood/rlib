@@ -1,6 +1,6 @@
 #![feature(register_tool)]
 #![allow(unknown_lints)]
-#![allow(dead_code, deprecated, leptos_writable_signal_component_props)]
+#![allow(dead_code, deprecated, rlib::leptos_writable_signal_component_props)]
 #![register_tool(rlib_lint)]
 
 use leptos::prelude::*;
@@ -43,7 +43,7 @@ fn MeaningfulAbsence(
     view! { <span/> }
 }
 
-#[allow(leptos_implicit_default_component_props)]
+#[allow(rlib::leptos_implicit_default_component_props)]
 #[component]
 fn Suppressed(#[prop(optional)] count: usize) -> impl IntoView {
     view! { <span>{count}</span> }

@@ -26,3 +26,7 @@ Derive `strum::AsRefStr`; review named-method callers before removing a public c
 #[derive(strum::AsRefStr)]
 enum Stage { Planned, Complete }
 ```
+
+## Configuration
+
+`enum-display-provider` selects `strum_display` or `derive_more_display`.

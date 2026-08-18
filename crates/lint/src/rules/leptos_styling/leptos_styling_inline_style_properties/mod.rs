@@ -66,7 +66,7 @@ struct LeptosStylingInlineStyleProperties {
     files: AuthoredFiles,
 }
 
-dylint_linting::impl_early_lint! {
+crate::impl_early_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_STYLING_INLINE_STYLE_PROPERTIES,
     Warn,

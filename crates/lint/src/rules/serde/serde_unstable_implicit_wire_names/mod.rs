@@ -233,7 +233,7 @@ struct SerdeUnstableImplicitWireNames {
     candidates: Vec<Candidate>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub SERDE_UNSTABLE_IMPLICIT_WIRE_NAMES,
     Warn,

@@ -1,6 +1,6 @@
 // compile-flags: --test
 
-#![warn(ad_hoc_formatting)]
+#![warn(rlib::ad_hoc_formatting)]
 #![allow(dead_code)]
 
 use std::fmt::{self, Display, Formatter};

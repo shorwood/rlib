@@ -9,8 +9,9 @@ use rustc_hir::{ImplItem, Item};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::{Span, Symbol};
 
-use super::utils::enumeration::{CollectionCandidate, CollectionProvider};
-use crate::utils::config::LibraryConfig;
+use super::utils::enumeration::CollectionCandidate;
+use crate::config::providers::CollectionProvider;
+use crate::config::store::ConfigStore;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -80,7 +81,7 @@ struct StrumManualEnumIteration {
     provider: Option<CollectionProvider>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub STRUM_MANUAL_ENUM_ITERATION,
     Warn,
@@ -92,7 +93,7 @@ impl StrumManualEnumIteration {
     /// Starts enum-iteration analysis with the configured framework owner.
     fn new() -> Self {
         Self {
-            provider: LibraryConfig::load()
+            provider: ConfigStore::get()
                 .derive_resolution
                 .enum_variant_collection(),
         }

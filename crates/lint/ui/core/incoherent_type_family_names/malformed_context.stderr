@@ -2,7 +2,7 @@ warning: type names in the `MalformedContext` section repeat organizational cont
   --> $DIR/malformed_context.rs:1:1
    |
 LL | / #![allow(dead_code)]
-LL | | #![warn(incoherent_type_family_names)]
+LL | | #![warn(rlib::incoherent_type_family_names)]
 ...  |
 LL | | struct MalformedContextState;
    | | ----------------------------- `MalformedContextState` obscures the inferred `State` role
@@ -15,8 +15,8 @@ LL | | fn main() {}
 note: the lint level is defined here
   --> $DIR/malformed_context.rs:2:9
    |
-LL | #![warn(incoherent_type_family_names)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::incoherent_type_family_names)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: 1 warning emitted
 

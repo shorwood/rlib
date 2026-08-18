@@ -14,82 +14,11 @@ use rustc_lexer::{FrontmatterAllowed, TokenKind, tokenize};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::hygiene::{ExpnKind, MacroKind};
 use rustc_span::{BytePos, Span};
-use serde::Deserialize;
-// -----------------------------------------------------------------------------
-// LeptosViewStructureConfig: Authored view-layout policy
-// -----------------------------------------------------------------------------
 use syn::ExprMacro;
 use syn::spanned::Spanned;
 
-use crate::utils::config::LibraryConfig;
+use crate::config::leptos::LeptosViewStructureConfig;
 use crate::utils::function_layout_prose::FunctionLayoutProse;
-
-/// Complexity and comment syntax shared by the Leptos view-section lint family.
-#[derive(Clone, Deserialize)]
-#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
-pub struct LeptosViewStructureConfig {
-    /// Ordinary line-comment prefix introducing a view section.
-    pub(crate) view_section_comment_prefix: String,
-    /// Maximum direct complexity permitted without named sections.
-    pub(crate) max_unnamed_view_complexity: usize,
-    /// Maximum direct complexity permitted in one named section.
-    pub(crate) max_view_section_complexity: usize,
-    /// Maximum direct attribute complexity permitted without named groups.
-    pub(crate) max_unnamed_view_attribute_complexity: usize,
-    /// Maximum complexity permitted in one named attribute group.
-    pub(crate) max_view_attribute_group_complexity: usize,
-}
-
-impl Default for LeptosViewStructureConfig {
-    fn default() -> Self {
-        Self {
-            view_section_comment_prefix: "//".to_owned(),
-            max_unnamed_view_complexity: 4,
-            max_view_section_complexity: 4,
-            max_unnamed_view_attribute_complexity: 6,
-            max_view_attribute_group_complexity: 4,
-        }
-    }
-}
-
-impl LeptosViewStructureConfig {
-    /// Rejects ineffective limits and prefixes that are not ordinary comments.
-    fn validate(&self) -> Result<(), String> {
-        // Zero limits would make every nonempty authored view structurally invalid.
-        if self.max_unnamed_view_complexity == 0
-            || self.max_view_section_complexity == 0
-            || self.max_unnamed_view_attribute_complexity == 0
-            || self.max_view_attribute_group_complexity == 0
-        {
-            return Err("Leptos view structure complexity limits must be greater than zero".into());
-        }
-
-        let prefix = &self.view_section_comment_prefix;
-
-        // Section markers must remain one trimmed ordinary line-comment prefix.
-        if prefix.trim() != prefix
-            || prefix.contains(['\n', '\r'])
-            || !prefix.starts_with("//")
-            || prefix.starts_with("///")
-            || prefix.starts_with("//!")
-        {
-            return Err(
-                "leptos_view_structure.view_section_comment_prefix must be one trimmed ordinary `//` comment prefix"
-                    .into(),
-            );
-        }
-        Ok(())
-    }
-
-    /// Loads and validates the configured view-structure policy.
-    pub(crate) fn from_config() -> Self {
-        let config = LibraryConfig::load().leptos_view_structure;
-        config.validate().unwrap_or_else(|message| {
-            panic!("invalid Leptos view structure configuration: {message}")
-        });
-        config
-    }
-}
 
 // -----------------------------------------------------------------------------
 // View: Authored structure, attributes, and source locations
@@ -129,11 +58,11 @@ impl ViewHeading {
     /// Returns canonical section prose after the configured comment marker.
     pub(crate) fn canonical_content<'heading>(
         &'heading self,
-        config: &LeptosViewStructureConfig,
+        _config: &LeptosViewStructureConfig,
     ) -> Option<&'heading str> {
         let content = self
             .text
-            .strip_prefix(&config.view_section_comment_prefix)?
+            .strip_prefix(LeptosViewStructureConfig::VIEW_SECTION_COMMENT_PREFIX)?
             .strip_prefix(' ')?;
 
         (self.text.starts_with("//")
@@ -836,9 +765,9 @@ impl ViewSourceComment {
 mod tests {
     use std::str::FromStr;
 
+    use super::ViewStructureAnalysis;
     use super::rustc_hir::CRATE_HIR_ID;
     use super::rustc_span::{BytePos, Span};
-    use super::{LeptosViewStructureConfig, ViewStructureAnalysis};
 
     impl FromStr for ViewStructureAnalysis {
         type Err = &'static str;
@@ -909,26 +838,5 @@ mod tests {
             .expect("representative view should parse");
         let main = &parsed.scopes[0].nodes[0];
         assert_eq!(&source[main.range.clone()], "<main><Child/></main>");
-    }
-
-    #[test]
-    fn validates_configured_limits_and_prefixes() {
-        assert!(LeptosViewStructureConfig::default().validate().is_ok());
-        assert!(
-            LeptosViewStructureConfig {
-                max_unnamed_view_complexity: 0,
-                ..LeptosViewStructureConfig::default()
-            }
-            .validate()
-            .is_err()
-        );
-        assert!(
-            LeptosViewStructureConfig {
-                view_section_comment_prefix: "///".into(),
-                ..LeptosViewStructureConfig::default()
-            }
-            .validate()
-            .is_err()
-        );
     }
 }

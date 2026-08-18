@@ -10,7 +10,9 @@ use rustc_hir::{Expr, HirId};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 
-use crate::rules::leptos::utils::view_structure::{LeptosViewStructureConfig, ViewCallSites};
+use crate::config::leptos::LeptosViewStructureConfig;
+use crate::config::store::ConfigStore;
+use crate::rules::leptos::utils::view_structure::ViewCallSites;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -72,13 +74,13 @@ impl LeptosDuplicateViewSectionComments {
     /// Builds the pass from shared Leptos view configuration.
     fn new() -> Self {
         Self {
-            config: LeptosViewStructureConfig::from_config(),
+            config: ConfigStore::get().leptos_view_structure.clone(),
             views: ViewCallSites::default(),
         }
     }
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_DUPLICATE_VIEW_SECTION_COMMENTS,
     Warn,

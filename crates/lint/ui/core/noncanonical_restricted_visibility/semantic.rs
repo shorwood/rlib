@@ -1,4 +1,4 @@
-#![warn(noncanonical_restricted_visibility)]
+#![warn(rlib::noncanonical_restricted_visibility)]
 #![allow(dead_code)]
 
 pub(self) struct SelfVisible;

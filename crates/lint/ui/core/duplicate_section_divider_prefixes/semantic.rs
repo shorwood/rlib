@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-#![warn(duplicate_section_divider_prefixes)]
+#![warn(rlib::duplicate_section_divider_prefixes)]
 
 // -----------------------------------------------------------------------------
 // Request: Primary request model

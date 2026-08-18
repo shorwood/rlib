@@ -145,7 +145,7 @@ impl LateViolation for Violation {
 /// Finds standard Result operations that silently collapse failure into absence.
 struct ResultsConvertedToOptions;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub RESULTS_CONVERTED_TO_OPTIONS,
     Warn,

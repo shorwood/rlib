@@ -38,3 +38,7 @@ Name stable, element-specific responsibilities, or extract a narrower component:
     "Save"
 </button>
 ```
+
+## Configuration
+
+`leptos-unnamed-view-attribute-complexity-threshold` sets when attributes need a group heading (default `6`).

@@ -36,3 +36,7 @@ struct LoadError {
     source: std::io::Error,
 }
 ```
+
+## Configuration
+
+`error-implementation-provider` selects `thiserror_error` or `derive_more_error`.

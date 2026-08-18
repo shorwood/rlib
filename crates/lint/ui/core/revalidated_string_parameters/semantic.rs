@@ -1,5 +1,5 @@
-#![warn(revalidated_string_parameters)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::revalidated_string_parameters)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 fn validate_email(_email: &str) -> Result<(), ()> {
     Ok(())

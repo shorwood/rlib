@@ -166,7 +166,7 @@ struct MethodLikeFreeFunctions {
     interfaces: StandardInterfaceAnalysis,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub METHOD_LIKE_FREE_FUNCTIONS,
     Warn,

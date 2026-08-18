@@ -9,8 +9,8 @@ LL |     for _attempt in 0..3 {
 note: the lint level is defined here
   --> $DIR/semantic.rs:7:9
    |
-LL | #![warn(unnamed_policy_literals)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::unnamed_policy_literals)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: literal `4` encodes an unnamed retry bound
   --> $DIR/semantic.rs:52:33

@@ -1,9 +1,9 @@
-#![warn(unconsumed_generic_abstractions)]
+#![warn(rlib::unconsumed_generic_abstractions)]
 #![allow(
     dead_code,
-    method_like_free_functions,
-    misordered_module_declarations,
-    non_adjacent_struct_impls,
+    rlib::method_like_free_functions,
+    rlib::misordered_module_declarations,
+    rlib::non_adjacent_struct_impls,
     private_interfaces,
     unused_variables
 )]

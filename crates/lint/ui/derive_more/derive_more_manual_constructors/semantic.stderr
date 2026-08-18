@@ -8,7 +8,7 @@ LL | |     }
    |
    = note: this public constant constructor only assigns its parameters to the corresponding fields
    = help: replace this implementation with `#[derive(derive_more::Constructor)]` on the struct
-   = note: `#[warn(derive_more_manual_constructors)]` on by default
+   = note: `#[warn(rlib::derive_more_manual_constructors)]` on by default
 
 warning: manual structural constructor for `Coordinate` is derivable
   --> $DIR/semantic.rs:17:5

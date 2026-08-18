@@ -1,4 +1,3 @@
-// edition:2024
 
 #![feature(register_tool)]
 #![allow(dead_code)]
@@ -14,8 +13,8 @@ mod mixed_parent;
 mod conventional;
 #[path = "auxiliary/standalone_parent.rs"]
 mod standalone_parent;
-#[path = "auxiliary/support_parent.rs"]
-mod support_parent;
+#[path = "auxiliary/rust_child_parent.rs"]
+mod rust_child_parent;
 
 mod inline_module {
     struct Local;

@@ -11,7 +11,7 @@ LL | |             disabled=false
    |
    = note: oversized groups make a heading decorative instead of a bounded navigation aid
    = help: split this group by stable responsibility or extract a narrower component interface
-   = note: `#[warn(leptos_oversized_view_attribute_groups)]` on by default
+   = note: `#[warn(rlib::leptos_oversized_view_attribute_groups)]` on by default
 
 warning: attribute group complexity 6 exceeds configured maximum 4
   --> $DIR/semantic.rs:30:13

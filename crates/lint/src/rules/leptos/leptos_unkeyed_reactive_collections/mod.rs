@@ -71,7 +71,7 @@ impl LateViolation for Violation {
 /// Late lint pass that requires stable identity for changing reactive collections.
 struct LeptosUnkeyedReactiveCollections;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_UNKEYED_REACTIVE_COLLECTIONS,
     Warn,

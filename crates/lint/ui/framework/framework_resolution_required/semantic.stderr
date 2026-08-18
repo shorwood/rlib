@@ -6,7 +6,7 @@ LL |     const ALL: [Self; 3] = [Self::Planned, Self::Running, Self::Complete];
    |
    = note: `EnumIter` exposes an iterator while `VariantArray` exposes a shared slice; dependency presence cannot choose that API contract
    = help: set `derive_resolution.enum_variant_collection` to `strum_enum_iter` or `strum_variant_array`
-   = note: `#[warn(framework_resolution_required)]` on by default
+   = note: `#[warn(rlib::framework_resolution_required)]` on by default
 
 warning: enum variant predicates have multiple eligible framework resolutions
   --> $DIR/semantic.rs:49:9

@@ -10,7 +10,7 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
 use super::utils::contracts::DiagnosticCatalog;
-use crate::utils::config::LibraryConfig;
+use crate::config::store::ConfigStore;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -68,7 +68,7 @@ struct MietteGenericDiagnosticHelp {
     generic_phrases: Vec<String>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MIETTE_GENERIC_DIAGNOSTIC_HELP,
     Warn,
@@ -81,7 +81,7 @@ impl MietteGenericDiagnosticHelp {
     fn new() -> Self {
         Self {
             catalog: DiagnosticCatalog::default(),
-            generic_phrases: LibraryConfig::load()
+            generic_phrases: ConfigStore::get()
                 .miette_help
                 .generic_phrases
                 .iter()

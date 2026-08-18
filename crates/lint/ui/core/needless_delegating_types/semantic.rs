@@ -1,9 +1,9 @@
-#![warn(needless_delegating_types)]
+#![warn(rlib::needless_delegating_types)]
 #![allow(
     dead_code,
-    method_like_free_functions,
-    misordered_module_declarations,
-    non_adjacent_struct_impls
+    rlib::method_like_free_functions,
+    rlib::misordered_module_declarations,
+    rlib::non_adjacent_struct_impls
 )]
 
 struct Inner;

@@ -1,5 +1,5 @@
-#![warn(repeated_identical_statements)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::repeated_identical_statements)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 fn record(_: &str) {}
 

@@ -8,8 +8,8 @@ LL | fn create_session_with_token(token: String) -> Session {
 note: the lint level is defined here
   --> $DIR/semantic.rs:1:9
    |
-LL | #![warn(constructor_like_free_functions)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::constructor_like_free_functions)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 help: move `create_session_with_token` into an inherent `impl Session`; reconsider whether its name describes the invariant or source concept instead of merely saying `new`, `build`, or `create`
    |
 LL + impl Session {

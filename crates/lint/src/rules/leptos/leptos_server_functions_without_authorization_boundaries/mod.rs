@@ -8,84 +8,11 @@ use rustc_ast::ast::{Item, ItemKind};
 use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
-use serde::Deserialize;
 use syn::visit::{self, Visit};
 
-use crate::utils::config::LibraryConfig;
+use crate::config::leptos::LeptosServerAuthorizationConfig;
+use crate::config::store::ConfigStore;
 use crate::utils::diagnostic::EarlyViolation;
-
-// -----------------------------------------------------------------------------
-// LeptosServerAuthorizationConfig: Explicit endpoint-security vocabulary
-// -----------------------------------------------------------------------------
-
-/// Project vocabulary used to recognize sensitive work and authorization boundaries.
-#[derive(Clone, Deserialize)]
-#[serde(default, deny_unknown_fields, rename_all = "snake_case")]
-pub struct LeptosServerAuthorizationConfig {
-    /// Call-name fragments that identify protected domain operations.
-    sensitive_call_terms: Vec<String>,
-    /// Function names treated as explicit authorization checks.
-    authorization_functions: Vec<String>,
-    /// Endpoint attributes that declare an authorization requirement.
-    protected_endpoint_attributes: Vec<String>,
-    /// Endpoint attributes that explicitly declare anonymous access.
-    public_endpoint_attributes: Vec<String>,
-}
-
-impl Default for LeptosServerAuthorizationConfig {
-    fn default() -> Self {
-        Self {
-            sensitive_call_terms: [
-                "create",
-                "delete",
-                "remove",
-                "update",
-                "upload",
-                "credential",
-                "private",
-                "admin",
-            ]
-            .into_iter()
-            .map(str::to_owned)
-            .collect(),
-            authorization_functions: Vec::new(),
-            protected_endpoint_attributes: Vec::new(),
-            public_endpoint_attributes: Vec::new(),
-        }
-    }
-}
-
-impl LeptosServerAuthorizationConfig {
-    /// Rejects configuration that cannot express a coherent policy.
-    fn validate(&self) -> Result<(), String> {
-        let entries = self
-            .sensitive_call_terms
-            .iter()
-            .chain(&self.authorization_functions)
-            .chain(&self.protected_endpoint_attributes)
-            .chain(&self.public_endpoint_attributes);
-
-        // Blank vocabulary entries cannot identify a meaningful security boundary.
-        if entries.clone().any(|entry| entry.trim().is_empty()) {
-            return Err("authorization vocabulary entries must not be empty".to_owned());
-        }
-
-        // At least one sensitive operation term is required for the policy to observe work.
-        if self.sensitive_call_terms.is_empty() {
-            return Err("sensitive_call_terms must contain at least one call term".to_owned());
-        }
-        Ok(())
-    }
-
-    /// Resolves authorization vocabulary from project configuration or defaults.
-    fn from_config() -> Self {
-        let config = LibraryConfig::load().leptos_server_authorization;
-        config.validate().unwrap_or_else(|message| {
-            panic!("invalid Leptos server authorization configuration: {message}")
-        });
-        config
-    }
-}
 
 // -----------------------------------------------------------------------------
 // Violation: Sensitive server endpoint without authorization evidence
@@ -204,7 +131,7 @@ impl LeptosServerFunctionsWithoutAuthorizationBoundaries {
     /// Starts endpoint analysis with the project's authorization vocabulary.
     fn new() -> Self {
         Self {
-            config: LeptosServerAuthorizationConfig::from_config(),
+            config: ConfigStore::get().leptos_server_authorization.clone(),
         }
     }
 
@@ -263,7 +190,7 @@ impl LeptosServerFunctionsWithoutAuthorizationBoundaries {
     }
 }
 
-dylint_linting::impl_pre_expansion_lint! {
+crate::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_SERVER_FUNCTIONS_WITHOUT_AUTHORIZATION_BOUNDARIES,
     Warn,
@@ -319,19 +246,5 @@ impl EarlyLintPass for LeptosServerFunctionsWithoutAuthorizationBoundaries {
             operation: sensitive.name.clone(),
         }
         .emit(cx);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::LeptosServerAuthorizationConfig;
-
-    #[test]
-    fn rejects_empty_security_vocabulary() {
-        let config = LeptosServerAuthorizationConfig {
-            sensitive_call_terms: Vec::new(),
-            ..LeptosServerAuthorizationConfig::default()
-        };
-        assert!(config.validate().is_err());
     }
 }

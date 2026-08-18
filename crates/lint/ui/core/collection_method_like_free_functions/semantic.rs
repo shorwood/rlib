@@ -1,8 +1,7 @@
 // aux-build: external_macro.rs
-// edition:2024
 
 #![feature(register_tool)]
-#![allow(dead_code, improper_ctypes_definitions, unused_variables, misordered_inherent_impl_items, misordered_module_declarations, misordered_type_declarations)]
+#![allow(dead_code, improper_ctypes_definitions, unused_variables, rlib::misordered_inherent_impl_items, rlib::misordered_module_declarations, rlib::misordered_type_declarations)]
 #![register_tool(rlib_lint)]
 
 extern crate external_macro;
@@ -183,7 +182,7 @@ impl Service {
     fn associated(items: Vec<Item>) {}
 }
 
-#[allow(collection_method_like_free_functions)]
+#[allow(rlib::collection_method_like_free_functions)]
 fn explicitly_allowed(items: Vec<Item>) {}
 
 fn main() {}

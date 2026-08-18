@@ -20,3 +20,7 @@ the reported condition.
 ```rust,ignore
 #[diagnostic(help("set `config_path` to an existing readable file"))]
 ```
+
+## Configuration
+
+`miette-generic-help-phrases` defines rejected generic phrases. Use `".."` to retain the built-in phrases.

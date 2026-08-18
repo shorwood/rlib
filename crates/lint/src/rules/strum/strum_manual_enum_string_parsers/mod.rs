@@ -9,9 +9,10 @@ use rustc_hir::{ImplItem, Item};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::{Span, Symbol};
 
-use super::utils::authored_contracts::{StringParserCandidate, StringParserProvider};
+use super::utils::authored_contracts::StringParserCandidate;
 use super::utils::contracts::ContractCatalog;
-use crate::utils::config::LibraryConfig;
+use crate::config::providers::StringParserProvider;
+use crate::config::store::ConfigStore;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -81,7 +82,7 @@ struct StrumManualEnumStringParsers {
     candidates: Vec<StringParserCandidate>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub STRUM_MANUAL_ENUM_STRING_PARSERS,
     Warn,
@@ -93,9 +94,7 @@ impl StrumManualEnumStringParsers {
     /// Starts parser analysis with no authored parser candidates.
     fn new() -> Self {
         Self {
-            provider: LibraryConfig::load()
-                .derive_resolution
-                .enum_string_parsing(),
+            provider: ConfigStore::get().derive_resolution.enum_string_parsing(),
             catalog: ContractCatalog::default(),
             candidates: Vec::new(),
         }

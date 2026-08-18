@@ -9,8 +9,8 @@ LL |     fn evaluate(input: Self::Input);
 note: the lint level is defined here
   --> $DIR/semantic.rs:2:9
    |
-LL | #![warn(unseparated_associated_items)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::unseparated_associated_items)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: associated items `first` and `second` are not separated by a blank line
   --> $DIR/semantic.rs:14:5

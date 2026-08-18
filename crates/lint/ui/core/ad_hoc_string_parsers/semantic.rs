@@ -1,8 +1,8 @@
-#![warn(ad_hoc_string_parsers)]
+#![warn(rlib::ad_hoc_string_parsers)]
 #![allow(
     dead_code,
-    constructor_like_free_functions,
-    misordered_module_declarations
+    rlib::constructor_like_free_functions,
+    rlib::misordered_module_declarations
 )]
 
 use std::str::FromStr;

@@ -61,7 +61,7 @@ impl LateViolation for Violation {
 /// Late lint pass that keeps tracked view reads behind reactive closures.
 struct LeptosUnreactiveSignalReadsInViews;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_UNREACTIVE_SIGNAL_READS_IN_VIEWS,
     Warn,

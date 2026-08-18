@@ -1,8 +1,7 @@
 // aux-build: external_macro.rs
-// edition:2024
 
 #![feature(register_tool)]
-#![allow(dead_code, improper_ctypes_definitions, unused_variables, misordered_inherent_impl_items, misordered_module_declarations, misordered_type_declarations)]
+#![allow(dead_code, improper_ctypes_definitions, unused_variables, rlib::misordered_inherent_impl_items, rlib::misordered_module_declarations, rlib::misordered_type_declarations)]
 #![register_tool(rlib_lint)]
 
 extern crate external_macro;
@@ -126,7 +125,7 @@ fn make_item() -> Item<u8> {
     Item { value: 0 }
 }
 
-#[allow(method_like_free_functions)]
+#[allow(rlib::method_like_free_functions)]
 fn explicitly_allowed(value: &Unit) {}
 
 fn main() {}

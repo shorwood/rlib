@@ -64,7 +64,7 @@ impl LateViolation for Violation {
 /// Late lint pass that replaces dummy refresh signals with the resource refetch operation.
 struct LeptosManualResourceRefetchSignals;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_MANUAL_RESOURCE_REFETCH_SIGNALS,
     Warn,

@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-#![warn(mismatched_section_divider_prefixes)]
+#![warn(rlib::mismatched_section_divider_prefixes)]
 
 macro_rules! emit_generated_catalog {
     () => {

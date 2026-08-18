@@ -12,7 +12,7 @@ LL | | }
    |
    = note: `String::is_empty` can omit this required field, but deserialization has no optional or default value for the missing key
    = help: add a matching deserialization default, make the field optional, or remove the skip predicate
-   = note: `#[warn(serde_lossy_conditional_serialization)]` on by default
+   = note: `#[warn(rlib::serde_lossy_conditional_serialization)]` on by default
 
 warning: conditional serialization of `score` is not reversible
   --> $DIR/semantic.rs:18:1

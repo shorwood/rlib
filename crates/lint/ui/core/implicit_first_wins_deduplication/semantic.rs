@@ -1,5 +1,5 @@
-#![warn(implicit_first_wins_deduplication)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::implicit_first_wins_deduplication)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 use std::collections::{HashMap, HashSet};
 

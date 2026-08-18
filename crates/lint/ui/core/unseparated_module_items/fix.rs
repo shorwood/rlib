@@ -2,7 +2,7 @@
 // rustfix-only-machine-applicable
 
 #![allow(dead_code)]
-#![warn(unseparated_module_items)]
+#![warn(rlib::unseparated_module_items)]
 
 struct Repository;
 #[derive(Default)]

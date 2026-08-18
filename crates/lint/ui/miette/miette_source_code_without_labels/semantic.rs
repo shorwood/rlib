@@ -1,4 +1,4 @@
-#![allow(dead_code, miette_labels_without_source_code, unknown_lints)]
+#![allow(dead_code, rlib::miette_labels_without_source_code, unknown_lints)]
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[error("unfocused")]

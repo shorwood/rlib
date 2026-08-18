@@ -9,9 +9,8 @@ use rustc_hir::{Expr, HirId};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 
-use crate::rules::leptos::utils::view_structure::{
-    LeptosViewStructureConfig, ViewCallSites, ViewHeading,
-};
+use crate::config::leptos::LeptosViewStructureConfig;
+use crate::rules::leptos::utils::view_structure::{ViewCallSites, ViewHeading};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::function_layout_prose::FunctionLayoutProse;
 
@@ -75,8 +74,6 @@ impl LateViolation for Violation {
 
 /// Late lint pass validating direct-boundary view comments.
 struct LeptosMalformedViewSectionComments {
-    /// Shared comment syntax.
-    config: LeptosViewStructureConfig,
     /// Deduplicated rstml-backed authored view analysis.
     views: ViewCallSites,
 }
@@ -85,22 +82,21 @@ impl LeptosMalformedViewSectionComments {
     /// Builds the pass from shared Leptos view configuration.
     fn new() -> Self {
         Self {
-            config: LeptosViewStructureConfig::from_config(),
             views: ViewCallSites::default(),
         }
     }
 
     /// Returns canonical heading content after the configured marker.
-    fn content<'heading>(&self, heading: &'heading ViewHeading) -> Option<&'heading str> {
+    fn content(heading: &ViewHeading) -> Option<&str> {
         heading
             .text
-            .strip_prefix(&self.config.view_section_comment_prefix)?
+            .strip_prefix(LeptosViewStructureConfig::VIEW_SECTION_COMMENT_PREFIX)?
             .strip_prefix(' ')
     }
 
     /// Returns whether heading prose follows the canonical compact form.
-    fn is_canonical(&self, heading: &ViewHeading) -> bool {
-        self.content(heading).is_some_and(|content| {
+    fn is_canonical(heading: &ViewHeading) -> bool {
+        Self::content(heading).is_some_and(|content| {
             !content.ends_with([':', '.', ';', '!', '?', ',', '-'])
                 && !content.starts_with(['-', '*', '#'])
                 && FunctionLayoutProse::is_canonical(Some(content))
@@ -108,7 +104,7 @@ impl LeptosMalformedViewSectionComments {
     }
 
     /// Produces an unambiguous source-only repair when possible.
-    fn replacement(&self, heading: &ViewHeading) -> Option<String> {
+    fn replacement(heading: &ViewHeading) -> Option<String> {
         // Multiline and non-line-comment headings cannot be repaired by one safe replacement.
         if !heading.text.starts_with("//") || heading.text.contains('\n') {
             return None;
@@ -116,7 +112,7 @@ impl LeptosMalformedViewSectionComments {
 
         let content = heading
             .text
-            .strip_prefix(&self.config.view_section_comment_prefix)
+            .strip_prefix(LeptosViewStructureConfig::VIEW_SECTION_COMMENT_PREFIX)
             .unwrap_or_else(|| heading.text.trim_start_matches('/'))
             .trim()
             .trim_start_matches(['-', '*', '#'])
@@ -126,12 +122,15 @@ impl LeptosMalformedViewSectionComments {
             .trim_end();
         let content = content.split_whitespace().collect::<Vec<_>>().join(" ");
 
-        FunctionLayoutProse::replacement(Some(&content), &self.config.view_section_comment_prefix)
-            .filter(|replacement| replacement != &heading.text)
+        FunctionLayoutProse::replacement(
+            Some(&content),
+            LeptosViewStructureConfig::VIEW_SECTION_COMMENT_PREFIX,
+        )
+        .filter(|replacement| replacement != &heading.text)
     }
 
     /// Classifies the first failure for one direct-boundary comment.
-    fn violation(&self, heading: &ViewHeading, owner: HirId) -> Option<Violation> {
+    fn violation(heading: &ViewHeading, owner: HirId) -> Option<Violation> {
         // A heading without a following node is detached from any view region.
         let Some(node) = heading.node else {
             return Some(Violation {
@@ -145,11 +144,11 @@ impl LeptosMalformedViewSectionComments {
         let placement_is_valid =
             heading.is_immediately_preceding && (node == 0 || heading.has_blank_before);
 
-        let (message, replacement) = if !self.is_canonical(heading) {
+        let (message, replacement) = if !Self::is_canonical(heading) {
             (
                 "this view section comment is not canonical",
                 placement_is_valid
-                    .then(|| self.replacement(heading))
+                    .then(|| Self::replacement(heading))
                     .flatten(),
             )
         } else if !heading.is_immediately_preceding {
@@ -177,7 +176,7 @@ impl LeptosMalformedViewSectionComments {
     }
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_MALFORMED_VIEW_SECTION_COMMENTS,
     Warn,
@@ -192,7 +191,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMalformedViewSectionComments {
             return;
         };
         for heading in view.scopes.iter().flat_map(|scope| &scope.headings) {
-            let Some(violation) = self.violation(heading, view.owner) else {
+            let Some(violation) = Self::violation(heading, view.owner) else {
                 continue;
             };
             violation.emit(cx);

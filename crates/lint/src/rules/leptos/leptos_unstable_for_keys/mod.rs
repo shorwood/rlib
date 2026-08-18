@@ -187,7 +187,7 @@ struct LeptosUnstableForKeys {
     reported: HashSet<KeySourceRange>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_UNSTABLE_FOR_KEYS,
     Warn,

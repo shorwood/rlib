@@ -9,11 +9,10 @@ use rustc_hir::{ImplItem, Item};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::{Span, Symbol};
 
-use super::utils::authored_contracts::{
-    DisplayCandidate, DisplayProvider, StaticValue, VariantValueFamily,
-};
+use super::utils::authored_contracts::{DisplayCandidate, StaticValue, VariantValueFamily};
 use super::utils::contracts::ContractCatalog;
-use crate::utils::config::LibraryConfig;
+use crate::config::providers::DisplayProvider;
+use crate::config::store::ConfigStore;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -84,7 +83,7 @@ struct StrumManualEnumStringConversions {
     display_provider: Option<DisplayProvider>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub STRUM_MANUAL_ENUM_STRING_CONVERSIONS,
     Warn,
@@ -99,7 +98,7 @@ impl StrumManualEnumStringConversions {
             catalog: ContractCatalog::default(),
             families: Vec::new(),
             displays: Vec::new(),
-            display_provider: LibraryConfig::load().derive_resolution.enum_display(),
+            display_provider: ConfigStore::get().derive_resolution.enum_display(),
         }
     }
 }

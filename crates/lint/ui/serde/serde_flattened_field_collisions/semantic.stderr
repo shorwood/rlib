@@ -10,7 +10,7 @@ LL | | }
    |
    = note: flattening places `id` more than once in the same wire namespace
    = help: rename a colliding field or retain a nested representation
-   = note: `#[warn(serde_flattened_field_collisions)]` on by default
+   = note: `#[warn(rlib::serde_flattened_field_collisions)]` on by default
 
 warning: Serde flattening creates duplicate deserialization names
   --> $DIR/semantic.rs:10:1

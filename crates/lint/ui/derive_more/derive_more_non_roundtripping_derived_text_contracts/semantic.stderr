@@ -6,7 +6,7 @@ LL | struct Port(u16);
    |
    = note: `Display` uses `port:{_0}`, but `FromStr` forwards the complete output to the numeric field parser
    = help: make `Display` transparent or replace the derived parser with an authored `FromStr` implementation for the same grammar
-   = note: `#[warn(derive_more_non_roundtripping_derived_text_contracts)]` on by default
+   = note: `#[warn(rlib::derive_more_non_roundtripping_derived_text_contracts)]` on by default
 
 warning: derived text contracts for `Hexadecimal` cannot round trip
   --> $DIR/semantic.rs:26:8

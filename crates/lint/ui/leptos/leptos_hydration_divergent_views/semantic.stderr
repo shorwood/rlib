@@ -10,7 +10,7 @@ LL | |     }
    |
    = note: hydration expects the server DOM shape ["<ServerPlaceholder>", "</ServerPlaceholder>"] to match the browser shape ["<ClientToolbar>", "</ClientToolbar>"]
    = help: render one stable initial element shape and defer browser-only changes until after hydration
-   = note: `#[warn(leptos_hydration_divergent_views)]` on by default
+   = note: `#[warn(rlib::leptos_hydration_divergent_views)]` on by default
 
 warning: server and browser branches produce different initial view shapes
   --> $DIR/semantic.rs:25:5

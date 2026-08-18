@@ -6,7 +6,7 @@ LL | struct UserId(u64);
    |
    = note: each implementation is one exact field delegation or one single-field format invocation without policy-bearing control flow
    = help: replace this family with `#[derive(derive_more::Display, derive_more::LowerHex)]`, preserving exact format strings in derive_more attributes
-   = note: `#[warn(derive_more_manual_formatting_impls)]` on by default
+   = note: `#[warn(rlib::derive_more_manual_formatting_impls)]` on by default
 
 warning: manual formatting for `Qualified` is derivable
   --> $DIR/semantic.rs:19:1

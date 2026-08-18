@@ -1,5 +1,5 @@
-#![warn(oversized_match_arms)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::oversized_match_arms)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 fn oversized(value: Option<u8>) {
     match value {
@@ -104,7 +104,7 @@ macro_rules! generated_match {
 
 generated_match!();
 
-#[allow(oversized_match_arms)]
+#[allow(rlib::oversized_match_arms)]
 fn explicitly_allowed(value: Option<u8>) {
     match value {
         Some(value) => {

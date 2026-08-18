@@ -97,8 +97,9 @@ impl LateViolation for Violation {
         let span = self.finding().span;
 
         // Emit only after the variant-specific diagnostic anchor is resolved.
-        cx.emit_span_lint(
+        cx.tcx.emit_node_span_lint(
             FOREIGN_TYPE_METHOD_LIKE_FREE_FUNCTIONS,
+            self.finding().hir_id,
             span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
@@ -142,7 +143,7 @@ struct ForeignTypeMethodLikeFreeFunctions {
     analyzer: ForeignTypeAnalyzer,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub FOREIGN_TYPE_METHOD_LIKE_FREE_FUNCTIONS,
     Warn,

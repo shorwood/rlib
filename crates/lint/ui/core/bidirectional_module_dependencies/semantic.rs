@@ -1,7 +1,7 @@
 // aux-build: module_dependency_macro.rs
 
-#![warn(bidirectional_module_dependencies)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::bidirectional_module_dependencies)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 extern crate module_dependency_macro;
 

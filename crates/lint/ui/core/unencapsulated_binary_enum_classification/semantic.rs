@@ -1,5 +1,5 @@
-#![allow(dead_code, misordered_module_declarations)]
-#![warn(unencapsulated_binary_enum_classification)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
+#![warn(rlib::unencapsulated_binary_enum_classification)]
 
 enum FunctionReturn {
     Unit,
@@ -117,7 +117,7 @@ fn generated_mapping(is_unit: bool) -> FunctionReturn {
     generated_classification!(is_unit)
 }
 
-#[allow(unencapsulated_binary_enum_classification)]
+#[allow(rlib::unencapsulated_binary_enum_classification)]
 fn deliberately_external(is_unit: bool) -> FunctionReturn {
     if is_unit {
         FunctionReturn::Unit

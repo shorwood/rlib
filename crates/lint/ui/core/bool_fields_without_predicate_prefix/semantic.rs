@@ -3,9 +3,9 @@
 #![feature(register_tool)]
 #![allow(
     dead_code,
-    misordered_inherent_impl_items,
-    misordered_module_declarations,
-    misordered_type_declarations,
+    rlib::misordered_inherent_impl_items,
+    rlib::misordered_module_declarations,
+    rlib::misordered_type_declarations,
     non_snake_case
 )]
 #![register_tool(rlib_lint)]
@@ -66,7 +66,7 @@ external_struct!();
 
 // A field-level allow attribute should suppress the warning for that field only.
 struct Suppressed {
-    #[allow(bool_fields_without_predicate_prefix)]
+    #[allow(rlib::bool_fields_without_predicate_prefix)]
     active: bool,
 }
 

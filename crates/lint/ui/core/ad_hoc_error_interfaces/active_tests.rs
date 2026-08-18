@@ -1,6 +1,6 @@
 // compile-flags: --test
 
-#![warn(ad_hoc_error_interfaces)]
+#![warn(rlib::ad_hoc_error_interfaces)]
 #![allow(dead_code)]
 
 use std::error::Error;

@@ -1,5 +1,5 @@
 warning: function `direct` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:46:4
+  --> $DIR/semantic.rs:45:4
    |
 LL | fn target(value: u32) -> u32 {
    | ---------------------------- forwarded implementation `target`
@@ -9,10 +9,10 @@ LL | fn direct(value: u32) -> u32 {
    |
    = note: `direct` adds an API and navigation layer without changing the behavior of `target`
    = help: remove `direct` and update its callers to invoke `target` directly; move its documentation or adjust the target's name and visibility if needed
-   = note: `#[warn(needless_function_wrappers)]` on by default
+   = note: `#[warn(rlib::needless_function_wrappers)]` on by default
 
 warning: function `explicit_return` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:50:4
+  --> $DIR/semantic.rs:49:4
    |
 LL | fn target(value: u32) -> u32 {
    | ---------------------------- forwarded implementation `target`
@@ -24,7 +24,7 @@ LL | fn explicit_return(value: u32) -> u32 {
    = help: remove `explicit_return` and update its callers to invoke `target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `no_arguments` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:54:4
+  --> $DIR/semantic.rs:53:4
    |
 LL | fn no_arguments_target() -> u32 {
    | ------------------------------- forwarded implementation `no_arguments_target`
@@ -36,7 +36,7 @@ LL | fn no_arguments() -> u32 {
    = help: remove `no_arguments` and update its callers to invoke `no_arguments_target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `generic` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:58:4
+  --> $DIR/semantic.rs:57:4
    |
 LL | fn generic_target<T>(value: T) -> T {
    | ----------------------------------- forwarded implementation `generic_target`
@@ -48,7 +48,7 @@ LL | fn generic<T>(value: T) -> T {
    = help: remove `generic` and update its callers to invoke `generic_target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `cross_file` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:62:4
+  --> $DIR/semantic.rs:61:4
    |
 LL | fn cross_file(value: u32) -> u32 {
    |    ^^^^^^^^^^ delete this useless indirection
@@ -62,7 +62,7 @@ LL | pub(crate) fn remote_target(value: u32) -> u32 {
    = help: remove `cross_file` and update its callers to invoke `remote::remote_target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `documented_facade` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:67:8
+  --> $DIR/semantic.rs:66:8
    |
 LL | fn target(value: u32) -> u32 {
    | ---------------------------- forwarded implementation `target`
@@ -74,7 +74,7 @@ LL | pub fn documented_facade(value: u32) -> u32 {
    = help: remove `documented_facade` and update its callers to invoke `target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `public_facade` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:71:8
+  --> $DIR/semantic.rs:70:8
    |
 LL | fn target(value: u32) -> u32 {
    | ---------------------------- forwarded implementation `target`
@@ -86,7 +86,7 @@ LL | pub fn public_facade(value: u32) -> u32 {
    = help: remove `public_facade` and update its callers to invoke `target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `private_documented` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:76:4
+  --> $DIR/semantic.rs:75:4
    |
 LL | fn target(value: u32) -> u32 {
    | ---------------------------- forwarded implementation `target`
@@ -98,7 +98,7 @@ LL | fn private_documented(value: u32) -> u32 {
    = help: remove `private_documented` and update its callers to invoke `target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `chain_middle` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:80:4
+  --> $DIR/semantic.rs:79:4
    |
 LL | fn target(value: u32) -> u32 {
    | ---------------------------- forwarded implementation `target`
@@ -110,7 +110,7 @@ LL | fn chain_middle(value: u32) -> u32 {
    = help: remove `chain_middle` and update its callers to invoke `target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `chain_facade` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:84:4
+  --> $DIR/semantic.rs:83:4
    |
 LL | fn chain_middle(value: u32) -> u32 {
    | ---------------------------------- forwarded implementation `chain_middle`
@@ -122,7 +122,7 @@ LL | fn chain_facade(value: u32) -> u32 {
    = help: remove `chain_facade` and update its callers to invoke `chain_middle` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `async_direct` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:88:10
+  --> $DIR/semantic.rs:87:10
    |
 LL | async fn async_target(value: u32) -> u32 {
    | ---------------------------------------- forwarded implementation `async_target`
@@ -134,7 +134,7 @@ LL | async fn async_direct(value: u32) -> u32 {
    = help: remove `async_direct` and update its callers to invoke `async_target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `method` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:99:8
+  --> $DIR/semantic.rs:98:8
    |
 LL |     fn target(&self, value: u32) -> u32 {
    |     ----------------------------------- forwarded implementation `Service::target`
@@ -146,7 +146,7 @@ LL |     fn method(&self, value: u32) -> u32 {
    = help: remove `method` and update its callers to invoke `Service::target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `associated` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:107:8
+  --> $DIR/semantic.rs:106:8
    |
 LL |     fn associated_target(value: u32) -> u32 {
    |     --------------------------------------- forwarded implementation `Service::associated_target`
@@ -158,7 +158,7 @@ LL |     fn associated(value: u32) -> u32 {
    = help: remove `associated` and update its callers to invoke `Service::associated_target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `async_method` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:115:14
+  --> $DIR/semantic.rs:114:14
    |
 LL |     async fn async_target(&self, value: u32) -> u32 {
    |     ----------------------------------------------- forwarded implementation `Service::async_target`
@@ -170,7 +170,7 @@ LL |     async fn async_method(&self, value: u32) -> u32 {
    = help: remove `async_method` and update its callers to invoke `Service::async_target` directly; move its documentation or adjust the target's name and visibility if needed
 
 warning: function `method_from_separate_impl` is a redundant forwarding wrapper
-  --> $DIR/semantic.rs:121:8
+  --> $DIR/semantic.rs:120:8
    |
 LL |     fn target(&self, value: u32) -> u32 {
    |     ----------------------------------- forwarded implementation `Service::target`

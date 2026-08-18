@@ -145,7 +145,7 @@ impl<'tcx> Visitor<'tcx> for FetcherWrites<'_, 'tcx> {
 /// Late lint pass that keeps secondary reactive mutation out of resource fetchers.
 struct LeptosReactiveWritesInResourceFetchers;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_REACTIVE_WRITES_IN_RESOURCE_FETCHERS,
     Warn,

@@ -2,7 +2,7 @@
     clippy::missing_const_for_fn,
     clippy::needless_pass_by_value,
     dead_code,
-    method_like_free_functions,
+    rlib::method_like_free_functions,
     unknown_lints
 )]
 

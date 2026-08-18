@@ -14,8 +14,8 @@ LL |       struct NestedContextTarjan;
 note: the lint level is defined here
   --> $DIR/nested.rs:2:9
    |
-LL | #![warn(incoherent_type_family_names)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::incoherent_type_family_names)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: 1 warning emitted
 

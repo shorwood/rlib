@@ -25,3 +25,7 @@ impl Message {
 #[derive(strum::EnumIs)]
 enum Message { Write(Vec<u8>), Quit }
 ```
+
+## Configuration
+
+`enum-variant-predicate-provider` selects `strum_enum_is` or `derive_more_is_variant`.

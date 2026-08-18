@@ -6,7 +6,7 @@ LL |         move |_| async move { load_users(organization_id.get()).await },
    |
    = note: reactive reads in the source closure are tracked, while fetcher reads are not and may observe a different value
    = help: name the fetcher argument and use it as the resource's complete input
-   = note: `#[warn(leptos_resource_fetchers_rereading_sources)]` on by default
+   = note: `#[warn(rlib::leptos_resource_fetchers_rereading_sources)]` on by default
 
 warning: resource fetcher rereads its tracked source
   --> $DIR/semantic.rs:32:58

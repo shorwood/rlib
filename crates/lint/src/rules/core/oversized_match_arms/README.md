@@ -44,3 +44,7 @@ fn render_value(value: u8) {
     println!("{}", value * 2);
 }
 ```
+
+## Configuration
+
+`match-arm-lines-threshold` sets the maximum match-arm size (default `7`).

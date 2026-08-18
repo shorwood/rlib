@@ -1,5 +1,5 @@
-#![warn(positional_aggregate_fields)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::positional_aggregate_fields)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 struct Span;
 
@@ -11,7 +11,7 @@ struct EmptyTuple();
 
 enum Finding {
     Replacement(Span, String),
-    #[allow(positional_aggregate_fields)]
+    #[allow(rlib::positional_aggregate_fields)]
     ExplicitlyAllowed(Span, String),
     Newtype(String),
     Unit,

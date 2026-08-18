@@ -3,7 +3,7 @@
 #![allow(
     clippy::missing_const_for_fn,
     dead_code,
-    misordered_inherent_impl_items
+    rlib::misordered_inherent_impl_items
 )]
 #![register_tool(rlib_lint)]
 
@@ -44,7 +44,7 @@ impl Stage {
     }
 }
 
-#[allow(strum_manual_enum_counts)]
+#[allow(rlib::strum_manual_enum_counts)]
 impl Stage {
     const SUPPRESSED_COUNT: usize = 3;
 }

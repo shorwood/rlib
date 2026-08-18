@@ -92,7 +92,7 @@ struct StringlyTypedDomainFunctionFamilies {
     analyzer: DomainAnalyzer,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub STRINGLY_TYPED_DOMAIN_FUNCTION_FAMILIES,
     Warn,

@@ -82,7 +82,7 @@ impl EarlyViolation for Violation {
 /// Pre-expansion pass preserving the authored order around procedural attributes.
 struct DocumentationAfterAttributes;
 
-dylint_linting::impl_pre_expansion_lint! {
+crate::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub DOCUMENTATION_AFTER_ATTRIBUTES,
     Warn,

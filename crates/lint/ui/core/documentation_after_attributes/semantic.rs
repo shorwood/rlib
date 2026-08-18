@@ -1,6 +1,5 @@
-#![warn(documentation_after_attributes)]
+#![warn(rlib::documentation_after_attributes)]
 #![allow(dead_code)]
-// edition:2024
 
 #[allow(dead_code)]
 /// Misplaced item documentation.
@@ -38,7 +37,7 @@ impl Service {
 #[allow(dead_code)]
 struct DocumentedFirst;
 
-#[allow(documentation_after_attributes)]
+#[allow(rlib::documentation_after_attributes)]
 #[allow(dead_code)]
 /// Locally allowed misplaced documentation.
 struct ExplicitlyAllowed;

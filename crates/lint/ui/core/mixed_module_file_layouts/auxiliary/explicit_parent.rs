@@ -1,2 +1,2 @@
 #[path = "custom.rs"]
-mod customized;
+mod custom;

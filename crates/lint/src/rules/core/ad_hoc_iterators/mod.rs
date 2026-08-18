@@ -90,7 +90,7 @@ struct AdHocIterators {
     iterators: IteratorAnalysis,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub AD_HOC_ITERATORS,
     Warn,

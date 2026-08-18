@@ -1,5 +1,5 @@
 #![feature(register_tool)]
-#![allow(dead_code, leptos_malformed_view_section_comments, unknown_lints)]
+#![allow(dead_code, rlib::leptos_malformed_view_section_comments, unknown_lints)]
 #![register_tool(rlib_lint)]
 
 use leptos::prelude::*;
@@ -62,7 +62,7 @@ fn named_complex_scope() -> impl IntoView {
     }
 }
 
-#[allow(leptos_missing_view_section_comments)]
+#[allow(rlib::leptos_missing_view_section_comments)]
 fn suppressed() -> impl IntoView {
     view! { <><header/><nav/><main/><aside/><footer/></> }
 }

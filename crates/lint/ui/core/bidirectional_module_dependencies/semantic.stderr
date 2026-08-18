@@ -12,8 +12,8 @@ LL |     use super::parser::Parser;
 note: the lint level is defined here
   --> $DIR/semantic.rs:3:9
    |
-LL | #![warn(bidirectional_module_dependencies)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::bidirectional_module_dependencies)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: modules `domain::response` and `domain::request` depend on each other in both directions
   --> $DIR/semantic.rs:54:9

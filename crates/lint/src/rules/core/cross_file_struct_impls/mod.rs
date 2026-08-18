@@ -181,7 +181,7 @@ impl LateViolation for Violation {
 /// Late lint pass that keeps direct impls in their struct's physical file.
 struct CrossFileStructImpls;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub CROSS_FILE_STRUCT_IMPLS,
     Warn,

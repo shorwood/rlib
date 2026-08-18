@@ -59,7 +59,7 @@ impl LateViolation for Violation {
 /// Late lint pass that rejects explicit root tuple types without semantic field names.
 struct BareTupleTypes;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub BARE_TUPLE_TYPES,
     Warn,

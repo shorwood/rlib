@@ -1,6 +1,6 @@
 #![feature(register_tool)]
 #![allow(unknown_lints)]
-#![allow(dead_code, misordered_module_declarations)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 #![register_tool(rlib_lint)]
 
 #[derive(Clone, Copy)]

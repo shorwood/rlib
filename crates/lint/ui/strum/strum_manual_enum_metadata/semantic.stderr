@@ -9,7 +9,7 @@ LL | |         }
    |
    = note: the exhaustive match selects only static metadata by variant
    = help: derive `strum::EnumMessage` and move the values onto their variants
-   = note: `#[warn(strum_manual_enum_metadata)]` on by default
+   = note: `#[warn(rlib::strum_manual_enum_metadata)]` on by default
 
 warning: `Status` metadata is maintained manually
   --> $DIR/semantic.rs:24:9

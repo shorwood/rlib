@@ -9,7 +9,7 @@ LL | | }
    |
    = note: `access_token` combines strong credential vocabulary with raw string or byte storage and has no skip, redaction, or encryption policy
    = help: skip these fields, use a redacting or encrypting serializer, or introduce a secret-aware wrapper
-   = note: `#[warn(serde_sensitive_fields_serialized_by_default)]` on by default
+   = note: `#[warn(rlib::serde_sensitive_fields_serialized_by_default)]` on by default
 
 warning: Serde serializes likely credentials by default
   --> $DIR/semantic.rs:19:1

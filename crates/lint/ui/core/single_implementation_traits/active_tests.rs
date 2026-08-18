@@ -1,6 +1,6 @@
 // compile-flags: --test
 
-#![warn(single_implementation_traits)]
+#![warn(rlib::single_implementation_traits)]
 #![allow(dead_code)]
 
 trait TestSubstitution {

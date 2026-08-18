@@ -12,8 +12,8 @@ LL | impl Repository for Database {
 note: the lint level is defined here
   --> $DIR/semantic.rs:2:9
    |
-LL | #![warn(single_implementation_traits, unnecessarily_broad_visibility)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::single_implementation_traits, rlib::unnecessarily_broad_visibility)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: trait `ClosedPackageService` has a single concrete implementation and no polymorphic consumer
   --> $DIR/semantic.rs:29:11

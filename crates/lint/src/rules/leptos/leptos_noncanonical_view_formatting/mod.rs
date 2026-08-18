@@ -9,8 +9,9 @@ use rustc_ast::ast::{Crate, Item};
 use rustc_errors::{Applicability, DiagDecorator};
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 
+use crate::config::leptos::LeptosViewFormattingConfig;
+use crate::config::store::ConfigStore;
 use crate::rules::leptos::utils::authored_files::AuthoredFiles;
-use crate::rules::leptos::utils::view_formatting::LeptosViewFormattingConfig;
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -92,13 +93,13 @@ impl LeptosNoncanonicalViewFormatting {
     /// Builds a formatter pass from the project configuration.
     fn new() -> Self {
         Self {
-            config: LeptosViewFormattingConfig::from_config(),
+            config: ConfigStore::get().leptos_view_formatting.clone(),
             files: AuthoredFiles::default(),
         }
     }
 }
 
-dylint_linting::impl_early_lint! {
+crate::impl_early_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_NONCANONICAL_VIEW_FORMATTING,
     Warn,

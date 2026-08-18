@@ -3,7 +3,6 @@ extern crate rustc_errors;
 extern crate rustc_span;
 
 use std::borrow::Cow;
-use std::path::{Path, PathBuf};
 
 use rustc_ast::ast::{Inline, Item, ItemKind, ModKind};
 use rustc_errors::DiagDecorator;
@@ -67,43 +66,7 @@ impl EarlyViolation for Violation {
 /// Rejects a flat module source beside a same-name companion directory.
 struct MixedModuleFileLayouts;
 
-impl MixedModuleFileLayouts {
-    /// Returns whether a companion directory contains Rust source at any depth.
-    fn directory_contains_rust_source(directory: &Path) -> bool {
-        // An unreadable directory is conservatively treated as containing source to avoid noise.
-        let Ok(entries) = directory.read_dir() else {
-            return true;
-        };
-        entries.filter_map(Result::ok).any(|entry| {
-            let path = entry.path();
-            (path.is_file() && path.extension().is_some_and(|extension| extension == "rs"))
-                || (path.is_dir() && Self::directory_contains_rust_source(&path))
-        })
-    }
-
-    /// Resolves the unique conventional flat source candidate for a module declaration.
-    fn flat_module_source(parent_source: &Path, name: &str) -> Option<PathBuf> {
-        let parent_directory = parent_source.parent()?;
-        let mut roots = vec![parent_directory.to_owned()];
-
-        // A conventionally loaded `parent.rs` owns children under `parent/`. A `#[path]` parent
-        // instead searches beside its file; considering both and requiring uniqueness avoids
-        // guessing when early expansion has not exposed directory-ownership metadata.
-        let parent_name = parent_source.file_name()?.to_str()?;
-        if !matches!(parent_name, "lib.rs" | "main.rs" | "mod.rs") {
-            roots.push(parent_source.with_extension(""));
-        }
-
-        let mut candidates = roots
-            .into_iter()
-            .map(|root| root.join(format!("{name}.rs")))
-            .filter(|source| source.is_file());
-        let candidate = candidates.next()?;
-        candidates.next().is_none().then_some(candidate)
-    }
-}
-
-dylint_linting::impl_pre_expansion_lint! {
+crate::impl_early_lint! {
     #[doc = include_str!("README.md")]
     pub MIXED_MODULE_FILE_LAYOUTS,
     Warn,
@@ -114,14 +77,10 @@ dylint_linting::impl_pre_expansion_lint! {
 impl EarlyLintPass for MixedModuleFileLayouts {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {
         // Restrict the rule to authored, conventionally located out-of-line modules.
-        let ItemKind::Mod(_, ident, kind) = &item.kind else {
+        let ItemKind::Mod(_, ident, ModKind::Loaded(_, Inline::No { .. }, spans)) = &item.kind
+        else {
             return;
         };
-
-        // Inline modules do not select a separate conventional source-file layout.
-        if matches!(kind, ModKind::Loaded(_, Inline::Yes, _)) {
-            return;
-        }
 
         // Preserve generated modules and declarations with intentional custom source paths.
         if item.span.from_expansion()
@@ -133,27 +92,32 @@ impl EarlyLintPass for MixedModuleFileLayouts {
             return;
         }
 
-        // Resolve the declaring file and the unique conventional flat source candidate.
+        // Resolve the actual loaded module file rather than reconstructing nested search roots.
         let source_map = cx.sess().source_map();
 
-        // Non-local source names cannot be mapped to a filesystem companion directory.
-        let Some(parent_source) = source_map.span_to_filename(item.span).into_local_path() else {
+        // Non-local module sources cannot be mapped to a filesystem companion directory.
+        let Some(module_source) = source_map
+            .span_to_filename(spans.inner_span)
+            .into_local_path()
+        else {
             return;
         };
         let name = ident.name.as_str();
 
-        // Declarations without a matching flat module file cannot form the mixed layout.
-        let Some(module_source) = Self::flat_module_source(&parent_source, name) else {
+        // Directory-root modules and custom filenames do not select the flat `name.rs` layout.
+        if module_source
+            .extension()
+            .is_none_or(|extension| extension != "rs")
+            || module_source.file_stem().and_then(|stem| stem.to_str()) != Some(name)
+        {
             return;
-        };
+        }
 
-        // Diagnose only a flat source plus a same-name non-Rust companion directory.
+        // Every same-name directory creates a second physical root, independent of its contents.
         let companion_directory = module_source.with_extension("");
 
-        // Missing companions and companions already containing Rust source are conventional layouts.
-        if !companion_directory.is_dir()
-            || Self::directory_contains_rust_source(&companion_directory)
-        {
+        // A standalone flat source has only one physical module root.
+        if !companion_directory.is_dir() {
             return;
         }
 

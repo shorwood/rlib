@@ -1,5 +1,5 @@
-#![warn(long_method_chains)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::long_method_chains)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 fn too_long(values: &[String]) -> Vec<String> {
     values
@@ -54,7 +54,7 @@ macro_rules! generated_chain {
 
 generated_chain!();
 
-#[allow(long_method_chains)]
+#[allow(rlib::long_method_chains)]
 fn explicitly_allowed(values: &[String]) -> Vec<String> {
     values
         .iter()

@@ -22,3 +22,7 @@ leptos_styling::style_sheet!(style, "src/page.css", "app");
 // page.css is formatted by Malva before this declaration is checked.
 leptos_styling::style_sheet!(style, "src/page.css", "app");
 ```
+
+## Configuration
+
+`leptos-css-max-width` sets the CSS formatter width (default `100`).

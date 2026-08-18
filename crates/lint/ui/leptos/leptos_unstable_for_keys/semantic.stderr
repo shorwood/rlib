@@ -6,7 +6,7 @@ LL |         <For each=move || items.get() key=|_| 0 children=|item| item.name/>
    |
    = note: keys preserve the relationship between data and rendered rows when a collection changes
    = help: use a unique domain identifier that remains stable across inserts and reordering
-   = note: `#[warn(leptos_unstable_for_keys)]` on by default
+   = note: `#[warn(rlib::leptos_unstable_for_keys)]` on by default
 
 warning: `<For>` key does not represent stable item identity
   --> $DIR/semantic.rs:25:17

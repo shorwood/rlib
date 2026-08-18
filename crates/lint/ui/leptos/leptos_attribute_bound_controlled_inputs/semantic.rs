@@ -65,7 +65,7 @@ fn fixed_initial_value() {
     let _ = view! { <input value="initial"/> };
 }
 
-#[allow(leptos_attribute_bound_controlled_inputs)]
+#[allow(rlib::leptos_attribute_bound_controlled_inputs)]
 fn suppressed() {
     let name = RwSignal::new(String::new());
     let _ = view! { <input value=name/> };

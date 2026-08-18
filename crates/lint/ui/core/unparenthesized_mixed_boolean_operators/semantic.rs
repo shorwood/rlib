@@ -1,5 +1,5 @@
-#![warn(unparenthesized_mixed_boolean_operators)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::unparenthesized_mixed_boolean_operators)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 fn ambiguous(first: bool, second: bool, alternative: bool) -> bool {
     first && second || alternative

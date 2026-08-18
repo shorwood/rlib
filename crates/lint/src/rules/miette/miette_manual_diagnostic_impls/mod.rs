@@ -82,7 +82,7 @@ impl LateViolation for Violation {
 /// Detects complete manual implementations that Miette can derive.
 struct MietteManualDiagnosticImpls;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MIETTE_MANUAL_DIAGNOSTIC_IMPLS,
     Warn,

@@ -11,8 +11,8 @@ LL | | // ----------------------------------------------------------------------
 note: the lint level is defined here
   --> $DIR/semantic.rs:2:9
    |
-LL | #![warn(overloaded_declaration_sections)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::overloaded_declaration_sections)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: section `NominalMixed` mixes 41 declarations from several naming families, exceeding the configured maximum of 40
   --> $DIR/semantic.rs:260:1

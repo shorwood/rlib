@@ -96,7 +96,7 @@ struct SerdeFlattenedUnknownFieldPolicies {
     candidates: Vec<Candidate>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub SERDE_FLATTENED_UNKNOWN_FIELD_POLICIES,
     Warn,

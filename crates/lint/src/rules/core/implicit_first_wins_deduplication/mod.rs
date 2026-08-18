@@ -58,7 +58,7 @@ impl LateViolation for Violation {
 /// Recognizes set insertion used directly as an iterator predicate.
 struct ImplicitFirstWinsDeduplication;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub IMPLICIT_FIRST_WINS_DEDUPLICATION,
     Warn,

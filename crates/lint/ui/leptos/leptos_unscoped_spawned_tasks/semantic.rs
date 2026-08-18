@@ -1,4 +1,4 @@
-#![allow(unknown_lints, leptos_noncanonical_view_formatting)]
+#![allow(unknown_lints, rlib::leptos_noncanonical_view_formatting)]
 
 use leptos::prelude::*;
 use leptos::task::spawn_local as detach;

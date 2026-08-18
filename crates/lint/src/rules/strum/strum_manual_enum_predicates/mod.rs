@@ -9,9 +9,10 @@ use rustc_hir::ImplItem;
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::{Span, Symbol};
 
-use crate::utils::config::LibraryConfig;
+use crate::config::providers::PredicateProvider;
+use crate::config::store::ConfigStore;
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer, PredicateProvider};
+use crate::utils::variant_methods::{PredicateFamily, PredicateFamilyAnalyzer};
 
 // -----------------------------------------------------------------------------
 // Violation: Complete authored predicate family
@@ -78,7 +79,7 @@ struct StrumManualEnumPredicates {
     provider: Option<PredicateProvider>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub STRUM_MANUAL_ENUM_PREDICATES,
     Warn,
@@ -91,7 +92,7 @@ impl StrumManualEnumPredicates {
     fn new() -> Self {
         Self {
             analyzer: PredicateFamilyAnalyzer::default(),
-            provider: LibraryConfig::load()
+            provider: ConfigStore::get()
                 .derive_resolution
                 .enum_variant_predicates(),
         }

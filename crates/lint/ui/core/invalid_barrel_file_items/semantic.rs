@@ -1,7 +1,6 @@
-// edition:2024
 
 #![feature(register_tool)]
-#![allow(dead_code, unused_imports, misordered_inherent_impl_items, misordered_module_declarations, misordered_type_declarations)]
+#![allow(dead_code, unused_imports, rlib::misordered_inherent_impl_items, rlib::misordered_module_declarations, rlib::misordered_type_declarations)]
 #![register_tool(rlib_lint)]
 
 // These path attributes deliberately load physical barrel files. The rule is about the source

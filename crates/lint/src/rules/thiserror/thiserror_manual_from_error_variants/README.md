@@ -29,3 +29,7 @@ enum LoadError {
     Io(#[from] std::io::Error),
 }
 ```
+
+## Configuration
+
+`error-variant-conversion-provider` selects `thiserror_from` or `derive_more_from`.

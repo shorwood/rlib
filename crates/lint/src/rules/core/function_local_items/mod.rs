@@ -69,7 +69,7 @@ impl LateViolation for Violation {
 /// Late lint pass rejecting authored item statements in executable bodies.
 struct FunctionLocalItems;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub FUNCTION_LOCAL_ITEMS,
     Warn,

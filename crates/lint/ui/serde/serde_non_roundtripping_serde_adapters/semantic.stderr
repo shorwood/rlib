@@ -12,7 +12,7 @@ LL | | }
    |
    = note: serialization uses `timestamp_seconds` while deserialization uses the incompatible `timestamp_milliseconds` contract
    = help: pair helpers with the same unit or encoding, or use one `with` module
-   = note: `#[warn(serde_non_roundtripping_serde_adapters)]` on by default
+   = note: `#[warn(rlib::serde_non_roundtripping_serde_adapters)]` on by default
 
 warning: Serde adapters for `field 0` do not round-trip
   --> $DIR/semantic.rs:15:1

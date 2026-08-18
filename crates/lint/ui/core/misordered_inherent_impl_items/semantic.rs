@@ -1,10 +1,10 @@
 #![feature(inherent_associated_types, register_tool)]
 #![allow(dead_code, incomplete_features)]
 #![register_tool(rlib_lint)]
-#![allow(misordered_module_declarations)]
-#![allow(non_adjacent_struct_impls)]
-#![allow(misordered_type_declarations)]
-#![warn(misordered_inherent_impl_items)]
+#![allow(rlib::misordered_module_declarations)]
+#![allow(rlib::non_adjacent_struct_impls)]
+#![allow(rlib::misordered_type_declarations)]
+#![warn(rlib::misordered_inherent_impl_items)]
 
 struct Widget;
 

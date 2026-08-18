@@ -1,7 +1,7 @@
 #![allow(
     unknown_lints,
-    leptos_noncanonical_view_formatting,
-    leptos_fragmented_reactive_state
+    rlib::leptos_noncanonical_view_formatting,
+    rlib::leptos_fragmented_reactive_state
 )]
 
 use leptos::prelude::*;

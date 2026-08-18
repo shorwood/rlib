@@ -38,3 +38,7 @@ trait ExpressionContextExt {
     fn inspect_expression(&self, expression: &Expr<'_>);
 }
 ```
+
+## Configuration
+
+`extension-trait-methods-threshold` sets the maximum methods before a trait is treated as broad (default `8`).

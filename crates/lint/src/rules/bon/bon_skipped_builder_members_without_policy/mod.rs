@@ -103,7 +103,7 @@ impl EarlyViolation for Violation {
 /// Requires skipped fields to explain or encode how they are initialized.
 struct BonSkippedBuilderMembersWithoutPolicy;
 
-dylint_linting::impl_pre_expansion_lint! {
+crate::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub BON_SKIPPED_BUILDER_MEMBERS_WITHOUT_POLICY,
     Warn,

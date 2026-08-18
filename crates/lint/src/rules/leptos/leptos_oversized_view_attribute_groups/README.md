@@ -31,3 +31,7 @@ Split stable responsibilities into focused groups, or extract a narrower compone
     disabled=pending on:click=submit
 />
 ```
+
+## Configuration
+
+`leptos-view-attribute-group-complexity-threshold` sets the maximum named-group complexity (default `4`).

@@ -6,7 +6,7 @@ extern crate rustc_span;
 use std::collections::{HashMap, HashSet};
 
 use rustc_hir::def_id::DefId;
-use rustc_hir::{Item, ItemKind};
+use rustc_hir::{HirId, Item, ItemKind};
 use rustc_lint::LateContext;
 use rustc_middle::ty::{self, Ty};
 use rustc_span::{Span, Symbol};
@@ -77,6 +77,8 @@ pub struct ForeignTypeParameterEvidence {
 
 /// One visible free function whose foreign parameters deserve an owning abstraction.
 pub struct ForeignTypeFunctionFinding {
+    /// Function node used to respect item-level lint attributes.
+    pub(crate) hir_id: HirId,
     /// Function name span used as the primary diagnostic location.
     pub(crate) span: Span,
     /// Function name rendered in the diagnostic.
@@ -99,6 +101,8 @@ struct ForeignTypeParameter {
 
 /// Semantic signature retained until ambient dependencies can be inferred crate-wide.
 struct ForeignTypeFunction {
+    /// Function node used to respect item-level lint attributes.
+    hir_id: HirId,
     /// Function name span used for diagnostics.
     span: Span,
     /// Function name rendered in diagnostics.
@@ -184,6 +188,7 @@ impl ForeignTypeAnalyzer {
 
         // Retain only signatures that actually expose a foreign nominal type.
         self.functions.push(ForeignTypeFunction {
+            hir_id: item.hir_id(),
             span: ident.span,
             name: ident.name,
             nominal_parameters,
@@ -265,6 +270,7 @@ impl ForeignTypeAnalyzer {
                     })
                     .collect();
                 Some(ForeignTypeFunctionFinding {
+                    hir_id: function.hir_id,
                     span: function.span,
                     name: function.name,
                     owners,

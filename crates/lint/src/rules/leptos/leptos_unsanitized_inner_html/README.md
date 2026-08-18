@@ -32,7 +32,7 @@ component:
 struct TrustedHtml(String);
 
 #[component]
-#[allow(leptos_unsanitized_inner_html)]
+#[allow(rlib::leptos_unsanitized_inner_html)]
 fn TrustedMarkup(html: TrustedHtml) -> impl IntoView {
     view! { <article inner_html=html.0/> }
 }

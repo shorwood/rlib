@@ -11,7 +11,7 @@ use rustc_span::Span;
 
 use super::control_flow_loop::LoopBodyExt;
 use super::control_flow_metrics::{ControlFlowArmExt, ControlFlowExpressionExt};
-use super::function_structure_config::FunctionStructureConfig;
+use crate::config::core::FunctionStructureConfig;
 
 // -----------------------------------------------------------------------------
 // ControlFlow: Analyze semantic function structure

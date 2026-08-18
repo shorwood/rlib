@@ -6,7 +6,7 @@ LL | impl Error for Marker {}
    |
    = note: the implementation adds no behavior beyond derive_more's conventional error source handling
    = help: replace this implementation with `#[derive(derive_more::Error)]` and retain authored code only for custom error behavior
-   = note: `#[warn(derive_more_manual_error_impls)]` on by default
+   = note: `#[warn(rlib::derive_more_manual_error_impls)]` on by default
 
 warning: manual error implementation for `LoadError` is derivable
   --> $DIR/semantic.rs:54:1

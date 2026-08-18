@@ -1,10 +1,10 @@
 #![feature(auto_traits, trait_alias)]
-#![warn(single_implementation_traits, unnecessarily_broad_visibility)]
+#![warn(rlib::single_implementation_traits, rlib::unnecessarily_broad_visibility)]
 #![allow(
     dead_code,
-    method_like_free_functions,
-    misordered_module_declarations,
-    non_adjacent_struct_impls,
+    rlib::method_like_free_functions,
+    rlib::misordered_module_declarations,
+    rlib::non_adjacent_struct_impls,
     private_bounds,
     private_interfaces
 )]
@@ -30,7 +30,7 @@ pub trait ClosedPackageService {
     fn run(&self);
 }
 
-#[allow(unnecessarily_broad_visibility)]
+#[allow(rlib::unnecessarily_broad_visibility)]
 pub struct Worker;
 
 impl ClosedPackageService for Worker {
@@ -151,7 +151,7 @@ mod sealing {
     pub trait Sealed {}
 }
 
-#[allow(unnecessarily_broad_visibility)]
+#[allow(rlib::unnecessarily_broad_visibility)]
 pub trait IntentionallySealed: sealing::Sealed {
     fn sealed(&self);
 }

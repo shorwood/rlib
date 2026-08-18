@@ -6,7 +6,7 @@ LL |     #[prop(optional)] count: usize,
    |
    = note: a component default is part of its public UI contract, while `optional` silently inherits `Default::default()` from the property type
    = help: replace `#[prop(optional)]` with `#[prop(default = ...)]`, or use `Option<T>` when absence itself is meaningful
-   = note: `#[warn(leptos_implicit_default_component_props)]` on by default
+   = note: `#[warn(rlib::leptos_implicit_default_component_props)]` on by default
 
 warning: component prop `label` has an implicit default
   --> $DIR/semantic.rs:20:5

@@ -10,7 +10,7 @@ LL | |         }
    = note: the complete owned, shared, and mutable accessor family duplicates tuple field extraction and `Option` failure behavior
    = note: these accessors are public; generated names, visibility, and return types require a compatibility review
    = help: derive `strum::EnumTryAs` and remove the equivalent inherent accessor family
-   = note: `#[warn(strum_manual_enum_accessors)]` on by default
+   = note: `#[warn(rlib::strum_manual_enum_accessors)]` on by default
 
 warning: `PairMessage` tuple-variant accessors are maintained manually
   --> $DIR/semantic.rs:58:9

@@ -1,5 +1,5 @@
-#![warn(unnecessarily_broad_visibility)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::unnecessarily_broad_visibility)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 pub(crate) struct PrivateStruct {
     pub(crate) private_field: usize,

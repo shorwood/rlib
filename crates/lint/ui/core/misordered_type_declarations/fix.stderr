@@ -10,8 +10,8 @@ LL | | impl Consumer {}
 note: the lint level is defined here
   --> $DIR/fix.rs:8:9
    |
-LL | #![warn(misordered_type_declarations)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::misordered_type_declarations)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 help: move declarations into this order: `Dependency`, `Consumer`
    |
 LL + struct Dependency;

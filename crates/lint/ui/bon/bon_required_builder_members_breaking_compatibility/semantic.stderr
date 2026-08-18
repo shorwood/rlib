@@ -6,7 +6,7 @@ LL |     port: u16,
    |
    = note: existing callers represented by the configured API snapshot cannot finish this builder without setting the new member
    = help: provide a meaningful default or optional contract, version the builder API, or update the baseline as part of an intentional breaking release
-   = note: `#[warn(bon_required_builder_members_breaking_compatibility)]` on by default
+   = note: `#[warn(rlib::bon_required_builder_members_breaking_compatibility)]` on by default
 
 warning: new required Bon member `Request.secure_port` breaks baseline call sequences
   --> $DIR/semantic.rs:20:18

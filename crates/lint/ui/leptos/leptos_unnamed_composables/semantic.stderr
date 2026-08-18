@@ -6,7 +6,7 @@ LL | fn editor_state() -> RwSignal<String> {
    |
    = note: reactive ownership and lifecycle behavior should be visible at the call site
    = help: rename `editor_state` with a `use_` prefix that names the owned responsibility
-   = note: `#[warn(leptos_unnamed_composables)]` on by default
+   = note: `#[warn(rlib::leptos_unnamed_composables)]` on by default
 
 warning: 1 warning emitted
 

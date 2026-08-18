@@ -6,7 +6,7 @@ LL |     detach(async move {});
    |
    = note: a detached task hides cancellation, ownership, mutation, and loading semantics from the reactive graph
    = help: use an Action for mutation, a Resource for loading, or an owner-cleaned `use_*` composable for lifetime work
-   = note: `#[warn(leptos_unscoped_spawned_tasks)]` on by default
+   = note: `#[warn(rlib::leptos_unscoped_spawned_tasks)]` on by default
 
 warning: 1 warning emitted
 

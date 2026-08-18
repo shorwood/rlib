@@ -291,7 +291,7 @@ impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
     }
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub SERDE_FORMAT_SPECIFIC_SERDE_IMPLS,
     Warn,

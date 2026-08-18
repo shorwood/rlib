@@ -157,7 +157,7 @@ impl<'tcx> Visitor<'tcx> for CurrentValueRead<'_, 'tcx> {
 /// Late lint pass that keeps dependent signal changes inside `update`.
 struct LeptosReadThenReplaceSignals;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_READ_THEN_REPLACE_SIGNALS,
     Warn,

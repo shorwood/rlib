@@ -1,6 +1,6 @@
 // run-rustfix
 
-#![warn(constructor_like_free_functions)]
+#![warn(rlib::constructor_like_free_functions)]
 #![allow(dead_code)]
 
 struct Token(String);

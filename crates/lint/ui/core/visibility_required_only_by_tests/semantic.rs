@@ -1,6 +1,6 @@
 // compile-flags: --test
 
-#![warn(visibility_required_only_by_tests)]
+#![warn(rlib::visibility_required_only_by_tests)]
 #![allow(dead_code)]
 
 mod parser {

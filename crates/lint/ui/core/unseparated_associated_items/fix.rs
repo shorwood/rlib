@@ -2,7 +2,7 @@
 // rustfix-only-machine-applicable
 
 #![allow(dead_code)]
-#![warn(unseparated_associated_items)]
+#![warn(rlib::unseparated_associated_items)]
 
 trait Repository {
     type Record;

@@ -67,7 +67,7 @@ impl LateViolation for Violation {
 /// Late lint pass that borrows non-copy signal values for immediate inspection.
 struct LeptosNeedlesslyClonedSignalValues;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_NEEDLESSLY_CLONED_SIGNAL_VALUES,
     Warn,

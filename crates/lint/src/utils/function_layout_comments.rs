@@ -10,7 +10,7 @@ use super::function_layout_prose::FunctionLayoutProse;
 use super::function_layout_source::{
     FunctionLayoutComment, FunctionLayoutPositionExt, FunctionLayoutSpanExt,
 };
-use super::function_structure_config::FunctionStructureConfig;
+use crate::config::core::FunctionStructureConfig;
 
 /// Returns whether authored source before `boundary` contains an attached phase-comment block.
 ///
@@ -203,13 +203,13 @@ impl FunctionLayoutEntryGap {
     /// Analyzes comments in one source gap.
     pub(super) fn analyze(
         cx: &LateContext<'_>,
-        config: &FunctionStructureConfig,
+        _config: &FunctionStructureConfig,
         span: Span,
         previous: Option<Span>,
         next: Option<Span>,
     ) -> Self {
         // Resolve source positions needed to validate every candidate header.
-        let blocks = Block::collect(cx, span, &config.phase_comment_prefix);
+        let blocks = Block::collect(cx, span, FunctionStructureConfig::PHASE_COMMENT_PREFIX);
         let next_line = next.map(|span| span.lo().source_line(cx));
         let previous_line = previous.map(|span| span.hi().source_line(cx));
         let mut has_valid_header = false;
@@ -256,7 +256,7 @@ impl FunctionLayoutEntryGap {
             };
             let help = format!(
                 "use `{}` followed by concise sentence-style prose immediately before the phase",
-                config.phase_comment_prefix
+                FunctionStructureConfig::PHASE_COMMENT_PREFIX
             );
 
             // Preserve the malformed block and its safest available repair.

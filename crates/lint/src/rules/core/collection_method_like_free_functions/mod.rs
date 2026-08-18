@@ -570,7 +570,7 @@ impl LateViolation for Violation {
 /// Late lint pass that relocates collection-shaped free functions to domain wrappers.
 struct CollectionMethodLikeFreeFunctions;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub COLLECTION_METHOD_LIKE_FREE_FUNCTIONS,
     Warn,

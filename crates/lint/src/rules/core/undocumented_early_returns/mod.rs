@@ -66,26 +66,14 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 
 /// Late lint pass requiring explanations on authored explicit early returns.
-struct UndocumentedEarlyReturns {
-    /// Shared named-function and code-phase analysis.
-    analyzer: FunctionStructureAnalyzer,
-}
+struct UndocumentedEarlyReturns;
 
-impl UndocumentedEarlyReturns {
-    /// Builds the pass from validated function-structure configuration.
-    fn new() -> Self {
-        Self {
-            analyzer: FunctionStructureAnalyzer::from_config(),
-        }
-    }
-}
-
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub UNDOCUMENTED_EARLY_RETURNS,
     Warn,
     "requires explicit early returns to explain their guard policy",
-    UndocumentedEarlyReturns::new()
+    UndocumentedEarlyReturns
 }
 
 impl<'tcx> LateLintPass<'tcx> for UndocumentedEarlyReturns {
@@ -102,7 +90,7 @@ impl<'tcx> LateLintPass<'tcx> for UndocumentedEarlyReturns {
         if span.from_expansion() || span.is_build_generated(cx) {
             return;
         }
-        for finding in self.analyzer.analyze_early_returns(cx, body) {
+        for finding in FunctionStructureAnalyzer::analyze_early_returns(cx, body) {
             Violation {
                 return_span: finding.return_span,
                 boundary_span: finding.boundary_span,

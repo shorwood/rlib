@@ -1,5 +1,5 @@
 #![allow(dead_code, unused_imports)]
-#![warn(function_local_items)]
+#![warn(rlib::function_local_items)]
 
 struct ModuleType;
 

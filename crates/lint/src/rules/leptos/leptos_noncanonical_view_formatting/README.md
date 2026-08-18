@@ -26,3 +26,7 @@ view! {
     </main>
 }
 ```
+
+## Configuration
+
+`leptos-view-max-width` sets the formatter width (default `100`).

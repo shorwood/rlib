@@ -28,3 +28,7 @@ fn Editor() -> impl IntoView {
     view! { <EditorForm form /> }
 }
 ```
+
+## Configuration
+
+`leptos-setup-statements-threshold` sets the maximum setup statements (default `8`).

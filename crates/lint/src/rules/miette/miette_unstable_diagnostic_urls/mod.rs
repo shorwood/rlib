@@ -68,7 +68,7 @@ struct MietteUnstableDiagnosticUrls {
     catalog: DiagnosticCatalog,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MIETTE_UNSTABLE_DIAGNOSTIC_URLS,
     Warn,

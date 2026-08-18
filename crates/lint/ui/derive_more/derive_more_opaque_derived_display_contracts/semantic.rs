@@ -1,8 +1,8 @@
 #![allow(
     unknown_lints,
     dead_code,
-    method_like_free_functions,
-    misordered_module_declarations
+    rlib::method_like_free_functions,
+    rlib::misordered_module_declarations
 )]
 
 use std::collections::{BTreeMap, HashMap};

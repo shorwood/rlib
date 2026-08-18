@@ -6,7 +6,7 @@ LL |             on:click=move |_| {}
    |
    = note: attribute-group headings must accurately describe the responsibility they own
    = help: move this attribute to a matching group or rename a genuinely shared responsibility
-   = note: `#[warn(leptos_mismatched_view_attribute_groups)]` on by default
+   = note: `#[warn(rlib::leptos_mismatched_view_attribute_groups)]` on by default
 
 warning: attribute `class` contradicts group heading `Accessibility`
   --> $DIR/semantic.rs:24:13

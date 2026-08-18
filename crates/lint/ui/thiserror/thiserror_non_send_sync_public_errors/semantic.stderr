@@ -8,7 +8,7 @@ LL | | }
    |
    = note: public API `error_sender` transports this error through a channel, but `std::rc::Rc` prevents the required auto traits
    = help: use thread-safe field representations such as `Arc`, or make the transport boundary explicitly local
-   = note: `#[warn(thiserror_non_send_sync_public_errors)]` on by default
+   = note: `#[warn(rlib::thiserror_non_send_sync_public_errors)]` on by default
 
 warning: public thiserror type is not thread-safe at a channel boundary
   --> $DIR/semantic.rs:22:1

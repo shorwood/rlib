@@ -6,7 +6,7 @@ LL |     Invalid,
    |
    = note: sibling variants establish codes as this diagnostic family's machine identity, but this variant cannot be filtered or tracked equivalently
    = help: add a unique namespaced `#[diagnostic(code(...))]` to this variant
-   = note: `#[warn(miette_missing_diagnostic_codes)]` on by default
+   = note: `#[warn(rlib::miette_missing_diagnostic_codes)]` on by default
 
 warning: diagnostic `MultipleMissing::FirstMissing` has no stable code
   --> $DIR/semantic.rs:36:5

@@ -72,7 +72,7 @@ enum CallableOwner {
 /// Rejects builders that add no optionality or argument disambiguation.
 struct BonNeedlessBuildersForSmallApis;
 
-dylint_linting::impl_pre_expansion_lint! {
+crate::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub BON_NEEDLESS_BUILDERS_FOR_SMALL_APIS,
     Warn,

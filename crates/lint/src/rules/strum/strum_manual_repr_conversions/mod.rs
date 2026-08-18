@@ -74,7 +74,7 @@ impl LateViolation for Violation {
 /// Finds manual integer discriminant conversions reproducible by `FromRepr`.
 struct StrumManualReprConversions;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub STRUM_MANUAL_REPR_CONVERSIONS,
     Warn,

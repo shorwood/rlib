@@ -10,8 +10,8 @@ use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
 use super::utils::attributes::{BonAttributeAnalysis, BuilderOption, OptionType};
-use super::utils::config::{BonApiBaselineConfig, BonMemberPath};
-use crate::utils::config::LibraryConfig;
+use crate::config::bon::{BonApiBaselineConfig, BonMemberPath};
+use crate::config::store::ConfigStore;
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -109,7 +109,7 @@ struct BonRequiredBuilderMembersBreakingCompatibility {
     baseline: BonApiBaselineConfig,
 }
 
-dylint_linting::impl_pre_expansion_lint! {
+crate::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub BON_REQUIRED_BUILDER_MEMBERS_BREAKING_COMPATIBILITY,
     Warn,
@@ -121,7 +121,7 @@ impl BonRequiredBuilderMembersBreakingCompatibility {
     /// Loads the configured Bon API baseline.
     fn new() -> Self {
         Self {
-            baseline: LibraryConfig::load().bon_api_baseline,
+            baseline: ConfigStore::get().bon_api_baseline.clone(),
         }
     }
 

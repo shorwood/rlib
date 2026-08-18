@@ -16,11 +16,11 @@ use rustc_span::Span;
 use rustc_span::symbol::sym;
 
 #[cfg(feature = "thiserror")]
-use crate::rules::framework::utils::config::{DeriveResolutionConfig, ErrorImplementationProvider};
+use crate::config::{
+    framework::DeriveResolutionConfig, providers::ErrorImplementationProvider, store::ConfigStore,
+};
 #[cfg(feature = "thiserror")]
 use crate::rules::thiserror::utils::error_implementations::ManualErrorCatalog;
-#[cfg(feature = "thiserror")]
-use crate::utils::config::LibraryConfig;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::direct_forwarding::DirectForwarding;
 
@@ -156,7 +156,7 @@ struct DeriveMoreManualErrorImpls {
     overlaps: ManualErrorCatalog,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub DERIVE_MORE_MANUAL_ERROR_IMPLS,
     Warn,
@@ -170,7 +170,7 @@ impl DeriveMoreManualErrorImpls {
         Self {
             candidates: Vec::new(),
             #[cfg(feature = "thiserror")]
-            config: LibraryConfig::load().derive_resolution,
+            config: ConfigStore::get().derive_resolution.clone(),
             #[cfg(feature = "thiserror")]
             overlaps: ManualErrorCatalog::default(),
         }

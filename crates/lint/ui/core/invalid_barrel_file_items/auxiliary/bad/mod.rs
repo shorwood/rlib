@@ -28,5 +28,5 @@ macro_rules! make_item {
 make_item!();
 include!("included.rs");
 
-#[allow(invalid_barrel_file_items)]
+#[allow(rlib::invalid_barrel_file_items)]
 fn explicitly_allowed() {}

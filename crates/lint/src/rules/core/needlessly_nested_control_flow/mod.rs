@@ -75,7 +75,7 @@ impl NeedlesslyNestedControlFlow {
     }
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub NEEDLESSLY_NESTED_CONTROL_FLOW,
     Warn,

@@ -9,7 +9,7 @@ LL |             // Account content
    |
    = note: repeated names make distinct interface regions difficult to tell apart
    = help: rename this heading to describe the responsibility unique to its region
-   = note: `#[warn(leptos_duplicate_view_section_comments)]` on by default
+   = note: `#[warn(rlib::leptos_duplicate_view_section_comments)]` on by default
 
 warning: this view section heading is duplicated in the same scope
   --> $DIR/semantic.rs:26:9

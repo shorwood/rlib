@@ -1,4 +1,4 @@
-#![allow(dead_code, misordered_module_declarations, unknown_lints)]
+#![allow(dead_code, rlib::misordered_module_declarations, unknown_lints)]
 
 #[derive(bon::Builder)]
 pub struct Range {

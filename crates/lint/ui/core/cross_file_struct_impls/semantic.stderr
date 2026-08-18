@@ -11,7 +11,7 @@ LL | pub(crate) struct Inherent;
    |
    = note: understanding `Inherent` currently requires searching both `owner.inc` and `implementations.inc` for its behavior
    = help: move this complete impl block into `owner.inc` beside `Inherent`
-   = note: `#[warn(cross_file_struct_impls)]` on by default
+   = note: `#[warn(rlib::cross_file_struct_impls)]` on by default
 
 warning: impl block for `Traited` is not colocated with its definition
   --> $DIR/support/implementations.inc:5:1

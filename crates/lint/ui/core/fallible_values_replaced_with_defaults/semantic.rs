@@ -1,4 +1,4 @@
-#![warn(fallible_values_replaced_with_defaults)]
+#![warn(rlib::fallible_values_replaced_with_defaults)]
 
 struct Failure(&'static str);
 

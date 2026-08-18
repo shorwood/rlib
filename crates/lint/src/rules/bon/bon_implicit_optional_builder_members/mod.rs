@@ -129,7 +129,7 @@ impl BonImplicitOptionalBuilderMembers {
     }
 }
 
-dylint_linting::impl_pre_expansion_lint! {
+crate::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub BON_IMPLICIT_OPTIONAL_BUILDER_MEMBERS,
     Warn,

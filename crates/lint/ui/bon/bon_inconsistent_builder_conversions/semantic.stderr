@@ -6,7 +6,7 @@ LL | fn request(#[builder(into)] url: String, header: String) {
    |
    = note: callers should not need to memorize which same-representation setters accept `Into` conversions
    = help: apply `#[builder(into)]` coherently or make the stricter member's distinct validation policy explicit
-   = note: `#[warn(bon_inconsistent_builder_conversions)]` on by default
+   = note: `#[warn(rlib::bon_inconsistent_builder_conversions)]` on by default
 
 warning: Bon members of type `String` use inconsistent conversion policy
   --> $DIR/semantic.rs:33:54

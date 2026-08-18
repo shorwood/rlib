@@ -176,7 +176,7 @@ struct MietteAdHocDiagnosticsAtDomainBoundaries {
     messages: BTreeMap<String, Vec<ViolationUse>>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub MIETTE_AD_HOC_DIAGNOSTICS_AT_DOMAIN_BOUNDARIES,
     Warn,

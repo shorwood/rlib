@@ -11,8 +11,8 @@ LL | | // ----------------------------------------------------------------------
 note: the lint level is defined here
   --> $DIR/semantic.rs:2:9
    |
-LL | #![warn(malformed_section_dividers)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::malformed_section_dividers)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: section divider description is empty
   --> $DIR/semantic.rs:10:1

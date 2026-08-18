@@ -12,7 +12,7 @@ LL | | }
    |
    = note: bare `#[serde(default)]` turns absence into a potentially meaningful domain value without naming the compatibility policy
    = help: use `Option`, a named default function, or document why the generic default represents missing input
-   = note: `#[warn(serde_defaults_hiding_missing_data)]` on by default
+   = note: `#[warn(rlib::serde_defaults_hiding_missing_data)]` on by default
 
 warning: missing `maximum` data is replaced with an implicit default
   --> $DIR/semantic.rs:17:1

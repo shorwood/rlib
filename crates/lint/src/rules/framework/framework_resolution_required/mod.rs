@@ -16,12 +16,12 @@ use rustc_lint::{LateContext, LateLintPass};
 #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 use rustc_span::Span;
 
-#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
-use super::utils::config::DeriveResolutionConfig;
 #[cfg(feature = "strum")]
-use crate::rules::strum::utils::authored_contracts::{
-    DisplayCandidate, DisplayProvider, StringParserCandidate, StringParserProvider,
-};
+use crate::config::providers::{DisplayProvider, StringParserProvider};
+#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
+use crate::config::{framework::DeriveResolutionConfig, store::ConfigStore};
+#[cfg(feature = "strum")]
+use crate::rules::strum::utils::authored_contracts::{DisplayCandidate, StringParserCandidate};
 #[cfg(feature = "strum")]
 use crate::rules::strum::utils::contracts::ContractCatalog;
 #[cfg(feature = "strum")]
@@ -32,8 +32,6 @@ use crate::rules::thiserror::utils::contracts::ThiserrorContractCatalog;
 use crate::rules::thiserror::utils::error_conversions::Candidate as ManualFromCandidate;
 #[cfg(all(feature = "thiserror", feature = "derive_more"))]
 use crate::rules::thiserror::utils::error_implementations::ManualErrorCatalog;
-#[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
-use crate::utils::config::LibraryConfig;
 #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
 use crate::utils::diagnostic::LateViolation;
 #[cfg(feature = "strum")]
@@ -241,7 +239,7 @@ impl FrameworkResolutionRequired {
     fn new() -> Self {
         Self {
             #[cfg(any(feature = "strum", all(feature = "thiserror", feature = "derive_more")))]
-            config: LibraryConfig::load().derive_resolution,
+            config: ConfigStore::get().derive_resolution.clone(),
             #[cfg(feature = "strum")]
             predicates: PredicateFamilyAnalyzer::default(),
             #[cfg(feature = "strum")]
@@ -328,7 +326,7 @@ impl FrameworkResolutionRequired {
     }
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub FRAMEWORK_RESOLUTION_REQUIRED,
     Warn,
@@ -425,23 +423,5 @@ impl LateLintPass<'_> for FrameworkResolutionRequired {
 
         #[cfg(not(any(feature = "strum", all(feature = "thiserror", feature = "derive_more"))))]
         let _ = cx;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::super::utils::config::DeriveResolutionConfig;
-
-    #[test]
-    fn accepts_an_absent_provider_choice() {
-        let config = toml::from_str::<DeriveResolutionConfig>("")
-            .expect("empty resolution config should parse");
-        #[cfg(feature = "strum")]
-        {
-            assert!(config.enum_variant_collection().is_none());
-            assert!(config.enum_variant_predicates().is_none());
-            assert!(config.enum_display().is_none());
-            assert!(config.enum_string_parsing().is_none());
-        }
     }
 }

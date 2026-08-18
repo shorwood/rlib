@@ -21,3 +21,7 @@ fn Editor(a: String, b: String, c: String, d: String, e: String, f: String, g: S
 #[component]
 fn Editor(draft: EditorDraft, actions: EditorActions) -> impl IntoView { view! { <div /> } }
 ```
+
+## Configuration
+
+`leptos-component-props-threshold` sets the maximum component props (default `6`).

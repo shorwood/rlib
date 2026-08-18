@@ -161,7 +161,7 @@ const WATCH_CLOSURE_COUNT: usize = 2;
 /// Late lint pass that keeps reactive-to-reactive synchronization out of effects.
 struct LeptosEffectsSynchronizingSignals;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_EFFECTS_SYNCHRONIZING_SIGNALS,
     Warn,

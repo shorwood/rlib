@@ -11,8 +11,8 @@ LL | | // ----------------------------------------------------------------------
 note: the lint level is defined here
   --> $DIR/semantic.rs:2:9
    |
-LL | #![warn(duplicate_section_divider_prefixes)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::duplicate_section_divider_prefixes)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: section prefix `Request` is used more than once in this module
   --> $DIR/semantic.rs:16:1

@@ -176,7 +176,7 @@ struct SerdeFlattenedFieldCollisions {
     structs: HashMap<LocalDefId, StructContract>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub SERDE_FLATTENED_FIELD_COLLISIONS,
     Warn,

@@ -78,7 +78,7 @@ impl LateViolation for Violation {
 /// Late lint pass requiring one visually empty line between module declarations.
 struct UnseparatedModuleItems;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub UNSEPARATED_MODULE_ITEMS,
     Warn,

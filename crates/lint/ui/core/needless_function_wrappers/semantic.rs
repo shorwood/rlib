@@ -1,14 +1,13 @@
-// edition:2024
 
 #![feature(register_tool)]
 #![allow(
     dead_code,
     improper_ctypes_definitions,
     unconditional_recursion,
-    misordered_inherent_impl_items,
-    misordered_module_declarations,
-    non_adjacent_struct_impls,
-    misordered_type_declarations
+    rlib::misordered_inherent_impl_items,
+    rlib::misordered_module_declarations,
+    rlib::non_adjacent_struct_impls,
+    rlib::misordered_type_declarations
 )]
 #![register_tool(rlib_lint)]
 

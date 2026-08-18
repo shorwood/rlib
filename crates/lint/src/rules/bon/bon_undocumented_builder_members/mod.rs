@@ -179,7 +179,7 @@ struct BonUndocumentedBuilderMembers {
     associated: Vec<AssociatedViolation>,
 }
 
-dylint_linting::impl_pre_expansion_lint! {
+crate::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub BON_UNDOCUMENTED_BUILDER_MEMBERS,
     Warn,

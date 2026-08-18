@@ -19,8 +19,8 @@ LL | | }
 note: the lint level is defined here
   --> $DIR/method_like_free_functions.rs:2:9
    |
-LL | #![warn(incoherent_type_family_names)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::incoherent_type_family_names)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: 1 warning emitted
 

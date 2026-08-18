@@ -1,7 +1,7 @@
 // compile-flags: --test
 
 #![allow(dead_code)]
-#![warn(missing_section_dividers)]
+#![warn(rlib::missing_section_dividers)]
 
 mod missing_case {
     #[cfg(test)]

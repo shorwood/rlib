@@ -11,7 +11,7 @@ LL | | }
    |
    = note: the implementation forwards the complete input to the sole field's parser and maps its unchanged error directly into the wrapper
    = help: replace this implementation with `#[derive(derive_more::FromStr)]` on the newtype
-   = note: `#[warn(derive_more_manual_from_str_impls)]` on by default
+   = note: `#[warn(rlib::derive_more_manual_from_str_impls)]` on by default
 
 warning: manual transparent parser for `NamedPort` is derivable
   --> $DIR/semantic.rs:20:1

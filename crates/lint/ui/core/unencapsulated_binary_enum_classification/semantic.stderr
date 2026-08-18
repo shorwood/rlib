@@ -15,8 +15,8 @@ LL | |     }
 note: the lint level is defined here
   --> $DIR/semantic.rs:2:9
    |
-LL | #![warn(unencapsulated_binary_enum_classification)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::unencapsulated_binary_enum_classification)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: this boolean condition classifies every variant of binary enum `FunctionReturn` outside its inherent impl
   --> $DIR/semantic.rs:28:5

@@ -73,7 +73,7 @@ impl LateViolation for Violation {
 /// Late lint pass that requires visible defaults for non-optional Leptos properties.
 struct LeptosImplicitDefaultComponentProps;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_IMPLICIT_DEFAULT_COMPONENT_PROPS,
     Warn,

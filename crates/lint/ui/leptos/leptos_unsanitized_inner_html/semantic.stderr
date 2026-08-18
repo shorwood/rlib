@@ -6,7 +6,7 @@ LL |     view! { <article inner_html=markup/> }
    |
    = note: Leptos does not escape `inner_html`, so an ordinary string carries no evidence that its markup has been audited or sanitized
    = help: introduce a trusted HTML wrapper and confine any lint allowance to the component that unwraps it
-   = note: `#[warn(leptos_unsanitized_inner_html)]` on by default
+   = note: `#[warn(rlib::leptos_unsanitized_inner_html)]` on by default
 
 warning: runtime text is passed directly to `inner_html`
   --> $DIR/semantic.rs:24:33

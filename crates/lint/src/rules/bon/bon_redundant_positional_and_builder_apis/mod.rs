@@ -74,7 +74,7 @@ struct BonRedundantPositionalAndBuilderApis {
     private_module_depth: usize,
 }
 
-dylint_linting::impl_pre_expansion_lint! {
+crate::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub BON_REDUNDANT_POSITIONAL_AND_BUILDER_APIS,
     Warn,

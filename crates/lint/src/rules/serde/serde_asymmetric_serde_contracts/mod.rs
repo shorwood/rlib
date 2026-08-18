@@ -271,7 +271,7 @@ fn has_compatibility_explanation(attributes: &[syn::Attribute]) -> bool {
     explains_compatibility && explains_direction
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub SERDE_ASYMMETRIC_SERDE_CONTRACTS,
     Warn,

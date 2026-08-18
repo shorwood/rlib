@@ -1,5 +1,5 @@
-#![allow(dead_code, non_adjacent_struct_impls)]
-#![warn(unseparated_associated_items)]
+#![allow(dead_code, rlib::non_adjacent_struct_impls)]
+#![warn(rlib::unseparated_associated_items)]
 
 trait Compact {
     type Input;
@@ -16,7 +16,7 @@ impl Service {
     fn already_separated(&self) {}
 }
 
-#[allow(unseparated_associated_items)]
+#[allow(rlib::unseparated_associated_items)]
 impl Service {
     fn locally_allowed_first(&self) {}
     fn locally_allowed_second(&self) {}

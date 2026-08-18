@@ -9,8 +9,8 @@ LL | fn helper() {}
 note: the lint level is defined here
   --> $DIR/active_tests.rs:3:9
    |
-LL | #![warn(undocumented_items)]
-   |         ^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::undocumented_items)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: 1 warning emitted
 

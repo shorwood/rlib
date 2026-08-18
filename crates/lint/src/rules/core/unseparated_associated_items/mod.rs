@@ -80,7 +80,7 @@ impl LateViolation for Violation {
 /// Late lint pass that requires one visually empty line between associated items.
 struct UnseparatedAssociatedItems;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub UNSEPARATED_ASSOCIATED_ITEMS,
     Warn,

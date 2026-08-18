@@ -1,4 +1,4 @@
-#![allow(dead_code, serde_unstable_implicit_wire_names, unknown_lints)]
+#![allow(dead_code, rlib::serde_unstable_implicit_wire_names, unknown_lints)]
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "snake_case")]

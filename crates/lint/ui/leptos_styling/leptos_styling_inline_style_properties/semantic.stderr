@@ -6,7 +6,7 @@ LL |     let _ = view! { <main class=style::ROOT style="width: 10px">"Page"</mai
    |
    = note: direct inline properties split presentation policy between markup and the component stylesheet
    = help: move the property into the paired CSS and bind only dynamic inputs with `style=("--name", value)`
-   = note: `#[warn(leptos_styling_inline_style_properties)]` on by default
+   = note: `#[warn(rlib::leptos_styling_inline_style_properties)]` on by default
 
 warning: 1 warning emitted
 

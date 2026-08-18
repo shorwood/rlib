@@ -10,7 +10,7 @@ LL | |             <footer>"Actions"</footer>
    |
    = note: unnamed visual and behavioral regions make a large declarative view difficult to scan
    = help: name the stable regions with concise `//` comments, or extract a component whose name carries the responsibility
-   = note: `#[warn(leptos_missing_view_section_comments)]` on by default
+   = note: `#[warn(rlib::leptos_missing_view_section_comments)]` on by default
 
 warning: this view region has direct complexity 5 without a section heading
   --> $DIR/semantic.rs:27:13

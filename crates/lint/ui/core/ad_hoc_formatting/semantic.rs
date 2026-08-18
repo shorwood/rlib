@@ -1,5 +1,5 @@
-#![warn(ad_hoc_formatting)]
-#![allow(dead_code, misordered_module_declarations, missing_section_dividers)]
+#![warn(rlib::ad_hoc_formatting)]
+#![allow(dead_code, rlib::misordered_module_declarations, rlib::missing_section_dividers)]
 
 use std::borrow::Cow;
 use std::fmt::{self, Display, Formatter};

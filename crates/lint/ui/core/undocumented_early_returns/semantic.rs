@@ -1,6 +1,5 @@
-#![warn(undocumented_early_returns)]
-#![allow(dead_code, method_like_free_functions, unreachable_code)]
-// edition:2024
+#![warn(rlib::undocumented_early_returns)]
+#![allow(dead_code, rlib::method_like_free_functions, unreachable_code)]
 
 struct Progress {
     value: usize,

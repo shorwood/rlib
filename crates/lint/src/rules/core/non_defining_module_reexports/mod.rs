@@ -105,7 +105,7 @@ impl LateViolation for Violation {
 /// Late lint pass that rejects authored and generated outward reexports.
 struct NonDefiningModuleReexports;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub NON_DEFINING_MODULE_REEXPORTS,
     Warn,

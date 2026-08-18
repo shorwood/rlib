@@ -8,8 +8,8 @@ LL | fn token_from_raw_unchecked(raw: String) -> Token {
 note: the lint level is defined here
   --> $DIR/fix.rs:3:9
    |
-LL | #![warn(constructor_like_free_functions)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::constructor_like_free_functions)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 help: move `token_from_raw_unchecked` into an inherent `impl Token`; reconsider whether its name describes the invariant or source concept instead of merely saying `new`, `build`, or `create`
    |
 LL + impl Token {

@@ -6,7 +6,7 @@ LL | #[bon::builder(finish_fn = execute)]
    |
    = note: generated builder names should preserve the domain language already established by the function or member
    = help: remove the override to use Bon's conventional default or choose a name derived from the domain operation or member
-   = note: `#[warn(bon_incoherent_builder_vocabulary)]` on by default
+   = note: `#[warn(rlib::bon_incoherent_builder_vocabulary)]` on by default
 
 warning: generic Bon name `data` replaces established `destination` vocabulary
   --> $DIR/semantic.rs:6:19

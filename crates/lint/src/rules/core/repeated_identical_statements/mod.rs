@@ -59,7 +59,7 @@ impl LateViolation for Violation {
 /// Compares neighboring statements within each authored block.
 struct RepeatedIdenticalStatements;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub REPEATED_IDENTICAL_STATEMENTS,
     Warn,

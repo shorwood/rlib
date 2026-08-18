@@ -11,8 +11,8 @@ LL | | // ----------------------------------------------------------------------
 note: the lint level is defined here
   --> $DIR/semantic.rs:2:9
    |
-LL | #![warn(mismatched_section_divider_prefixes)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::mismatched_section_divider_prefixes)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: section `Payload` contains declarations without a shared PascalCase prefix
   --> $DIR/semantic.rs:20:1

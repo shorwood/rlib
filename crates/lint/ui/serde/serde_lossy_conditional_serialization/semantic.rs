@@ -1,4 +1,4 @@
-#![allow(dead_code, serde_defaults_hiding_missing_data, unknown_lints)]
+#![allow(dead_code, rlib::serde_defaults_hiding_missing_data, unknown_lints)]
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Profile {

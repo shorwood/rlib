@@ -70,7 +70,7 @@ impl EarlyViolation for Violation {
 /// Checks authored boolean syntax before parentheses are removed during lowering.
 struct UnparenthesizedMixedBooleanOperators;
 
-dylint_linting::impl_early_lint! {
+crate::impl_early_lint! {
     #[doc = include_str!("README.md")]
     pub UNPARENTHESIZED_MIXED_BOOLEAN_OPERATORS,
     Warn,

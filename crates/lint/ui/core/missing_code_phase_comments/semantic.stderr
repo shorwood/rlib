@@ -1,5 +1,5 @@
 warning: this 16-line code phase has no explanatory comment
-  --> $DIR/semantic.rs:80:5
+  --> $DIR/semantic.rs:79:5
    |
 LL | /     let _one = 1;
 LL | |     let _two = 2;
@@ -15,11 +15,11 @@ LL | |     let _sixteen = 16;
 note: the lint level is defined here
   --> $DIR/semantic.rs:1:9
    |
-LL | #![warn(missing_code_phase_comments)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::missing_code_phase_comments)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: this code phase contains 16 lines, exceeding the configured maximum of 15
-  --> $DIR/semantic.rs:139:5
+  --> $DIR/semantic.rs:138:5
    |
 LL | /     let _one = 1;
 LL | |     let _two = 2;

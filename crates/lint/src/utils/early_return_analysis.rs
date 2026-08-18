@@ -8,7 +8,7 @@ use rustc_lint::LateContext;
 use rustc_span::Span;
 
 use super::function_layout_comments::FunctionLayoutCommentSpanExt;
-use super::function_structure_config::FunctionStructureConfig;
+use crate::config::core::FunctionStructureConfig;
 
 // -----------------------------------------------------------------------------
 // EarlyReturnFinding: Unexplained early-exit boundary
@@ -56,17 +56,12 @@ impl<'hir> Visitor<'hir> for EarlyReturnCollector<'hir> {
 pub(super) struct EarlyReturnAnalyzer<'analysis, 'tcx> {
     /// Compiler context used for HIR parents and authored source.
     cx: &'analysis LateContext<'tcx>,
-    /// Shared function-comment policy.
-    config: &'analysis FunctionStructureConfig,
 }
 
 impl<'analysis, 'tcx> EarlyReturnAnalyzer<'analysis, 'tcx> {
-    /// Starts analysis with the shared function-structure configuration.
-    pub(super) const fn new(
-        cx: &'analysis LateContext<'tcx>,
-        config: &'analysis FunctionStructureConfig,
-    ) -> Self {
-        Self { cx, config }
+    /// Starts analysis with the compiler context for the function body.
+    pub(super) const fn new(cx: &'analysis LateContext<'tcx>) -> Self {
+        Self { cx }
     }
 
     /// Returns whether `statement` precedes later work in its direct block.
@@ -115,7 +110,10 @@ impl<'analysis, 'tcx> EarlyReturnAnalyzer<'analysis, 'tcx> {
 
     /// Returns whether the controlling condition owns a phase comment.
     fn is_documented(&self, boundary: Span) -> bool {
-        boundary.has_phase_comment_candidate_before(self.cx, &self.config.phase_comment_prefix)
+        boundary.has_phase_comment_candidate_before(
+            self.cx,
+            FunctionStructureConfig::PHASE_COMMENT_PREFIX,
+        )
     }
 
     /// Finds every unexplained early return in one authored named function body.
@@ -135,13 +133,13 @@ impl<'analysis, 'tcx> EarlyReturnAnalyzer<'analysis, 'tcx> {
                 continue;
             }
             findings.push(EarlyReturnFinding {
-                    return_span: return_.span,
-                    boundary_span: boundary,
-                    help: format!(
-                        "add a concise `{} ...` explanation immediately before the controlling condition",
-                        self.config.phase_comment_prefix
-                    ),
-                });
+                return_span: return_.span,
+                boundary_span: boundary,
+                help: format!(
+                    "add a concise `{} ...` explanation immediately before the controlling condition",
+                    FunctionStructureConfig::PHASE_COMMENT_PREFIX
+                ),
+            });
         }
         findings
     }

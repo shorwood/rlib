@@ -15,7 +15,7 @@ LL | | }
    |
    = note: the same anonymous failure is propagated by `read_primary`, `read_fallback`
    = help: introduce one typed error deriving `thiserror::Error` and `miette::Diagnostic`, then reuse it at each boundary
-   = note: `#[warn(miette_ad_hoc_diagnostics_at_domain_boundaries)]` on by default
+   = note: `#[warn(rlib::miette_ad_hoc_diagnostics_at_domain_boundaries)]` on by default
 
 warning: ad-hoc Miette diagnostic `configuration is missing` is repeated at domain boundaries
   --> $DIR/semantic.rs:17:1

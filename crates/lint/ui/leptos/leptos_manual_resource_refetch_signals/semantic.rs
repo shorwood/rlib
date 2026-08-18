@@ -4,10 +4,10 @@
 #![allow(
     dead_code,
     deprecated,
-    leptos_boolean_component_props,
-    leptos_implicit_default_component_props,
-    leptos_reactive_writes_during_view_construction,
-    leptos_writable_signal_component_props
+    rlib::leptos_boolean_component_props,
+    rlib::leptos_implicit_default_component_props,
+    rlib::leptos_reactive_writes_during_view_construction,
+    rlib::leptos_writable_signal_component_props
 )]
 #![register_tool(rlib_lint)]
 
@@ -70,7 +70,7 @@ fn non_trigger_reads() {
     let _ = resource;
 }
 
-#[allow(leptos_manual_resource_refetch_signals)]
+#[allow(rlib::leptos_manual_resource_refetch_signals)]
 fn suppressed() {
     let (revision, _) = signal(0_u32);
     let resource = LocalResource::new(move || {

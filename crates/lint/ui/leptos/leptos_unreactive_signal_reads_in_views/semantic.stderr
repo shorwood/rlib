@@ -6,7 +6,7 @@ LL |         <span>{count.get()}</span>
    |
    = note: component setup runs once, so an eagerly read value is no longer reactive when the source changes
    = help: pass the signal directly, or wrap the derived read in a `move ||` closure
-   = note: `#[warn(leptos_unreactive_signal_reads_in_views)]` on by default
+   = note: `#[warn(rlib::leptos_unreactive_signal_reads_in_views)]` on by default
 
 warning: tracked signal value is frozen into the initial view
   --> $DIR/semantic.rs:27:20

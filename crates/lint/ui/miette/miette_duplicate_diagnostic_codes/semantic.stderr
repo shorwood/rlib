@@ -9,7 +9,7 @@ LL |     Invalid,
    |
    = note: the code is shared by `ConfigError::Missing`, `ConfigError::Invalid`
    = help: assign a unique stable code to each distinct diagnostic contract
-   = note: `#[warn(miette_duplicate_diagnostic_codes)]` on by default
+   = note: `#[warn(rlib::miette_duplicate_diagnostic_codes)]` on by default
 
 warning: diagnostic code `protocol::shared` identifies distinct diagnostics
   --> $DIR/semantic.rs:35:5

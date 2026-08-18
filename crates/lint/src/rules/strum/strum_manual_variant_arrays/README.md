@@ -24,3 +24,7 @@ impl Stage {
 #[derive(strum::VariantArray)]
 enum Stage { Planned, Complete }
 ```
+
+## Configuration
+
+`enum-variant-collection-provider` selects `strum_variant_array` or `strum_enum_iter`.

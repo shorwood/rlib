@@ -43,7 +43,7 @@ fn qualified_control_section() -> impl IntoView {
     }
 }
 
-#[allow(leptos_oversized_view_sections)]
+#[allow(rlib::leptos_oversized_view_sections)]
 fn suppressed() -> impl IntoView {
     view! {
         <main>

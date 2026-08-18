@@ -2,14 +2,14 @@
 #![allow(
     dead_code,
     deprecated,
-    leptos_boolean_component_props,
-    leptos_implicit_default_component_props,
-    leptos_manual_resource_refetch_signals,
-    leptos_needlessly_cloned_signal_values,
-    leptos_reactive_writes_during_view_construction,
-    leptos_unkeyed_reactive_collections,
-    leptos_unsanitized_inner_html,
-    leptos_writable_signal_component_props,
+    rlib::leptos_boolean_component_props,
+    rlib::leptos_implicit_default_component_props,
+    rlib::leptos_manual_resource_refetch_signals,
+    rlib::leptos_needlessly_cloned_signal_values,
+    rlib::leptos_reactive_writes_during_view_construction,
+    rlib::leptos_unkeyed_reactive_collections,
+    rlib::leptos_unsanitized_inner_html,
+    rlib::leptos_writable_signal_component_props,
     unknown_lints
 )]
 #![register_tool(rlib_lint)]
@@ -105,7 +105,7 @@ fn untracked_read() {
     Effect::new(move |_| target.set(source.get_untracked()));
 }
 
-#[allow(leptos_effects_synchronizing_signals)]
+#[allow(rlib::leptos_effects_synchronizing_signals)]
 fn suppressed() {
     let source = RwSignal::new(1);
     let target = RwSignal::new(2);

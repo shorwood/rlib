@@ -2,11 +2,11 @@
 #![allow(
     dead_code,
     deprecated,
-    leptos_boolean_component_props,
-    leptos_implicit_default_component_props,
-    leptos_manual_resource_refetch_signals,
-    leptos_reactive_writes_during_view_construction,
-    leptos_writable_signal_component_props,
+    rlib::leptos_boolean_component_props,
+    rlib::leptos_implicit_default_component_props,
+    rlib::leptos_manual_resource_refetch_signals,
+    rlib::leptos_reactive_writes_during_view_construction,
+    rlib::leptos_writable_signal_component_props,
     unknown_lints
 )]
 #![register_tool(rlib_lint)]
@@ -62,7 +62,7 @@ fn valid_reads() {
     let _ = mutating.get().is_empty();
 }
 
-#[allow(leptos_needlessly_cloned_signal_values)]
+#[allow(rlib::leptos_needlessly_cloned_signal_values)]
 fn suppressed() {
     let (names, _) = signal(Vec::<String>::new());
     let _ = names.get().len();

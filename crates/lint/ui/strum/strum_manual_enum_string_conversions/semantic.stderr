@@ -9,7 +9,7 @@ LL | |         }
    |
    = note: the exhaustive match duplicates the enum's canonical static string mapping
    = help: derive `strum::AsRefStr` and migrate callers to `AsRef<str>`
-   = note: `#[warn(strum_manual_enum_string_conversions)]` on by default
+   = note: `#[warn(rlib::strum_manual_enum_string_conversions)]` on by default
 
 warning: `RenamedStage` string conversion is maintained manually
   --> $DIR/semantic.rs:26:9

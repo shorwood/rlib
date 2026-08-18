@@ -10,8 +10,8 @@ LL | | }
 note: the lint level is defined here
   --> $DIR/semantic.rs:6:9
    |
-LL | #![warn(misordered_module_declarations)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::misordered_module_declarations)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 help: move complete declaration groups into this order: `Anchor`, `child`, `extern block`, `LIMIT`, `run`, `main`
    |
 LL + struct Anchor;

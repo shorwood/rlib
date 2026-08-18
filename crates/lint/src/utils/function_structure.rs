@@ -6,13 +6,13 @@ use rustc_hir::{Body, Expr, ExprKind};
 use rustc_lint::LateContext;
 use rustc_span::def_id::LocalDefId;
 
-use super::config::LibraryConfig;
 use super::control_flow_analysis::{
     ControlFlowAnalysis, ControlFlowAnalyzer, ControlFlowAnalyzerFunctionReturn,
 };
 use super::early_return_analysis::{EarlyReturnAnalyzer, EarlyReturnFinding};
 use super::function_layout_analysis::{FunctionLayoutAnalysis, FunctionLayoutAnalyzer};
-use super::function_structure_config::FunctionStructureConfig;
+use crate::config::core::FunctionStructureConfig;
+use crate::config::store::ConfigStore;
 
 // -----------------------------------------------------------------------------
 // FunctionStructureAnalyzer: Shared named function analysis
@@ -27,11 +27,16 @@ pub struct FunctionStructureAnalyzer {
 impl FunctionStructureAnalyzer {
     /// Loads and validates the shared function-structure configuration.
     pub(crate) fn from_config() -> Self {
-        let config = LibraryConfig::load().function_structure;
-        config.validate().unwrap_or_else(|message| {
-            panic!("invalid function structure configuration: {message}")
-        });
+        let config = ConfigStore::get().function_structure.clone();
         Self { config }
+    }
+
+    /// Finds explicit early returns whose guard boundary has no phase explanation.
+    pub(crate) fn analyze_early_returns<'tcx>(
+        cx: &LateContext<'tcx>,
+        body: &'tcx Body<'tcx>,
+    ) -> Vec<EarlyReturnFinding> {
+        EarlyReturnAnalyzer::new(cx).analyze(Self::authored_body(cx, body))
     }
 
     /// Unwraps the compiler-created closure that represents an authored async function body.
@@ -64,52 +69,5 @@ impl FunctionStructureAnalyzer {
         let function_return = ControlFlowAnalyzerFunctionReturn::from_output(output);
         ControlFlowAnalyzer::new(cx, &self.config, function_return)
             .analyze(Self::authored_body(cx, body))
-    }
-
-    /// Finds explicit early returns whose guard boundary has no phase explanation.
-    pub(crate) fn analyze_early_returns<'tcx>(
-        &self,
-        cx: &LateContext<'tcx>,
-        body: &'tcx Body<'tcx>,
-    ) -> Vec<EarlyReturnFinding> {
-        EarlyReturnAnalyzer::new(cx, &self.config).analyze(Self::authored_body(cx, body))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::utils::config::LibraryConfig;
-    use crate::utils::function_structure_config::FunctionStructureConfig;
-
-    #[test]
-    fn parses_custom_function_structure_limits() {
-        let config = toml::from_str::<LibraryConfig>(
-            r#"
-                [function_structure]
-                max_phase_lines = 11
-                phase_comment_prefix = "// Phase:"
-                max_control_flow_depth = 3
-                max_match_arm_lines = 13
-                max_method_chain_calls = 5
-            "#,
-        )
-        .expect("custom function structure should parse");
-        assert_eq!(config.function_structure.max_phase_lines, 11);
-        assert_eq!(config.function_structure.phase_comment_prefix, "// Phase:");
-        assert!(config.function_structure.validate().is_ok());
-    }
-
-    #[test]
-    fn rejects_zero_limits_and_non_comment_prefixes() {
-        let zero = FunctionStructureConfig {
-            max_phase_lines: 0,
-            ..FunctionStructureConfig::default()
-        };
-        let malformed = FunctionStructureConfig {
-            phase_comment_prefix: "---".to_owned(),
-            ..FunctionStructureConfig::default()
-        };
-        assert!(zero.validate().is_err());
-        assert!(malformed.validate().is_err());
     }
 }

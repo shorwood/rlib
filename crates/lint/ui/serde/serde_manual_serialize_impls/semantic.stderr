@@ -11,7 +11,7 @@ LL | | }
    |
    = note: the complete implementation forwards the sole field unchanged to the provided serializer
    = help: replace this implementation with `#[derive(serde::Serialize)]` and `#[serde(transparent)]`
-   = note: `#[warn(serde_manual_serialize_impls)]` on by default
+   = note: `#[warn(rlib::serde_manual_serialize_impls)]` on by default
 
 warning: manual transparent serializer for `Generic` is derivable
   --> $DIR/semantic.rs:29:1

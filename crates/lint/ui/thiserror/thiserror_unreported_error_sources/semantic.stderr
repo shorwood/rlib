@@ -8,7 +8,7 @@ LL | | }
    |
    = note: this is the sole causal-looking field with a local thiserror type, but `Error::source` will not expose it
    = help: mark the field `#[source]`, or use `#[from]` when automatic conversion is intended
-   = note: `#[warn(thiserror_unreported_error_sources)]` on by default
+   = note: `#[warn(rlib::thiserror_unreported_error_sources)]` on by default
 
 warning: nested error `read_error` is omitted from the thiserror source chain
   --> $DIR/semantic.rs:29:5

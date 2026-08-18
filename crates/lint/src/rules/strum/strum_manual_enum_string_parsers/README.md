@@ -28,3 +28,7 @@ Select the configured parser provider and remove only the exactly equivalent imp
 #[derive(strum::EnumString)]
 enum Stage { Planned, Complete }
 ```
+
+## Configuration
+
+`enum-string-parsing-provider` selects `strum_enum_string` or `derive_more_from_str`.

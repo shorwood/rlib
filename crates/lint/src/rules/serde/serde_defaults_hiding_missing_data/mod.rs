@@ -85,7 +85,7 @@ struct SerdeDefaultsHidingMissingData {
     candidates: Vec<Candidate>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub SERDE_DEFAULTS_HIDING_MISSING_DATA,
     Warn,

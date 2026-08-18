@@ -1,7 +1,7 @@
 // aux-build: string_domain_external_macro.rs
 
-#![warn(stringly_typed_domain_function_families)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::stringly_typed_domain_function_families)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 extern crate string_domain_external_macro;
 

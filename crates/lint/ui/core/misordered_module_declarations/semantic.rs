@@ -1,15 +1,15 @@
 #![feature(register_tool)]
 #![allow(dead_code)]
 #![register_tool(rlib_lint)]
-#![allow(misordered_inherent_impl_items)]
-#![allow(misordered_type_declarations)]
-#![warn(misordered_module_declarations)]
-#![allow(needless_function_wrappers)]
+#![allow(rlib::misordered_inherent_impl_items)]
+#![allow(rlib::misordered_type_declarations)]
+#![warn(rlib::misordered_module_declarations)]
+#![allow(rlib::needless_function_wrappers)]
 
 use std::mem::size_of;
 
 mod deferred_impl_regression {
-    #![allow(non_adjacent_struct_impls)]
+    #![allow(rlib::non_adjacent_struct_impls)]
 
     // -----------------------------------------------------------------------------
     // DeferredImplRegression: Declaration ordering fixture

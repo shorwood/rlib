@@ -428,7 +428,7 @@ impl LateViolation for Violation<'_> {
 /// Late lint pass that keeps direct inherent impl groups beside their struct.
 struct NonAdjacentStructImpls;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub NON_ADJACENT_STRUCT_IMPLS,
     Warn,
@@ -439,9 +439,8 @@ dylint_linting::impl_late_lint! {
 impl NonAdjacentStructImpls {
     /// Returns module items whose ordering is controlled by the current crate.
     ///
-    /// External macros may generate hidden helper items or derived impls. Ignoring that output
-    /// keeps the rule focused on definitions an agent can actually rearrange. Local macro output
-    /// remains.
+    /// External macros and this library's registration macros generate hidden helper items that
+    /// cannot be rearranged independently. Other local macro output remains authored policy.
     fn editable_module_items<'tcx>(
         cx: &LateContext<'tcx>,
         module: &'tcx Mod<'tcx>,
@@ -453,10 +452,26 @@ impl NonAdjacentStructImpls {
             .iter()
             .map(|item_id| cx.tcx.hir_item(*item_id));
 
-        // Exclude only items whose source belongs to an external macro.
+        // Exclude opaque external output and the lint library's fixed registration glue.
         resolved
-            .filter(|item| !item.span.in_external_macro(source_map))
+            .filter(|item| {
+                !item.span.in_external_macro(source_map)
+                    && !Self::is_lint_registration_expansion(cx, item)
+            })
             .collect()
+    }
+
+    /// Returns whether an item is Dylint registration glue from this crate's declaration macros.
+    fn is_lint_registration_expansion(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
+        item.span.macro_backtrace().any(|expansion| {
+            expansion.macro_def_id.is_some_and(|definition| {
+                definition.is_local()
+                    && matches!(
+                        cx.tcx.item_name(definition).as_str(),
+                        "impl_pre_expansion_lint" | "impl_early_lint" | "impl_late_lint"
+                    )
+            })
+        })
     }
 
     /// Associates each struct with direct inherent and trait impls from the same module.

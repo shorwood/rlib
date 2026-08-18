@@ -1,7 +1,7 @@
 #![allow(
     dead_code,
-    misordered_module_declarations,
-    needless_function_wrappers,
+    rlib::misordered_module_declarations,
+    rlib::needless_function_wrappers,
     unknown_lints
 )]
 

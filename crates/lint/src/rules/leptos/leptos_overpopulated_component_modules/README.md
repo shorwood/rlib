@@ -24,3 +24,7 @@ Crowded modules blur ownership and make unrelated UI responsibilities change tog
 mod editor;
 mod summary;
 ```
+
+## Configuration
+
+`leptos-components-per-module-threshold` sets the maximum components per module (default `8`).

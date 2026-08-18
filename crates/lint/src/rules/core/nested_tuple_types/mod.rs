@@ -63,7 +63,7 @@ impl LateViolation for Violation {
 /// Late lint pass that rejects tuple-shaped components hidden inside explicit types.
 struct NestedTupleTypes;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub NESTED_TUPLE_TYPES,
     Warn,

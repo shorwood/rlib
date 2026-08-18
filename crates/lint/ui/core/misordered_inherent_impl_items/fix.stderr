@@ -10,8 +10,8 @@ LL | |     }
 note: the lint level is defined here
   --> $DIR/fix.rs:7:9
    |
-LL | #![warn(misordered_inherent_impl_items)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::misordered_inherent_impl_items)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 help: move associated items into this order: `LIMIT`, `prepare`, `render`
    |
 LL ~     const LIMIT: usize = 1;

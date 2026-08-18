@@ -1,5 +1,5 @@
-#![warn(needlessly_nested_control_flow)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::needlessly_nested_control_flow)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 fn work() {}
 
@@ -70,7 +70,7 @@ macro_rules! generated_condition {
 
 generated_condition!();
 
-#[allow(needlessly_nested_control_flow)]
+#[allow(rlib::needlessly_nested_control_flow)]
 fn explicitly_allowed(valid: bool) {
     if valid {
         work();

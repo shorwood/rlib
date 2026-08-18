@@ -2,9 +2,9 @@
 // rustfix-only-machine-applicable
 
 #![feature(register_tool)]
-#![allow(dead_code, misordered_inherent_impl_items, needless_function_wrappers, misordered_type_declarations)]
+#![allow(dead_code, rlib::misordered_inherent_impl_items, rlib::needless_function_wrappers, rlib::misordered_type_declarations)]
 #![register_tool(rlib_lint)]
-#![warn(misordered_module_declarations)]
+#![warn(rlib::misordered_module_declarations)]
 
 // -----------------------------------------------------------------------------
 // Fixture: Declaration ordering fixture

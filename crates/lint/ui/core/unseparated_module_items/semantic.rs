@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-#![warn(unseparated_module_items)]
+#![warn(rlib::unseparated_module_items)]
 
 struct DenseType;
 // This comment occupies the declaration boundary, so no automatic edit is safe.

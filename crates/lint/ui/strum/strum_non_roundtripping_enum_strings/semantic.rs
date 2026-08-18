@@ -14,7 +14,7 @@ enum ReferencedState {
 }
 
 #[derive(strum::Display, strum::EnumString)]
-#[allow(unreachable_patterns, strum_conflicting_enum_serializations)]
+#[allow(unreachable_patterns, rlib::strum_conflicting_enum_serializations)]
 enum Collision {
     #[strum(to_string = "same")]
     First,

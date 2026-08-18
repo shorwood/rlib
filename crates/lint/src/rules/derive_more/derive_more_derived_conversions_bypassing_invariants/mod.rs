@@ -88,7 +88,7 @@ struct DeriveMoreDerivedConversionsBypassingInvariants {
     constructions: ConstructionAnalysis,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub DERIVE_MORE_DERIVED_CONVERSIONS_BYPASSING_INVARIANTS,
     Warn,

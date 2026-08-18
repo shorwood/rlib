@@ -10,8 +10,9 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 
 use super::utils::error_implementations::ManualErrorCatalog;
-use crate::rules::framework::utils::config::{DeriveResolutionConfig, ErrorImplementationProvider};
-use crate::utils::config::LibraryConfig;
+use crate::config::framework::DeriveResolutionConfig;
+use crate::config::providers::ErrorImplementationProvider;
+use crate::config::store::ConfigStore;
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -80,7 +81,7 @@ struct ThiserrorManualErrorImpls {
     config: DeriveResolutionConfig,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub THISERROR_MANUAL_ERROR_IMPLS,
     Warn,
@@ -93,7 +94,7 @@ impl ThiserrorManualErrorImpls {
     fn new() -> Self {
         Self {
             catalog: ManualErrorCatalog::default(),
-            config: LibraryConfig::load().derive_resolution,
+            config: ConfigStore::get().derive_resolution.clone(),
         }
     }
 

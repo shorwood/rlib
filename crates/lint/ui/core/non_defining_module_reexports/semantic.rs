@@ -1,5 +1,5 @@
 #![allow(dead_code, unused_extern_crates, unused_imports)]
-#![warn(non_defining_module_reexports)]
+#![warn(rlib::non_defining_module_reexports)]
 
 mod defining {
     pub struct PublicItem;
@@ -42,7 +42,7 @@ macro_rules! generated_reexport {
 
 generated_reexport!();
 
-#[allow(non_defining_module_reexports)]
+#[allow(rlib::non_defining_module_reexports)]
 pub use defining::PublicItem as ExplicitlyAllowed;
 
 fn main() {}

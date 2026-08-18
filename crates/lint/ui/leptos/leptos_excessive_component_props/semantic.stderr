@@ -6,7 +6,7 @@ LL | fn PropHeavy(
    |
    = note: large prop surfaces expose internal coordination and make call sites difficult to understand
    = help: group cohesive domain input into a typed value or split the component by independent responsibility
-   = note: `#[warn(leptos_excessive_component_props)]` on by default
+   = note: `#[warn(rlib::leptos_excessive_component_props)]` on by default
 
 warning: this view region has direct complexity 7 without a section heading
   --> $DIR/semantic.rs:15:16
@@ -16,7 +16,7 @@ LL |     view! { <p>{a}{b}{c}{d}{e}{f}{g}</p> }
    |
    = note: unnamed visual and behavioral regions make a large declarative view difficult to scan
    = help: name the stable regions with concise `//` comments, or extract a component whose name carries the responsibility
-   = note: `#[warn(leptos_missing_view_section_comments)]` on by default
+   = note: `#[warn(rlib::leptos_missing_view_section_comments)]` on by default
 
 warning: 2 warnings emitted
 

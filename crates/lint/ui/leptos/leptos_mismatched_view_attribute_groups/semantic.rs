@@ -1,4 +1,4 @@
-#![allow(dead_code, unknown_lints, leptos_missing_view_section_comments)]
+#![allow(dead_code, unknown_lints, rlib::leptos_missing_view_section_comments)]
 
 use leptos::prelude::*;
 

@@ -60,7 +60,7 @@ fn domain_value_named_index() -> impl IntoView {
     }
 }
 
-#[allow(leptos_unstable_for_keys)]
+#[allow(rlib::leptos_unstable_for_keys)]
 fn suppressed() -> impl IntoView {
     let items = RwSignal::new(Vec::<Item>::new());
     view! { <For each=move || items.get() key=|_| true children=|item| item.name/> }

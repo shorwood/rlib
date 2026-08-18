@@ -9,10 +9,10 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
+use crate::config::leptos::LeptosArchitectureConfig;
+use crate::config::store::ConfigStore;
 use crate::rules::leptos::utils::authored_files::AuthoredFiles;
-use crate::rules::leptos::utils::component_architecture::{
-    ArchitectureAnalysis, LeptosArchitectureConfig,
-};
+use crate::rules::leptos::utils::component_architecture::ArchitectureAnalysis;
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -77,11 +77,11 @@ struct LeptosOversizedReactiveSetups {
     files: AuthoredFiles,
 }
 
-dylint_linting::impl_early_lint! {
+crate::impl_early_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_OVERSIZED_REACTIVE_SETUPS, Warn,
     "rejects oversized setup phases in Leptos components and composables",
-    LeptosOversizedReactiveSetups { config: LeptosArchitectureConfig::from_config(), files: AuthoredFiles::default() }
+    LeptosOversizedReactiveSetups { config: ConfigStore::get().leptos_architecture.clone(), files: AuthoredFiles::default() }
 }
 
 impl EarlyLintPass for LeptosOversizedReactiveSetups {

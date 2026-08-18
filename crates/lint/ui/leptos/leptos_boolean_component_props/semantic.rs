@@ -1,6 +1,6 @@
 #![feature(register_tool)]
 #![allow(unknown_lints)]
-#![allow(dead_code, deprecated, leptos_writable_signal_component_props)]
+#![allow(dead_code, deprecated, rlib::leptos_writable_signal_component_props)]
 #![register_tool(rlib_lint)]
 
 use leptos::prelude::*;
@@ -53,7 +53,7 @@ fn Valid(
     view! { <button disabled=true/> }
 }
 
-#[allow(leptos_boolean_component_props)]
+#[allow(rlib::leptos_boolean_component_props)]
 #[component]
 fn Suppressed(active: bool) -> impl IntoView {
     view! { <span>{active}</span> }
@@ -62,7 +62,7 @@ fn Suppressed(active: bool) -> impl IntoView {
 mod first {
     use super::*;
 
-    #[allow(leptos_boolean_component_props)]
+    #[allow(rlib::leptos_boolean_component_props)]
     #[component]
     fn Repeated(active: bool) -> impl IntoView {
         view! { <span>{active}</span> }

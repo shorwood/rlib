@@ -6,7 +6,7 @@ LL | impl miette::Diagnostic for Marker {}
    |
    = note: the implementation uses only `Diagnostic` defaults
    = help: replace the implementation with `#[derive(miette::Diagnostic)]` and equivalent diagnostic or field attributes
-   = note: `#[warn(miette_manual_diagnostic_impls)]` on by default
+   = note: `#[warn(rlib::miette_manual_diagnostic_impls)]` on by default
 
 warning: manual `Diagnostic` implementation for `Coded` is derivable
   --> $DIR/semantic.rs:13:1

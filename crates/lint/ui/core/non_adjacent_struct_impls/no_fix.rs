@@ -1,7 +1,6 @@
-// edition:2024
 
 #![feature(register_tool)]
-#![allow(dead_code, misordered_inherent_impl_items, misordered_module_declarations, cross_file_struct_impls, misordered_type_declarations)]
+#![allow(dead_code, rlib::misordered_inherent_impl_items, rlib::misordered_module_declarations, rlib::cross_file_struct_impls, rlib::misordered_type_declarations)]
 #![register_tool(rlib_lint)]
 
 // Attributes may change compilation or formatting and must travel deliberately.

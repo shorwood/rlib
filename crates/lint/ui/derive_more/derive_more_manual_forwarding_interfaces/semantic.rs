@@ -1,4 +1,4 @@
-#![allow(dead_code, misordered_module_declarations, unknown_lints)]
+#![allow(dead_code, rlib::misordered_module_declarations, unknown_lints)]
 
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 

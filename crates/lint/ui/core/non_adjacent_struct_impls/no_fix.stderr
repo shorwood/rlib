@@ -1,5 +1,5 @@
 warning: impl blocks for `Attributed` should immediately follow its definition
-  --> $DIR/no_fix.rs:8:1
+  --> $DIR/no_fix.rs:7:1
    |
 LL | struct Attributed;
    | ^^^^^^^^^^^^^^^^^^
@@ -10,10 +10,10 @@ LL | impl Attributed {}
    = note: keeping this direct impl block adjacent lets readers and tools understand `Attributed` without searching the module
    = note: automatic migration is withheld because an impl attribute may carry compilation or formatting semantics
    = help: move this impl block immediately after `Attributed`
-   = note: `#[warn(non_adjacent_struct_impls)]` on by default
+   = note: `#[warn(rlib::non_adjacent_struct_impls)]` on by default
 
 warning: impl blocks for `Commented` should immediately follow its definition
-  --> $DIR/no_fix.rs:16:1
+  --> $DIR/no_fix.rs:15:1
    |
 LL | struct Commented;
    | ^^^^^^^^^^^^^^^^^
@@ -26,7 +26,7 @@ LL | impl Commented {}
    = help: move this impl block immediately after `Commented`
 
 warning: impl blocks for `MacroCrossing` should immediately follow its definition
-  --> $DIR/no_fix.rs:24:1
+  --> $DIR/no_fix.rs:23:1
    |
 LL |   struct MacroCrossing;
    |   ^^^^^^^^^^^^^^^^^^^^^
@@ -43,7 +43,7 @@ LL | | }
    = help: move this impl block immediately after `MacroCrossing`
 
 warning: impl blocks for `Included` should immediately follow its definition
-  --> $DIR/no_fix.rs:39:1
+  --> $DIR/no_fix.rs:38:1
    |
 LL | struct Included;
    | ^^^^^^^^^^^^^^^^

@@ -1,15 +1,15 @@
 #![feature(register_tool)]
 #![allow(
     dead_code,
-    leptos_boolean_component_props,
-    leptos_effects_synchronizing_signals,
-    leptos_implicit_default_component_props,
-    leptos_manual_resource_refetch_signals,
-    leptos_needlessly_cloned_signal_values,
-    leptos_reactive_writes_during_view_construction,
-    leptos_unkeyed_reactive_collections,
-    leptos_unsanitized_inner_html,
-    leptos_writable_signal_component_props,
+    rlib::leptos_boolean_component_props,
+    rlib::leptos_effects_synchronizing_signals,
+    rlib::leptos_implicit_default_component_props,
+    rlib::leptos_manual_resource_refetch_signals,
+    rlib::leptos_needlessly_cloned_signal_values,
+    rlib::leptos_reactive_writes_during_view_construction,
+    rlib::leptos_unkeyed_reactive_collections,
+    rlib::leptos_unsanitized_inner_html,
+    rlib::leptos_writable_signal_component_props,
     unknown_lints
 )]
 #![register_tool(rlib_lint)]
@@ -74,7 +74,7 @@ fn nested_callback() {
     });
 }
 
-#[allow(leptos_reactive_writes_in_resource_fetchers)]
+#[allow(rlib::leptos_reactive_writes_in_resource_fetchers)]
 fn suppressed() {
     let status = RwSignal::new(false);
     let _resource = LocalResource::new(move || async move {

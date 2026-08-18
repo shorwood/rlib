@@ -1,5 +1,5 @@
-#![warn(undocumented_items)]
-#![allow(dead_code, misordered_inherent_impl_items, misordered_module_declarations)]
+#![warn(rlib::undocumented_items)]
+#![allow(dead_code, rlib::misordered_inherent_impl_items, rlib::misordered_module_declarations)]
 
 use documented_module::Documented;
 
@@ -34,7 +34,7 @@ impl MissingTrait for DocumentedType {
     fn missing_trait_method(&self) {}
 }
 
-#[allow(undocumented_items)]
+#[allow(rlib::undocumented_items)]
 struct ExplicitlyAllowed;
 
 mod documented_module {

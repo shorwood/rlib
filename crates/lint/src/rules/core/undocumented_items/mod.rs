@@ -91,7 +91,7 @@ impl LateViolation for Violation {
 /// Late lint pass that requires semantic declarations to explain their public and internal roles.
 struct UndocumentedItems;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub UNDOCUMENTED_ITEMS,
     Warn,

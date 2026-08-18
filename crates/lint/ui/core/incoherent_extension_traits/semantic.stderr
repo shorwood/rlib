@@ -1,5 +1,5 @@
 warning: extension trait `BroadExt` does not describe one focused capability
-  --> $DIR/semantic.rs:11:7
+  --> $DIR/semantic.rs:10:7
    |
 LL | trait BroadExt {
    |       ^^^^^^^^
@@ -8,13 +8,13 @@ LL | trait BroadExt {
    = note: importing `BroadExt` exposes unrelated or oversized behavior as though it were one coherent extension API
    = help: split the API into extension traits named for one semantic subject or capability
 note: the lint level is defined here
-  --> $DIR/semantic.rs:4:9
+  --> $DIR/semantic.rs:3:9
    |
-LL | #![warn(incoherent_extension_traits)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::incoherent_extension_traits)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: extension trait `LargeExt` does not describe one focused capability
-  --> $DIR/semantic.rs:21:7
+  --> $DIR/semantic.rs:20:7
    |
 LL | trait LargeExt {
    |       ^^^^^^^^
@@ -24,7 +24,7 @@ LL | trait LargeExt {
    = help: split the API into extension traits named for one semantic subject or capability
 
 warning: extension trait `BroadBlanketExt` does not describe one focused capability
-  --> $DIR/semantic.rs:59:7
+  --> $DIR/semantic.rs:58:7
    |
 LL | trait BroadBlanketExt {
    |       ^^^^^^^^^^^^^^^

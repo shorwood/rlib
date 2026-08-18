@@ -1,5 +1,5 @@
 warning: the impl group for extension trait `InterruptedExt` is not adjacent to its declaration
-  --> $DIR/semantic.rs:52:1
+  --> $DIR/semantic.rs:51:1
    |
 LL |   trait InterruptedExt {
    |         -------------- extension trait declared here
@@ -12,13 +12,13 @@ LL | | }
    = note: the contract and implementation of `InterruptedExt` cannot be reviewed as one consecutive capability
    = help: move every authored extension impl into one consecutive group immediately after the trait in the same module
 note: the lint level is defined here
-  --> $DIR/semantic.rs:4:9
+  --> $DIR/semantic.rs:3:9
    |
-LL | #![warn(non_adjacent_extension_trait_impls)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::non_adjacent_extension_trait_impls)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 warning: the impl group for extension trait `InterruptedBlanketExt` is not adjacent to its declaration
-  --> $DIR/semantic.rs:62:1
+  --> $DIR/semantic.rs:61:1
    |
 LL |   trait InterruptedBlanketExt {
    |         --------------------- extension trait declared here
@@ -32,7 +32,7 @@ LL | | }
    = help: move every authored extension impl into one consecutive group immediately after the trait in the same module
 
 warning: the impl group for extension trait `RemoteExt` is not adjacent to its declaration
-  --> $DIR/semantic.rs:73:5
+  --> $DIR/semantic.rs:72:5
    |
 LL |   trait RemoteExt {
    |         --------- extension trait declared here

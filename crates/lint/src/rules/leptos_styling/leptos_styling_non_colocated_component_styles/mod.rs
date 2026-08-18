@@ -69,7 +69,7 @@ struct LeptosStylingNonColocatedComponentStyles {
     files: AuthoredFiles,
 }
 
-dylint_linting::impl_early_lint! {
+crate::impl_early_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_STYLING_NON_COLOCATED_COMPONENT_STYLES,
     Warn,

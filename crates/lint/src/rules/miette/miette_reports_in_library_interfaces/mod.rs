@@ -70,6 +70,7 @@ impl LateViolation for Violation {
         );
     }
 }
+
 // -----------------------------------------------------------------------------
 // MietteReportsInLibraryInterfaces: Concrete library error vocabulary
 // -----------------------------------------------------------------------------
@@ -82,56 +83,7 @@ struct AuthoredReportTypeVisitor<'analysis, 'tcx> {
     is_found: bool,
 }
 
-impl<'hir> Visitor<'hir> for AuthoredReportTypeVisitor<'_, '_> {
-    fn visit_ty(&mut self, ty: &'hir HirTy<'hir, AmbigArg>) {
-        // Stop once any nested authored type has established the report boundary.
-        if self.is_found {
-            return;
-        }
-        if let TyKind::Path(path) = ty.kind
-            && let Res::Def(kind, definition) = self.cx.qpath_res(&path, ty.hir_id)
-        {
-            self.is_found = (self.cx.tcx.crate_name(definition.krate).as_str() == "miette"
-                && matches!(
-                    self.cx.tcx.item_name(definition).as_str(),
-                    "Report" | "Result"
-                ))
-                || (matches!(kind, DefKind::TyAlias)
-                    && MietteReportsInLibraryInterfaces::contains_report(
-                        self.cx,
-                        self.cx.tcx.type_of(definition).instantiate_identity(),
-                    ));
-        }
-
-        // A resolved report needs no further descent through its type arguments.
-        if self.is_found {
-            return;
-        }
-        intravisit::walk_ty(self, ty);
-    }
-}
-
-/// Rejects application-oriented reports at public library boundaries.
-struct MietteReportsInLibraryInterfaces;
-
-dylint_linting::impl_late_lint! {
-    #[doc = include_str!("README.md")]
-    pub MIETTE_REPORTS_IN_LIBRARY_INTERFACES,
-    Warn,
-    "finds Miette reports in public library APIs",
-    MietteReportsInLibraryInterfaces
-}
-
-impl MietteReportsInLibraryInterfaces {
-    /// Returns whether the current crate produces any library artifact.
-    fn library_crate(cx: &LateContext<'_>) -> bool {
-        cx.sess()
-            .opts
-            .crate_types
-            .iter()
-            .any(|kind| !matches!(kind, CrateType::Executable))
-    }
-
+impl AuthoredReportTypeVisitor<'_, '_> {
     /// Finds `miette::Report` directly or in a result error position.
     fn contains_report(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
         // Nonalgebraic types cannot be a report, pointer wrapper, or result.
@@ -158,6 +110,57 @@ impl MietteReportsInLibraryInterfaces {
         cx.tcx.is_diagnostic_item(sym::Result, definition.did())
             && arguments.len() == 2
             && Self::contains_report(cx, arguments.type_at(1))
+    }
+}
+
+impl<'hir> Visitor<'hir> for AuthoredReportTypeVisitor<'_, '_> {
+    fn visit_ty(&mut self, ty: &'hir HirTy<'hir, AmbigArg>) {
+        // Stop once any nested authored type has established the report boundary.
+        if self.is_found {
+            return;
+        }
+        if let TyKind::Path(path) = ty.kind
+            && let Res::Def(kind, definition) = self.cx.qpath_res(&path, ty.hir_id)
+        {
+            self.is_found = (self.cx.tcx.crate_name(definition.krate).as_str() == "miette"
+                && matches!(
+                    self.cx.tcx.item_name(definition).as_str(),
+                    "Report" | "Result"
+                ))
+                || (matches!(kind, DefKind::TyAlias)
+                    && Self::contains_report(
+                        self.cx,
+                        self.cx.tcx.type_of(definition).instantiate_identity(),
+                    ));
+        }
+
+        // A resolved report needs no further descent through its type arguments.
+        if self.is_found {
+            return;
+        }
+        intravisit::walk_ty(self, ty);
+    }
+}
+
+/// Rejects application-oriented reports at public library boundaries.
+struct MietteReportsInLibraryInterfaces;
+
+crate::impl_late_lint! {
+    #[doc = include_str!("README.md")]
+    pub MIETTE_REPORTS_IN_LIBRARY_INTERFACES,
+    Warn,
+    "finds Miette reports in public library APIs",
+    MietteReportsInLibraryInterfaces
+}
+
+impl MietteReportsInLibraryInterfaces {
+    /// Returns whether the current crate produces any library artifact.
+    fn library_crate(cx: &LateContext<'_>) -> bool {
+        cx.sess()
+            .opts
+            .crate_types
+            .iter()
+            .any(|kind| !matches!(kind, CrateType::Executable))
     }
 
     /// Checks one exported function-like definition.
@@ -190,7 +193,7 @@ impl MietteReportsInLibraryInterfaces {
         });
 
         // Preserve boundaries whose resolved and authored outputs contain no report.
-        if !Self::contains_report(cx, output) && !authored_report {
+        if !AuthoredReportTypeVisitor::contains_report(cx, output) && !authored_report {
             return;
         }
 

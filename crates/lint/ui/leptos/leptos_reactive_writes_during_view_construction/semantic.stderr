@@ -6,7 +6,7 @@ LL |                 set_count.set(2);
    |
    = note: view construction may run again when asynchronous or reactive inputs change, so this write can reset newer user state and trigger another render
    = help: initialize the state during component setup, or move the loaded data into a child component whose setup owns that state
-   = note: `#[warn(leptos_reactive_writes_during_view_construction)]` on by default
+   = note: `#[warn(rlib::leptos_reactive_writes_during_view_construction)]` on by default
 
 warning: reactive state is written while constructing a view
   --> $DIR/semantic.rs:24:17

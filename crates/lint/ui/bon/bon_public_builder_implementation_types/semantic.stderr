@@ -6,7 +6,7 @@ LL | pub fn partially_configured() -> RequestBuilder {
    |
    = note: naming a generated builder or typestate type couples callers to macro representation and required-member encoding
    = help: return or accept the completed domain value, or define an intentional named partial-application abstraction
-   = note: `#[warn(bon_public_builder_implementation_types)]` on by default
+   = note: `#[warn(rlib::bon_public_builder_implementation_types)]` on by default
 
 warning: public API exposes generated Bon implementation type `Option<RequestBuilder>`
   --> $DIR/semantic.rs:27:18

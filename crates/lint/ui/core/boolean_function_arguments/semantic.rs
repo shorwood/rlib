@@ -1,7 +1,7 @@
 // aux-build: external_macro.rs
 
-#![warn(boolean_function_arguments)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::boolean_function_arguments)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 extern crate external_macro;
 

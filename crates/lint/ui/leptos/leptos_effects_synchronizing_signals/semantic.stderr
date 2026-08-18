@@ -11,7 +11,7 @@ LL |         target.set(source.get() * 2);
    |                    ^^^^^^^^^^^^
    = note: derived state stored by an effect creates a second source of truth, an extra propagation step, and a possible reactive cycle
    = help: derive the value with a closure or `Memo`, or update related state together at the originating event
-   = note: `#[warn(leptos_effects_synchronizing_signals)]` on by default
+   = note: `#[warn(rlib::leptos_effects_synchronizing_signals)]` on by default
 
 warning: effect synchronizes one reactive value into another
   --> $DIR/semantic.rs:36:9

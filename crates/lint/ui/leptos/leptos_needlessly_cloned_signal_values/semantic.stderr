@@ -6,7 +6,7 @@ LL |     let _ = names.get().len();
    |
    = note: tracked `get()` clones the complete stored value, while this operation only needs a temporary shared borrow
    = help: borrow the signal value with `read()` or a bounded `with(...)` closure
-   = note: `#[warn(leptos_needlessly_cloned_signal_values)]` on by default
+   = note: `#[warn(rlib::leptos_needlessly_cloned_signal_values)]` on by default
 
 warning: signal value is cloned only to call `is_empty`
   --> $DIR/semantic.rs:47:13

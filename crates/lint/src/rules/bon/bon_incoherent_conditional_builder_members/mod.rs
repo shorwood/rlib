@@ -142,7 +142,7 @@ impl BonIncoherentConditionalBuilderMembers {
     }
 }
 
-dylint_linting::impl_pre_expansion_lint! {
+crate::impl_pre_expansion_lint! {
     #[doc = include_str!("README.md")]
     pub BON_INCOHERENT_CONDITIONAL_BUILDER_MEMBERS,
     Warn,

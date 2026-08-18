@@ -35,3 +35,7 @@ async fn delete_account(account: AccountId) -> Result<(), ServerFnError> {
     Ok(())
 }
 ```
+
+## Configuration
+
+`leptos-sensitive-call-terms`, `leptos-authorization-functions`, `leptos-protected-endpoint-attributes`, and `leptos-public-endpoint-attributes` define the authorization vocabulary.

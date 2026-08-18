@@ -1,5 +1,5 @@
-#![warn(ad_hoc_error_interfaces)]
-#![allow(dead_code, misordered_module_declarations, missing_section_dividers)]
+#![warn(rlib::ad_hoc_error_interfaces)]
+#![allow(dead_code, rlib::misordered_module_declarations, rlib::missing_section_dividers)]
 
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};

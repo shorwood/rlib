@@ -9,10 +9,10 @@ use rustc_errors::DiagDecorator;
 use rustc_lint::{EarlyContext, EarlyLintPass, LintContext};
 use rustc_span::Span;
 
+use crate::config::leptos::LeptosArchitectureConfig;
+use crate::config::store::ConfigStore;
 use crate::rules::leptos::utils::authored_files::AuthoredFiles;
-use crate::rules::leptos::utils::component_architecture::{
-    ArchitectureAnalysis, LeptosArchitectureConfig,
-};
+use crate::rules::leptos::utils::component_architecture::ArchitectureAnalysis;
 use crate::utils::diagnostic::EarlyViolation;
 
 // -----------------------------------------------------------------------------
@@ -79,11 +79,11 @@ struct LeptosExcessiveComponentProps {
     files: AuthoredFiles,
 }
 
-dylint_linting::impl_early_lint! {
+crate::impl_early_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_EXCESSIVE_COMPONENT_PROPS,Warn,
     "rejects Leptos components with excessive prop surfaces",
-    LeptosExcessiveComponentProps{config:LeptosArchitectureConfig::from_config(),files:AuthoredFiles::default()}
+    LeptosExcessiveComponentProps{config:ConfigStore::get().leptos_architecture.clone(),files:AuthoredFiles::default()}
 }
 impl EarlyLintPass for LeptosExcessiveComponentProps {
     fn check_item(&mut self, cx: &EarlyContext<'_>, item: &Item) {

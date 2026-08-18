@@ -3,8 +3,8 @@
 #![allow(clippy::absolute_paths, clippy::use_self)]
 #![allow(
     dead_code,
-    framework_resolution_required,
-    misordered_module_declarations
+    rlib::framework_resolution_required,
+    rlib::misordered_module_declarations
 )]
 #![register_tool(rlib_lint)]
 

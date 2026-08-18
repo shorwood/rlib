@@ -67,7 +67,7 @@ impl LateViolation for Violation {
 /// Detects Strum message derivation from documentation comments.
 struct StrumDocumentationUsedAsEnumMessages;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub STRUM_DOCUMENTATION_USED_AS_ENUM_MESSAGES,
     Warn,

@@ -1,18 +1,18 @@
 #![feature(register_tool)]
 #![allow(
     dead_code,
-    leptos_boolean_component_props,
-    leptos_effects_synchronizing_signals,
-    leptos_implicit_default_component_props,
-    leptos_manual_resource_refetch_signals,
-    leptos_missing_view_section_comments,
-    leptos_needlessly_cloned_signal_values,
-    leptos_read_then_replace_signals,
-    leptos_reactive_writes_during_view_construction,
-    leptos_reactive_writes_in_resource_fetchers,
-    leptos_unkeyed_reactive_collections,
-    leptos_unsanitized_inner_html,
-    leptos_writable_signal_component_props,
+    rlib::leptos_boolean_component_props,
+    rlib::leptos_effects_synchronizing_signals,
+    rlib::leptos_implicit_default_component_props,
+    rlib::leptos_manual_resource_refetch_signals,
+    rlib::leptos_missing_view_section_comments,
+    rlib::leptos_needlessly_cloned_signal_values,
+    rlib::leptos_read_then_replace_signals,
+    rlib::leptos_reactive_writes_during_view_construction,
+    rlib::leptos_reactive_writes_in_resource_fetchers,
+    rlib::leptos_unkeyed_reactive_collections,
+    rlib::leptos_unsanitized_inner_html,
+    rlib::leptos_writable_signal_component_props,
     unknown_lints
 )]
 #![register_tool(rlib_lint)]
@@ -60,7 +60,7 @@ fn outside_view() {
     let _snapshot = count.get();
 }
 
-#[allow(leptos_unreactive_signal_reads_in_views)]
+#[allow(rlib::leptos_unreactive_signal_reads_in_views)]
 #[component]
 fn Suppressed() -> impl IntoView {
     let count = RwSignal::new(1);

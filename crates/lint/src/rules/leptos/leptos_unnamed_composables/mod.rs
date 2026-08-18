@@ -72,7 +72,7 @@ struct LeptosUnnamedComposables {
     files: AuthoredFiles,
 }
 
-dylint_linting::impl_early_lint! {
+crate::impl_early_lint! {
     #[doc = include_str!("README.md")]
     pub LEPTOS_UNNAMED_COMPOSABLES,Warn,
     "requires project-local reactive helpers to use composable naming",

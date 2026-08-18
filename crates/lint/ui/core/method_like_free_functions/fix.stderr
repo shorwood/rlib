@@ -1,11 +1,11 @@
 warning: free function `bump` should be an inherent method on `Counter`
-  --> $DIR/fix.rs:20:4
+  --> $DIR/fix.rs:19:4
    |
 LL | fn bump(mut counter: Counter, amount: u8) -> Counter {
    |    ^^^^
    |
    = note: `bump` behavior is hidden in the module namespace instead of being discoverable through `Counter`
-   = note: `#[warn(method_like_free_functions)]` on by default
+   = note: `#[warn(rlib::method_like_free_functions)]` on by default
 help: move the function into an inherent impl and update its uses
    |
 LL + impl Counter {
@@ -18,7 +18,7 @@ LL + }
    |
 
 warning: free function `inspect` should be an inherent method on `Counter`
-  --> $DIR/fix.rs:27:4
+  --> $DIR/fix.rs:26:4
    |
 LL | fn inspect<'a>(counter: &'a Counter) -> u8 {
    |    ^^^^^^^
@@ -39,7 +39,7 @@ LL ~     crate::Counter::inspect(counter) + callback(counter)
    |
 
 warning: free function `reset` should be an inherent method on `Counter`
-  --> $DIR/fix.rs:31:4
+  --> $DIR/fix.rs:30:4
    |
 LL | fn reset(counter: &mut Counter) {
    |    ^^^^^
@@ -55,7 +55,7 @@ LL + }
    |
 
 warning: free function `unwrap` should be an inherent method on `Generic`
-  --> $DIR/fix.rs:36:4
+  --> $DIR/fix.rs:35:4
    |
 LL | fn unwrap<T>(item: Generic<T>) -> T {
    |    ^^^^^^
@@ -71,7 +71,7 @@ LL + }
    |
 
 warning: free function `use_inspect` should be an inherent method on `Counter`
-  --> $DIR/fix.rs:41:4
+  --> $DIR/fix.rs:40:4
    |
 LL | fn use_inspect(counter: &Counter) -> u8 {
    |    ^^^^^^^^^^^

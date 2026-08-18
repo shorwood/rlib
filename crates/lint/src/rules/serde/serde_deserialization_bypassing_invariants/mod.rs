@@ -87,7 +87,7 @@ struct SerdeDeserializationBypassingInvariants {
     validated_deserialization: HashSet<LocalDefId>,
 }
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub SERDE_DESERIALIZATION_BYPASSING_INVARIANTS,
     Warn,

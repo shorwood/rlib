@@ -8,7 +8,7 @@ LL | | }
    |
    = note: thiserror and derive_more can both generate this static message and conventional source chain
    = help: set `derive_resolution.error_implementation` to `thiserror_error` or `derive_more_error`
-   = note: `#[warn(framework_resolution_required)]` on by default
+   = note: `#[warn(rlib::framework_resolution_required)]` on by default
 
 warning: 1 warning emitted
 

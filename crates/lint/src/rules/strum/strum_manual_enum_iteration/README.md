@@ -25,3 +25,7 @@ fn stages() -> impl Iterator<Item = Stage> {
 #[derive(strum::EnumIter)]
 enum Stage { Planned, Complete }
 ```
+
+## Configuration
+
+`enum-variant-collection-provider` selects `strum_enum_iter` or `strum_variant_array`.

@@ -16,6 +16,44 @@ const LINT_DOCUMENTATION_HEADINGS: [&str; 4] = [
     "## Use instead",
 ];
 
+/// Lints whose behavior is controlled by one or more public configuration keys.
+const LINT_DOCUMENTATION_CONFIGURABLE_LINTS: &[&str] = &[
+    "bon/bon_required_builder_members_breaking_compatibility",
+    "core/deeply_nested_control_flow",
+    "core/incoherent_extension_traits",
+    "core/long_method_chains",
+    "core/missing_code_phase_comments",
+    "core/needlessly_nested_control_flow",
+    "core/overloaded_declaration_sections",
+    "core/oversized_match_arms",
+    "derive_more/derive_more_manual_error_impls",
+    "derive_more/derive_more_manual_variant_accessors",
+    "framework/framework_resolution_required",
+    "leptos/leptos_excessive_component_composition_depth",
+    "leptos/leptos_excessive_component_props",
+    "leptos/leptos_excessively_nested_views",
+    "leptos/leptos_fragmented_reactive_state",
+    "leptos/leptos_missing_view_attribute_group_comments",
+    "leptos/leptos_missing_view_section_comments",
+    "leptos/leptos_noncanonical_view_formatting",
+    "leptos/leptos_overpopulated_component_modules",
+    "leptos/leptos_oversized_event_handlers",
+    "leptos/leptos_oversized_reactive_setups",
+    "leptos/leptos_oversized_view_attribute_groups",
+    "leptos/leptos_oversized_view_sections",
+    "leptos/leptos_repeated_view_fragments",
+    "leptos/leptos_server_functions_without_authorization_boundaries",
+    "leptos_styling/leptos_styling_noncanonical_css",
+    "miette/miette_generic_diagnostic_help",
+    "strum/strum_manual_enum_iteration",
+    "strum/strum_manual_enum_predicates",
+    "strum/strum_manual_enum_string_conversions",
+    "strum/strum_manual_enum_string_parsers",
+    "strum/strum_manual_variant_arrays",
+    "thiserror/thiserror_manual_error_impls",
+    "thiserror/thiserror_manual_from_error_variants",
+];
+
 /// Collects direct child directories whose module declares a Dylint lint.
 fn lint_documentation_collect_directories(parent: &Path, lint_directories: &mut Vec<PathBuf>) {
     for entry in fs::read_dir(parent).expect("rules directory should be readable") {
@@ -23,7 +61,7 @@ fn lint_documentation_collect_directories(parent: &Path, lint_directories: &mut 
         if path.extension().is_some_and(|extension| extension == "rs") {
             let source = fs::read_to_string(&path).expect("rule source should be readable");
             assert!(
-                !source.contains("dylint_linting::impl_"),
+                !source.contains("crate::impl_"),
                 "active lint must live in <lint_name>/mod.rs: {}",
                 path.display()
             );
@@ -33,7 +71,7 @@ fn lint_documentation_collect_directories(parent: &Path, lint_directories: &mut 
         let Ok(source) = fs::read_to_string(&module) else {
             continue;
         };
-        if !source.contains("dylint_linting::impl_") {
+        if !source.contains("crate::impl_") {
             continue;
         }
         lint_directories.push(path);
@@ -86,8 +124,19 @@ fn lint_documentation_verify(directory: &Path) {
         .filter(|line| line.starts_with("## "))
         .collect();
     assert_eq!(
-        headings, LINT_DOCUMENTATION_HEADINGS,
+        headings.get(..LINT_DOCUMENTATION_HEADINGS.len()),
+        Some(LINT_DOCUMENTATION_HEADINGS.as_slice()),
         "{name} uses a noncanonical heading structure"
+    );
+    assert!(
+        headings.len() == LINT_DOCUMENTATION_HEADINGS.len()
+            || headings.as_slice()
+                == [
+                    LINT_DOCUMENTATION_HEADINGS.as_slice(),
+                    &["## Configuration"]
+                ]
+                .concat(),
+        "{name} may only add a final Configuration section"
     );
 
     assert!(
@@ -98,7 +147,14 @@ fn lint_documentation_verify(directory: &Path) {
         "{name} needs a Rust warning example"
     );
     assert!(
-        lint_documentation_section_has_rust_example(&readme, LINT_DOCUMENTATION_HEADINGS[3].."",),
+        lint_documentation_section_has_rust_example(
+            &readme,
+            LINT_DOCUMENTATION_HEADINGS[3]
+                ..headings
+                    .get(LINT_DOCUMENTATION_HEADINGS.len())
+                    .copied()
+                    .unwrap_or(""),
+        ),
         "{name} needs a Rust replacement example"
     );
 }
@@ -145,5 +201,19 @@ fn lint_documentation_is_canonical_for_active_lints() {
     );
     for directory in lint_directories {
         lint_documentation_verify(&directory);
+    }
+}
+
+/// Keeps configuration discoverable from every lint whose outcome it changes.
+#[test]
+fn lint_documentation_configurable_lints_document_their_keys() {
+    let rules = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+    for lint in LINT_DOCUMENTATION_CONFIGURABLE_LINTS {
+        let readme = fs::read_to_string(rules.join(lint).join("README.md"))
+            .unwrap_or_else(|_| panic!("{lint} must have README.md"));
+        assert!(
+            readme.contains("\n## Configuration\n"),
+            "{lint} must document its configuration"
+        );
     }
 }

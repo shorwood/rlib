@@ -75,7 +75,7 @@ impl LateViolation for Violation {
 /// Checks public functions for dynamically typed errors.
 struct ThiserrorDynamicErrorsInLibraryInterfaces;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub THISERROR_DYNAMIC_ERRORS_IN_LIBRARY_INTERFACES,
     Warn,

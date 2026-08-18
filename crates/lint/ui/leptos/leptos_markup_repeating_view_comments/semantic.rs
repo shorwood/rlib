@@ -1,5 +1,5 @@
 #![feature(register_tool)]
-#![allow(dead_code, unknown_lints, leptos_duplicate_view_section_comments)]
+#![allow(dead_code, unknown_lints, rlib::leptos_duplicate_view_section_comments)]
 #![register_tool(rlib_lint)]
 
 use leptos::prelude::*;
@@ -55,7 +55,7 @@ fn informative_or_ambiguous() -> impl IntoView {
     }
 }
 
-#[allow(leptos_markup_repeating_view_comments)]
+#[allow(rlib::leptos_markup_repeating_view_comments)]
 fn suppressed() -> impl IntoView {
     view! {
         // Navigation

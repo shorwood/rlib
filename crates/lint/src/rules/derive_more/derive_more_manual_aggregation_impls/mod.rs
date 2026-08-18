@@ -85,7 +85,7 @@ struct AggregationNames<'name> {
 /// Finds `Sum` and `Product` implementations reproducible by `derive_more`.
 struct DeriveMoreManualAggregationImpls;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub DERIVE_MORE_MANUAL_AGGREGATION_IMPLS,
     Warn,

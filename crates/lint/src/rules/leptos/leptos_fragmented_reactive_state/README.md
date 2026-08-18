@@ -23,3 +23,7 @@ let country = RwSignal::new(String::new());
 ```rust,ignore
 let draft = RwSignal::new(ContactDraft::default());
 ```
+
+## Configuration
+
+`leptos-reactive-primitives-threshold` sets the maximum separate reactive primitives (default `4`).

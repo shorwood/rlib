@@ -1,7 +1,7 @@
 // aux-build: external_macro.rs
 
-#![warn(ambiguous_primitive_parameters)]
-#![allow(dead_code, misordered_module_declarations)]
+#![warn(rlib::ambiguous_primitive_parameters)]
+#![allow(dead_code, rlib::misordered_module_declarations)]
 
 extern crate external_macro;
 

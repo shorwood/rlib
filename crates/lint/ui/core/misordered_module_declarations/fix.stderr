@@ -10,8 +10,8 @@ LL | | }
 note: the lint level is defined here
   --> $DIR/fix.rs:7:9
    |
-LL | #![warn(misordered_module_declarations)]
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | #![warn(rlib::misordered_module_declarations)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 help: move complete declaration groups into this order: `Value`, `make`, `run`, `main`
    |
 LL + struct Value;

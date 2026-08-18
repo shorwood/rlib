@@ -2,13 +2,13 @@
 #![allow(
     dead_code,
     deprecated,
-    leptos_boolean_component_props,
-    leptos_implicit_default_component_props,
-    leptos_manual_resource_refetch_signals,
-    leptos_needlessly_cloned_signal_values,
-    leptos_reactive_writes_during_view_construction,
-    leptos_unsanitized_inner_html,
-    leptos_writable_signal_component_props,
+    rlib::leptos_boolean_component_props,
+    rlib::leptos_implicit_default_component_props,
+    rlib::leptos_manual_resource_refetch_signals,
+    rlib::leptos_needlessly_cloned_signal_values,
+    rlib::leptos_reactive_writes_during_view_construction,
+    rlib::leptos_unsanitized_inner_html,
+    rlib::leptos_writable_signal_component_props,
     unknown_lints
 )]
 #![register_tool(rlib_lint)]
@@ -105,7 +105,7 @@ fn InherentMapIsNotIteratorMap() -> impl IntoView {
     }
 }
 
-#[allow(leptos_unkeyed_reactive_collections)]
+#[allow(rlib::leptos_unkeyed_reactive_collections)]
 #[component]
 fn Suppressed() -> impl IntoView {
     let (names, _) = signal(Vec::<String>::new());

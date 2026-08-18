@@ -153,7 +153,7 @@ impl LateViolation for Violation<'_> {
 /// Late lint pass that rejects unnamed boolean policy in function signatures.
 struct BooleanFunctionArguments;
 
-dylint_linting::impl_late_lint! {
+crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub BOOLEAN_FUNCTION_ARGUMENTS,
     Warn,

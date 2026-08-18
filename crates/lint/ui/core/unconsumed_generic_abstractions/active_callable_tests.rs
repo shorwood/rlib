@@ -1,7 +1,7 @@
 // compile-flags: --test
 
-#![warn(unconsumed_generic_abstractions)]
-#![allow(dead_code, method_like_free_functions)]
+#![warn(rlib::unconsumed_generic_abstractions)]
+#![allow(dead_code, rlib::method_like_free_functions)]
 
 struct Production;
 

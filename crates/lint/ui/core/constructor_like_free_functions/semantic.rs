@@ -1,9 +1,9 @@
-#![warn(constructor_like_free_functions)]
+#![warn(rlib::constructor_like_free_functions)]
 #![allow(
-    ad_hoc_string_parsers,
+    rlib::ad_hoc_string_parsers,
     dead_code,
-    method_like_free_functions,
-    misordered_module_declarations
+    rlib::method_like_free_functions,
+    rlib::misordered_module_declarations
 )]
 
 struct Session {

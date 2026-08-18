@@ -39,3 +39,7 @@ fn process(valid: bool) {
 }
 # fn perform_work() {}
 ```
+
+## Configuration
+
+`control-flow-depth-threshold` sets the permitted nesting depth (default `2`).
