@@ -85,6 +85,7 @@ struct CallableGenericFreeFunction<'hir> {
 // -----------------------------------------------------------------------------
 // ResolvedCallBoundary: Conservative call evidence
 // -----------------------------------------------------------------------------
+
 /// Whether authored call syntax preserves a conservative open boundary.
 #[derive(Clone, Copy)]
 enum ResolvedCallBoundary {
@@ -122,6 +123,7 @@ const RESOLVED_CALL_MAX_REPRESENTATIVE_SPANS: usize = 4;
 // -----------------------------------------------------------------------------
 // CallableVisibilityContext: Publication context
 // -----------------------------------------------------------------------------
+
 /// Publication context retained for callable diagnostics.
 #[derive(Clone, Copy)]
 enum CallableVisibilityContext {
@@ -230,6 +232,7 @@ impl<'tcx> Visitor<'tcx> for ExplicitOpenTypeVisitor<'_, 'tcx> {
 // -----------------------------------------------------------------------------
 // CallableGenericAnalyzer: Crate wide resolved calls
 // -----------------------------------------------------------------------------
+
 /// Collects eligible callables, direct resolved calls, and callable escapes.
 #[derive(Default)]
 pub struct CallableGenericAnalyzer {
