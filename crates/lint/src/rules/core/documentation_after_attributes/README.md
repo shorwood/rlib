@@ -1,18 +1,34 @@
-# documentation_after_attributes
+# `rlib::documentation_after_attributes`
 
-## What it does
+## Summary
 
-Requires declaration documentation to precede every other authored outer attribute. Documentation
+Requires declaration documentation to precede every other hand-written outer attribute.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::core` |
+| Cargo feature | always |
+| Purpose | Style |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
+
+Requires declaration documentation to precede every other hand-written outer attribute. Documentation
 comments and explicit `#[doc = ...]` forms are treated as one leading group. The rule covers items,
 associated items, fields, and enum variants before attribute macros can replace their source.
 
-## Why is this bad?
+## Why this matters
 
 Documentation describes the declaration itself, while derives, conditional compilation, lint
-levels, and framework attributes modify its compilation. Placing documentation first keeps the
-contract immediately visible and gives readers and source tools one deterministic attribute order.
+levels, and framework attributes change how it is compiled. Placing documentation first makes the
+description easy to find and gives readers and source tools one predictable attribute order.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust
 #[derive(Debug)]
@@ -23,7 +39,7 @@ enum RequestState {
 }
 ```
 
-## Use instead
+### Use this instead
 
 ```rust
 /// Request state accepted by the transport boundary.
@@ -33,3 +49,23 @@ enum RequestState {
     Complete,
 }
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when your project deliberately follows a different style.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+- [`rlib::undocumented_items`](../undocumented_items/README.md) — Requires the documentation itself to be present.

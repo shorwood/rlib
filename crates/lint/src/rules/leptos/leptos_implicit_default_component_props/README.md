@@ -1,18 +1,34 @@
-# leptos_implicit_default_component_props
+# `rlib::leptos_implicit_default_component_props`
 
-## What it does
+## Summary
+
+Checks for Leptos component properties that use `#[prop(optional)]` with a concrete value type.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::leptos` |
+| Cargo feature | `leptos` |
+| Purpose | Code clarity |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Checks for Leptos component properties that use `#[prop(optional)]` with a concrete value
 type. Properties using `Option<T>` are accepted because omission can be meaningful state.
 
-## Why is this bad?
+## Why this matters
 
 `#[prop(optional)]` fills an omitted property with its type's implementation of `Default`.
 That generic default may not describe the component's intended behavior, and a later change to
 the type can silently change the component API. Writing the default at the property declaration
 makes the behavior visible to readers and callers.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 #[component]
@@ -24,7 +40,7 @@ fn ProgressBar(
 }
 ```
 
-## Use instead
+### Use this instead
 
 State the component default explicitly:
 
@@ -39,3 +55,23 @@ fn ProgressBar(
 ```
 
 Use `Option<T>` instead when the component needs to distinguish absence from a present value.
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when the current structure is clearer for your team.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

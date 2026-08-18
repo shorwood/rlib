@@ -1,22 +1,38 @@
-# undocumented_early_returns
+# `rlib::undocumented_early_returns`
 
-## What it does
+## Summary
 
-Requires an authored explicit `return` controlled by an `if`, `if let`, `let ... else`, or match
+Requires a comment before a conditional branch that explicitly returns early from a function.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::core` |
+| Cargo feature | always |
+| Purpose | Code clarity |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
+
+Requires a hand-written explicit `return` controlled by an `if`, `if let`, `let ... else`, or match
 arm to have an explanatory code-phase comment immediately before that condition. Entry guards,
 short continuations, and closure-local conditions follow the same policy whenever the return
 bypasses later work in their body. A comment inside the returning branch is too late because it
 does not introduce the decision boundary. Tail-only conditional exits, direct returns, macro
 output, `?`, `break`, and `continue` are excluded.
 
-## Why is this bad?
+## Why this matters
 
 Early returns keep the main path flat, but each conditional exit introduces a policy that a reader
 must account for before entering either branch. Naming the reason or consequence at the condition
 preserves that information where the decision is made. Existing code-phase comment rules continue
 to own comment syntax and placement, so malformed comments receive one focused diagnostic.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust
 fn render(input: &str, attempts: &mut usize) -> Option<String> {
@@ -34,7 +50,7 @@ fn render(input: &str, attempts: &mut usize) -> Option<String> {
 }
 ```
 
-## Use instead
+### Use this instead
 
 ```rust
 fn render(input: &str, attempts: &mut usize) -> Option<String> {
@@ -53,3 +69,23 @@ fn render(input: &str, attempts: &mut usize) -> Option<String> {
     Some(rendered)
 }
 ```
+
+## What it skips
+
+Tail-only conditional exits, direct returns, macro output, `?`, `break`, and `continue` are not checked.
+
+## When to turn it off
+
+Turn this lint off when the current structure is clearer for your team.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

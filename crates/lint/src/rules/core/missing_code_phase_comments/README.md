@@ -1,6 +1,20 @@
-# missing_code_phase_comments
+# `rlib::missing_code_phase_comments`
 
-## What it does
+## Summary
+
+Finds oversized phases in named functions and methods once the author has established phase boundaries.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::core` |
+| Cargo feature | always |
+| Purpose | Style |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Finds oversized phases in named functions and methods once the author has established phase
 boundaries. A blank line or an existing phase comment establishes a boundary; concise phases
@@ -9,16 +23,18 @@ line threshold was crossed. Nested hand-written blocks are measured independentl
 declarative struct literals and literal-only match mappings count as one operation regardless
 of formatting.
 
-## Why is this bad?
+## Why this matters
 
-Once an authored phase itself becomes long, an unexplained boundary makes readers infer both
+Once a hand-written phase itself becomes long, an unexplained boundary makes readers infer both
 its purpose and where its responsibility should end. Natural prose can name a real transition;
 extraction is preferable when a named phase still contains too much work. Concise phases and
 purely uninterrupted work need no generated narration.
 
 For a three-line limit, the oversized first phase has no explanation:
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust
 fn prepare() {
@@ -31,7 +47,7 @@ fn prepare() {
 }
 ```
 
-## Use instead
+### Use this instead
 
 Name the real transition and keep each phase below the configured limit:
 
@@ -49,6 +65,24 @@ fn prepare() {
 }
 ```
 
-## Configuration
+## What it skips
 
-`function-phase-lines-threshold` sets the maximum size of an unnamed function phase (default `7`).
+A blank line or an existing phase comment establishes a boundary; concise phases need no narration, and the lint does not invent phases in uninterrupted code merely because a line threshold was crossed.
+
+## When to turn it off
+
+Turn this lint off when your project deliberately follows a different style.
+
+## Settings
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `function-phase-lines-threshold` | positive integer | `7` | Sets how many lines a function phase may contain before it needs a short heading. |
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

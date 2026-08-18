@@ -1,15 +1,31 @@
-# derive_more_opaque_derived_display_contracts
+# `rlib::derive_more_opaque_derived_display_contracts`
 
-## What it does
+## Summary
 
 Finds values with derived `Display` whose `to_string()` output is used as a standard map key.
 
-## Why is this bad?
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::derive_more` |
+| Cargo feature | `derive_more` |
+| Purpose | API design |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
+
+Finds values with derived `Display` whose `to_string()` output is used as a standard map key.
+
+## Why this matters
 
 Using presentation output as machine identity silently turns formatting changes into cache misses,
 key collisions, or persistence incompatibilities.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 #[derive(derive_more::Display)]
@@ -19,9 +35,9 @@ struct CacheKey { kind: Kind, value: String }
 cache.insert(key.to_string(), record);
 ```
 
-## Use instead
+### Use this instead
 
-Define and use a named encoding contract whose compatibility is explicit.
+Define and use a named encoding with an explicit compatibility promise.
 
 ```rust,ignore
 impl CacheKey {
@@ -30,3 +46,23 @@ impl CacheKey {
 
 cache.insert(key.encode(), record);
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when the reported API is deliberate and callers depend on it.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

@@ -1,16 +1,32 @@
-# thiserror_duplicate_error_messages
+# `rlib::thiserror_duplicate_error_messages`
 
-## What it does
+## Summary
+
+Finds distinct variants in a `thiserror::Error` enum with identical static `#[error("...")]` messages.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::thiserror` |
+| Cargo feature | `thiserror` |
+| Purpose | Correctness |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Finds distinct variants in a `thiserror::Error` enum with identical static `#[error("...")]`
 messages.
 
-## Why is this bad?
+## Why this matters
 
 Identical presentation erases the behavioral distinction between typed variants in logs and user
 reports, making failures harder to triage and suggested fix harder to explain.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 #[derive(Debug, thiserror::Error)]
@@ -22,7 +38,7 @@ enum LookupError {
 }
 ```
 
-## Use instead
+### Use this instead
 
 Give each behavioral failure useful context while keeping machine identity in the variant or an
 explicit diagnostic code.
@@ -36,3 +52,23 @@ enum LookupError {
     Project,
 }
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off only when the reported behavior is intentional and covered by tests.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

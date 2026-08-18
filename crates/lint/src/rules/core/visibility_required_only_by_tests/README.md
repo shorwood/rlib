@@ -1,23 +1,39 @@
-# visibility_required_only_by_tests
+# `rlib::visibility_required_only_by_tests`
 
-## What it does
+## Summary
+
+Compares the visibility required by production references with the visibility required when standard in-source `#[cfg(test)] mod test` or `#[cfg(test)] mod tests` modules are included.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::core` |
+| Cargo feature | always |
+| Purpose | Code clarity |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Compares the visibility required by production references with the visibility required when
-canonical in-source `#[cfg(test)] mod test` or `#[cfg(test)] mod tests` modules are included.
+standard in-source `#[cfg(test)] mod test` or `#[cfg(test)] mod tests` modules are included.
 The explicit configuration gate is required, so a production module merely named `tests` is
-not reclassified. The lint diagnoses declarations whose hand-written canonical visibility is
+not reclassified. The lint diagnoses declarations whose hand-written standard visibility is
 justified only by those tests. The rule covers module items, types, functions, constants,
 statics, struct and union fields, and inherent associated items. Separate end-to-end test
 crates are intentionally outside this crate-local analysis.
 
-## Why is this bad?
+## Why this matters
 
 Tests should verify a production boundary, not silently create it. A sibling test module
 that reaches through `pub(crate)` can turn internal implementation details into a crate-wide
-vocabulary, couple tests to file layout, and prevent the defining module from owning its
+names, couple tests to file layout, and prevent the defining module from owning its
 invariants. This warning makes that test-induced design decision visible.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust
 mod parser {
@@ -37,7 +53,7 @@ mod tests {
 }
 ```
 
-## Use instead
+### Use this instead
 
 Prefer colocating a private unit test inside `parser`, or test normalization through the
 public behavior that owns it. The lint does not offer an automatic edit because moving tests
@@ -60,3 +76,24 @@ mod parser {
     }
 }
 ```
+
+## What it skips
+
+The explicit configuration gate is required, so a production module merely named `tests` is not reclassified. Separate end-to-end test crates are intentionally outside this crate-local analysis.
+
+## When to turn it off
+
+Turn this lint off when the current structure is clearer for your team.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+- [`rlib::unnecessarily_broad_visibility`](../unnecessarily_broad_visibility/README.md) — Finds visibility wider than all current uses require.
+- [`rlib::noncanonical_restricted_visibility`](../noncanonical_restricted_visibility/README.md) — Limits the forms used to express visibility.

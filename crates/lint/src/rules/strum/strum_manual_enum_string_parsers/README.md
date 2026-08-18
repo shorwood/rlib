@@ -1,15 +1,31 @@
-# strum_manual_enum_string_parsers
+# `rlib::strum_manual_enum_string_parsers`
 
-## What it does
+## Summary
 
 Finds exhaustive unit-enum `FromStr` matches reproducible by Strum's `EnumString` derive.
 
-## Why is this bad?
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::strum` |
+| Cargo feature | `strum` |
+| Purpose | Code clarity |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
+
+Finds exhaustive unit-enum `FromStr` matches reproducible by Strum's `EnumString` derive.
+
+## Why this matters
 
 The parser repeats variant names, aliases, and failure behavior that must remain synchronized with
 the enum.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 impl FromStr for Stage {
@@ -20,7 +36,7 @@ impl FromStr for Stage {
 }
 ```
 
-## Use instead
+### Use this instead
 
 Select the configured parser provider and remove only the exactly equivalent implementation.
 
@@ -29,6 +45,24 @@ Select the configured parser provider and remove only the exactly equivalent imp
 enum Stage { Planned, Complete }
 ```
 
-## Configuration
+## What it skips
 
-`enum-string-parsing-provider` selects `strum_enum_string` or `derive_more_from_str`.
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when the current structure is clearer for your team.
+
+## Settings
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `enum-string-parsing-provider` | string | not set | Chooses the derive that should generate string parsing. Values: `strum_enum_string`, `derive_more_from_str`. |
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

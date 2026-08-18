@@ -1,18 +1,34 @@
-# duplicate_section_divider_prefixes
+# `rlib::duplicate_section_divider_prefixes`
 
-## What it does
+## Summary
 
-Rejects repeated section-divider prefixes within the same module. Nested modules have
+Warns about repeated section-divider prefixes within the same module.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::core` |
+| Cargo feature | always |
+| Purpose | Correctness |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
+
+Warns about repeated section-divider prefixes within the same module. Nested modules have
 independent prefix namespaces.
 
-## Why is this bad?
+## Why this matters
 
 Repeating a prefix fragments one naming family and makes it unclear which section owns new
 declarations. Closely related declarations should remain together.
 
 For example, this module splits the Request family:
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust
 // -----------------------------------------------------------------------------
@@ -26,7 +42,7 @@ struct Request;
 struct RequestBuilder;
 ```
 
-## Use instead
+### Use this instead
 
 Keep the family under one divider:
 
@@ -37,3 +53,24 @@ Keep the family under one divider:
 struct Request;
 struct RequestBuilder;
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off only when the reported behavior is intentional and covered by tests.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+- [`rlib::malformed_section_dividers`](../malformed_section_dividers/README.md) — Checks the shape of each divider.
+- [`rlib::mismatched_section_divider_prefixes`](../mismatched_section_divider_prefixes/README.md) — Checks that divider names match their contents.

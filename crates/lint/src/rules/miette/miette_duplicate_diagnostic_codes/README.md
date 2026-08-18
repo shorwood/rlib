@@ -1,15 +1,31 @@
-# miette_duplicate_diagnostic_codes
+# `rlib::miette_duplicate_diagnostic_codes`
 
-## What it does
+## Summary
 
 Finds distinct Miette diagnostic types or enum variants that expose the same static diagnostic code.
 
-## Why is this bad?
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::miette` |
+| Cargo feature | `miette` |
+| Purpose | Correctness |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
+
+Finds distinct Miette diagnostic types or enum variants that expose the same static diagnostic code.
+
+## Why this matters
 
 Diagnostic codes are machine identity used by support, filtering, and telemetry. Reusing one code for
-different failures makes those consumers unable to distinguish the contracts.
+different failures prevents those tools and callers from telling the failures apart.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
@@ -23,7 +39,7 @@ enum ConfigError {
 }
 ```
 
-## Use instead
+### Use this instead
 
 ```rust,ignore
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
@@ -36,3 +52,23 @@ enum ConfigError {
     Invalid,
 }
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off only when the reported behavior is intentional and covered by tests.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

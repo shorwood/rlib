@@ -1,16 +1,32 @@
-# leptos_unreactive_signal_reads_in_views
+# `rlib::leptos_unreactive_signal_reads_in_views`
 
-## What it does
+## Summary
+
+Checks for tracked signal reads evaluated directly while a Leptos view is first constructed, including fallible clone, guard, and closure-based reads.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::leptos` |
+| Cargo feature | `leptos` |
+| Purpose | Code clarity |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Checks for tracked signal reads evaluated directly while a Leptos view is first constructed,
 including fallible clone, guard, and closure-based reads.
 
-## Why is this bad?
+## Why this matters
 
 A component function runs once to build its view. A value read immediately with `get()` becomes an
 ordinary snapshot, so the displayed child or attribute does not update when the signal changes.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 view! {
@@ -18,7 +34,7 @@ view! {
 }
 ```
 
-## Use instead
+### Use this instead
 
 Pass the signal directly when displaying its value:
 
@@ -38,3 +54,23 @@ view! {
 
 An untracked read can still be appropriate when explicitly taking an initial snapshot for state
 that is not expected to update with the source.
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when the current structure is clearer for your team.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

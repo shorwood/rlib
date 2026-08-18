@@ -1,15 +1,31 @@
-# leptos_duplicate_view_section_comments
+# `rlib::leptos_duplicate_view_section_comments`
 
-## What it does
+## Summary
 
 Checks that section headings in the same part of a `view!` have distinct names.
 
-## Why is this bad?
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::leptos` |
+| Cargo feature | `leptos` |
+| Purpose | Correctness |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
+
+Checks that section headings in the same part of a `view!` have distinct names.
+
+## Why this matters
 
 Two nearby regions with the same name appear to have the same responsibility. Readers must inspect
 their markup to discover the difference, which defeats the purpose of the headings.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 view! {
@@ -23,7 +39,7 @@ view! {
 }
 ```
 
-## Use instead
+### Use this instead
 
 Name each region after the role it has in the interface:
 
@@ -38,3 +54,23 @@ view! {
     </main>
 }
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off only when the reported behavior is intentional and covered by tests.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

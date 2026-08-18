@@ -1,16 +1,32 @@
-# thiserror_manual_from_error_variants
+# `rlib::thiserror_manual_from_error_variants`
 
-## What it does
+## Summary
+
+Finds manual `From<SourceError>` implementations that only construct a one-field source-bearing variant of a type already deriving `thiserror::Error`.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::thiserror` |
+| Cargo feature | `thiserror` |
+| Purpose | Code clarity |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Finds manual `From<SourceError>` implementations that only construct a one-field source-bearing
 variant of a type already deriving `thiserror::Error`.
 
-## Why is this bad?
+## Why this matters
 
 The handwritten conversion duplicates the error-source policy and can drift from the variant. A
 single `#[from]` annotation keeps construction and source chaining coherent.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 impl From<std::io::Error> for LoadError {
@@ -18,7 +34,7 @@ impl From<std::io::Error> for LoadError {
 }
 ```
 
-## Use instead
+### Use this instead
 
 Select the thiserror provider in configuration and annotate the source field.
 
@@ -30,6 +46,24 @@ enum LoadError {
 }
 ```
 
-## Configuration
+## What it skips
 
-`error-variant-conversion-provider` selects `thiserror_from` or `derive_more_from`.
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when the current structure is clearer for your team.
+
+## Settings
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `error-variant-conversion-provider` | string | not set | Chooses which derive should generate conversions into error variants. Values: `thiserror_from`, `derive_more_from`. |
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

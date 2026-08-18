@@ -1,16 +1,32 @@
-# serde_lossy_conditional_serialization
+# `rlib::serde_lossy_conditional_serialization`
 
-## What it does
+## Summary
+
+Finds conditionally serialized required fields that have neither optionality nor a deserialization default.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::serde` |
+| Cargo feature | `serde` |
+| Purpose | Safety |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Finds conditionally serialized required fields that have neither optionality nor a deserialization
 default.
 
-## Why is this bad?
+## Why this matters
 
 The serializer can omit the field, but the same type's deserializer rejects the resulting missing
 key. A value can therefore fail to round-trip solely because it satisfies the skip predicate.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -20,7 +36,7 @@ struct Profile {
 }
 ```
 
-## Use instead
+### Use this instead
 
 Make omission reversible with optionality or a matching default policy.
 
@@ -30,3 +46,23 @@ struct Profile {
     display_name: String,
 }
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off only when the risk is handled elsewhere and documented.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

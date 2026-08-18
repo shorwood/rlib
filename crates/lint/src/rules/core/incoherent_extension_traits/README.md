@@ -1,6 +1,20 @@
-# incoherent_extension_traits
+# `rlib::incoherent_extension_traits`
 
-## What it does
+## Summary
+
+Checks local traits implemented for a foreign named type or a generic blanket target.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::core` |
+| Cargo feature | always |
+| Purpose | Code clarity |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Checks local traits implemented for a foreign named type or a generic blanket target.
 Such an extension trait must operate on at most one concrete nonreceiver subject family and
@@ -9,14 +23,16 @@ Receiver-only accessors count toward the method budget but do not invent a subje
 Primitive, borrowed or owned string, and generic callback parameters likewise do not split a
 family.
 
-## Why is this bad?
+## Why this matters
 
-An extension trait is useful when it gives one foreign type a focused vocabulary. A trait
+An extension trait is useful when it gives one foreign type a focused names. A trait
 that accumulates unrelated subjects becomes a disguised utility module, while a large trait
-makes every import expose an incoherent surface and encourages agents to append the next
+makes every import expose a collection of unrelated methods and encourages agents to append the next
 convenient helper to the same catch-all abstraction.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust
 trait ContextExt {
@@ -25,7 +41,7 @@ trait ContextExt {
 }
 ```
 
-## Use instead
+### Use this instead
 
 Prefer traits named and scoped around one subject:
 
@@ -39,6 +55,24 @@ trait ExpressionContextExt {
 }
 ```
 
-## Configuration
+## What it skips
 
-`extension-trait-methods-threshold` sets the maximum methods before a trait is treated as broad (default `8`).
+Receiver-only accessors count toward the method budget but do not invent a subject family. Primitive, borrowed or owned string, and generic callback parameters likewise do not split a family.
+
+## When to turn it off
+
+Turn this lint off when the current structure is clearer for your team.
+
+## Settings
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `extension-trait-methods-threshold` | positive integer | `8` | Sets how many methods make an extension trait broad enough to require one clear subject. |
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

@@ -1,16 +1,32 @@
-# serde_deserialization_bypassing_invariants
+# `rlib::serde_deserialization_bypassing_invariants`
 
-## What it does
+## Summary
+
+Finds derived `Deserialize` on restricted-field types that also expose an inherent fallible direct constructor.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::serde` |
+| Cargo feature | `serde` |
+| Purpose | Code clarity |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Finds derived `Deserialize` on restricted-field types that also expose an inherent fallible direct
 constructor.
 
-## Why is this bad?
+## Why this matters
 
 Serde derive constructs fields directly. It can therefore create state that the type's checked
 constructor rejects or normally normalizes.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 #[derive(serde::Deserialize)]
@@ -21,7 +37,7 @@ impl Percentage {
 }
 ```
 
-## Use instead
+### Use this instead
 
 Deserialize through a validated conversion or a separate wire representation.
 
@@ -30,3 +46,23 @@ Deserialize through a validated conversion or a separate wire representation.
 #[serde(try_from = "u8")]
 struct Percentage(u8);
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when the current structure is clearer for your team.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

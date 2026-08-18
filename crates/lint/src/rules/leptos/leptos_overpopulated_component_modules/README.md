@@ -1,14 +1,30 @@
-# leptos_overpopulated_component_modules
+# `rlib::leptos_overpopulated_component_modules`
 
-## What it does
+## Summary
 
-Limits authored component and island definitions per source or inline module.
+Limits hand-written component and island definitions per source or inline module.
 
-## Why is this bad?
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::leptos` |
+| Cargo feature | `leptos` |
+| Purpose | Code clarity |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
+
+Limits hand-written component and island definitions per source or inline module.
+
+## Why this matters
 
 Crowded modules blur ownership and make unrelated UI responsibilities change together.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 #[component] fn A() -> impl IntoView { view! { <div /> } }
@@ -18,13 +34,31 @@ Crowded modules blur ownership and make unrelated UI responsibilities change tog
 #[component] fn E() -> impl IntoView { view! { <div /> } }
 ```
 
-## Use instead
+### Use this instead
 
 ```rust,ignore
 mod editor;
 mod summary;
 ```
 
-## Configuration
+## What it skips
 
-`leptos-components-per-module-threshold` sets the maximum components per module (default `8`).
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when the current structure is clearer for your team.
+
+## Settings
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `leptos-components-per-module-threshold` | positive integer | `8` | Sets how many components may be declared in one module. |
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

@@ -1,16 +1,32 @@
-# derive_more_manual_formatting_impls
+# `rlib::derive_more_manual_formatting_impls`
 
-## What it does
+## Summary
+
+Finds standard formatting implementations that only delegate to one field or render that field through one `write!` invocation.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::derive_more` |
+| Cargo feature | `derive_more` |
+| Purpose | API design |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Finds standard formatting implementations that only delegate to one field or render that field
 through one `write!` invocation.
 
-## Why is this bad?
+## Why this matters
 
-Authored formatting plumbing obscures a declarative presentation contract and can drift across the
+Hand-written formatting plumbing obscures a declarative display rule and can drift across the
 standard formatting trait family.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 impl Display for UserId {
@@ -20,12 +36,32 @@ impl Display for UserId {
 }
 ```
 
-## Use instead
+### Use this instead
 
-Declare the formatting contract on the type, retaining any exact format string in the matching
+Declare the formatting rule on the type, retaining any exact format string in the matching
 derive attribute.
 
 ```rust,ignore
 #[derive(derive_more::Display)]
 struct UserId(u64);
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when the reported API is deliberate and callers depend on it.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

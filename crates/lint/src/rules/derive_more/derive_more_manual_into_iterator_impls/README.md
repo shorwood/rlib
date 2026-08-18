@@ -1,16 +1,32 @@
-# derive_more_manual_into_iterator_impls
+# `rlib::derive_more_manual_into_iterator_impls`
 
-## What it does
+## Summary
+
+Finds owned, shared, and mutable `IntoIterator` implementations that delegate directly to the sole field of a wrapper.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::derive_more` |
+| Cargo feature | `derive_more` |
+| Purpose | API design |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Finds owned, shared, and mutable `IntoIterator` implementations that delegate directly to the sole
 field of a wrapper.
 
-## Why is this bad?
+## Why this matters
 
-Transparent iteration plumbing duplicates a structural contract and scatters the receiver family
+Transparent iteration plumbing duplicates a field-based behavior and scatters the receiver family
 across hand-written implementations.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 impl IntoIterator for SystemList {
@@ -20,7 +36,7 @@ impl IntoIterator for SystemList {
 }
 ```
 
-## Use instead
+### Use this instead
 
 Declare the required receiver forms together.
 
@@ -29,3 +45,23 @@ Declare the required receiver forms together.
 #[into_iterator(owned, ref)]
 struct SystemList(Vec<System>);
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when the reported API is deliberate and callers depend on it.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

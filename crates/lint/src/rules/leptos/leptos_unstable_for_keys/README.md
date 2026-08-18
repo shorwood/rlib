@@ -1,17 +1,33 @@
-# leptos_unstable_for_keys
+# `rlib::leptos_unstable_for_keys`
 
-## What it does
+## Summary
+
+Checks parsed `<For>` keys that do not derive from the row or that return the position of an enumerated collection.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::leptos` |
+| Cargo feature | `leptos` |
+| Purpose | Correctness |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Checks parsed `<For>` keys that do not derive from the row or that return the position of an
 enumerated collection. Identifier spelling and whitespace do not determine the result.
 
-## Why is this bad?
+## Why this matters
 
 Leptos uses keys to keep rendered rows attached to their data. A repeated key cannot distinguish
 rows, while a position changes when items are inserted, removed, or reordered. Either choice can
 preserve the wrong row state.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 <For
@@ -21,7 +37,7 @@ preserve the wrong row state.
 />
 ```
 
-## Use instead
+### Use this instead
 
 Choose an identifier that belongs to the item and remains stable while it is displayed:
 
@@ -35,3 +51,23 @@ Choose an identifier that belongs to the item and remains stable while it is dis
 
 An index is suitable only when the sequence is truly fixed or append-only. Such a sequence may
 also be clearer as ordinary, non-reactive iteration.
+
+## What it skips
+
+Checks parsed `<For>` keys that do not derive from the row or that return the position of an enumerated collection. Identifier spelling and whitespace do not determine the result.
+
+## When to turn it off
+
+Turn this lint off only when the reported behavior is intentional and covered by tests.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

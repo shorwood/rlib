@@ -1,6 +1,20 @@
-# undocumented_items
+# `rlib::undocumented_items`
 
-## What it does
+## Summary
+
+Requires documentation on hand-written types, fields, enum variants, traits, constants, statics, free functions, trait items, and inherent implementation items regardless of visibility.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::core` |
+| Cargo feature | always |
+| Purpose | Code clarity |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Requires documentation on hand-written types, fields, enum variants, traits, constants,
 statics, free functions, trait items, and inherent implementation items regardless of
@@ -17,16 +31,18 @@ reusable declarations, so their names may carry the local scenario description. 
 test helpers, types, constants, fields, and ordinary `#[cfg(test)]` functions remain subject
 to the rule.
 
-## Why is this bad?
+## Why this matters
 
-Names describe identity, but they rarely capture contracts, invariants, ownership, or the
+Names identify an item, but they rarely explain its behavior, invariants, ownership, or the
 reason a declaration exists. Requiring documentation for internal helpers as well as public
 APIs keeps those decisions available to reviewers and coding agents instead of forcing them
 to reconstruct intent from implementation details.
 
 For example, these declarations leave their relationship and field semantics implicit:
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust
 struct RetryPolicy {
@@ -36,9 +52,9 @@ struct RetryPolicy {
 fn retry(policy: &RetryPolicy) {}
 ```
 
-## Use instead
+### Use this instead
 
-Document each behavioral declaration where its contract is defined:
+Document each declaration where its behavior is defined:
 
 ```rust
 /// Limits repeated attempts after transient failures.
@@ -52,5 +68,25 @@ fn retry(policy: &RetryPolicy) {}
 ```
 
 Module declarations are omitted deliberately so barrel files can remain concise maps of
-the source tree. Trait implementations are omitted because their contracts belong on the
+the source tree. Trait implementations are omitted because their required behavior belongs on the
 trait and its items; inherent methods must carry their own documentation.
+
+## What it skips
+
+String-valued `doc` attributes count as documentation; metadata-only forms such as `#[doc(hidden)]` do not.
+
+## When to turn it off
+
+Turn this lint off when the current structure is clearer for your team.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+- [`rlib::documentation_after_attributes`](../documentation_after_attributes/README.md) — Keeps existing documentation in a consistent position.

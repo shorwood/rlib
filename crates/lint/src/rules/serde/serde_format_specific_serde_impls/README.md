@@ -1,16 +1,32 @@
-# serde_format_specific_serde_impls
+# `rlib::serde_format_specific_serde_impls`
 
-## What it does
+## Summary
 
-Finds undocumented manual Serde trait implementations whose generic contract contains concrete
-format dependencies or switches between distinct data-model shapes with `is_human_readable()`.
+Finds undocumented manual Serde implementations that depend on a specific format or use different data shapes when `is_human_readable()` changes.
 
-## Why is this bad?
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::serde` |
+| Cargo feature | `serde` |
+| Purpose | API design |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
+
+Finds undocumented manual Serde implementations that depend on a specific format or use different
+data shapes when `is_human_readable()` changes.
+
+## Why this matters
 
 `Serialize` and `Deserialize` promise a format-independent data model. Hidden JSON assumptions or
 different human/binary shapes make wrappers, migrations, and cross-format round trips surprising.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 impl serde::Serialize for Identifier {
@@ -25,7 +41,7 @@ impl serde::Serialize for Identifier {
 }
 ```
 
-## Use instead
+### Use this instead
 
 Keep one portable Serde shape, or expose a format-specific wrapper and document a deliberately dual
 representation.
@@ -38,3 +54,23 @@ impl serde::Serialize for Identifier {
     }
 }
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when the reported API is deliberate and callers depend on it.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

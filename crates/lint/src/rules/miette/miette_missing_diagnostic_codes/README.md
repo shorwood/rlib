@@ -1,16 +1,32 @@
-# miette_missing_diagnostic_codes
+# `rlib::miette_missing_diagnostic_codes`
 
-## What it does
+## Summary
+
+Finds non-transparent variants without codes in Miette diagnostic enums whose siblings establish a code policy.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::miette` |
+| Cargo feature | `miette` |
+| Purpose | Correctness |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Finds non-transparent variants without codes in Miette diagnostic enums whose siblings establish a
 code policy.
 
-## Why is this bad?
+## Why this matters
 
 Partially coded families make otherwise comparable failures impossible to filter, track, or identify
 in machine-oriented output.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
@@ -23,10 +39,30 @@ enum ConfigError {
 }
 ```
 
-## Use instead
+### Use this instead
 
 ```rust,ignore
 #[error("invalid")]
 #[diagnostic(code(config::invalid))]
 Invalid,
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off only when the reported behavior is intentional and covered by tests.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

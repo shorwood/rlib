@@ -1,17 +1,33 @@
-# bon_required_builder_members_breaking_compatibility
+# `rlib::bon_required_builder_members_breaking_compatibility`
 
-## What it does
+## Summary
+
+Compares public Bon struct, free-function, and associated-function builders with the explicitly configured `bon_api_baseline` member snapshot and finds newly added required members.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::bon` |
+| Cargo feature | `bon` |
+| Purpose | API design |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Compares public Bon struct, free-function, and associated-function builders with the explicitly
 configured `bon_api_baseline` member snapshot and finds newly added required members. Associated
 builders use `Type::method` baseline keys.
 
-## Why is this bad?
+## Why this matters
 
 Adding a required member invalidates every existing external builder call sequence. This is a real
 compatibility change that cannot be inferred safely without historical evidence.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```toml
 [rlib-lint]
@@ -23,7 +39,7 @@ bon-api-baseline = [{ builder = "Request", members = ["host"] }]
 pub struct Request { host: String, port: u16 }
 ```
 
-## Use instead
+### Use this instead
 
 Provide a compatible default/optional policy or make the break explicit through versioning and a
 coordinated baseline update.
@@ -37,6 +53,24 @@ pub struct Request {
 }
 ```
 
-## Configuration
+## What it skips
 
-`bon-api-baseline` records builders and their previously required members as `{ builder, members }` entries.
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when the reported API is deliberate and callers depend on it.
+
+## Settings
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `bon-api-baseline` | array of tables | `[]` | Records each published builder and the member names that were already required. |
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

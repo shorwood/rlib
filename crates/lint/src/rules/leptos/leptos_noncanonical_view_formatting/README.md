@@ -1,22 +1,38 @@
-# leptos_noncanonical_view_formatting
+# `rlib::leptos_noncanonical_view_formatting`
 
-## What it does
+## Summary
 
-Formats authored Leptos `view!` macros with a deterministic leptosfmt policy and reports files whose
-markup differs from that canonical rendering.
+Formats hand-written Leptos `view!` macros with a deterministic leptosfmt policy and reports files whose markup differs from that standard rendering.
 
-## Why is this bad?
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::leptos` |
+| Cargo feature | `leptos` |
+| Purpose | Style |
+| Default level | `warn` |
+| Fix | Automatic |
+
+## What it catches
+
+Formats hand-written Leptos `view!` macros with a deterministic leptosfmt policy and reports files whose
+markup differs from that standard rendering.
+
+## Why this matters
 
 Inconsistent tag, attribute, and expression layout makes declarative component structure needlessly
 hard to scan and creates formatting-only review churn.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust
 view! { <main><h1>"Dashboard"</h1><p>{summary}</p></main> }
 ```
 
-## Use instead
+### Use this instead
 
 ```rust
 view! {
@@ -27,6 +43,24 @@ view! {
 }
 ```
 
-## Configuration
+## What it skips
 
-`leptos-view-max-width` sets the formatter width (default `100`).
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when your project deliberately follows a different style.
+
+## Settings
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `leptos-view-max-width` | positive integer | `100` | Sets the line width used to format `view!` markup. |
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

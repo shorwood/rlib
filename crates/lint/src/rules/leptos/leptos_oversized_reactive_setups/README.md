@@ -1,14 +1,30 @@
-# leptos_oversized_reactive_setups
+# `rlib::leptos_oversized_reactive_setups`
 
-## What it does
+## Summary
 
 Limits top-level setup statements in components and `use_*` composables, excluding the returned tail expression.
 
-## Why is this bad?
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::leptos` |
+| Cargo feature | `leptos` |
+| Purpose | Code clarity |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
+
+Limits top-level setup statements in components and `use_*` composables, excluding the returned tail expression.
+
+## Why this matters
 
 Large setup phases mix independent reactive responsibilities and make component lifecycles difficult to follow.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 #[component]
@@ -19,7 +35,7 @@ fn Editor() -> impl IntoView {
 }
 ```
 
-## Use instead
+### Use this instead
 
 ```rust,ignore
 #[component]
@@ -29,6 +45,24 @@ fn Editor() -> impl IntoView {
 }
 ```
 
-## Configuration
+## What it skips
 
-`leptos-setup-statements-threshold` sets the maximum setup statements (default `8`).
+Limits top-level setup statements in components and `use_*` composables, excluding the returned tail expression.
+
+## When to turn it off
+
+Turn this lint off when the current structure is clearer for your team.
+
+## Settings
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `leptos-setup-statements-threshold` | positive integer | `8` | Sets how many setup statements may appear before the component view. |
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

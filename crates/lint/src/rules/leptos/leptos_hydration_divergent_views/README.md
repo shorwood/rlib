@@ -1,16 +1,32 @@
-# leptos_hydration_divergent_views
+# `rlib::leptos_hydration_divergent_views`
 
-## What it does
+## Summary
+
+Finds compile-time server/browser branches that author different initial `view!` node shapes, including element nesting and text-node presence.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::leptos` |
+| Cargo feature | `leptos` |
+| Purpose | Safety |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
 
 Finds compile-time server/browser branches that author different initial `view!` node shapes,
 including element nesting and text-node presence.
 
-## Why is this bad?
+## Why this matters
 
 Hydration walks browser DOM expecting the node sequence produced during server rendering. Different
 initial element shapes can make hydration attach state and listeners to the wrong nodes or fail.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 let toolbar = if cfg!(target_arch = "wasm32") {
@@ -20,7 +36,7 @@ let toolbar = if cfg!(target_arch = "wasm32") {
 };
 ```
 
-## Use instead
+### Use this instead
 
 Render one stable initial shape, then perform browser-only work after hydration:
 
@@ -28,3 +44,23 @@ Render one stable initial shape, then perform browser-only work after hydration:
 let toolbar = view! { <Toolbar/> };
 Effect::new(move |_| initialize_browser_toolbar());
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off only when the risk is handled elsewhere and documented.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.

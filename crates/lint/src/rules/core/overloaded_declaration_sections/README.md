@@ -1,15 +1,29 @@
-# overloaded_declaration_sections
+# `rlib::overloaded_declaration_sections`
 
-## What it does
+## Summary
 
-Rejects a valid section when it both exceeds the configured declaration limit and mixes
+Warns about a valid section when it both exceeds the configured declaration limit and mixes several independently named concepts.
+
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::core` |
+| Cargo feature | always |
+| Purpose | Code clarity |
+| Default level | `warn` |
+| Fix | Manual |
+
+## What it catches
+
+Warns about a valid section when it both exceeds the configured declaration limit and mixes
 several independently named concepts. A named type and all of its implementation blocks
 count as one declaration. A large but consistently named family remains valid because its
 divider still communicates one responsibility. The default scale limit is five declarations.
 This repository configures a limit of forty, and the UI boundary fixture follows that active
 policy.
 
-## Why is this bad?
+## Why this matters
 
 Declaration count alone does not prove that a section has too many responsibilities. When a
 large section also contains unrelated naming families, however, its prefix usually describes
@@ -19,7 +33,9 @@ section only when it represents an independent family.
 
 For example, a broad transport section can hide unrelated request and response concepts:
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust
 // -----------------------------------------------------------------------------
@@ -33,7 +49,7 @@ struct ResponseBuilder;
 struct TransportError;
 ```
 
-## Use instead
+### Use this instead
 
 Make the conceptual families visible in both names and sections:
 
@@ -59,6 +75,24 @@ Configure the scale threshold through `section_dividers.max_declarations_per_sec
 Sections at the maximum are accepted. Larger sections are rejected only when their names
 also show more than one conceptual family.
 
-## Configuration
+## What it skips
 
-`declarations-per-section-threshold` sets the maximum declarations in one section (default `5`).
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when the current structure is clearer for your team.
+
+## Settings
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `declarations-per-section-threshold` | positive integer | `5` | Sets how many declarations may share one section heading. |
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+- [`rlib::missing_section_dividers`](../missing_section_dividers/README.md) — Finds modules that need their first set of dividers.

@@ -190,6 +190,28 @@ while this file records why a semantic boundary exists and where its regression 
 | Merely touching a receiver before returning unrelated text or a global error resembles a direct presentation or causal accessor | False positive: evidence mistake | returned-value provenance in `standard_interface_text_evidence` | `ui/core/ad_hoc_error_interfaces/semantic.rs`, `ui/core/ad_hoc_formatting/semantic.rs` |
 | Discarded delegation, dormant closures, and incidental receiver mutation resemble stateful item production | False positive: evidence mistake | returned-value and receiver-field provenance in `iterator_analysis` | `ui/core/ad_hoc_iterators/semantic.rs` |
 
+## Closed lint proposals
+
+### `miette_transparent_diagnostics_hiding_context`
+
+Miette 7.6 accepts `#[diagnostic(transparent)]` only on a struct or enum variant with exactly one
+field. It also rejects diagnostic details such as a code, help text, severity, or URL on that
+wrapper. Miette therefore catches the invalid cases before this lint library runs. A valid wrapper
+does not, by itself, mean that useful context was lost.
+
+### `thiserror_transparent_errors_hiding_context`
+
+thiserror 2 accepts `#[error(transparent)]` only when a struct or enum variant has exactly one
+field. The derive already rejects extra context on a transparent wrapper. Warning about every
+valid wrapper would make a supported way to hide implementation details harder to use.
+
+### `thiserror_diagnostic_sources_downgraded_to_errors`
+
+`miette_plain_error_diagnostic_sources` already catches fields that should use
+`#[diagnostic_source]`. It can first confirm that both error types implement `miette::Diagnostic`.
+Keeping the check in the Miette family avoids two warnings for the same field and gives users one
+clear fix.
+
 ## Triage workflow
 
 1. Reduce the report to the smallest compiling example and decide whether the error concerns

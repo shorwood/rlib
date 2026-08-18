@@ -1,15 +1,31 @@
-# leptos_malformed_view_section_comments
+# `rlib::leptos_malformed_view_section_comments`
 
-## What it does
+## Summary
 
 Checks the spelling and placement of section comments inside `view!`.
 
-## Why is this bad?
+## At a glance
+
+| Field | Value |
+| --- | --- |
+| Group | `rlib::leptos` |
+| Cargo feature | `leptos` |
+| Purpose | Code clarity |
+| Default level | `warn` |
+| Fix | Automatic |
+
+## What it catches
+
+Checks the spelling and placement of section comments inside `view!`.
+
+## Why this matters
 
 Inconsistent headings make readers distinguish formatting styles instead of following the view’s
 structure. A predictable form also lets related lints recognize section boundaries reliably.
 
-## Example
+## Examples
+
+### Triggers the lint
 
 ```rust,ignore
 view! {
@@ -22,7 +38,7 @@ view! {
 }
 ```
 
-## Use instead
+### Use this instead
 
 Use an ordinary line comment with sentence-style prose directly before its region. Separate later
 headings from the preceding region with a blank line:
@@ -38,3 +54,23 @@ view! {
     </main>
 }
 ```
+
+## What it skips
+
+No additional exclusions are documented.
+
+## When to turn it off
+
+Turn this lint off when the current structure is clearer for your team.
+
+## Settings
+
+This lint has no behavior-specific settings.
+
+## Known limitations
+
+No known implementation limitations.
+
+## Related lints
+
+None.
