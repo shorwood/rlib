@@ -654,6 +654,11 @@ const FAMILIES: &[Family] = &[
         feature: "leptos",
     },
     Family {
+        name: "leptos_i18n",
+        title: "Leptos i18n",
+        feature: "leptos_i18n",
+    },
+    Family {
         name: "leptos_styling",
         title: "Leptos Styling",
         feature: "leptos_styling",

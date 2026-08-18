@@ -216,6 +216,7 @@ define_lint_registration! {
         leptos_repeated_view_fragments,
         leptos_resource_fetchers_rereading_sources,
         leptos_server_functions_without_authorization_boundaries,
+        leptos_static_str_component_props,
         leptos_unsanitized_inner_html,
         leptos_unkeyed_reactive_collections,
         leptos_unnamed_composables,
@@ -223,6 +224,10 @@ define_lint_registration! {
         leptos_unscoped_spawned_tasks,
         leptos_unstable_for_keys,
         leptos_writable_signal_component_props,
+    }
+    #[cfg(feature = "leptos_i18n")]
+    leptos_i18n {
+        leptos_unlocalized_view_literals,
     }
     #[cfg(feature = "leptos_styling")]
     leptos_styling {

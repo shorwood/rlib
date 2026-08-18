@@ -1,0 +1,75 @@
+warning: component prop `label` carries `&'static str`
+  --> $DIR/semantic.rs:21:5
+   |
+LL |     label: &'static str,
+   |     ^^^^^ resolves to `&'static str`
+   |
+   = note: component text is runtime presentation data and must remain replaceable by localization
+   = help: use `TextProp` for displayed text, `String` for technical values, or a domain enum for closed behavior
+   = note: `#[warn(rlib::leptos_static_str_component_props)]` on by default
+
+warning: component prop `direct` carries `&'static str`
+  --> $DIR/semantic.rs:26:5
+   |
+LL |     direct: &'static str,
+   |     ^^^^^^ resolves to `&'static str`
+   |
+   = note: component text is runtime presentation data and must remain replaceable by localization
+   = help: use `TextProp` for displayed text, `String` for technical values, or a domain enum for closed behavior
+
+warning: component prop `aliased` carries `&'static str`
+  --> $DIR/semantic.rs:27:5
+   |
+LL |     aliased: StaticText,
+   |     ^^^^^^^ resolves to `&'static str`
+   |
+   = note: component text is runtime presentation data and must remain replaceable by localization
+   = help: use `TextProp` for displayed text, `String` for technical values, or a domain enum for closed behavior
+
+warning: component prop `optional` carries `&'static str`
+  --> $DIR/semantic.rs:28:5
+   |
+LL |     optional: Option<&'static str>,
+   |     ^^^^^^^^ resolves to `std::option::Option<&'static str>`
+   |
+   = note: component text is runtime presentation data and must remain replaceable by localization
+   = help: use `TextProp` for displayed text, `String` for technical values, or a domain enum for closed behavior
+
+warning: component prop `signal` carries `&'static str`
+  --> $DIR/semantic.rs:29:5
+   |
+LL |     signal: Signal<&'static str>,
+   |     ^^^^^^ resolves to `leptos::prelude::Signal<&'static str>`
+   |
+   = note: component text is runtime presentation data and must remain replaceable by localization
+   = help: use `TextProp` for displayed text, `String` for technical values, or a domain enum for closed behavior
+
+warning: component prop `callback` carries `&'static str`
+  --> $DIR/semantic.rs:30:5
+   |
+LL |     callback: Callback<&'static str>,
+   |     ^^^^^^^^ resolves to `leptos::prelude::Callback<&'static str>`
+   |
+   = note: component text is runtime presentation data and must remain replaceable by localization
+   = help: use `TextProp` for displayed text, `String` for technical values, or a domain enum for closed behavior
+
+warning: component prop `tuple` carries `&'static str`
+  --> $DIR/semantic.rs:31:5
+   |
+LL |     tuple: (u8, &'static str),
+   |     ^^^^^ resolves to `(u8, &'static str)`
+   |
+   = note: component text is runtime presentation data and must remain replaceable by localization
+   = help: use `TextProp` for displayed text, `String` for technical values, or a domain enum for closed behavior
+
+warning: component prop `carrier` carries `&'static str`
+  --> $DIR/semantic.rs:32:5
+   |
+LL |     carrier: TextCarrier,
+   |     ^^^^^^^ resolves to `TextCarrier`
+   |
+   = note: component text is runtime presentation data and must remain replaceable by localization
+   = help: use `TextProp` for displayed text, `String` for technical values, or a domain enum for closed behavior
+
+warning: 8 warnings emitted
+

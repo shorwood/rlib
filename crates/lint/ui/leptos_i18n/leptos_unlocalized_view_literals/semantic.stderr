@@ -1,0 +1,84 @@
+warning: user-visible view literal bypasses localization
+  --> $DIR/semantic.rs:19:15
+   |
+LL |         <main aria-label="Migration dashboard">
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ literal `Migration dashboard` is presentation text
+   |
+   = note: even initially fixed interface text must react to the user's selected locale
+   = help: move this phrase into a locale catalog and render it through the localization runtime
+   = note: `#[warn(rlib::leptos_unlocalized_view_literals)]` on by default
+
+warning: user-visible view literal bypasses localization
+  --> $DIR/semantic.rs:20:20
+   |
+LL |             <input placeholder="Search systems…" title="System search"/>
+   |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ literal `Search systems…` is presentation text
+   |
+   = note: even initially fixed interface text must react to the user's selected locale
+   = help: move this phrase into a locale catalog and render it through the localization runtime
+
+warning: user-visible view literal bypasses localization
+  --> $DIR/semantic.rs:20:50
+   |
+LL |             <input placeholder="Search systems…" title="System search"/>
+   |                                                  ^^^^^^^^^^^^^^^^^^^^^ literal `System search` is presentation text
+   |
+   = note: even initially fixed interface text must react to the user's selected locale
+   = help: move this phrase into a locale catalog and render it through the localization runtime
+
+warning: user-visible view literal bypasses localization
+  --> $DIR/semantic.rs:21:18
+   |
+LL |             <img alt="Campaign progress"/>
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^ literal `Campaign progress` is presentation text
+   |
+   = note: even initially fixed interface text must react to the user's selected locale
+   = help: move this phrase into a locale catalog and render it through the localization runtime
+
+warning: user-visible view literal bypasses localization
+  --> $DIR/semantic.rs:22:28
+   |
+LL |             <button><span/>"Save changes"</button>
+   |                            ^^^^^^^^^^^^^^ literal `Save changes` is presentation text
+   |
+   = note: even initially fixed interface text must react to the user's selected locale
+   = help: move this phrase into a locale catalog and render it through the localization runtime
+
+warning: user-visible view literal bypasses localization
+  --> $DIR/semantic.rs:23:19
+   |
+LL |             <Card label="Attention" description="Items needing action"/>
+   |                   ^^^^^^^^^^^^^^^^^ literal `Attention` is presentation text
+   |
+   = note: even initially fixed interface text must react to the user's selected locale
+   = help: move this phrase into a locale catalog and render it through the localization runtime
+
+warning: user-visible view literal bypasses localization
+  --> $DIR/semantic.rs:23:37
+   |
+LL |             <Card label="Attention" description="Items needing action"/>
+   |                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ literal `Items needing action` is presentation text
+   |
+   = note: even initially fixed interface text must react to the user's selected locale
+   = help: move this phrase into a locale catalog and render it through the localization runtime
+
+warning: user-visible view literal bypasses localization
+  --> $DIR/semantic.rs:24:18
+   |
+LL |             <div data-label="Owner">"Assigned team"</div>
+   |                  ^^^^^^^^^^^^^^^^^^ literal `Owner` is presentation text
+   |
+   = note: even initially fixed interface text must react to the user's selected locale
+   = help: move this phrase into a locale catalog and render it through the localization runtime
+
+warning: user-visible view literal bypasses localization
+  --> $DIR/semantic.rs:24:37
+   |
+LL |             <div data-label="Owner">"Assigned team"</div>
+   |                                     ^^^^^^^^^^^^^^^ literal `Assigned team` is presentation text
+   |
+   = note: even initially fixed interface text must react to the user's selected locale
+   = help: move this phrase into a locale catalog and render it through the localization runtime
+
+warning: 9 warnings emitted
+

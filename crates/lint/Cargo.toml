@@ -8,11 +8,12 @@ publish = false
 crate-type = ["cdylib"]
 
 [features]
-default = ["leptos"]
+default = ["leptos_i18n"]
 framework = []
 bon = []
 derive_more = ["framework", "dep:quote", "dep:syn"]
 leptos = ["dep:leptosfmt-formatter", "dep:proc-macro2", "dep:quote", "dep:rstml", "dep:syn"]
+leptos_i18n = ["leptos"]
 leptos_styling = ["leptos", "dep:malva", "dep:raffia"]
 miette = ["dep:syn"]
 serde = ["dep:syn"]
@@ -539,6 +540,11 @@ path = "ui/leptos/leptos_server_functions_without_authorization_boundaries/seman
 required-features = ["leptos"]
 
 [[example]]
+name = "leptos_static_str_component_props"
+path = "ui/leptos/leptos_static_str_component_props/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_unsanitized_inner_html"
 path = "ui/leptos/leptos_unsanitized_inner_html/semantic.rs"
 required-features = ["leptos"]
@@ -547,6 +553,11 @@ required-features = ["leptos"]
 name = "leptos_unkeyed_reactive_collections"
 path = "ui/leptos/leptos_unkeyed_reactive_collections/semantic.rs"
 required-features = ["leptos"]
+
+[[example]]
+name = "leptos_unlocalized_view_literals"
+path = "ui/leptos_i18n/leptos_unlocalized_view_literals/semantic.rs"
+required-features = ["leptos_i18n"]
 
 [[example]]
 name = "leptos_unreactive_signal_reads_in_views"

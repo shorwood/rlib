@@ -1,4 +1,4 @@
-pub(super) mod utils;
+pub mod utils;
 pub mod leptos_attribute_bound_controlled_inputs;
 pub mod leptos_boolean_component_props;
 pub mod leptos_duplicate_view_section_comments;
@@ -29,6 +29,7 @@ pub mod leptos_reactive_writes_in_resource_fetchers;
 pub mod leptos_repeated_view_fragments;
 pub mod leptos_resource_fetchers_rereading_sources;
 pub mod leptos_server_functions_without_authorization_boundaries;
+pub mod leptos_static_str_component_props;
 pub mod leptos_unsanitized_inner_html;
 pub mod leptos_unkeyed_reactive_collections;
 pub mod leptos_unnamed_composables;

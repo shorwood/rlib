@@ -8,6 +8,7 @@ use rustc_hir::{HirId, Item, ItemKind, PatKind};
 use rustc_lint::LateContext;
 use rustc_middle::ty::{self, FieldDef, GenericArgsRef, Ty};
 use rustc_span::def_id::DefId;
+use rustc_span::hygiene::{ExpnKind, MacroKind};
 use rustc_span::{Span, Symbol};
 
 // -----------------------------------------------------------------------------
@@ -98,6 +99,44 @@ impl ComponentProps {
             properties.push(Self::property(cx, owner, field, arguments, binding));
         }
         Some(properties)
+    }
+
+    /// Returns the authored fields represented by a generated Leptos slot structure.
+    pub fn from_slot<'tcx>(
+        cx: &LateContext<'tcx>,
+        item: &Item<'tcx>,
+    ) -> Option<Vec<ComponentProp<'tcx>>> {
+        // Only the direct structure emitted by the attribute macro represents the slot API.
+        let ItemKind::Struct(..) = item.kind else {
+            return None;
+        };
+        let is_slot = item.span.macro_backtrace().next().is_some_and(|expansion| {
+            matches!(
+                expansion.kind,
+                ExpnKind::Macro(MacroKind::Attr, name) if name.as_str() == "slot"
+            )
+        });
+
+        // A generated struct from another macro does not describe a Leptos slot.
+        if !is_slot {
+            return None;
+        }
+
+        // Recover the generated aggregate and its identity generic arguments.
+        let self_ty = cx.tcx.type_of(item.owner_id.def_id).instantiate_identity();
+
+        // A slot macro must generate an aggregate type whose fields can be inspected.
+        let ty::Adt(definition, arguments) = self_ty.kind() else {
+            return None;
+        };
+
+        // Preserve authored field spans and semantic types for the policy lint family.
+        Some(
+            definition
+                .all_fields()
+                .map(|field| Self::property(cx, item, field, arguments, item.hir_id()))
+                .collect(),
+        )
     }
 
     /// Returns whether a prop directly or through an accepted wrapper carries boolean state.

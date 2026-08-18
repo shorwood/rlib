@@ -125,20 +125,45 @@ impl ViewScope {
 }
 
 // -----------------------------------------------------------------------------
-// ViewStructureAnalysis: Complete authored view model
+// ViewStructure: Complete authored view model
 // -----------------------------------------------------------------------------
 
+/// Presentation context for one literal recovered from an authored view.
+#[derive(Clone)]
+pub enum LiteralContext {
+    /// Text directly visible between tags.
+    Text,
+    /// A literal assigned to an attribute or component prop.
+    Attribute(
+        /// Authored attribute or property name.
+        String,
+    ),
+}
+
+/// One authored literal that may require localization.
+#[derive(Clone)]
+pub struct Literal {
+    /// Exact authored literal span.
+    pub(crate) span: Span,
+    /// Decoded literal value.
+    pub(crate) value: String,
+    /// Markup context that determines whether the value is translatable.
+    pub(crate) context: LiteralContext,
+}
+
 /// Parsed authored structure for one `view!` call.
-pub struct ViewStructureAnalysis {
+pub struct Analysis {
     /// Expanded expression used to honor local lint attributes.
     pub(crate) owner: HirId,
     /// Direct sibling scopes found in the authored view.
     pub(crate) scopes: Vec<ViewScope>,
     /// Opening tags and their authored attributes.
     pub(crate) elements: Vec<ViewElement>,
+    /// Visible text and translatable literal attributes found in the authored view.
+    pub(crate) literals: Vec<Literal>,
 }
 
-impl ViewStructureAnalysis {
+impl Analysis {
     /// Parses the same RSX token tree as Leptos and overlays authored Rust comments.
     fn parse(span: Span, owner: HirId, source: &str) -> Option<Self> {
         // Invalid macro syntax cannot provide an authored view structure.
@@ -167,6 +192,7 @@ impl ViewStructureAnalysis {
             comments: &comments,
             scopes: Vec::new(),
             elements: Vec::new(),
+            literals: Vec::new(),
         };
 
         builder.collect_scope(&nodes, bounds);
@@ -174,6 +200,7 @@ impl ViewStructureAnalysis {
             owner,
             scopes: builder.scopes,
             elements: builder.elements,
+            literals: builder.literals,
         })
     }
 }
@@ -396,7 +423,7 @@ impl ViewCallSites {
         &mut self,
         cx: &LateContext<'_>,
         expression: &Expr<'_>,
-    ) -> Option<ViewStructureAnalysis> {
+    ) -> Option<Analysis> {
         let span = expression.span.macro_backtrace().find_map(|expansion| {
             matches!(expansion.kind, ExpnKind::Macro(MacroKind::Bang, name) if name.as_str() == "view")
                 .then_some(expansion.call_site)
@@ -416,7 +443,7 @@ impl ViewCallSites {
             // Source recovery failure leaves no text or comment positions to model.
             Err(_error) => return None,
         };
-        ViewStructureAnalysis::parse(span, expression.hir_id, &source)
+        Analysis::parse(span, expression.hir_id, &source)
     }
 }
 
@@ -436,6 +463,8 @@ struct ViewScopeBuilder<'source> {
     scopes: Vec<ViewScope>,
     /// Completed authored opening tags.
     elements: Vec<ViewElement>,
+    /// Presentation literals collected across every descendant scope.
+    literals: Vec<Literal>,
 }
 
 impl ViewScopeBuilder<'_> {
@@ -547,6 +576,13 @@ impl ViewScopeBuilder<'_> {
                 let (name, category, complexity) = match attribute {
                     NodeAttribute::Attribute(attribute) => {
                         let name = attribute.key.to_string();
+                        if let Some(value) = attribute.value_literal_string() {
+                            self.literals.push(Literal {
+                                span: self.to_rustc_span(&range),
+                                value,
+                                context: LiteralContext::Attribute(name.clone()),
+                            });
+                        }
                         let category = ViewAttributeCategory::attribute_category(&name);
                         let complexity =
                             1 + usize::from(category == ViewAttributeCategory::Behavior);
@@ -614,6 +650,26 @@ impl ViewScopeBuilder<'_> {
             nodes: projected,
             headings,
         });
+
+        for node in &direct {
+            let (value, range) = match node {
+                Node::Text(text) => (text.value_string(), text.span().byte_range()),
+                Node::RawText(text) => (
+                    text.to_source_text(false)
+                        .unwrap_or_else(|| text.to_token_stream_string()),
+                    text.span().byte_range(),
+                ),
+                _ => continue,
+            };
+            if range.start >= range.end || range.end > self.source.len() {
+                continue;
+            }
+            self.literals.push(Literal {
+                span: self.to_rustc_span(&range),
+                value,
+                context: LiteralContext::Text,
+            });
+        }
 
         // Every element child list is an independent direct sibling scope.
         for node in direct {
@@ -765,11 +821,11 @@ impl ViewSourceComment {
 mod tests {
     use std::str::FromStr;
 
-    use super::ViewStructureAnalysis;
+    use super::Analysis;
     use super::rustc_hir::CRATE_HIR_ID;
     use super::rustc_span::{BytePos, Span};
 
-    impl FromStr for ViewStructureAnalysis {
+    impl FromStr for Analysis {
         type Err = &'static str;
 
         fn from_str(source: &str) -> Result<Self, Self::Err> {
@@ -789,7 +845,7 @@ mod tests {
     fn delegates_nested_elements_blocks_and_attributes_to_rstml() {
         let parsed =
             "view! { <main><Header/><Show when=yes on:click=run><Body/></Show>{value}</main> }"
-                .parse::<ViewStructureAnalysis>()
+                .parse::<Analysis>()
                 .expect("representative view should parse");
         let complexities = parsed
             .scopes
@@ -804,7 +860,7 @@ mod tests {
     #[test]
     fn fragments_are_transparent_and_comments_attach_to_nodes() {
         let parsed = "view! { <>// Account navigation\n<Nav/><Crumbs/></> }"
-            .parse::<ViewStructureAnalysis>()
+            .parse::<Analysis>()
             .expect("representative view should parse");
         assert_eq!(parsed.scopes[0].nodes.len(), 2);
         assert_eq!(parsed.scopes[0].headings[0].node, Some(0));
@@ -813,7 +869,7 @@ mod tests {
     #[test]
     fn retains_stranded_direct_boundary_comments() {
         let parsed = "view! { <main><Content/> // Stranded heading\n</main> }"
-            .parse::<ViewStructureAnalysis>()
+            .parse::<Analysis>()
             .expect("representative view should parse");
         let scope = &parsed.scopes[1];
         assert_eq!(scope.headings.len(), 1);
@@ -824,7 +880,7 @@ mod tests {
     #[test]
     fn rust_blocks_can_contain_markup_like_strings_and_nested_macros() {
         let parsed = r#"view! { {format!("<Fake/>")} <Real value=move || call()/> }"#
-            .parse::<ViewStructureAnalysis>()
+            .parse::<Analysis>()
             .expect("representative view should parse");
         assert_eq!(parsed.scopes[0].nodes.len(), 2);
         assert_eq!(parsed.scopes[0].nodes[1].name.as_deref(), Some("Real"));
@@ -834,7 +890,7 @@ mod tests {
     fn mirrors_global_class_prelude_and_preserves_source_spans() {
         let source = r#"view! { class="shell", <main><Child/></main> }"#;
         let parsed = source
-            .parse::<ViewStructureAnalysis>()
+            .parse::<Analysis>()
             .expect("representative view should parse");
         let main = &parsed.scopes[0].nodes[0];
         assert_eq!(&source[main.range.clone()], "<main><Child/></main>");

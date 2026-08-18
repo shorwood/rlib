@@ -233,7 +233,7 @@ const FIXTURE_LEPTOS_GENERATED_CORE_LINT_ALLOWS: [&str; 20] = [
 
 /// New source-wide policies excluded from the pre-existing Leptos fixture snapshots.
 #[cfg(feature = "leptos")]
-const FIXTURE_LEPTOS_SOURCE_POLICY_ALLOWS: [&str; 34] = [
+const FIXTURE_LEPTOS_SOURCE_POLICY_ALLOWS: [&str; 38] = [
     "-A",
     "rlib::leptos_noncanonical_view_formatting",
     "-A",
@@ -252,6 +252,10 @@ const FIXTURE_LEPTOS_SOURCE_POLICY_ALLOWS: [&str; 34] = [
     "rlib::leptos_oversized_reactive_setups",
     "-A",
     "rlib::leptos_repeated_view_fragments",
+    "-A",
+    "rlib::leptos_static_str_component_props",
+    "-A",
+    "rlib::leptos_unlocalized_view_literals",
     "-A",
     "rlib::leptos_unnamed_composables",
     "-A",
@@ -285,6 +289,15 @@ const FIXTURE_LEPTOS_STYLING_POLICY_ALLOWS: [&str; 12] = [
     "rlib::leptos_styling_unused_stylesheet_classes",
     "-A",
     "rlib::leptos_styling_untyped_component_classes",
+];
+
+/// Localization lint excluded while non-localization Leptos fixtures isolate their own warning.
+#[cfg(feature = "leptos")]
+const FIXTURE_LEPTOS_I18N_POLICY_ALLOWS: [&str; 4] = [
+    "-A",
+    "unknown_lints",
+    "-A",
+    "rlib::leptos_unlocalized_view_literals",
 ];
 
 /// Makes Dylint's internal `cargo build` preserve the test process's feature set.
@@ -761,6 +774,33 @@ fn fixture_run_leptos_authorization() {
     .run();
 }
 
+/// Runs the source-wide Leptos architecture fixtures.
+#[cfg(feature = "leptos")]
+fn fixture_run_leptos_architecture(selected: Option<&str>) {
+    for example in [
+        "leptos_excessive_component_composition_depth",
+        "leptos_excessive_component_props",
+        "leptos_excessively_nested_views",
+        "leptos_fragmented_reactive_state",
+        "leptos_overpopulated_component_modules",
+        "leptos_oversized_event_handlers",
+        "leptos_oversized_reactive_setups",
+        "leptos_repeated_view_fragments",
+        "leptos_unnamed_composables",
+        "leptos_unscoped_spawned_tasks",
+    ] {
+        if selected.is_some_and(|selected| selected != example) {
+            continue;
+        }
+        Test::example(env!("CARGO_PKG_NAME"), example)
+            .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
+            .rustc_flags(FIXTURE_LEPTOS_GENERATED_CORE_LINT_ALLOWS)
+            .rustc_flags(FIXTURE_LEPTOS_STYLING_POLICY_ALLOWS)
+            .rustc_flags(FIXTURE_LEPTOS_I18N_POLICY_ALLOWS)
+            .run();
+    }
+}
+
 /// Runs all Cargo examples that need dependency linking or macro expansion.
 #[cfg(feature = "leptos")]
 fn fixture_run_leptos() {
@@ -814,21 +854,11 @@ fn fixture_run_leptos() {
         )
         .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
         .rustc_flags(FIXTURE_LEPTOS_GENERATED_CORE_LINT_ALLOWS)
+        .rustc_flags(FIXTURE_LEPTOS_I18N_POLICY_ALLOWS)
         .run();
     }
 
-    for example in [
-        "leptos_excessive_component_composition_depth",
-        "leptos_excessive_component_props",
-        "leptos_excessively_nested_views",
-        "leptos_fragmented_reactive_state",
-        "leptos_overpopulated_component_modules",
-        "leptos_oversized_event_handlers",
-        "leptos_oversized_reactive_setups",
-        "leptos_repeated_view_fragments",
-        "leptos_unnamed_composables",
-        "leptos_unscoped_spawned_tasks",
-    ] {
+    for example in ["leptos_static_str_component_props"] {
         if selected
             .as_deref()
             .is_some_and(|selected| selected != example)
@@ -838,9 +868,20 @@ fn fixture_run_leptos() {
         Test::example(env!("CARGO_PKG_NAME"), example)
             .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
             .rustc_flags(FIXTURE_LEPTOS_GENERATED_CORE_LINT_ALLOWS)
-            .rustc_flags(FIXTURE_LEPTOS_STYLING_POLICY_ALLOWS)
+            .rustc_flags([
+                "-A",
+                "rlib::leptos_excessive_component_props",
+                "-A",
+                "rlib::leptos_noncanonical_view_formatting",
+                "-A",
+                "rlib::leptos_overpopulated_component_modules",
+                "-A",
+                "rlib::leptos_unlocalized_view_literals",
+            ])
             .run();
     }
+
+    fixture_run_leptos_architecture(selected.as_deref());
 
     // Selective UI runs skip this authorization fixture unless its lint was requested.
     if selected.as_deref().is_some_and(|selected| {
@@ -849,6 +890,46 @@ fn fixture_run_leptos() {
         return;
     }
     fixture_run_leptos_authorization();
+}
+
+/// Runs the localization example with unrelated Leptos policies disabled.
+#[cfg(feature = "leptos_i18n")]
+fn fixture_run_leptos_i18n_example() {
+    Test::example(env!("CARGO_PKG_NAME"), "leptos_unlocalized_view_literals")
+        .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
+        .rustc_flags(FIXTURE_LEPTOS_GENERATED_CORE_LINT_ALLOWS)
+        .rustc_flags([
+            "-A",
+            "rlib::leptos_duplicate_view_section_comments",
+            "-A",
+            "rlib::leptos_missing_view_attribute_group_comments",
+            "-A",
+            "rlib::leptos_missing_view_section_comments",
+            "-A",
+            "rlib::leptos_noncanonical_view_formatting",
+            "-A",
+            "rlib::leptos_overpopulated_component_modules",
+            "-A",
+            "rlib::leptos_oversized_view_attribute_groups",
+            "-A",
+            "rlib::leptos_repeated_view_fragments",
+        ])
+        .run();
+}
+
+/// Runs localization-specific Leptos fixtures in their own feature layer.
+#[cfg(feature = "leptos_i18n")]
+fn fixture_run_leptos_i18n() {
+    let selected = fixture_selected_framework();
+
+    // A focused run for another lint must not execute the localization fixture.
+    if selected
+        .as_deref()
+        .is_some_and(|selected| selected != "leptos_unlocalized_view_literals")
+    {
+        return;
+    }
+    fixture_run_leptos_i18n_example();
 }
 
 /// Runs source-oriented styling fixtures with only their sibling policies suppressed in-source.
@@ -872,6 +953,7 @@ fn fixture_run_leptos_styling() {
         Test::example(env!("CARGO_PKG_NAME"), example)
             .rustc_flags(FIXTURE_CROSS_CUTTING_LINT_ALLOWS)
             .rustc_flags(FIXTURE_LEPTOS_GENERATED_CORE_LINT_ALLOWS)
+            .rustc_flags(FIXTURE_LEPTOS_I18N_POLICY_ALLOWS)
             .run();
     }
 }
@@ -1013,6 +1095,8 @@ fn fixture_ui() {
     fixture_run_strum();
     #[cfg(feature = "leptos")]
     fixture_run_leptos();
+    #[cfg(feature = "leptos_i18n")]
+    fixture_run_leptos_i18n();
     #[cfg(feature = "leptos_styling")]
     fixture_run_leptos_styling();
     #[cfg(feature = "bon")]

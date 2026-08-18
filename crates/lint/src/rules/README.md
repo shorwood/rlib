@@ -42,6 +42,7 @@ it is allowed, shown as a warning, or treated as an error.
 | [Derive More](./derive_more/README.md) | `derive_more` | Rules that compare hand-written trait code with Derive More and protect invariants when derives create new operations. |
 | [Framework](./framework/README.md) | `framework` | Rules that ask projects to choose which derive crate owns an overlapping generated interface. |
 | [Leptos](./leptos/README.md) | `leptos` | Rules for Leptos components, views, reactivity, event handlers, resources, and server functions. |
+| [Leptos i18n](./leptos_i18n/README.md) | `leptos_i18n` | Rules that keep user-visible Leptos text in the localization catalog. |
 | [Leptos Styling](./leptos_styling/README.md) | `leptos_styling` | Rules for colocated, scoped, typed, and consistently formatted Leptos component styles. |
 | [Miette](./miette/README.md) | `miette` | Rules for useful, safe, and consistent Miette diagnostics. |
 | [Serde](./serde/README.md) | `serde` | Rules for stable Serde data formats and round-trip behavior. |

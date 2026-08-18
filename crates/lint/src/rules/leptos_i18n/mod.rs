@@ -1,0 +1,1 @@
+pub mod leptos_unlocalized_view_literals;
