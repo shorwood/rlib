@@ -6,7 +6,7 @@ LL |     error.to_string() == "not found"
    |
    = note: this string comparison makes control flow depend on presentation text instead of the error's typed identity
    = help: match the typed error variant or introduce an explicit stable diagnostic code
-   = note: `#[warn(rlib::thiserror_error_messages_used_as_identifiers)]` on by default
+   = note: requested on the command line with `-W rlib::thiserror-error-messages-used-as-identifiers`
 
 warning: thiserror display text is used as machine identity
   --> $DIR/semantic.rs:14:5

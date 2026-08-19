@@ -11,7 +11,7 @@ LL | | }
    |
    = note: `is_human_readable()` selects different string and binary Serde data-model shapes
    = help: use one portable Serde shape, or move this policy into a documented format-specific wrapper
-   = note: `#[warn(rlib::serde_format_specific_serde_impls)]` on by default
+   = note: requested on the command line with `-W rlib::serde-format-specific-serde-impls`
 
 warning: generic Serde `Serialize` for `UnrelatedDocumentation` embeds format-specific behavior
   --> $DIR/semantic.rs:34:1

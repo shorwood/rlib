@@ -6,7 +6,7 @@ LL | #[bon::builder]
    |
    = note: this small internal API gains no optionality, default, conversion, or staging benefit from generated typestate
    = help: remove `#[bon::builder]` and retain the direct function call
-   = note: `#[warn(rlib::bon_needless_builders_for_small_apis)]` on by default
+   = note: requested on the command line with `-W rlib::bon-needless-builders-for-small-apis`
 
 warning: private Bon builder wraps only 1 required parameter
   --> $DIR/semantic.rs:12:1

@@ -7,7 +7,7 @@ LL |         matches!(self, Self::Write(_))
    = note: the complete one-variant predicate family duplicates enum variant identity
    = note: these predicates are public; generated visibility and method names require a compatibility review
    = help: derive `derive_more::IsVariant` and remove the equivalent inherent predicate family
-   = note: `#[warn(rlib::derive_more_manual_variant_accessors)]` on by default
+   = note: requested on the command line with `-W rlib::derive-more-manual-variant-accessors`
 
 warning: 1 warning emitted
 

@@ -1,0 +1,728 @@
+# Shared compiler policy for every fixture.
+rustc-flags = [
+    "-Zcrate-attr=feature(register_tool)",
+    "-Zcrate-attr=register_tool(rlib)",
+    "-A",
+    "duplicate_features",
+    "-A",
+    "rlib::all",
+]
+
+# Direct rustc fixtures share one source inventory and a small explicit cross-fixture lint set.
+core-rustc-flags = ["--edition=2024"]
+core-lints = [
+    "bool_fields_without_predicate_prefix",
+    "collection_method_like_free_functions",
+    "cross_file_struct_impls",
+    "invalid_barrel_file_items",
+    "method_like_free_functions",
+    "mixed_module_file_layouts",
+    "needless_function_wrappers",
+    "non_adjacent_struct_impls",
+]
+
+# Every direct child directory of ui/core must appear here exactly once.
+core = [
+    "ad_hoc_collection_construction",
+    "ad_hoc_conversions",
+    "ad_hoc_equality",
+    "ad_hoc_error_interfaces",
+    "ad_hoc_formatting",
+    "ad_hoc_iterators",
+    "ad_hoc_ordering",
+    "ad_hoc_string_parsers",
+    "ambiguous_primitive_parameters",
+    "bare_tuple_types",
+    "bidirectional_module_dependencies",
+    "bool_fields_without_predicate_prefix",
+    "boolean_function_arguments",
+    "collection_method_like_free_functions",
+    "constructor_like_free_functions",
+    "cross_file_struct_impls",
+    "deeply_nested_control_flow",
+    "discarded_results",
+    "documentation_after_attributes",
+    "duplicate_section_divider_prefixes",
+    "fallible_values_replaced_with_defaults",
+    "foreign_type_method_like_free_functions",
+    "function_local_items",
+    "implicit_first_wins_deduplication",
+    "incoherent_extension_traits",
+    "incoherent_type_family_names",
+    "invalid_barrel_file_items",
+    "long_method_chains",
+    "malformed_code_phase_comments",
+    "malformed_section_dividers",
+    "method_like_free_functions",
+    "mismatched_section_divider_prefixes",
+    "misordered_inherent_impl_items",
+    "misordered_module_declarations",
+    "misordered_test_declarations",
+    "misordered_type_declarations",
+    "missing_code_phase_comments",
+    "missing_section_dividers",
+    "mixed_module_file_layouts",
+    "needless_delegating_types",
+    "needless_function_wrappers",
+    "needlessly_nested_control_flow",
+    "nested_tuple_types",
+    "non_adjacent_extension_trait_impls",
+    "non_adjacent_struct_impls",
+    "non_defining_module_reexports",
+    "noncanonical_restricted_visibility",
+    "overloaded_declaration_sections",
+    "oversized_match_arms",
+    "positional_aggregate_fields",
+    "repeated_identical_statements",
+    "results_converted_to_options",
+    "revalidated_string_parameters",
+    "single_implementation_traits",
+    "stringly_typed_domain_function_families",
+    "unconsumed_generic_abstractions",
+    "undocumented_early_returns",
+    "undocumented_items",
+    "unencapsulated_binary_enum_classification",
+    "unnamed_policy_literals",
+    "unnecessarily_broad_visibility",
+    "unparenthesized_mixed_boolean_operators",
+    "unseparated_associated_items",
+    "unseparated_module_items",
+    "visibility_required_only_by_tests",
+]
+
+# Every Cargo [[example]] target must appear below exactly once.
+[[example]]
+name = "bon_builders_bypassing_construction_invariants"
+lints = ["bon_builders_bypassing_construction_invariants"]
+
+[[example]]
+name = "bon_escaping_incomplete_builders"
+lints = ["bon_escaping_incomplete_builders"]
+
+[[example]]
+name = "bon_implicit_optional_builder_members"
+lints = ["bon_implicit_optional_builder_members"]
+
+[[example]]
+name = "bon_incoherent_builder_vocabulary"
+lints = ["bon_incoherent_builder_vocabulary"]
+
+[[example]]
+name = "bon_incoherent_conditional_builder_members"
+lints = ["bon_incoherent_conditional_builder_members"]
+
+[[example]]
+name = "bon_inconsistent_builder_conversions"
+lints = ["bon_inconsistent_builder_conversions"]
+
+[[example]]
+name = "bon_manual_builder_implementations"
+lints = ["bon_manual_builder_implementations"]
+
+[[example]]
+name = "bon_needless_builders_for_small_apis"
+lints = ["bon_needless_builders_for_small_apis"]
+
+[[example]]
+name = "bon_parameter_heavy_apis_without_builders"
+lints = ["bon_parameter_heavy_apis_without_builders"]
+
+[[example]]
+name = "bon_public_builder_implementation_types"
+lints = ["bon_public_builder_implementation_types"]
+
+[[example]]
+name = "bon_redundant_positional_and_builder_apis"
+lints = ["bon_redundant_positional_and_builder_apis"]
+
+[[example]]
+name = "bon_required_builder_members_breaking_compatibility"
+lints = ["bon_required_builder_members_breaking_compatibility"]
+dylint-toml = '''
+[rlib-lint]
+bon-api-baseline = [
+    { builder = "Request", members = ["host"] },
+    { builder = "upload", members = ["path"] },
+    { builder = "Client::connect", members = ["host"] },
+]
+'''
+
+[[example]]
+name = "bon_skipped_builder_members_without_policy"
+lints = ["bon_skipped_builder_members_without_policy"]
+
+[[example]]
+name = "bon_undocumented_builder_members"
+lints = ["bon_undocumented_builder_members"]
+
+[[example]]
+name = "derive_more_derived_constructors_bypassing_invariants"
+lints = ["derive_more_derived_constructors_bypassing_invariants"]
+
+[[example]]
+name = "derive_more_derived_conversions_bypassing_invariants"
+lints = ["derive_more_derived_conversions_bypassing_invariants"]
+
+[[example]]
+name = "derive_more_ambiguous_derived_error_sources"
+lints = ["derive_more_ambiguous_derived_error_sources"]
+
+[[example]]
+name = "derive_more_inconsistent_derived_equality"
+lints = ["derive_more_inconsistent_derived_equality"]
+
+[[example]]
+name = "derive_more_manual_conversion_impls"
+lints = ["derive_more_manual_conversion_impls"]
+
+[[example]]
+name = "derive_more_manual_constructors"
+lints = ["derive_more_manual_constructors"]
+
+[[example]]
+name = "derive_more_manual_aggregation_impls"
+lints = ["derive_more_manual_aggregation_impls"]
+
+[[example]]
+name = "derive_more_manual_equality_impls"
+lints = ["derive_more_manual_equality_impls"]
+
+[[example]]
+name = "derive_more_manual_error_impls"
+lints = ["derive_more_manual_error_impls"]
+dylint-toml = '''
+[rlib-lint]
+error-implementation-provider = "derive_more_error"
+'''
+
+[[example]]
+name = "derive_more_manual_forwarding_interfaces"
+lints = ["derive_more_manual_forwarding_interfaces"]
+
+[[example]]
+name = "derive_more_manual_formatting_impls"
+lints = ["derive_more_manual_formatting_impls"]
+
+[[example]]
+name = "derive_more_manual_from_str_impls"
+lints = ["derive_more_manual_from_str_impls"]
+
+[[example]]
+name = "derive_more_manual_into_iterator_impls"
+lints = ["derive_more_manual_into_iterator_impls"]
+
+[[example]]
+name = "derive_more_manual_operator_impls"
+lints = ["derive_more_manual_operator_impls"]
+
+[[example]]
+name = "derive_more_manual_variant_accessors"
+lints = ["derive_more_manual_variant_accessors"]
+dylint-toml = '''
+[rlib-lint]
+enum-variant-predicate-provider = "derive_more_is_variant"
+'''
+
+[[example]]
+name = "derive_more_mutable_forwarding_bypassing_invariants"
+lints = ["derive_more_mutable_forwarding_bypassing_invariants"]
+
+[[example]]
+name = "derive_more_non_roundtripping_derived_text_contracts"
+lints = ["derive_more_non_roundtripping_derived_text_contracts"]
+
+[[example]]
+name = "derive_more_opaque_derived_display_contracts"
+lints = ["derive_more_opaque_derived_display_contracts"]
+
+[[example]]
+name = "derive_more_operator_derives_bypassing_invariants"
+lints = ["derive_more_operator_derives_bypassing_invariants"]
+
+[[example]]
+name = "derive_more_panic_prone_derived_variant_accessors"
+lints = ["derive_more_panic_prone_derived_variant_accessors"]
+
+[[example]]
+name = "serde_duplicate_serialized_names"
+lints = ["serde_duplicate_serialized_names"]
+
+[[example]]
+name = "serde_manual_serialize_impls"
+lints = ["serde_manual_serialize_impls"]
+
+[[example]]
+name = "serde_non_roundtripping_serde_adapters"
+lints = ["serde_non_roundtripping_serde_adapters"]
+
+[[example]]
+name = "serde_unstable_implicit_wire_names"
+lints = ["serde_unstable_implicit_wire_names"]
+
+[[example]]
+name = "serde_flattened_unknown_field_policies"
+lints = ["serde_flattened_unknown_field_policies"]
+
+[[example]]
+name = "serde_ambiguous_untagged_enums"
+lints = ["serde_ambiguous_untagged_enums"]
+
+[[example]]
+name = "serde_catch_all_variants_hiding_schema_drift"
+lints = ["serde_catch_all_variants_hiding_schema_drift"]
+
+[[example]]
+name = "serde_flattened_field_collisions"
+lints = ["serde_flattened_field_collisions"]
+
+[[example]]
+name = "serde_sensitive_fields_serialized_by_default"
+lints = ["serde_sensitive_fields_serialized_by_default"]
+
+[[example]]
+name = "serde_format_specific_serde_impls"
+lints = ["serde_format_specific_serde_impls"]
+
+[[example]]
+name = "serde_remote_representations_drifting_from_sources"
+lints = ["serde_remote_representations_drifting_from_sources"]
+
+[[example]]
+name = "thiserror_duplicate_error_messages"
+lints = ["thiserror_duplicate_error_messages"]
+
+[[example]]
+name = "miette_ad_hoc_diagnostics_at_domain_boundaries"
+lints = ["miette_ad_hoc_diagnostics_at_domain_boundaries"]
+
+[[example]]
+name = "miette_duplicate_diagnostic_codes"
+lints = ["miette_duplicate_diagnostic_codes"]
+
+[[example]]
+name = "miette_missing_diagnostic_codes"
+lints = ["miette_missing_diagnostic_codes"]
+
+[[example]]
+name = "miette_malformed_diagnostic_codes"
+lints = ["miette_malformed_diagnostic_codes"]
+
+[[example]]
+name = "miette_unstable_diagnostic_urls"
+lints = ["miette_unstable_diagnostic_urls"]
+
+[[example]]
+name = "miette_generic_diagnostic_help"
+lints = ["miette_generic_diagnostic_help"]
+
+[[example]]
+name = "miette_labels_without_source_code"
+lints = ["miette_labels_without_source_code"]
+
+[[example]]
+name = "miette_source_code_without_labels"
+lints = ["miette_source_code_without_labels"]
+
+[[example]]
+name = "miette_unfocused_diagnostic_labels"
+lints = ["miette_unfocused_diagnostic_labels"]
+
+[[example]]
+name = "miette_sensitive_diagnostic_source"
+lints = ["miette_sensitive_diagnostic_source"]
+
+[[example]]
+name = "miette_plain_error_diagnostic_sources"
+lints = ["miette_plain_error_diagnostic_sources"]
+
+[[example]]
+name = "miette_reports_in_library_interfaces"
+lints = ["miette_reports_in_library_interfaces"]
+rustc-flags = ["--crate-type=lib"]
+
+[[example]]
+name = "miette_misclassified_related_diagnostics"
+lints = ["miette_misclassified_related_diagnostics"]
+
+[[example]]
+name = "miette_incoherent_diagnostic_severity"
+lints = ["miette_incoherent_diagnostic_severity"]
+
+[[example]]
+name = "miette_manual_diagnostic_impls"
+lints = ["miette_manual_diagnostic_impls"]
+
+[[example]]
+name = "thiserror_dynamic_errors_in_library_interfaces"
+lints = ["thiserror_dynamic_errors_in_library_interfaces"]
+
+[[example]]
+name = "thiserror_unreported_error_sources"
+lints = ["thiserror_unreported_error_sources"]
+
+[[example]]
+name = "thiserror_ambiguous_error_sources"
+lints = ["thiserror_ambiguous_error_sources"]
+
+[[example]]
+name = "thiserror_opaque_errors_exposing_representations"
+lints = ["thiserror_opaque_errors_exposing_representations"]
+
+[[example]]
+name = "thiserror_non_send_sync_public_errors"
+lints = ["thiserror_non_send_sync_public_errors"]
+
+[[example]]
+name = "thiserror_error_messages_used_as_identifiers"
+lints = ["thiserror_error_messages_used_as_identifiers"]
+
+[[example]]
+name = "thiserror_from_sources_without_context"
+lints = ["thiserror_from_sources_without_context"]
+
+[[example]]
+name = "thiserror_manual_from_error_variants"
+lints = ["thiserror_manual_from_error_variants"]
+dylint-toml = '''
+[rlib-lint]
+error-variant-conversion-provider = "thiserror_from"
+'''
+
+[[example]]
+name = "thiserror_manual_error_impls"
+lints = ["thiserror_manual_error_impls"]
+dylint-toml = '''
+[rlib-lint]
+error-implementation-provider = "thiserror_error"
+'''
+
+[[example]]
+name = "thiserror_unpropagated_error_backtraces"
+lints = ["thiserror_unpropagated_error_backtraces"]
+
+[[example]]
+name = "serde_lossy_conditional_serialization"
+lints = ["serde_lossy_conditional_serialization"]
+
+[[example]]
+name = "serde_manual_deserialize_impls"
+lints = ["serde_manual_deserialize_impls"]
+
+[[example]]
+name = "serde_deserialization_bypassing_invariants"
+lints = ["serde_deserialization_bypassing_invariants"]
+
+[[example]]
+name = "serde_defaults_hiding_missing_data"
+lints = ["serde_defaults_hiding_missing_data"]
+
+[[example]]
+name = "serde_asymmetric_serde_contracts"
+lints = ["serde_asymmetric_serde_contracts"]
+
+[[example]]
+name = "leptos_attribute_bound_controlled_inputs"
+lints = ["leptos_attribute_bound_controlled_inputs"]
+
+[[example]]
+name = "leptos_boolean_component_props"
+lints = ["leptos_boolean_component_props"]
+
+[[example]]
+name = "leptos_duplicate_view_section_comments"
+lints = ["leptos_duplicate_view_section_comments"]
+
+[[example]]
+name = "leptos_effects_synchronizing_signals"
+lints = ["leptos_effects_synchronizing_signals"]
+
+[[example]]
+name = "leptos_hydration_divergent_views"
+lints = ["leptos_hydration_divergent_views"]
+
+[[example]]
+name = "leptos_implicit_default_component_props"
+lints = ["leptos_implicit_default_component_props"]
+
+[[example]]
+name = "leptos_unstable_for_keys"
+lints = ["leptos_unstable_for_keys"]
+
+[[example]]
+name = "leptos_writable_signal_component_props"
+lints = ["leptos_writable_signal_component_props"]
+
+[[example]]
+name = "leptos_manual_resource_refetch_signals"
+lints = ["leptos_manual_resource_refetch_signals"]
+
+[[example]]
+name = "leptos_missing_view_section_comments"
+lints = ["leptos_missing_view_section_comments"]
+
+[[example]]
+name = "leptos_missing_view_attribute_group_comments"
+lints = ["leptos_missing_view_attribute_group_comments"]
+
+[[example]]
+name = "leptos_malformed_view_section_comments"
+lints = ["leptos_malformed_view_section_comments"]
+
+[[example]]
+name = "leptos_markup_repeating_view_comments"
+lints = ["leptos_markup_repeating_view_comments"]
+
+[[example]]
+name = "leptos_mismatched_view_attribute_groups"
+lints = ["leptos_mismatched_view_attribute_groups"]
+
+[[example]]
+name = "leptos_needlessly_cloned_signal_values"
+lints = ["leptos_needlessly_cloned_signal_values"]
+
+[[example]]
+name = "leptos_oversized_view_sections"
+lints = ["leptos_oversized_view_sections"]
+
+[[example]]
+name = "leptos_oversized_view_attribute_groups"
+lints = ["leptos_oversized_view_attribute_groups"]
+
+[[example]]
+name = "leptos_read_then_replace_signals"
+lints = ["leptos_read_then_replace_signals"]
+
+[[example]]
+name = "leptos_primitive_context_values"
+lints = ["leptos_primitive_context_values"]
+
+[[example]]
+name = "leptos_reactive_writes_during_view_construction"
+lints = ["leptos_reactive_writes_during_view_construction"]
+
+[[example]]
+name = "leptos_reactive_writes_in_resource_fetchers"
+lints = ["leptos_reactive_writes_in_resource_fetchers"]
+
+[[example]]
+name = "leptos_resource_fetchers_rereading_sources"
+lints = ["leptos_resource_fetchers_rereading_sources"]
+
+[[example]]
+name = "leptos_server_functions_without_authorization_boundaries"
+lints = ["leptos_server_functions_without_authorization_boundaries"]
+dylint-toml = '''
+[rlib-lint]
+leptos-sensitive-call-terms = ["delete_account", "read_private_profile"]
+leptos-authorization-functions = ["authorize_account_admin"]
+leptos-protected-endpoint-attributes = ["protected_endpoint"]
+leptos-public-endpoint-attributes = ["public_endpoint"]
+'''
+
+[[example]]
+name = "leptos_static_str_component_props"
+lints = ["leptos_static_str_component_props"]
+
+[[example]]
+name = "leptos_unsanitized_inner_html"
+lints = ["leptos_unsanitized_inner_html"]
+
+[[example]]
+name = "leptos_unkeyed_reactive_collections"
+lints = ["leptos_unkeyed_reactive_collections"]
+
+[[example]]
+name = "leptos_unlocalized_view_literals"
+lints = ["leptos_unlocalized_view_literals"]
+
+[[example]]
+name = "leptos_unreactive_signal_reads_in_views"
+lints = ["leptos_unreactive_signal_reads_in_views"]
+
+[[example]]
+name = "leptos_noncanonical_view_formatting"
+lints = [
+    "leptos_noncanonical_view_formatting",
+    "leptos_styling_inline_style_properties",
+    "leptos_styling_non_colocated_component_styles",
+    "leptos_styling_noncanonical_css",
+    "leptos_styling_unscoped_component_selectors",
+    "leptos_styling_unused_stylesheet_classes",
+    "leptos_styling_untyped_component_classes",
+]
+
+[[example]]
+name = "leptos_oversized_reactive_setups"
+lints = ["leptos_oversized_reactive_setups"]
+
+[[example]]
+name = "leptos_fragmented_reactive_state"
+lints = ["leptos_fragmented_reactive_state"]
+
+[[example]]
+name = "leptos_oversized_event_handlers"
+lints = ["leptos_oversized_event_handlers"]
+
+[[example]]
+name = "leptos_unscoped_spawned_tasks"
+lints = ["leptos_unscoped_spawned_tasks"]
+
+[[example]]
+name = "leptos_excessively_nested_views"
+lints = ["leptos_excessively_nested_views"]
+
+[[example]]
+name = "leptos_excessive_component_composition_depth"
+lints = ["leptos_excessive_component_composition_depth"]
+
+[[example]]
+name = "leptos_repeated_view_fragments"
+lints = ["leptos_repeated_view_fragments"]
+
+[[example]]
+name = "leptos_excessive_component_props"
+lints = [
+    "leptos_excessive_component_props",
+    "leptos_missing_view_section_comments",
+]
+
+[[example]]
+name = "leptos_overpopulated_component_modules"
+lints = ["leptos_overpopulated_component_modules"]
+
+[[example]]
+name = "leptos_unnamed_composables"
+lints = ["leptos_unnamed_composables"]
+
+[[example]]
+name = "leptos_styling_non_colocated_component_styles"
+lints = [
+    "leptos_styling_non_colocated_component_styles",
+    "leptos_noncanonical_view_formatting",
+    "leptos_styling_inline_style_properties",
+    "leptos_styling_noncanonical_css",
+]
+
+[[example]]
+name = "leptos_styling_untyped_component_classes"
+lints = ["leptos_styling_untyped_component_classes"]
+
+[[example]]
+name = "leptos_styling_inline_style_properties"
+lints = ["leptos_styling_inline_style_properties"]
+
+[[example]]
+name = "leptos_styling_unused_stylesheet_classes"
+lints = ["leptos_styling_unused_stylesheet_classes"]
+
+[[example]]
+name = "leptos_styling_unscoped_component_selectors"
+lints = ["leptos_styling_unscoped_component_selectors"]
+
+[[example]]
+name = "leptos_styling_noncanonical_css"
+lints = ["leptos_styling_noncanonical_css"]
+
+[[example]]
+name = "framework_resolution_required"
+lints = ["framework_resolution_required"]
+
+[[example]]
+name = "framework_error_variant_conversion_resolution_required"
+lints = ["framework_resolution_required"]
+
+[[example]]
+name = "framework_error_implementation_resolution_required"
+lints = ["framework_resolution_required"]
+
+[[example]]
+name = "strum_manual_enum_counts"
+lints = ["strum_manual_enum_counts"]
+
+[[example]]
+name = "strum_manual_enum_iteration"
+lints = ["strum_manual_enum_iteration"]
+
+[[example]]
+name = "strum_manual_enum_predicates"
+lints = ["strum_manual_enum_predicates"]
+dylint-toml = '''
+[rlib-lint]
+enum-variant-predicate-provider = "strum_enum_is"
+'''
+
+[[example]]
+name = "strum_manual_enum_accessors"
+lints = ["strum_manual_enum_accessors"]
+
+[[example]]
+name = "strum_manual_repr_conversions"
+lints = ["strum_manual_repr_conversions"]
+
+[[example]]
+name = "strum_manual_variant_arrays"
+lints = ["strum_manual_variant_arrays", "strum_manual_enum_iteration"]
+dylint-toml = '''
+[rlib-lint]
+enum-variant-collection-provider = "strum_variant_array"
+'''
+
+[[example]]
+name = "strum_conflicting_enum_serializations"
+lints = ["strum_conflicting_enum_serializations"]
+
+[[example]]
+name = "strum_declaration_order_domain_contracts"
+lints = ["strum_declaration_order_domain_contracts"]
+
+[[example]]
+name = "strum_defaulted_payload_enum_construction"
+lints = ["strum_defaulted_payload_enum_construction"]
+
+[[example]]
+name = "strum_divergent_discriminant_contracts"
+lints = ["strum_divergent_discriminant_contracts"]
+
+[[example]]
+name = "strum_divergent_variant_name_contracts"
+lints = ["strum_divergent_variant_name_contracts"]
+
+[[example]]
+name = "strum_documentation_used_as_enum_messages"
+lints = ["strum_documentation_used_as_enum_messages"]
+
+[[example]]
+name = "strum_filtered_enum_count_contracts"
+lints = ["strum_filtered_enum_count_contracts"]
+
+[[example]]
+name = "strum_manual_discriminant_enums"
+lints = ["strum_manual_discriminant_enums"]
+
+[[example]]
+name = "strum_manual_enum_metadata"
+lints = ["strum_manual_enum_metadata"]
+
+[[example]]
+name = "strum_manual_enum_string_conversions"
+lints = ["strum_manual_enum_string_conversions"]
+dylint-toml = '''
+[rlib-lint]
+enum-display-provider = "strum_display"
+'''
+
+[[example]]
+name = "strum_manual_enum_string_parsers"
+lints = ["strum_manual_enum_string_parsers"]
+dylint-toml = '''
+[rlib-lint]
+enum-string-parsing-provider = "strum_enum_string"
+'''
+
+[[example]]
+name = "strum_manual_variant_names"
+lints = ["strum_manual_variant_names"]
+
+[[example]]
+name = "strum_non_roundtripping_enum_strings"
+lints = ["strum_non_roundtripping_enum_strings"]

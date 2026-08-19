@@ -12,7 +12,7 @@ LL | | }
    |
    = note: labels `first`, `second` are presented without identifying the causal span
    = help: mark the causal label `#[label(primary)]`; do not infer importance from field order
-   = note: `#[warn(rlib::miette_unfocused_diagnostic_labels)]` on by default
+   = note: requested on the command line with `-W rlib::miette-unfocused-diagnostic-labels`
 
 warning: multi-label diagnostic has no primary location
   --> $DIR/semantic.rs:27:1

@@ -6,7 +6,7 @@ LL | struct Record {
    |
    = note: the implementation compares 2 corresponding fields without normalization, adaptation, or external state
    = help: replace the authored implementations with `#[derive(derive_more::PartialEq, derive_more::Eq)]` and explicit field skips when required
-   = note: `#[warn(rlib::derive_more_manual_equality_impls)]` on by default
+   = note: requested on the command line with `-W rlib::derive-more-manual-equality-impls`
 
 warning: manual structural equality for `GenericRecord` is derivable
   --> $DIR/semantic.rs:17:1

@@ -48,7 +48,9 @@ fn names(values: &[String]) -> Vec<String> {
 
 ## What it skips
 
-Associated-function calls do not count, and field access or `?` starts a new chain.
+Associated-function calls do not count, and field access or `?` starts a new chain. Calls
+introduced by compiler or attribute-macro desugaring are ignored when the attributed source span
+does not contain authored receiver syntax.
 
 ## When to turn it off
 

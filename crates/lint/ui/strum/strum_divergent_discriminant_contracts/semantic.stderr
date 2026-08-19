@@ -9,7 +9,7 @@ LL | | }
    |
    = note: the generated schema evolves automatically with the payload enum and cannot version independently
    = help: use an authored schema enum with explicit conversions when compatibility is independent
-   = note: `#[warn(rlib::strum_divergent_discriminant_contracts)]` on by default
+   = note: requested on the command line with `-W rlib::strum-divergent-discriminant-contracts`
 
 warning: `InputEvent` generates an externally serialized discriminant schema
   --> $DIR/semantic.rs:14:1

@@ -10,7 +10,7 @@ LL | | }
    |
    = note: the implementation maps the sole field and delegates directly to the same aggregation without changing identity or failure behavior
    = help: replace this implementation with `#[derive(derive_more::Sum)]`
-   = note: `#[warn(rlib::derive_more_manual_aggregation_impls)]` on by default
+   = note: requested on the command line with `-W rlib::derive-more-manual-aggregation-impls`
 
 warning: manual `Product` implementation for `Scale` is derivable
   --> $DIR/semantic.rs:15:1

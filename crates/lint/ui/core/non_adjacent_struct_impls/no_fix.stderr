@@ -10,7 +10,7 @@ LL | impl Attributed {}
    = note: keeping this direct impl block adjacent lets readers and tools understand `Attributed` without searching the module
    = note: automatic migration is withheld because an impl attribute may carry compilation or formatting semantics
    = help: move this impl block immediately after `Attributed`
-   = note: `#[warn(rlib::non_adjacent_struct_impls)]` on by default
+   = note: requested on the command line with `-W rlib::non-adjacent-struct-impls`
 
 warning: impl blocks for `Commented` should immediately follow its definition
   --> $DIR/no_fix.rs:15:1

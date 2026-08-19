@@ -9,7 +9,7 @@ LL | | }
    |
    = note: source fields `input` have no label, related diagnostic, or diagnostic source that can select a relevant location
    = help: add focused label metadata or remove source-code storage from this diagnostic
-   = note: `#[warn(rlib::miette_source_code_without_labels)]` on by default
+   = note: requested on the command line with `-W rlib::miette-source-code-without-labels`
 
 warning: diagnostic retains source code without a focus
   --> $DIR/semantic.rs:32:1

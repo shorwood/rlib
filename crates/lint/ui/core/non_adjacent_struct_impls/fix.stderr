@@ -8,7 +8,7 @@ LL | struct EarlyMovable;
    | ^^^^^^^^^^^^^^^^^^^^
    |
    = note: keeping this direct impl block adjacent lets readers and tools understand `EarlyMovable` without searching the module
-   = note: `#[warn(rlib::non_adjacent_struct_impls)]` on by default
+   = note: requested on the command line with `-W rlib::non-adjacent-struct-impls`
 help: move this impl block immediately after `EarlyMovable`
    |
 LL + 

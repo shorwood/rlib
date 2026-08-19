@@ -10,7 +10,7 @@ LL | | }
    |
    = note: thiserror `#[from]` and derive_more `From` can both generate this source-bearing variant conversion
    = help: set `derive_resolution.error_variant_conversion` to `thiserror_from` or `derive_more_from`
-   = note: `#[warn(rlib::framework_resolution_required)]` on by default
+   = note: requested on the command line with `-W rlib::framework-resolution-required`
 
 warning: 1 warning emitted
 

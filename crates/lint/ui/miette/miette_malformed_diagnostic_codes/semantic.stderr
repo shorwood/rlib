@@ -6,7 +6,7 @@ LL | struct Bad;
    |
    = note: codes should be stable machine identifiers, while mixed casing and presentation-like words tend to drift with user-facing text
    = help: use a namespaced lowercase path such as `config::invalid_value` or a letter-number code
-   = note: `#[warn(rlib::miette_malformed_diagnostic_codes)]` on by default
+   = note: requested on the command line with `-W rlib::miette-malformed-diagnostic-codes`
 
 warning: diagnostic code `config::invalid__value` has an unstable shape
   --> $DIR/semantic.rs:26:1

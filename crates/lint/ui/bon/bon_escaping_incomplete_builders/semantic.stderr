@@ -6,7 +6,7 @@ LL | fn base_request() -> RequestBuilder {
    |
    = note: moving generated typestate away from its focused construction expression obscures which scope owns the remaining required members
    = help: finish construction before crossing the boundary or define a named domain state for intentional staged configuration
-   = note: `#[warn(rlib::bon_escaping_incomplete_builders)]` on by default
+   = note: requested on the command line with `-W rlib::bon-escaping-incomplete-builders`
 
 warning: incomplete Bon builder escapes through a return boundary
   --> $DIR/semantic.rs:23:31

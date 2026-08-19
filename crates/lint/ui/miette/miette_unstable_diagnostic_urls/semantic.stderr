@@ -6,7 +6,7 @@ LL | struct Bad;
    |
    = note: local, insecure, relative, or presentation-derived links are unsuitable as durable diagnostic metadata
    = help: use a static HTTPS documentation URL with a stable path
-   = note: `#[warn(rlib::miette_unstable_diagnostic_urls)]` on by default
+   = note: requested on the command line with `-W rlib::miette-unstable-diagnostic-urls`
 
 warning: diagnostic URL `https://192.168.1.20/errors/bad` is not a stable external link
   --> $DIR/semantic.rs:16:1

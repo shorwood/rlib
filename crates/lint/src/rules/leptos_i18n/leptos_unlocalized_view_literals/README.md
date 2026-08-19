@@ -54,7 +54,9 @@ wire values remain valid literals.
 
 ## What it skips
 
-No additional exclusions are documented.
+Stable technical values such as routes, element IDs, ARIA relationships, roles, input types, and
+wire values are skipped. Presentation tokens such as brands, marks, and shortcut labels still belong
+in the locale catalog, even when every locale currently renders the same value.
 
 ## When to turn it off
 

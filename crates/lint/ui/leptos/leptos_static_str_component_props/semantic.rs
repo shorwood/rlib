@@ -45,6 +45,18 @@ fn LocalizableProps(
     view! { <span/> }
 }
 
+#[component]
+fn TechnicalStaticProps(
+    id: &'static str,
+    labelled_by: &'static str,
+    controls: &'static str,
+    radio_name: &'static str,
+    filename: &'static str,
+) -> impl IntoView {
+    let _ = (id, labelled_by, controls, radio_name, filename);
+    view! { <span/> }
+}
+
 fn internal_policy_value() -> &'static str {
     "technical"
 }

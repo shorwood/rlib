@@ -16,7 +16,7 @@ LL | | }
    |
    = note: the type is the error channel of `Validator::validate_boxed`, `validate`
    = help: use error severity, or return this diagnostic through an advisory collection instead of `Result::Err`
-   = note: `#[warn(rlib::miette_incoherent_diagnostic_severity)]` on by default
+   = note: requested on the command line with `-W rlib::miette-incoherent-diagnostic-severity`
 
 warning: diagnostic `MigrationAdvice` declares `Advice` severity but is returned as an error
   --> $DIR/semantic.rs:16:1

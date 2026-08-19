@@ -6,7 +6,7 @@ LL |             // Account workspace
    |
    = note: large named regions still force readers to navigate too much markup at once
    = help: split this region with another concise section heading
-   = note: `#[warn(rlib::leptos_oversized_view_sections)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-oversized-view-sections`
 
 warning: this view section has complexity 5, exceeding the configured maximum of 4
   --> $DIR/semantic.rs:38:13

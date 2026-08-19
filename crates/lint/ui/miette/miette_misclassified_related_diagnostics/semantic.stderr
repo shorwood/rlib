@@ -6,7 +6,7 @@ LL |     source_errors: Vec<Inner>,
    |
    = note: the declared Miette relationship contradicts the field's explicit domain role and distorts the rendered diagnostic tree
    = help: model the primary failure with `#[diagnostic_source]` and reserve `#[related]` for sibling findings
-   = note: `#[warn(rlib::miette_misclassified_related_diagnostics)]` on by default
+   = note: requested on the command line with `-W rlib::miette-misclassified-related-diagnostics`
 
 warning: sibling field `related` is classified as the diagnostic source
   --> $DIR/semantic.rs:18:5

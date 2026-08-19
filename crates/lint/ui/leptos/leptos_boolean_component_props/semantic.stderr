@@ -6,7 +6,7 @@ LL | fn Direct(active: bool, aliased: Flag) -> impl IntoView {
    |
    = note: component props form a declarative UI vocabulary, while true and false leave their domain meaning and future states implicit
    = help: replace the boolean with a domain enum whose variants name the component states
-   = note: `#[warn(rlib::leptos_boolean_component_props)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-boolean-component-props`
 
 warning: boolean component prop `aliased` hides the state selected by its value
   --> $DIR/semantic.rs:18:25

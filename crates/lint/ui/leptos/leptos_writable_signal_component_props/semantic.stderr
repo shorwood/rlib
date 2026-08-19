@@ -6,7 +6,7 @@ LL |     write: WriteSignal<String>,
    |
    = note: descendants can mutate parent-owned state without naming or constraining the permitted transitions
    = help: pass read-only reactive state plus intent-bearing callbacks or domain event types
-   = note: `#[warn(rlib::leptos_writable_signal_component_props)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-writable-signal-component-props`
 
 warning: writable component prop `rw` exposes unrestricted reactive mutation
   --> $DIR/semantic.rs:67:5

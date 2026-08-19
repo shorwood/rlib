@@ -6,7 +6,7 @@ LL | fn DeepView() -> impl IntoView {
    |
    = note: deep markup and control layers conceal the component's visual hierarchy and states
    = help: flatten redundant wrappers and extract a cohesive named child component at a semantic boundary
-   = note: `#[warn(rlib::leptos_excessively_nested_views)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-excessively-nested-views`
 
 warning: 1 warning emitted
 

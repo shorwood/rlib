@@ -6,7 +6,7 @@ LL |         revision.get();
    |
    = note: a signal whose value is ignored hides an imperative reload behind a fake data dependency
    = help: remove the trigger signal and call `LocalResource::refetch()` after the mutation
-   = note: `#[warn(rlib::leptos_manual_resource_refetch_signals)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-manual-resource-refetch-signals`
 
 warning: discarded signal value is used as a resource refetch trigger
   --> $DIR/semantic.rs:33:17

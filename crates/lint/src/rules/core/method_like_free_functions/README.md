@@ -52,7 +52,10 @@ impl Document {
 
 ## What it skips
 
-Automatic migrations move generic parameters only when the resolved receiver arguments actually use them; name substrings and other ambiguous syntax receive manual guidance.
+Functions with several peer parameters of the same nominal struct type are skipped because no one
+parameter is an unambiguous behavioral subject. Automatic migrations move generic parameters only
+when the resolved receiver arguments actually use them; name substrings and other ambiguous syntax
+receive manual guidance.
 
 ## When to turn it off
 

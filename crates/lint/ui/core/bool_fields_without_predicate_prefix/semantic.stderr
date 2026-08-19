@@ -6,7 +6,7 @@ LL |     active: bool,
    |
    = note: `active` otherwise reads like a value or command instead of a yes-or-no property
    = help: choose a predicate-style name that describes what the boolean means
-   = note: `#[warn(rlib::bool_fields_without_predicate_prefix)]` on by default
+   = note: requested on the command line with `-W rlib::bool-fields-without-predicate-prefix`
 
 warning: boolean struct field `visible` should use `is_<predicate>` or `has_<predicate>`
   --> $DIR/semantic.rs:23:5

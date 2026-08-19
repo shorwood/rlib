@@ -50,7 +50,9 @@ fn Notice(label: TextProp, status: NoticeStatus) -> impl IntoView {
 
 ## What it skips
 
-No additional exclusions are documented.
+Static strings used only as stable technical component plumbing are skipped, including identifier
+props, ARIA relationship props such as `labelled_by` and `controls`, field/radio names, and
+filenames. Presentation props such as labels, titles, descriptions, and status text remain covered.
 
 ## When to turn it off
 

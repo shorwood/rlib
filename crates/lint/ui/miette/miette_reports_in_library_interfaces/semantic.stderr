@@ -8,7 +8,7 @@ LL | | }
    |
    = note: a report is an application rendering boundary and erases the concrete failure vocabulary library callers need
    = help: return a public concrete error type, optionally deriving both `thiserror::Error` and `miette::Diagnostic`
-   = note: `#[warn(rlib::miette_reports_in_library_interfaces)]` on by default
+   = note: requested on the command line with `-W rlib::miette-reports-in-library-interfaces`
 
 warning: public library API `boxed_report` returns `miette::Report`
   --> $DIR/semantic.rs:7:1

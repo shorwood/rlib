@@ -6,7 +6,7 @@ LL | struct Generic;
    |
    = note: generic advice does not tell the reader which concrete action can resolve this diagnostic
    = help: replace the generic phrase with a specific action, expected value, path, or alternative
-   = note: `#[warn(rlib::miette_generic_diagnostic_help)]` on by default
+   = note: requested on the command line with `-W rlib::miette-generic-diagnostic-help`
 
 warning: diagnostic help `  TRY   AGAIN?!  ` is not actionable
   --> $DIR/semantic.rs:11:1

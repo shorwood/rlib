@@ -8,7 +8,7 @@ LL |             <Navigation/>
    |
    = note: a heading should explain the region's role rather than translate its tag
    = help: remove the heading, or name the user-facing responsibility of this region
-   = note: `#[warn(rlib::leptos_markup_repeating_view_comments)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-markup-repeating-view-comments`
 
 warning: this view section heading only repeats its markup
   --> $DIR/semantic.rs:27:13

@@ -6,7 +6,7 @@ LL | fn connect(#[cfg_attr(feature = "lenient", builder(default))] timeout: u64)
    |
    = note: changing requiredness, defaults, or positional placement across configurations gives one domain member incompatible call contracts
    = help: keep the member's Bon policy stable, gate the whole capability explicitly, or expose distinct configuration-specific APIs
-   = note: `#[warn(rlib::bon_incoherent_conditional_builder_members)]` on by default
+   = note: requested on the command line with `-W rlib::bon-incoherent-conditional-builder-members`
 
 warning: Bon member `timeout` changes construction policy conditionally
   --> $DIR/semantic.rs:32:13

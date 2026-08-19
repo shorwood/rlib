@@ -5,7 +5,7 @@ LL |             // ACCOUNT NAVIGATION:
    |             ^^^^^^^^^^^^^^^^^^^^^^ help: render this view heading canonically: `// Account navigation`
    |
    = note: consistent headings make view boundaries predictable for readers and related lints
-   = note: `#[warn(rlib::leptos_malformed_view_section_comments)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-malformed-view-section-comments`
 
 warning: this view section comment must be preceded by a blank line
   --> $DIR/semantic.rs:12:13

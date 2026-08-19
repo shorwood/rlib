@@ -6,7 +6,7 @@ LL |     let _ = view! { <input value=name/> };
    |
    = note: the HTML attribute sets initial state, while the DOM property holds the value after user interaction
    = help: use `bind:value` for two-way state, or `prop:value` with an explicit event handler
-   = note: `#[warn(rlib::leptos_attribute_bound_controlled_inputs)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-attribute-bound-controlled-inputs`
 
 warning: writable state is passed through the `checked` HTML attribute
   --> $DIR/semantic.rs:14:52

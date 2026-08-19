@@ -6,7 +6,7 @@ LL |     Io(#[from] io::Error),
    |
    = note: automatic conversion receives `?` failures from distinct operations `read_body`, `read_header` without recording which one failed
    = help: use contextual variants or explicit `map_err` at each operation boundary
-   = note: `#[warn(rlib::thiserror_from_sources_without_context)]` on by default
+   = note: requested on the command line with `-W rlib::thiserror-from-sources-without-context`
 
 warning: thiserror `#[from]` variant `Parse` erases operation context
   --> $DIR/semantic.rs:10:5

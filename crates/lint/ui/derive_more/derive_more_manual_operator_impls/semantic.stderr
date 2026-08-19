@@ -11,7 +11,7 @@ LL | | }
    |
    = note: the implementation applies the corresponding operator to the sole field and reconstructs the wrapper without additional policy
    = help: replace this implementation with `#[derive(derive_more::Add)]`
-   = note: `#[warn(rlib::derive_more_manual_operator_impls)]` on by default
+   = note: requested on the command line with `-W rlib::derive-more-manual-operator-impls`
 
 warning: manual `Neg` implementation for `Delta` is derivable
   --> $DIR/semantic.rs:17:1

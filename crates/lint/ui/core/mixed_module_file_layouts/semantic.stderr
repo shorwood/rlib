@@ -6,7 +6,7 @@ LL | mod split;
    |
    = note: `split.rs` and `split/` make readers check two locations for one module
    = help: move `split.rs` to `split/mod.rs` so the module and its companion files share one directory
-   = note: `#[warn(rlib::mixed_module_file_layouts)]` on by default
+   = note: requested on the command line with `-W rlib::mixed-module-file-layouts`
 
 warning: module `flat_parent` splits its files across two source roots
   --> $DIR/auxiliary/conventional/mod.rs:1:1

@@ -8,7 +8,7 @@ LL |         <label class="field"><span>"Email"</span><input prop:value=email />
    |
    = note: copied RSX drifts independently and makes the shared interface or visual concept implicit
    = help: extract the maximal repeated fragment into a named component with explicit props
-   = note: `#[warn(rlib::leptos_repeated_view_fragments)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-repeated-view-fragments`
 
 warning: 1 warning emitted
 

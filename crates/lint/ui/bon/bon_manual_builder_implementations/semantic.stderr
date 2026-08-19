@@ -6,7 +6,7 @@ LL | struct RequestBuilder {
    |
    = note: its start method, 2 consuming setters, and infallible terminal method reproduce generated builder mechanics
    = help: derive `bon::Builder` for structural construction, or put `#[builder]` on the domain constructor when it owns policy
-   = note: `#[warn(rlib::bon_manual_builder_implementations)]` on by default
+   = note: requested on the command line with `-W rlib::bon-manual-builder-implementations`
 
 warning: 1 warning emitted
 

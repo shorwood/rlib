@@ -9,7 +9,7 @@ LL | | }
    |
    = note: serialization writes `user_id` while deserialization accepts `id` as the primary name, without an authored compatibility explanation
    = help: use one stable name or document the intentional one-way schema migration at this declaration
-   = note: `#[warn(rlib::serde_asymmetric_serde_contracts)]` on by default
+   = note: requested on the command line with `-W rlib::serde-asymmetric-serde-contracts`
 
 warning: Serde names for `id` differ by direction
   --> $DIR/semantic.rs:23:1

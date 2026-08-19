@@ -167,6 +167,11 @@ impl MethodCandidate {
         // Resolve the semantic receiver and require its struct to share the module.
         let semantic_receiver = Self::semantic_receiver(cx, def_id)?;
 
+        // Several peer values of the same type do not identify one clear behavioral subject.
+        if Self::has_same_type_peer(cx, def_id, semantic_receiver.struct_def_id) {
+            return None;
+        }
+
         // A struct in another module should own behavior through an explicit public abstraction.
         if !Self::shares_module_with_struct(cx, def_id, semantic_receiver.struct_def_id) {
             return None;
@@ -278,6 +283,27 @@ impl MethodCandidate {
             kind,
             struct_def_id: adt.did().as_local()?,
         })
+    }
+
+    /// Returns whether a later parameter has the same nominal struct type as the candidate.
+    fn has_same_type_peer(
+        cx: &LateContext<'_>,
+        function_def_id: LocalDefId,
+        receiver_def_id: LocalDefId,
+    ) -> bool {
+        let signature = cx.tcx.fn_sig(function_def_id).instantiate_identity();
+        let inputs = signature.inputs().skip_binder();
+        inputs
+            .iter()
+            .skip(1)
+            .copied()
+            .any(|input| {
+                let nominal = match input.kind() {
+                    ty::Ref(_, inner, _) => *inner,
+                    _ => input,
+                };
+                matches!(nominal.kind(), ty::Adt(adt, _) if adt.is_struct() && adt.did().as_local() == Some(receiver_def_id))
+            })
     }
 
     /// Returns whether the function and struct are owned by the same source module.

@@ -8,7 +8,7 @@ LL | | }
    |
    = note: the undocumented remote projection omits visible source field `label`
    = help: mirror the missing fields, or document this as a versioned projection and its reconstruction policy
-   = note: `#[warn(rlib::serde_remote_representations_drifting_from_sources)]` on by default
+   = note: requested on the command line with `-W rlib::serde-remote-representations-drifting-from-sources`
 
 warning: Serde remote representation drifts from `left::Source`
   --> $DIR/semantic.rs:39:1

@@ -10,7 +10,7 @@ LL | | }
    |
    = note: flattened field `extensions` merges another key namespace into a container that promises to reject unknown keys, but Serde does not support combining these policies
    = help: remove `deny_unknown_fields` to accept flattened extensions, or remove flattening to keep a closed schema
-   = note: `#[warn(rlib::serde_flattened_unknown_field_policies)]` on by default
+   = note: requested on the command line with `-W rlib::serde-flattened-unknown-field-policies`
 
 warning: Serde flattening conflicts with the container's unknown-field policy
   --> $DIR/semantic.rs:22:1

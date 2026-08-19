@@ -9,7 +9,7 @@ LL |     count.set(count.get() + 1);
    |
    = note: a separate read can clone the stored value and lets the replacement depend on an older snapshot
    = help: perform the change with `update(...)` so the mutation stays within one write
-   = note: `#[warn(rlib::leptos_read_then_replace_signals)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-read-then-replace-signals`
 
 warning: signal is read and then replaced
   --> $DIR/semantic.rs:28:5

@@ -116,6 +116,15 @@ mod elsewhere {
 
 fn different_module(value: &elsewhere::Other) {}
 
+// Peer values of the same nominal type do not make the first one an unambiguous receiver.
+fn combine_items(left: Item<u8>, right: Item<u8>) {
+    let _ = (left, right);
+}
+
+fn compare_items(left: &Item<u8>, right: &Item<u8>) {
+    let _ = (left, right);
+}
+
 mod child {
     fn different_module(value: &super::Item<u8>) {}
 }

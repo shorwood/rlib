@@ -6,7 +6,7 @@ LL | fn owned(items: Vec<Item>) {}
    |
    = note: the collection of `Item` has domain behavior but no named type through which callers can discover or constrain that behavior
    = help: beside `Item` in `semantic.rs`, define `struct ItemList { items: Vec<Item> }` and implement `owned` there with `self`
-   = note: `#[warn(rlib::collection_method_like_free_functions)]` on by default
+   = note: requested on the command line with `-W rlib::collection-method-like-free-functions`
 
 warning: free function `mutable_owned` should be a method on `ItemList`
   --> $DIR/semantic.rs:24:4

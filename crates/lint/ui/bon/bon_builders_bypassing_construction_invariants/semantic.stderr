@@ -9,7 +9,7 @@ LL |     pub fn new(start: u32, end: u32) -> Result<Self, &'static str> {
    |
    = note: the derived finishing method can assemble restricted fields without passing through the fallible invariant boundary
    = help: remove the struct derive and apply Bon's `#[builder]` to the checked constructor inside a `#[bon]` inherent impl
-   = note: `#[warn(rlib::bon_builders_bypassing_construction_invariants)]` on by default
+   = note: requested on the command line with `-W rlib::bon-builders-bypassing-construction-invariants`
 
 warning: Bon derives raw-field construction for `CrateVisibleFields` despite its checked constructor
   --> $DIR/semantic.rs:20:12

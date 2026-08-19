@@ -6,7 +6,7 @@ LL |     Pending(String),
    |
    = note: `EnumIter` constructs this variant without domain payload input
    = help: disable this variant for those derives or use an explicit payload constructor
-   = note: `#[warn(rlib::strum_defaulted_payload_enum_construction)]` on by default
+   = note: requested on the command line with `-W rlib::strum-defaulted-payload-enum-construction`
 
 warning: `Pending` receives a defaulted payload
   --> $DIR/semantic.rs:11:5

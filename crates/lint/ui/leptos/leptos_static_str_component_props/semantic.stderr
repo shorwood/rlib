@@ -6,7 +6,7 @@ LL |     label: &'static str,
    |
    = note: component text is runtime presentation data and must remain replaceable by localization
    = help: use `TextProp` for displayed text, `String` for technical values, or a domain enum for closed behavior
-   = note: `#[warn(rlib::leptos_static_str_component_props)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-static-str-component-props`
 
 warning: component prop `direct` carries `&'static str`
   --> $DIR/semantic.rs:26:5

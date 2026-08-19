@@ -12,7 +12,7 @@ LL | | }
    |
    = note: colocated one-to-one ownership makes a component's styling dependencies explicit
    = help: declare exactly `style_sheet!(style, "<module>.css", ...)` in the styled component module
-   = note: `#[warn(rlib::leptos_styling_non_colocated_component_styles)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-styling-non-colocated-component-styles`
 
 warning: 1 warning emitted
 

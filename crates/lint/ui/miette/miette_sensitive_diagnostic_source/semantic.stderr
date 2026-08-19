@@ -6,7 +6,7 @@ LL |     request_body: miette::NamedSource<String>,
    |
    = note: Miette reporters may print labeled excerpts and surrounding text from this field to terminals, logs, or serialized reports
    = help: store a redacted source representation or keep sensitive content outside the diagnostic
-   = note: `#[warn(rlib::miette_sensitive_diagnostic_source)]` on by default
+   = note: requested on the command line with `-W rlib::miette-sensitive-diagnostic-source`
 
 warning: sensitive field `customer_access_token_payload` is exposed as diagnostic source code
   --> $DIR/semantic.rs:25:5

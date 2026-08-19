@@ -6,7 +6,7 @@ LL | struct SystemList(Vec<u32>);
    |
    = note: these implementations only expose one field directly or delegate to that field's matching standard interface
    = help: replace this family with `#[derive(derive_more::AsMut, derive_more::AsRef, derive_more::Deref, derive_more::DerefMut, derive_more::Index, derive_more::IndexMut)]`; preserve pass-through targets with the corresponding `forward` attribute
-   = note: `#[warn(rlib::derive_more_manual_forwarding_interfaces)]` on by default
+   = note: requested on the command line with `-W rlib::derive-more-manual-forwarding-interfaces`
 
 warning: manual forwarding interfaces for `DirectIndex` are derivable
   --> $DIR/semantic.rs:47:1

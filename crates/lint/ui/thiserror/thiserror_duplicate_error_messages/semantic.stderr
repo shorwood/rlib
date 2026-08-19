@@ -12,7 +12,7 @@ LL | | }
    |
    = note: variants `InvalidUserInput`, `InvalidProjectInput` carry distinct typed meanings but become indistinguishable in error presentation
    = help: add semantic context to each message or distinguish them with stable diagnostic codes
-   = note: `#[warn(rlib::thiserror_duplicate_error_messages)]` on by default
+   = note: requested on the command line with `-W rlib::thiserror-duplicate-error-messages`
 
 warning: thiserror variants render the same static message `not found`
   --> $DIR/semantic.rs:4:1

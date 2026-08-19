@@ -6,7 +6,7 @@ LL |     Capability::COUNT
    |
    = note: the surrounding API promises a subset while `EnumCount` includes every declared variant
    = help: count the declared subset explicitly or rename the API as a total count
-   = note: `#[warn(rlib::strum_filtered_enum_count_contracts)]` on by default
+   = note: requested on the command line with `-W rlib::strum-filtered-enum-count-contracts`
 
 warning: `DeprecatedCapability::COUNT` is a total, not a filtered count
   --> $DIR/semantic.rs:24:5

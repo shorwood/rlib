@@ -6,7 +6,7 @@ LL |     cache.insert(key.to_string(), 1);
    |
    = note: using presentation output as a standard map key makes formatting changes alter lookup, cache, or persistence identity
    = help: replace `to_string()` here with a named encoding method or a dedicated serializable key type whose compatibility contract is explicit
-   = note: `#[warn(rlib::derive_more_opaque_derived_display_contracts)]` on by default
+   = note: requested on the command line with `-W rlib::derive-more-opaque-derived-display-contracts`
 
 warning: derived `Display` for `CacheKey` is used as machine identity
   --> $DIR/semantic.rs:22:18

@@ -6,7 +6,7 @@ LL |         <main aria-label="Migration dashboard">
    |
    = note: even initially fixed interface text must react to the user's selected locale
    = help: move this phrase into a locale catalog and render it through the localization runtime
-   = note: `#[warn(rlib::leptos_unlocalized_view_literals)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-unlocalized-view-literals`
 
 warning: user-visible view literal bypasses localization
   --> $DIR/semantic.rs:20:20

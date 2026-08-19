@@ -8,7 +8,7 @@ LL | | }
    |
    = note: server functions are public API endpoints, so local-looking calls still require explicit application security policy
    = help: invoke a configured authorization helper first or add a configured protected/public endpoint marker
-   = note: `#[warn(rlib::leptos_server_functions_without_authorization_boundaries)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-server-functions-without-authorization-boundaries`
 
 warning: Leptos server endpoint reaches sensitive `delete_account` without an authorization boundary
   --> $DIR/semantic.rs:39:1

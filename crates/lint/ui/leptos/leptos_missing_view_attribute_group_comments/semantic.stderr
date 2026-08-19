@@ -12,7 +12,7 @@ LL | |         >
    |
    = note: dense opening tags hide the element's identity, state, presentation, accessibility, and behavior contracts
    = help: separate stable responsibilities with concise `//` headings, or extract a component with a narrower interface
-   = note: `#[warn(rlib::leptos_missing_view_attribute_group_comments)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-missing-view-attribute-group-comments`
 
 warning: `button` has attribute complexity 8 across 5 responsibilities without named groups
   --> $DIR/semantic.rs:44:9

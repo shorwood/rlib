@@ -6,7 +6,7 @@ LL |         status.set(String::from("loaded"));
    |
    = note: resource fetchers do not necessarily execute in every server-rendering, hydration, and client-rendering stage, so this mutation has stage-dependent behavior
    = help: return the loaded state as part of the resource value, or move event-driven mutation to the event that initiated the load
-   = note: `#[warn(rlib::leptos_reactive_writes_in_resource_fetchers)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-reactive-writes-in-resource-fetchers`
 
 warning: resource fetcher writes unrelated reactive state
   --> $DIR/semantic.rs:33:13

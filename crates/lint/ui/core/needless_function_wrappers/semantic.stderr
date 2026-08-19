@@ -9,7 +9,7 @@ LL | fn direct(value: u32) -> u32 {
    |
    = note: `direct` adds an API and navigation layer without changing the behavior of `target`
    = help: remove `direct` and update its callers to invoke `target` directly; move its documentation or adjust the target's name and visibility if needed
-   = note: `#[warn(rlib::needless_function_wrappers)]` on by default
+   = note: requested on the command line with `-W rlib::needless-function-wrappers`
 
 warning: function `explicit_return` is a redundant forwarding wrapper
   --> $DIR/semantic.rs:49:4

@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# Register the lint namespace only for fixtures, avoiding duplicate registration in the library.
+for argument do
+    case "$argument" in
+        crates/lint/ui/* | */crates/lint/ui/*)
+            exec "$RLIB_LINT_REAL_RUSTC" \
+                -A duplicate_features \
+                '-Zcrate-attr=feature(register_tool)' \
+                '-Zcrate-attr=register_tool(rlib)' \
+                "$@"
+            ;;
+    esac
+done
+
+exec "$RLIB_LINT_REAL_RUSTC" "$@"

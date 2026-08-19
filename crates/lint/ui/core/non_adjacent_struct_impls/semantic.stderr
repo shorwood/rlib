@@ -10,7 +10,7 @@ LL | impl Delayed {}
    = note: keeping this direct impl block adjacent lets readers and tools understand `Delayed` without searching the module
    = note: automatic migration is withheld because a nearby comment may belong to the impl block
    = help: move this impl block immediately after `Delayed`
-   = note: `#[warn(rlib::non_adjacent_struct_impls)]` on by default
+   = note: requested on the command line with `-W rlib::non-adjacent-struct-impls`
 
 warning: impl blocks for `Early` should immediately follow its definition
   --> $DIR/semantic.rs:51:1

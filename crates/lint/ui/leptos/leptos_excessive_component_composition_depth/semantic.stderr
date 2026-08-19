@@ -6,7 +6,7 @@ LL | fn C00() -> impl IntoView {
    |
    = note: long chains of single-purpose wrappers scatter one screen's structure across too many navigation hops
    = help: collapse pass-through layers or combine children that do not own an independent UI responsibility
-   = note: `#[warn(rlib::leptos_excessive_component_composition_depth)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-excessive-component-composition-depth`
 
 warning: 1 warning emitted
 

@@ -6,7 +6,7 @@ LL | use std::fmt;
    |
    = note: a barrel file should describe module structure only, so readers and tools can locate implementation in named child modules
    = help: remove this import and use the item's canonical defining-module path
-   = note: `#[warn(rlib::invalid_barrel_file_items)]` on by default
+   = note: requested on the command line with `-W rlib::invalid-barrel-file-items`
 
 warning: imports do not belong in a barrel file
   --> $DIR/auxiliary/bad/mod.rs:2:1

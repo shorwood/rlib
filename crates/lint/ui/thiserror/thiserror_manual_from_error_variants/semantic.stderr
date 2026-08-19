@@ -10,7 +10,7 @@ LL | | }
    |
    = note: the implementation only wraps the source in the variant, duplicating thiserror's source and conversion policy
    = help: remove the implementation and mark the variant field `#[from]`
-   = note: `#[warn(rlib::thiserror_manual_from_error_variants)]` on by default
+   = note: requested on the command line with `-W rlib::thiserror-manual-from-error-variants`
 
 warning: manual conversion into `NamedLoadError::Io` is derivable with thiserror
   --> $DIR/semantic.rs:23:1

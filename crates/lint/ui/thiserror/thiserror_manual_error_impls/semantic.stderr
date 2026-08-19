@@ -6,7 +6,7 @@ LL | struct Marker;
    |
    = note: the authored implementations only provide a static message and conventional source forwarding
    = help: derive `thiserror::Error`, add `#[error("marker")]`, and remove both implementations
-   = note: `#[warn(rlib::thiserror_manual_error_impls)]` on by default
+   = note: requested on the command line with `-W rlib::thiserror-manual-error-impls`
 
 warning: manual `Display` and `Error` implementations for `LoadError` are derivable with thiserror
   --> $DIR/semantic.rs:18:1

@@ -6,7 +6,7 @@ LL | #[bon::builder]
    |
    = note: a parameter-heavy builder loses its named-argument value when most inputs remain positional at its start or finish boundary
    = help: keep only a small identity-bearing prefix or terminal value positional and expose the remaining inputs as named setters
-   = note: `#[warn(rlib::bon_redundant_positional_and_builder_apis)]` on by default
+   = note: requested on the command line with `-W rlib::bon-redundant-positional-and-builder-apis`
 
 warning: 1 warning emitted
 

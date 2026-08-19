@@ -6,7 +6,7 @@ LL |     Pending,
    |
    = note: `VariantNames` advertises a finite preferred vocabulary while `EnumString` accepts additional spellings
    = help: separate canonical names from parser aliases in the surrounding API
-   = note: `#[warn(rlib::strum_divergent_variant_name_contracts)]` on by default
+   = note: requested on the command line with `-W rlib::strum-divergent-variant-name-contracts`
 
 warning: `Unknown` has divergent Strum name contracts
   --> $DIR/semantic.rs:14:5

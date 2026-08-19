@@ -6,7 +6,7 @@ LL |     Pending,
    |
    = note: the generated output `state-Pending` is not parsed back into this variant
    = help: align `serialize` and `to_string` names or remove the unintended text contract
-   = note: `#[warn(rlib::strum_non_roundtripping_enum_strings)]` on by default
+   = note: requested on the command line with `-W rlib::strum-non-roundtripping-enum-strings`
 
 warning: `Complete` does not round-trip through Strum text
   --> $DIR/semantic.rs:7:5

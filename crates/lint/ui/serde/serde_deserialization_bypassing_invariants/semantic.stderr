@@ -9,7 +9,7 @@ LL |     fn new(value: u8) -> Result<Self, OutOfRange> {
    |
    = note: Serde constructs restricted fields directly instead of passing the decoded value through the type's fallible invariant boundary
    = help: deserialize through `#[serde(try_from = ...)]`, a validating adapter, or a separate wire type
-   = note: `#[warn(rlib::serde_deserialization_bypassing_invariants)]` on by default
+   = note: requested on the command line with `-W rlib::serde-deserialization-bypassing-invariants`
 
 warning: 1 warning emitted
 

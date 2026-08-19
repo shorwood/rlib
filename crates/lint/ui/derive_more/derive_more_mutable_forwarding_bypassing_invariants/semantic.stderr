@@ -9,7 +9,7 @@ LL |     fn checked(values: Vec<u32>) -> Result<Self, &'static str> {
    |
    = note: unrestricted mutable forwarding can create states rejected by the type's fallible constructor
    = help: remove the mutable DerefMut derive and expose mutation methods that preserve or revalidate the invariant
-   = note: `#[warn(rlib::derive_more_mutable_forwarding_bypassing_invariants)]` on by default
+   = note: requested on the command line with `-W rlib::derive-more-mutable-forwarding-bypassing-invariants`
 
 warning: derive_more exposes mutable storage for invariant-bearing `Bounded`
   --> $DIR/semantic.rs:17:12

@@ -6,7 +6,7 @@ LL | pub fn connect(#[builder(default = 30)] timeout_seconds: u64, host: String)
    |
    = note: generated setter signatures do not explain the domain meaning of optionality, defaults, conversions, or hidden initialization
    = help: document the member's caller-visible policy with a doc comment or explicit Bon setter documentation
-   = note: `#[warn(rlib::bon_undocumented_builder_members)]` on by default
+   = note: requested on the command line with `-W rlib::bon-undocumented-builder-members`
 
 warning: public Bon member `destination` has undocumented conversion behavior
   --> $DIR/semantic.rs:26:18

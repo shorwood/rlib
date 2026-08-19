@@ -5,7 +5,7 @@ LL | fn consume(item: Item<u8>) {}
    |    ^^^^^^^
    |
    = note: `consume` behavior is hidden in the module namespace instead of being discoverable through `Item`
-   = note: `#[warn(rlib::method_like_free_functions)]` on by default
+   = note: requested on the command line with `-W rlib::method-like-free-functions`
 help: move the function into an inherent impl and update its uses
    |
 LL + impl Item<u8> {

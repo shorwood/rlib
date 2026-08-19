@@ -6,7 +6,7 @@ LL |     [Stage::Planned, Stage::Running, Stage::Complete].into_iter()
    |
    = note: the exhaustive declaration-order sequence duplicates the enum definition and can become stale
    = help: derive `strum::EnumIter`, import `strum::IntoEnumIterator`, and migrate callers to `Type::iter()`
-   = note: `#[warn(rlib::strum_manual_enum_iteration)]` on by default
+   = note: requested on the command line with `-W rlib::strum-manual-enum-iteration`
 
 warning: `Stage` variants are manually exposed as an iterator
   --> $DIR/semantic.rs:25:5

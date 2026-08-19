@@ -66,7 +66,6 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 
 /// Late lint pass rejecting directly authored presentation text in Leptos views.
-#[derive(Default)]
 struct LeptosUnlocalizedViewLiterals {
     /// Deduplicated rstml-backed authored view analysis.
     views: ViewCallSites,
@@ -122,7 +121,9 @@ crate::impl_late_lint! {
     pub LEPTOS_UNLOCALIZED_VIEW_LITERALS,
     Warn,
     "rejects unlocalized user-visible literals in Leptos views",
-    LeptosUnlocalizedViewLiterals::default()
+    LeptosUnlocalizedViewLiterals {
+        views: ViewCallSites::default(),
+    }
 }
 
 // -----------------------------------------------------------------------------

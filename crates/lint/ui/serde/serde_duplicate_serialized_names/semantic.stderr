@@ -10,7 +10,7 @@ LL | | }
    |
    = note: the effective name is shared by internal_id, id; the wire representation cannot identify one member unambiguously
    = help: assign distinct Serde names or aliases for this direction
-   = note: `#[warn(rlib::serde_duplicate_serialized_names)]` on by default
+   = note: requested on the command line with `-W rlib::serde-duplicate-serialized-names`
 
 warning: Serde deserialization name `name` is duplicated
   --> $DIR/semantic.rs:11:1

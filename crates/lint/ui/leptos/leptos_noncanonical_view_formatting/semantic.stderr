@@ -11,7 +11,7 @@ LL | | }
    | |__^
    |
    = note: one deterministic view layout keeps component markup easy to scan
-   = note: `#[warn(rlib::leptos_noncanonical_view_formatting)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-noncanonical-view-formatting`
 help: format every `view!` macro in this file
    |
 LL + #![allow(

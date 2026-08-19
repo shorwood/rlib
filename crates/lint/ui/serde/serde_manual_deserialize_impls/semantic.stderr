@@ -11,7 +11,7 @@ LL | | }
    |
    = note: the complete implementation decodes the sole field unchanged and immediately constructs the wrapper
    = help: replace this implementation with `#[derive(serde::Deserialize)]` and `#[serde(transparent)]`
-   = note: `#[warn(rlib::serde_manual_deserialize_impls)]` on by default
+   = note: requested on the command line with `-W rlib::serde-manual-deserialize-impls`
 
 warning: manual transparent deserializer for `Generic` is derivable
   --> $DIR/semantic.rs:30:1

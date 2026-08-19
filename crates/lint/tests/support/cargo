@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# Dylint performs a preliminary library build; keep it on the suite's all-feature contract.
+if [ "$1" = build ]; then
+    RUSTC="$(dirname "$0")/rustc" exec "$RLIB_LINT_REAL_CARGO" "$@" --all-features
+fi
+
+exec "$RLIB_LINT_REAL_CARGO" "$@"

@@ -10,7 +10,7 @@ LL | | }
    |
    = note: fields `primary_error`, `secondary_error` all contain local thiserror types, but only `primary_error` enters the standard source chain
    = help: select and name one primary source, then classify other failures as related, suppressed, or aggregate errors
-   = note: `#[warn(rlib::thiserror_ambiguous_error_sources)]` on by default
+   = note: requested on the command line with `-W rlib::thiserror-ambiguous-error-sources`
 
 warning: thiserror type stores several plausible primary sources
   --> $DIR/semantic.rs:41:5

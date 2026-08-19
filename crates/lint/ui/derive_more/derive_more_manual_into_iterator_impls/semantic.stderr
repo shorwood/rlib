@@ -6,7 +6,7 @@ LL | struct SystemList(Vec<u32>);
    |
    = note: each implementation delegates unchanged to the wrapper's sole field
    = help: replace this family with `#[derive(derive_more::IntoIterator)]` and `#[into_iterator(owned, ref, ref_mut)]`
-   = note: `#[warn(rlib::derive_more_manual_into_iterator_impls)]` on by default
+   = note: requested on the command line with `-W rlib::derive-more-manual-into-iterator-impls`
 
 warning: manual transparent iteration for `NamedGeneric` is derivable
   --> $DIR/semantic.rs:32:1

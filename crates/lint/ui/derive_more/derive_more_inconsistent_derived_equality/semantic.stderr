@@ -9,7 +9,7 @@ LL | struct Key {
    |
    = note: equality skips fields that the structural hash or total-order implementation still observes, violating their required agreement
    = help: use the same selected fields for equality, hashing, and ordering, or move the alternative identity into a dedicated wrapper type
-   = note: `#[warn(rlib::derive_more_inconsistent_derived_equality)]` on by default
+   = note: requested on the command line with `-W rlib::derive-more-inconsistent-derived-equality`
 
 warning: derived equality for `OrderedKey` conflicts with its derived Hash and Ord contracts
   --> $DIR/semantic.rs:32:8

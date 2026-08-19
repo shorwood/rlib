@@ -11,7 +11,7 @@ LL | |         }
    = note: the exhaustive string match duplicates unit-variant names and failure handling
    = note: this trait implementation is public API; compare the generated error type before migration
    = help: derive `strum::EnumString` and remove the equivalent `FromStr` implementation
-   = note: `#[warn(rlib::strum_manual_enum_string_parsers)]` on by default
+   = note: requested on the command line with `-W rlib::strum-manual-enum-string-parsers`
 
 warning: `AliasedStage` string parser is maintained manually
   --> $DIR/semantic.rs:34:9

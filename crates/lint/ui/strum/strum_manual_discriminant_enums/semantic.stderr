@@ -9,7 +9,7 @@ LL | |         }
    |
    = note: the private unit enum and conversion duplicate every source variant one-for-one
    = help: derive `strum::EnumDiscriminants` and configure its generated name as `EventKind`
-   = note: `#[warn(rlib::strum_manual_discriminant_enums)]` on by default
+   = note: requested on the command line with `-W rlib::strum-manual-discriminant-enums`
 
 warning: `OwnedEventKind` manually mirrors `OwnedEvent`
   --> $DIR/semantic.rs:34:9

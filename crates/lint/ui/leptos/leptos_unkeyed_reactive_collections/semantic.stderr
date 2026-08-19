@@ -10,7 +10,7 @@ LL | |                 .collect_view()}
    |
    = note: collecting mapped views identifies children only by position, so filtering, reordering, or insertion can recreate unrelated DOM state
    = help: render the changing collection with `<For>` and a stable domain key
-   = note: `#[warn(rlib::leptos_unkeyed_reactive_collections)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-unkeyed-reactive-collections`
 
 warning: reactive collection is rendered without stable keys
   --> $DIR/semantic.rs:47:18

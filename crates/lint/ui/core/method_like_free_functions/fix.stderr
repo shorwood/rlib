@@ -5,7 +5,7 @@ LL | fn bump(mut counter: Counter, amount: u8) -> Counter {
    |    ^^^^
    |
    = note: `bump` behavior is hidden in the module namespace instead of being discoverable through `Counter`
-   = note: `#[warn(rlib::method_like_free_functions)]` on by default
+   = note: requested on the command line with `-W rlib::method-like-free-functions`
 help: move the function into an inherent impl and update its uses
    |
 LL + impl Counter {

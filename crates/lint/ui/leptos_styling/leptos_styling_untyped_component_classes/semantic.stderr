@@ -6,7 +6,7 @@ LL |     let _ = view! { <main class="root">{view! { <span class="nested">"Page"
    |
    = note: raw or opaque classes are not rewritten by Turf and cannot prove local stylesheet ownership
    = help: compose the class from this module's `style::CONSTANT` values; an empty conditional fallback is allowed
-   = note: `#[warn(rlib::leptos_styling_untyped_component_classes)]` on by default
+   = note: requested on the command line with `-W rlib::leptos-styling-untyped-component-classes`
 
 warning: class value is not composed from local `style::CONSTANT` values
   --> $DIR/semantic.rs:28:55

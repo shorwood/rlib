@@ -83,6 +83,21 @@ crate::impl_late_lint! {
 }
 
 impl LeptosStaticStrComponentProps {
+    /// Recognizes stable component plumbing whose string identity is not presentation copy.
+    fn is_technical_property(name: &str) -> bool {
+        matches!(
+            name,
+            "id" | "ids"
+                | "labelled_by"
+                | "described_by"
+                | "controls"
+                | "radio_name"
+                | "field_name"
+                | "filename"
+        ) || name.ends_with("_id")
+            || name.ends_with("_ids")
+    }
+
     /// Finds static string references through wrappers and locally defined carriers.
     fn carries_static_str<'tcx>(
         cx: &LateContext<'tcx>,
@@ -138,7 +153,9 @@ impl<'tcx> LateLintPass<'tcx> for LeptosStaticStrComponentProps {
 
         // Report every authored property that directly or indirectly carries static text.
         for property in properties {
-            if !Self::carries_static_str(cx, property.ty, &mut HashSet::new()) {
+            if Self::is_technical_property(property.name.as_str())
+                || !Self::carries_static_str(cx, property.ty, &mut HashSet::new())
+            {
                 continue;
             }
             Violation {
@@ -148,6 +165,39 @@ impl<'tcx> LateLintPass<'tcx> for LeptosStaticStrComponentProps {
                 ty: property.ty.to_string(),
             }
             .emit(cx);
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Tests: Property-role classification
+// -----------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::LeptosStaticStrComponentProps;
+
+    #[test]
+    fn distinguishes_technical_relationships_from_presentation_names() {
+        for technical in [
+            "id",
+            "title_id",
+            "tab_ids",
+            "labelled_by",
+            "described_by",
+            "controls",
+            "radio_name",
+            "field_name",
+            "filename",
+        ] {
+            assert!(LeptosStaticStrComponentProps::is_technical_property(
+                technical
+            ));
+        }
+        for presentation in ["label", "title", "description", "status", "display_name"] {
+            assert!(!LeptosStaticStrComponentProps::is_technical_property(
+                presentation
+            ));
         }
     }
 }

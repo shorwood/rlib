@@ -7,7 +7,7 @@ LL |         matches!(self, Self::Write(_))
    = note: the complete one-variant predicate family duplicates enum variant identity
    = note: these predicates are public; generated visibility and method names require a compatibility review
    = help: derive `strum::EnumIs` and remove the equivalent inherent predicate family
-   = note: `#[warn(rlib::strum_manual_enum_predicates)]` on by default
+   = note: requested on the command line with `-W rlib::strum-manual-enum-predicates`
 
 warning: `DisabledMessage` variant predicates are maintained manually
   --> $DIR/semantic.rs:49:9

@@ -5,7 +5,7 @@ extern crate rustc_span;
 
 use rustc_hir::intravisit::{self, Visitor};
 use rustc_hir::{Arm, Block, Expr, ExprKind, HirId, MatchSource, StmtKind};
-use rustc_lint::LateContext;
+use rustc_lint::{LateContext, LintContext};
 use rustc_middle::ty::Ty;
 use rustc_span::Span;
 
@@ -126,6 +126,11 @@ impl ControlFlowAnalyzerDepthRemedy {
             Self::General
         }
     }
+}
+
+/// Distinguishes authored receiver syntax from desugared calls carrying a borrowed span.
+fn has_authored_method_call_syntax(source: &str) -> bool {
+    source.contains('.')
 }
 
 /// HIR visitor that performs all control-flow readability analyses in one traversal.
@@ -389,6 +394,17 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         if expression.span.from_expansion() || expression.is_parent_method_receiver(self.cx) {
             return;
         }
+        let source_map = self.cx.sess().source_map();
+
+        // Ignore calls whose attributed span cannot be mapped back to authored source.
+        let Ok(source) = source_map.span_to_snippet(expression.span) else {
+            return;
+        };
+
+        // Ignore desugared calls that borrowed a source span without receiver syntax.
+        if !has_authored_method_call_syntax(&source) {
+            return;
+        }
         let calls = expression.method_chain_length();
 
         // Chains within the configured limit require no decomposition guidance.
@@ -461,5 +477,18 @@ impl<'tcx> Visitor<'tcx> for ControlFlowAnalyzer<'_, 'tcx> {
             }
             _ => intravisit::walk_expr(self, expression),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::has_authored_method_call_syntax;
+
+    #[test]
+    fn requires_an_authored_receiver_separator() {
+        assert!(has_authored_method_call_syntax("items.iter().map(render)"));
+        assert!(!has_authored_method_call_syntax(
+            "if request_id_is_missing { return Err(error); } Ok(())"
+        ));
     }
 }

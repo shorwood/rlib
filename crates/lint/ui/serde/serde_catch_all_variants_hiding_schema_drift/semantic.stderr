@@ -11,7 +11,7 @@ LL | | }
    |
    = note: `Unknown` discards the unknown wire spelling, making new or misspelled values indistinguishable
    = help: reject unknown variants at this boundary, or preserve their original value in an explicit representation
-   = note: `#[warn(rlib::serde_catch_all_variants_hiding_schema_drift)]` on by default
+   = note: requested on the command line with `-W rlib::serde-catch-all-variants-hiding-schema-drift`
 
 warning: 1 warning emitted
 

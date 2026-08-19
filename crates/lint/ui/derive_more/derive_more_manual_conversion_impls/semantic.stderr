@@ -10,7 +10,7 @@ LL | | }
    |
    = note: the implementation only constructs or extracts the wrapper's sole field without validation, normalization, or adaptation
    = help: replace this implementation with `#[derive(derive_more::From)]` on `SystemList`
-   = note: `#[warn(rlib::derive_more_manual_conversion_impls)]` on by default
+   = note: requested on the command line with `-W rlib::derive-more-manual-conversion-impls`
 
 warning: manual transparent conversion for `SystemList` is derivable
   --> $DIR/semantic.rs:11:1

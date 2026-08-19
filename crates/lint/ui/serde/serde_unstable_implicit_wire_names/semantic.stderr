@@ -9,7 +9,7 @@ LL | | }
    |
    = note: renaming the Rust identifiers `UserCreated`, `UserDeleted` would silently change externally observed data
    = help: declare `#[serde(rename_all = "...")]` or explicit member renames for each wire direction
-   = note: `#[warn(rlib::serde_unstable_implicit_wire_names)]` on by default
+   = note: requested on the command line with `-W rlib::serde-unstable-implicit-wire-names`
 
 warning: public Serde serialization contract relies on implicit wire names
   --> $DIR/semantic.rs:17:1
