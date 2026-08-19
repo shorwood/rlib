@@ -1,5 +1,6 @@
 //! Public lint documentation contract tests.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
@@ -750,6 +751,61 @@ fn documentation_lint_directories() -> Vec<PathBuf> {
     }
     directories.sort();
     directories
+}
+
+// -----------------------------------------------------------------------------
+// ConfigurationTemplate: Public configuration coverage
+// -----------------------------------------------------------------------------
+
+/// Extracts an active or intentionally commented configuration declaration.
+fn configuration_template_key(line: &str) -> Option<&str> {
+    let line = line.trim();
+    let declaration = line.strip_prefix("# ").unwrap_or(line);
+    let (key, _) = declaration.split_once(" = ")?;
+    key.chars()
+        .all(|character| {
+            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+        })
+        .then_some(key)
+}
+
+/// Keeps the checked-in template synchronized with every documented setting.
+#[test]
+fn configuration_template_covers_every_public_setting() {
+    let template = include_str!("../../../dylint.toml");
+    let declarations = template
+        .lines()
+        .filter_map(configuration_template_key)
+        .collect::<Vec<_>>();
+    let actual = declarations.iter().copied().collect::<BTreeSet<_>>();
+    let expected = CONFIGURABLE_LINTS
+        .iter()
+        .flat_map(|lint| lint.settings)
+        .map(|setting| setting.key)
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(
+        actual, expected,
+        "dylint.toml must list every public setting exactly once"
+    );
+    assert_eq!(
+        declarations.len(),
+        actual.len(),
+        "dylint.toml contains a duplicate setting"
+    );
+    for (index, line) in template.lines().enumerate() {
+        if configuration_template_key(line).is_none() {
+            continue;
+        }
+        let comment = index
+            .checked_sub(1)
+            .and_then(|previous| template.lines().nth(previous));
+        assert!(
+            comment.is_some_and(|comment| comment.trim().starts_with("# ")),
+            "configuration declaration on line {} needs a short preceding comment",
+            index + 1
+        );
+    }
 }
 
 // -----------------------------------------------------------------------------
