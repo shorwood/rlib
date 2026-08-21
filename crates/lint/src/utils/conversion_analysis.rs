@@ -204,25 +204,17 @@ struct ConversionPair {
 }
 
 /// Standard conversion contract implied by a `candidate`'s exact return shape.
-#[derive(Clone)]
+#[derive(Clone, strum::EnumMessage)]
 pub enum ConversionContract {
     /// Direct result suitable for `From` and reciprocal `Into`.
+    #[strum(message = "From")]
     Infallible,
     /// Exact `Result` contract suitable for `TryFrom` and reciprocal `TryInto`.
+    #[strum(message = "TryFrom")]
     Fallible {
         /// Concrete error type retained for remediation guidance.
         error: String,
     },
-}
-
-impl ConversionContract {
-    /// Names the standard trait appropriate for this conversion contract.
-    pub(crate) const fn trait_name(&self) -> &'static str {
-        match self {
-            Self::Infallible => "From",
-            Self::Fallible { .. } => "TryFrom",
-        }
-    }
 }
 
 /// Resolved target and standard contract extracted from one return type.

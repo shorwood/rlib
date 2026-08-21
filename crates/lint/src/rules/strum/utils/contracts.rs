@@ -254,6 +254,12 @@ impl EnumContract {
             .any(|variant| variant.message.is_some() || variant.detailed_message.is_some())
     }
 
+    /// Returns whether every enabled variant supplies a generated message.
+    pub(crate) fn has_complete_message_metadata(&self) -> bool {
+        self.enabled_variants()
+            .all(|variant| variant.message.is_some())
+    }
+
     /// Returns whether the named Strum property already owns this metadata key.
     pub(crate) fn has_authored_property(&self, name: &str) -> bool {
         self.variants

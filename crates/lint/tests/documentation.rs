@@ -512,6 +512,10 @@ const CONFIGURABLE_LINTS: &[ConfigurableLint] = &[
         &[("error-implementation-provider", "not set")],
     ),
     configurable_lint!(
+        "derive_more/derive_more_manual_formatting_impls",
+        &[("enum-display-provider", "not set")],
+    ),
+    configurable_lint!(
         "derive_more/derive_more_manual_variant_accessors",
         &[("enum-variant-predicate-provider", "not set")],
     ),

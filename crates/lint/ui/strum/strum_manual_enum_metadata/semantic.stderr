@@ -23,8 +23,34 @@ LL | |         }
    = note: the exhaustive match selects only static metadata by variant
    = help: derive `strum::EnumMessage` and move the values onto their variants
 
+warning: `RuntimeState` metadata is maintained manually
+  --> $DIR/semantic.rs:45:9
+   |
+LL | /         match self {
+LL | |             Self::FocusWithin => "focus-within",
+LL | |             Self::Disabled => "disabled",
+LL | |         }
+   | |_________^
+   |
+   = note: the exhaustive match selects only static metadata by variant
+   = note: this method is public API; removing it requires callers to use the generated trait directly
+   = help: derive `strum::EnumMessage` and move the values onto their variants
+
+warning: `VisualProperty` metadata is maintained manually
+  --> $DIR/semantic.rs:60:9
+   |
+LL | /         match self {
+LL | |             Self::FrameVisibility | Self::TextVisibility => "display",
+LL | |             Self::FrameFill => "background",
+LL | |         }
+   | |_________^
+   |
+   = note: the exhaustive match selects only static metadata by variant
+   = note: this method is public API; removing it requires callers to use the generated trait directly
+   = help: derive `strum::EnumMessage` and move the values onto their variants
+
 warning: `PartiallyAnnotated` metadata is maintained manually
-  --> $DIR/semantic.rs:47:9
+  --> $DIR/semantic.rs:90:9
    |
 LL | /         match self {
 LL | |             Self::Ready => "green",
@@ -35,5 +61,29 @@ LL | |         }
    = note: the exhaustive match selects only static metadata by variant
    = help: derive `strum::EnumProperty` and move the values onto their variants
 
-warning: 3 warnings emitted
+warning: `Localized` metadata is maintained manually
+  --> $DIR/semantic.rs:122:9
+   |
+LL | /         match self {
+LL | |             Self::Ready => "ready",
+LL | |             Self::Failed => "failed",
+LL | |         }
+   | |_________^
+   |
+   = note: the exhaustive match selects only static metadata by variant
+   = help: derive `strum::EnumMessage` and move the values onto their variants
+
+warning: `Node` metadata is maintained manually
+  --> $DIR/semantic.rs:76:5
+   |
+LL | /     pub fn kind(&self) -> &'static str {
+LL | |         strum::EnumMessage::get_message(self).unwrap_or("node")
+LL | |     }
+   | |_____^
+   |
+   = note: the method only forwards to the enum's complete generated metadata
+   = note: this method is public API; removing it requires callers to use the generated trait directly
+   = help: remove this shim and migrate callers to `strum::EnumMessage`
+
+warning: 7 warnings emitted
 

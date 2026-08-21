@@ -18,6 +18,7 @@ Finds manual `From<SourceError>` implementations that only construct a one-field
 
 Finds manual `From<SourceError>` implementations that only construct a one-field source-bearing
 variant of a type already deriving `thiserror::Error`.
+Transparent one-field variants count as source-bearing even without a redundant `#[source]` marker.
 
 ## Why this matters
 
@@ -48,7 +49,8 @@ enum LoadError {
 
 ## What it skips
 
-No additional exclusions are documented.
+Skips variants with context-only fields, additional fields, transformed inputs, or types that do
+not derive `thiserror::Error`.
 
 ## When to turn it off
 

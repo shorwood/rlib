@@ -9,8 +9,11 @@ use rustc_hir::{ImplItem, Item};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::{Span, Symbol};
 
-use super::utils::authored_contracts::{DisplayCandidate, StaticValue, VariantValueFamily};
-use super::utils::contracts::ContractCatalog;
+use super::utils::authored_contracts::{
+    DisplayCandidate, GeneratedStringTrait, GeneratedStringTraitWrapperCandidate, StaticValue,
+    VariantValueFamily,
+};
+use super::utils::contracts::{ContractCatalog, StrumDerive};
 use crate::config::providers::DisplayProvider;
 use crate::config::store::ConfigStore;
 use crate::utils::diagnostic::LateViolation;
@@ -31,6 +34,8 @@ struct Violation {
     is_public: bool,
     /// Generated Strum surface that exactly replaces this contract.
     replacement: &'static str,
+    /// Whether the method delegates to an already-generated contract.
+    is_wrapper: bool,
 }
 
 impl LateViolation for Violation {
@@ -42,7 +47,13 @@ impl LateViolation for Violation {
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
-        Cow::Borrowed("the exhaustive match duplicates the enum's canonical static string mapping")
+        if self.is_wrapper {
+            Cow::Borrowed("the method only forwards to the enum's generated static string contract")
+        } else {
+            Cow::Borrowed(
+                "the exhaustive match duplicates the enum's canonical static string mapping",
+            )
+        }
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
@@ -58,7 +69,7 @@ impl LateViolation for Violation {
                 diag.primary_message(self.primary_message().into_owned());
                 diag.note(self.rationale_message().into_owned());
                 if self.is_public {
-                    diag.note("this method is public; retain a forwarding shim if its symbol is part of the API");
+                    diag.note("this method is public API; removing it requires callers to use the generated trait directly");
                 }
                 diag.help(self.remediation_message().into_owned());
             }),
@@ -79,6 +90,8 @@ struct StrumManualEnumStringConversions {
     families: Vec<VariantValueFamily>,
     /// Manual `Display` implementations that may duplicate generated output.
     displays: Vec<DisplayCandidate>,
+    /// Inherent methods that hide an existing `AsRefStr` contract.
+    wrappers: Vec<GeneratedStringTraitWrapperCandidate>,
     /// Framework selected to replace an exact manual `Display` implementation.
     display_provider: Option<DisplayProvider>,
 }
@@ -98,6 +111,7 @@ impl StrumManualEnumStringConversions {
             catalog: ContractCatalog::default(),
             families: Vec::new(),
             displays: Vec::new(),
+            wrappers: Vec::new(),
             display_provider: ConfigStore::get().derive_resolution.enum_display(),
         }
     }
@@ -109,6 +123,14 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // A generated-trait wrapper cannot also own an authored spelling map.
+        if let Some(wrapper) = GeneratedStringTraitWrapperCandidate::from_impl_item(cx, item)
+            .filter(|wrapper| wrapper.generated_trait == GeneratedStringTrait::AsRefStr)
+        {
+            self.wrappers.push(wrapper);
+            return;
+        }
+
         // A manual display candidate is recorded separately and needs no value-family analysis.
         if let Some(display) = DisplayCandidate::from_impl_item(cx, item) {
             self.displays.push(display);
@@ -124,7 +146,7 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
         if !family.is_returning_static_str(cx)
             || !matches!(
                 family.method_name.as_str(),
-                "as_str" | "as_static_str" | "name"
+                "as_str" | "as_static_str" | "name" | "suffix"
             )
             || family
                 .values
@@ -156,6 +178,24 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
                 enum_name: contract.name,
                 is_public: family.is_public,
                 replacement: "derive `strum::AsRefStr` and migrate callers to `AsRef<str>`",
+                is_wrapper: false,
+            }
+            .emit(cx);
+        }
+
+        for wrapper in self.wrappers.drain(..) {
+            let Some(contract) = contracts.iter().find(|contract| {
+                contract.def_id == wrapper.enum_def && contract.has_derive(StrumDerive::AsRefStr)
+            }) else {
+                continue;
+            };
+            Violation {
+                owner: wrapper.owner,
+                span: wrapper.span,
+                enum_name: contract.name,
+                is_public: wrapper.is_public,
+                replacement: "remove this shim and migrate callers to `AsRef<str>`",
+                is_wrapper: true,
             }
             .emit(cx);
         }
@@ -183,6 +223,7 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
                 enum_name: contract.name,
                 is_public: contract.is_public,
                 replacement: "derive `strum::Display` and remove the equivalent formatting implementation",
+                is_wrapper: false,
             }
             .emit(cx);
         }

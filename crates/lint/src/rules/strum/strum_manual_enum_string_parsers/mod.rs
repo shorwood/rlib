@@ -29,6 +29,8 @@ struct Violation {
     enum_name: Symbol,
     /// Whether the declaration is visible outside its defining module.
     is_public: bool,
+    /// Whether callers currently use an inherent Option-returning shim.
+    is_inherent: bool,
 }
 
 impl LateViolation for Violation {
@@ -46,9 +48,15 @@ impl LateViolation for Violation {
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
-        Cow::Borrowed(
-            "derive `strum::EnumString` and remove the equivalent `FromStr` implementation",
-        )
+        if self.is_inherent {
+            Cow::Borrowed(
+                "derive `strum::EnumString`, remove this shim, and migrate callers to `FromStr`",
+            )
+        } else {
+            Cow::Borrowed(
+                "derive `strum::EnumString` and remove the equivalent `FromStr` implementation",
+            )
+        }
     }
 
     fn emit(self, cx: &LateContext<'_>) {
@@ -60,7 +68,7 @@ impl LateViolation for Violation {
                 diag.primary_message(self.primary_message().into_owned());
                 diag.note(self.rationale_message().into_owned());
                 if self.is_public {
-                    diag.note("this trait implementation is public API; compare the generated error type before migration");
+                    diag.note("this parser is public API; compare the generated error type before migration");
                 }
                 diag.help(self.remediation_message().into_owned());
             }),
@@ -111,6 +119,7 @@ impl LateLintPass<'_> for StrumManualEnumStringParsers {
         let Some(candidate) = StringParserCandidate::from_impl_item(cx, item) else {
             return;
         };
+
         self.candidates.push(candidate);
     }
 
@@ -148,6 +157,7 @@ impl LateLintPass<'_> for StrumManualEnumStringParsers {
                 span: candidate.span,
                 enum_name: contract.name,
                 is_public: candidate.is_public,
+                is_inherent: candidate.is_inherent,
             }
             .emit(cx);
         }

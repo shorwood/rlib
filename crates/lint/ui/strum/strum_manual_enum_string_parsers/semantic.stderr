@@ -9,12 +9,39 @@ LL | |         }
    | |_________^
    |
    = note: the exhaustive string match duplicates unit-variant names and failure handling
-   = note: this trait implementation is public API; compare the generated error type before migration
+   = note: this parser is public API; compare the generated error type before migration
    = help: derive `strum::EnumString` and remove the equivalent `FromStr` implementation
    = note: requested on the command line with `-W rlib::strum-manual-enum-string-parsers`
 
+warning: `RuntimeState` string parser is maintained manually
+  --> $DIR/semantic.rs:29:9
+   |
+LL | /         match value {
+LL | |             "Hovered" => Some(Self::Hovered),
+LL | |             "FocusWithin" => Some(Self::FocusWithin),
+LL | |             _ => None,
+LL | |         }
+   | |_________^
+   |
+   = note: the exhaustive string match duplicates unit-variant names and failure handling
+   = note: this parser is public API; compare the generated error type before migration
+   = help: derive `strum::EnumString`, remove this shim, and migrate callers to `FromStr`
+
+warning: `PolicyParser` string parser is maintained manually
+  --> $DIR/semantic.rs:44:9
+   |
+LL | /         match value {
+LL | |             "Ready" => Some(Self::Ready),
+LL | |             _ => None,
+LL | |         }
+   | |_________^
+   |
+   = note: the exhaustive string match duplicates unit-variant names and failure handling
+   = note: this parser is public API; compare the generated error type before migration
+   = help: derive `strum::EnumString`, remove this shim, and migrate callers to `FromStr`
+
 warning: `AliasedStage` string parser is maintained manually
-  --> $DIR/semantic.rs:34:9
+  --> $DIR/semantic.rs:63:9
    |
 LL | /         match value {
 LL | |             "queued" | "planned" => Result::Ok(Self::Planned),
@@ -24,8 +51,8 @@ LL | |         }
    | |_________^
    |
    = note: the exhaustive string match duplicates unit-variant names and failure handling
-   = note: this trait implementation is public API; compare the generated error type before migration
+   = note: this parser is public API; compare the generated error type before migration
    = help: derive `strum::EnumString` and remove the equivalent `FromStr` implementation
 
-warning: 2 warnings emitted
+warning: 4 warnings emitted
 

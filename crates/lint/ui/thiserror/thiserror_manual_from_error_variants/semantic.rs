@@ -27,6 +27,18 @@ impl From<io::Error> for NamedLoadError {
 }
 
 #[derive(Debug, thiserror::Error)]
+enum TransparentLoadError {
+    #[error(transparent)]
+    Io(io::Error),
+}
+
+impl From<io::Error> for TransparentLoadError {
+    fn from(source: io::Error) -> Self {
+        Self::Io(source)
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
 enum ContextOnlyError {
     #[error("I/O failed")]
     Io(io::Error),

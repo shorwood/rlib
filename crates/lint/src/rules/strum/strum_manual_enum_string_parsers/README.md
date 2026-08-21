@@ -2,7 +2,7 @@
 
 ## Summary
 
-Finds exhaustive unit-enum `FromStr` matches reproducible by Strum's `EnumString` derive.
+Finds exhaustive unit-enum `FromStr` and inherent Option parsers reproducible by Strum's `EnumString` derive.
 
 ## At a glance
 
@@ -16,7 +16,8 @@ Finds exhaustive unit-enum `FromStr` matches reproducible by Strum's `EnumString
 
 ## What it catches
 
-Finds exhaustive unit-enum `FromStr` matches reproducible by Strum's `EnumString` derive.
+Finds exhaustive unit-enum `FromStr` matches and inherent `parse(&str) -> Option<Self>` shims
+reproducible by Strum's `EnumString` derive.
 
 ## Why this matters
 
@@ -47,7 +48,8 @@ enum Stage { Planned, Complete }
 
 ## What it skips
 
-No additional exclusions are documented.
+Skips normalization, guards, payload construction, and nonliteral keys. Rustdoc does not change
+structural recognition; use an explicit lint control for a deliberate exception.
 
 ## When to turn it off
 

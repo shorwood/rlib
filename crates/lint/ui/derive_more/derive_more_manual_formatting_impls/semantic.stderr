@@ -4,7 +4,7 @@ warning: manual formatting for `UserId` is derivable
 LL | struct UserId(u64);
    | ^^^^^^^^^^^^^ this type owns derivable formatting plumbing
    |
-   = note: each implementation is one exact field delegation or one single-field format invocation without policy-bearing control flow
+   = note: each implementation is one exact field delegation or one format expression without policy-bearing control flow
    = help: replace this family with `#[derive(derive_more::Display, derive_more::LowerHex)]`, preserving exact format strings in derive_more attributes
    = note: requested on the command line with `-W rlib::derive-more-manual-formatting-impls`
 
@@ -14,8 +14,62 @@ warning: manual formatting for `Qualified` is derivable
 LL | struct Qualified(u64);
    | ^^^^^^^^^^^^^^^^ this type owns derivable formatting plumbing
    |
-   = note: each implementation is one exact field delegation or one single-field format invocation without policy-bearing control flow
+   = note: each implementation is one exact field delegation or one format expression without policy-bearing control flow
    = help: replace this family with `#[derive(derive_more::Display)]`, preserving exact format strings in derive_more attributes
 
-warning: 2 warnings emitted
+warning: manual formatting for `LayerPath` is derivable
+  --> $DIR/semantic.rs:27:1
+   |
+LL | struct LayerPath(String);
+   | ^^^^^^^^^^^^^^^^ this type owns derivable formatting plumbing
+   |
+   = note: each implementation is one exact field delegation or one format expression without policy-bearing control flow
+   = help: replace this family with `#[derive(derive_more::Display)]`, preserving exact format strings in derive_more attributes
+
+warning: manual formatting for `DependencyDetails` is derivable
+  --> $DIR/semantic.rs:36:1
+   |
+LL | struct DependencyDetails {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^ this type owns derivable formatting plumbing
+   |
+   = note: each implementation is one exact field delegation or one format expression without policy-bearing control flow
+   = help: replace this family with `#[derive(derive_more::Display)]`, preserving exact format strings in derive_more attributes
+
+warning: manual formatting for `SnapshotNameError` is derivable
+  --> $DIR/semantic.rs:52:1
+   |
+LL | enum SnapshotNameError {
+   | ^^^^^^^^^^^^^^^^^^^^^^ this type owns derivable formatting plumbing
+   |
+   = note: each implementation is one exact field delegation or one format expression without policy-bearing control flow
+   = help: replace this family with `#[derive(derive_more::Display)]`, preserving exact format strings in derive_more attributes
+
+warning: manual formatting for `Documented` is derivable
+  --> $DIR/semantic.rs:66:1
+   |
+LL | struct Documented(u64);
+   | ^^^^^^^^^^^^^^^^^ this type owns derivable formatting plumbing
+   |
+   = note: each implementation is one exact field delegation or one format expression without policy-bearing control flow
+   = help: replace this family with `#[derive(derive_more::Display)]`, preserving exact format strings in derive_more attributes
+
+warning: manual formatting for `MethodDocumented` is derivable
+  --> $DIR/semantic.rs:75:1
+   |
+LL | struct MethodDocumented(u64);
+   | ^^^^^^^^^^^^^^^^^^^^^^^ this type owns derivable formatting plumbing
+   |
+   = note: each implementation is one exact field delegation or one format expression without policy-bearing control flow
+   = help: replace this family with `#[derive(derive_more::Display)]`, preserving exact format strings in derive_more attributes
+
+warning: manual formatting for `Redacted` is derivable
+  --> $DIR/semantic.rs:104:1
+   |
+LL | struct Redacted(String);
+   | ^^^^^^^^^^^^^^^ this type owns derivable formatting plumbing
+   |
+   = note: each implementation is one exact field delegation or one format expression without policy-bearing control flow
+   = help: replace this family with `#[derive(derive_more::Display)]`, preserving exact format strings in derive_more attributes
+
+warning: 8 warnings emitted
 

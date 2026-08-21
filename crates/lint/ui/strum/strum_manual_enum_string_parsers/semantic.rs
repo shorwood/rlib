@@ -19,6 +19,35 @@ impl FromStr for Stage {
     }
 }
 
+enum RuntimeState {
+    Hovered,
+    FocusWithin,
+}
+
+impl RuntimeState {
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "Hovered" => Some(Self::Hovered),
+            "FocusWithin" => Some(Self::FocusWithin),
+            _ => None,
+        }
+    }
+}
+
+enum PolicyParser {
+    Ready,
+}
+
+impl PolicyParser {
+    /// Compatibility policy keeps this Option-returning parser stable.
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "Ready" => Some(Self::Ready),
+            _ => None,
+        }
+    }
+}
+
 #[derive(strum::EnumCount)]
 enum AliasedStage {
     #[strum(serialize = "planned", serialize = "queued")]

@@ -24,6 +24,45 @@ impl Display for Qualified {
     }
 }
 
+struct LayerPath(String);
+
+impl Display for LayerPath {
+    /// Render this layer path.
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+struct DependencyDetails {
+    component: String,
+    path: std::path::PathBuf,
+}
+
+impl Display for DependencyDetails {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "component `{}` depends on `{}`",
+            self.component,
+            self.path.display()
+        )
+    }
+}
+
+enum SnapshotNameError {
+    MissingSeparator,
+    MissingState,
+}
+
+impl Display for SnapshotNameError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::MissingSeparator => "snapshot name is missing ` @`",
+            Self::MissingState => "snapshot name is missing a state",
+        })
+    }
+}
+
 struct Documented(u64);
 
 /// This formatting implementation is an authored compatibility contract.

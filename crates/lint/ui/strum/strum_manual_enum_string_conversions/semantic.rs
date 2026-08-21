@@ -30,6 +30,32 @@ impl RenamedStage {
     }
 }
 
+enum RuntimeState {
+    Hovered,
+    FocusWithin,
+}
+
+impl RuntimeState {
+    pub fn suffix(&self) -> &'static str {
+        match self {
+            Self::Hovered => "Hovered",
+            Self::FocusWithin => "FocusWithin",
+        }
+    }
+}
+
+#[derive(strum::AsRefStr)]
+enum ViewportKind {
+    Desktop,
+    Mobile,
+}
+
+impl ViewportKind {
+    pub fn name(&self) -> &str {
+        self.as_ref()
+    }
+}
+
 enum DisplayStage {
     Planned,
     Complete,
@@ -80,11 +106,31 @@ enum PolicyStage {
 }
 
 impl PolicyStage {
+    /// Compatibility policy intentionally keeps these historical names.
     fn name(&self) -> &'static str {
         match self {
             Self::Planned => "first",
             Self::Complete => "last",
         }
+    }
+}
+
+#[derive(strum::AsRefStr)]
+enum BinaryViewportKind {
+    Desktop,
+    Mobile,
+}
+
+impl AsRef<[u8]> for BinaryViewportKind {
+    fn as_ref(&self) -> &[u8] {
+        b"viewport"
+    }
+}
+
+impl BinaryViewportKind {
+    pub fn bytes(&self) -> &[u8] {
+        // False-positive boundary: this forwards to `AsRef<[u8]>`, not generated `AsRef<str>`.
+        <Self as AsRef<[u8]>>::as_ref(self)
     }
 }
 

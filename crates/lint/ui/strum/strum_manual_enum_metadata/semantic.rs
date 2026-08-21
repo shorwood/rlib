@@ -35,6 +35,49 @@ impl Status {
     }
 }
 
+enum RuntimeState {
+    FocusWithin,
+    Disabled,
+}
+
+impl RuntimeState {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::FocusWithin => "focus-within",
+            Self::Disabled => "disabled",
+        }
+    }
+}
+
+enum VisualProperty {
+    FrameVisibility,
+    TextVisibility,
+    FrameFill,
+}
+
+impl VisualProperty {
+    pub fn diagnostic_name(&self) -> &'static str {
+        match self {
+            Self::FrameVisibility | Self::TextVisibility => "display",
+            Self::FrameFill => "background",
+        }
+    }
+}
+
+#[derive(strum::EnumMessage)]
+enum Node {
+    #[strum(message = "frame")]
+    Frame,
+    #[strum(message = "text")]
+    Text,
+}
+
+impl Node {
+    pub fn kind(&self) -> &'static str {
+        strum::EnumMessage::get_message(self).unwrap_or("node")
+    }
+}
+
 #[derive(strum::EnumMessage)]
 enum PartiallyAnnotated {
     #[strum(message = "ready")]

@@ -138,3 +138,13 @@ impl ErrorMessage {
         Some(rendered)
     }
 }
+
+/// Returns whether a thiserror variant delegates its complete error contract to one field.
+pub(super) fn is_transparent_error(attributes: &[syn::Attribute]) -> bool {
+    attributes.iter().any(|attribute| {
+        attribute.path().is_ident("error")
+            && attribute
+                .parse_args::<syn::Ident>()
+                .is_ok_and(|argument| argument == "transparent")
+    })
+}

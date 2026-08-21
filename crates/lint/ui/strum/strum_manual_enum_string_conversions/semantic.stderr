@@ -23,8 +23,33 @@ LL | |         }
    = note: the exhaustive match duplicates the enum's canonical static string mapping
    = help: derive `strum::AsRefStr` and migrate callers to `AsRef<str>`
 
-warning: `DisplayStage` string conversion is maintained manually
+warning: `RuntimeState` string conversion is maintained manually
   --> $DIR/semantic.rs:40:9
+   |
+LL | /         match self {
+LL | |             Self::Hovered => "Hovered",
+LL | |             Self::FocusWithin => "FocusWithin",
+LL | |         }
+   | |_________^
+   |
+   = note: the exhaustive match duplicates the enum's canonical static string mapping
+   = note: this method is public API; removing it requires callers to use the generated trait directly
+   = help: derive `strum::AsRefStr` and migrate callers to `AsRef<str>`
+
+warning: `ViewportKind` string conversion is maintained manually
+  --> $DIR/semantic.rs:54:5
+   |
+LL | /     pub fn name(&self) -> &str {
+LL | |         self.as_ref()
+LL | |     }
+   | |_____^
+   |
+   = note: the method only forwards to the enum's generated static string contract
+   = note: this method is public API; removing it requires callers to use the generated trait directly
+   = help: remove this shim and migrate callers to `AsRef<str>`
+
+warning: `DisplayStage` string conversion is maintained manually
+  --> $DIR/semantic.rs:66:9
    |
 LL | /         match self {
 LL | |             Self::Planned => formatter.write_str("Planned"),
@@ -35,5 +60,5 @@ LL | |         }
    = note: the exhaustive match duplicates the enum's canonical static string mapping
    = help: derive `strum::Display` and remove the equivalent formatting implementation
 
-warning: 3 warnings emitted
+warning: 5 warnings emitted
 

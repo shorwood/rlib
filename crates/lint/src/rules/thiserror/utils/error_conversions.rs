@@ -9,7 +9,7 @@ use rustc_middle::ty;
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::contracts::ThiserrorAttributes;
+use super::contracts::{ThiserrorAttributes, is_transparent_error};
 use crate::utils::direct_forwarding::DirectForwarding;
 use crate::utils::source_provenance::AuthoredItemSource;
 
@@ -147,7 +147,8 @@ impl Candidate {
             .ident
             .as_ref()
             .is_some_and(|name| name == "source")
-            || ThiserrorAttributes::from_attributes(&authored_field.attrs).is_source;
+            || ThiserrorAttributes::from_attributes(&authored_field.attrs).is_source
+            || is_transparent_error(&authored_variant.attrs);
 
         // Fields outside the source chain do not represent error conversion policy.
         if !is_source {

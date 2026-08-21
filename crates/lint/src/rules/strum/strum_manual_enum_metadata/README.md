@@ -2,7 +2,7 @@
 
 ## Summary
 
-Finds exhaustive variant-to-static-metadata methods reproducible by `EnumMessage` or `EnumProperty`.
+Finds exhaustive variant metadata and redundant message wrappers reproducible by `EnumMessage` or `EnumProperty`.
 
 ## At a glance
 
@@ -16,8 +16,8 @@ Finds exhaustive variant-to-static-metadata methods reproducible by `EnumMessage
 
 ## What it catches
 
-Finds exhaustive variant-to-static-metadata methods reproducible by `EnumMessage` or
-`EnumProperty`.
+Finds exhaustive variant-to-static-metadata methods, including grouped variant arms and readable
+`name` methods, plus wrappers around complete `EnumMessage` contracts.
 
 ## Why this matters
 
@@ -38,7 +38,8 @@ impl Severity {
 ### Use this instead
 
 Use `EnumMessage` for message/detailed-message names and `EnumProperty` for named static
-properties. Keep policy-bearing or localized values in hand-written methods.
+properties. Represent policy-bearing or localized values through a typed or runtime-owned boundary
+when they are not generated metadata.
 
 ```rust,ignore
 #[derive(strum::EnumMessage)]
@@ -47,7 +48,9 @@ enum Severity { #[strum(message = "operation failed")] Error }
 
 ## What it skips
 
-No additional exclusions are documented.
+Skips canonical string conversions, incomplete or dynamic mappings, guarded arms, and existing
+Strum metadata. Rustdoc does not change structural recognition; use an explicit lint control for a
+deliberate exception.
 
 ## When to turn it off
 

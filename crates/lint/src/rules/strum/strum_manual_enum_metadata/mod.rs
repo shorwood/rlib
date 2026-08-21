@@ -9,8 +9,10 @@ use rustc_hir::{ImplItem, Item};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::{Span, Symbol};
 
-use super::utils::authored_contracts::VariantValueFamily;
-use super::utils::contracts::ContractCatalog;
+use super::utils::authored_contracts::{
+    GeneratedStringTrait, GeneratedStringTraitWrapperCandidate, StaticValue, VariantValueFamily,
+};
+use super::utils::contracts::{ContractCatalog, StrumDerive};
 use crate::utils::diagnostic::LateViolation;
 
 // -----------------------------------------------------------------------------
@@ -29,6 +31,8 @@ struct Violation {
     provider: &'static str,
     /// Whether the declaration is visible outside its defining module.
     is_public: bool,
+    /// Whether the method delegates to an already-generated metadata contract.
+    is_wrapper: bool,
 }
 
 impl LateViolation for Violation {
@@ -40,14 +44,22 @@ impl LateViolation for Violation {
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
-        Cow::Borrowed("the exhaustive match selects only static metadata by variant")
+        if self.is_wrapper {
+            Cow::Borrowed("the method only forwards to the enum's complete generated metadata")
+        } else {
+            Cow::Borrowed("the exhaustive match selects only static metadata by variant")
+        }
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
-        Cow::Owned(format!(
-            "derive `strum::{}` and move the values onto their variants",
-            self.provider
-        ))
+        if self.is_wrapper {
+            Cow::Borrowed("remove this shim and migrate callers to `strum::EnumMessage`")
+        } else {
+            Cow::Owned(format!(
+                "derive `strum::{}` and move the values onto their variants",
+                self.provider
+            ))
+        }
     }
 
     fn emit(self, cx: &LateContext<'_>) {
@@ -59,7 +71,7 @@ impl LateViolation for Violation {
                 diag.primary_message(self.primary_message().into_owned());
                 diag.note(self.rationale_message().into_owned());
                 if self.is_public {
-                    diag.note("this method is public; generated trait methods may require a compatibility shim");
+                    diag.note("this method is public API; removing it requires callers to use the generated trait directly");
                 }
                 diag.help(self.remediation_message().into_owned());
             }),
@@ -76,6 +88,10 @@ impl LateViolation for Violation {
 struct StrumManualEnumMetadata {
     /// Effective Strum contracts consulted after generated items are associated.
     catalog: ContractCatalog,
+    /// Complete manual variant-to-value families awaiting contract classification.
+    families: Vec<VariantValueFamily>,
+    /// Inherent methods hiding a complete `EnumMessage` contract.
+    wrappers: Vec<GeneratedStringTraitWrapperCandidate>,
 }
 
 crate::impl_late_lint! {
@@ -101,22 +117,11 @@ impl StrumManualEnumMetadata {
             "severity",
             "kind",
             "property",
+            "name",
         ];
         name.trim_start_matches("r#")
             .split('_')
             .any(|component| vocabulary.contains(&component))
-    }
-
-    /// Returns whether documentation deliberately preserves authored policy or localization.
-    fn has_authored_policy(cx: &LateContext<'_>, owner: rustc_hir::HirId) -> bool {
-        cx.tcx.hir_attrs(owner).iter().any(|attribute| {
-            attribute.doc_str().is_some_and(|documentation| {
-                let documentation = documentation.as_str().to_ascii_lowercase();
-                ["policy", "localized", "localization", "locale", "i18n"]
-                    .into_iter()
-                    .any(|term| documentation.contains(term))
-            })
-        })
     }
 }
 
@@ -126,6 +131,14 @@ impl LateLintPass<'_> for StrumManualEnumMetadata {
     }
 
     fn check_impl_item(&mut self, cx: &LateContext<'_>, item: &ImplItem<'_>) {
+        // A generated-trait wrapper cannot also be a manual metadata family.
+        if let Some(wrapper) = GeneratedStringTraitWrapperCandidate::from_impl_item(cx, item)
+            .filter(|wrapper| wrapper.generated_trait == GeneratedStringTrait::EnumMessage)
+        {
+            self.wrappers.push(wrapper);
+            return;
+        }
+
         // Implementation items without a complete variant-value family expose no metadata table.
         let Some(family) = VariantValueFamily::from_impl_item(cx, item) else {
             return;
@@ -134,44 +147,83 @@ impl LateLintPass<'_> for StrumManualEnumMetadata {
         // String conversions, unrelated names, and explicitly governed methods are not metadata.
         if matches!(
             family.method_name.as_str(),
-            "as_str" | "as_static_str" | "name"
+            "as_str" | "as_static_str" | "suffix"
         ) || !Self::is_metadata_name(family.method_name.as_str())
-            || Self::has_authored_policy(cx, family.owner)
         {
             return;
         }
+        self.families.push(family);
+    }
 
-        let is_message = family
-            .method_name
-            .as_str()
-            .trim_start_matches("r#")
-            .split('_')
-            .any(|component| component == "message");
-        let provider = if is_message {
-            "EnumMessage"
-        } else {
-            "EnumProperty"
-        };
+    fn check_crate_post(&mut self, cx: &LateContext<'_>) {
+        let contracts = self.catalog.contracts();
+        for family in self.families.drain(..) {
+            let contract = contracts
+                .iter()
+                .find(|contract| contract.def_id == family.enum_def);
 
-        // Existing authored Strum metadata already supplies the generated replacement.
-        if self.catalog.contracts().iter().any(|contract| {
-            contract.def_id == family.enum_def
-                && if is_message {
+            // Canonical names belong to AsRefStr rather than custom metadata.
+            if contract.is_some_and(|contract| {
+                contract.variants.iter().all(|variant| {
+                    family.values.get(&variant.def_id)
+                        == Some(&StaticValue::String(variant.preferred_name.clone()))
+                })
+            }) {
+                continue;
+            }
+
+            let method_name = family.method_name.as_str();
+            let is_message = method_name == "name"
+                || method_name.ends_with("_name")
+                || method_name
+                    .trim_start_matches("r#")
+                    .split('_')
+                    .any(|component| matches!(component, "message" | "label"));
+            let provider = if is_message {
+                "EnumMessage"
+            } else {
+                "EnumProperty"
+            };
+
+            // Existing authored Strum metadata already supplies the generated replacement.
+            if contract.is_some_and(|contract| {
+                if is_message {
                     contract.has_authored_message_metadata()
                 } else {
-                    contract.has_authored_property(family.method_name.as_str())
+                    contract.has_authored_property(method_name)
                 }
-        }) {
-            return;
+            }) {
+                continue;
+            }
+
+            Violation {
+                owner: family.owner,
+                span: family.span,
+                enum_name: cx.tcx.item_name(family.enum_def.to_def_id()),
+                provider,
+                is_public: family.is_public,
+                is_wrapper: false,
+            }
+            .emit(cx);
         }
 
-        Violation {
-            owner: family.owner,
-            span: family.span,
-            enum_name: cx.tcx.item_name(family.enum_def.to_def_id()),
-            provider,
-            is_public: family.is_public,
+        for wrapper in self.wrappers.drain(..) {
+            let Some(contract) = contracts.iter().find(|contract| {
+                contract.def_id == wrapper.enum_def
+                    && contract.has_derive(StrumDerive::EnumMessage)
+                    && contract.has_complete_message_metadata()
+            }) else {
+                continue;
+            };
+            Violation {
+                owner: wrapper.owner,
+                span: wrapper.span,
+                enum_name: contract.name,
+                provider: "EnumMessage",
+                is_public: wrapper.is_public,
+                is_wrapper: true,
+            }
+            .emit(cx);
         }
-        .emit(cx);
     }
 }

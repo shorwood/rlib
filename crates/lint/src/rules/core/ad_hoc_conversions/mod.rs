@@ -10,6 +10,7 @@ use rustc_hir::intravisit::FnKind;
 use rustc_hir::{Body, FnDecl, Item};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
+use strum::EnumMessage;
 
 use crate::utils::collection_construction_analysis::CollectionConstructionAnalysis;
 use crate::utils::construction_analysis::ConstructionAnalysis;
@@ -104,13 +105,14 @@ impl Violation {
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
+        let trait_name = self
+            .contract
+            .get_message()
+            .expect("every conversion contract names its standard trait");
         match self.confidence {
             ConversionConfidence::Conventional => Cow::Owned(format!(
                 "`{}` is a canonical-looking conversion from `{}` to `{}` outside `{}`",
-                self.function_name,
-                self.types.source,
-                self.types.target,
-                self.contract.trait_name()
+                self.function_name, self.types.source, self.types.target, trait_name
             )),
             ConversionConfidence::Structural => Cow::Owned(format!(
                 "`{}` constructs `{}` from one `{}` value through an ad hoc conversion API",
@@ -120,9 +122,12 @@ impl LateViolation for Violation {
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
+        let trait_name = self
+            .contract
+            .get_message()
+            .expect("every conversion contract names its standard trait");
         Cow::Owned(format!(
-            "the `{}` contract makes this conversion discoverable, usable through generic bounds, and available through its reciprocal standard conversion trait",
-            self.contract.trait_name()
+            "the `{trait_name}` contract makes this conversion discoverable, usable through generic bounds, and available through its reciprocal standard conversion trait"
         ))
     }
 
