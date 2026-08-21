@@ -40,9 +40,9 @@ impl Violation {
         // Existing, defaulted, skipped, and privately initialized members remain compatible.
         if !baseline.contains_builder(member_path.builder)
             || baseline.contains_member(member_path)
-            || BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::DEFAULT)
-            || BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::SKIP)
-            || BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::FIELD)
+            || BonAttributeAnalysis::has_builder_option(cx, attributes, BuilderOption::DEFAULT)
+            || BonAttributeAnalysis::has_builder_option(cx, attributes, BuilderOption::SKIP)
+            || BonAttributeAnalysis::has_builder_option(cx, attributes, BuilderOption::FIELD)
         {
             return None;
         }
@@ -53,7 +53,7 @@ impl Violation {
         };
 
         let required = !OptionType::is_option(&ty)
-            || BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::REQUIRED);
+            || BonAttributeAnalysis::has_builder_option(cx, attributes, BuilderOption::REQUIRED);
         required.then_some(Self {
             span: ty_span,
             builder: member_path.builder.to_owned(),
@@ -226,7 +226,7 @@ impl EarlyLintPass for BonRequiredBuilderMembersBreakingCompatibility {
             }
             ItemKind::Struct(identifier, _, data)
                 if matches!(item.vis.kind, VisibilityKind::Public)
-                    && BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
+                    && BonAttributeAnalysis::has_builder_derive(cx, &item.attrs) =>
             {
                 let builder = identifier.name.to_string();
                 for field in data.fields() {

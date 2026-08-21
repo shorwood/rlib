@@ -528,7 +528,7 @@ impl ConstructionAnalysis {
             has_used_string_input: evidence.has_used_source,
             has_target_lifetime,
         };
-        let has_failure_path = ConstructionFailureCollector::collect(cx, body.value);
+        let has_failure_path = ConstructionFailureCollector::has_failure_path(cx, body.value);
 
         // Preserve conservative source facts used only by automatic migration.
         let migration = ConstructionMigrationFacts {
@@ -747,7 +747,7 @@ impl<'analysis, 'tcx> ConstructionFailureCollector<'analysis, 'tcx> {
     }
 
     /// Returns whether a constructor body contains concrete failure evidence.
-    fn collect(cx: &'analysis LateContext<'tcx>, expression: &'tcx Expr<'tcx>) -> bool {
+    fn has_failure_path(cx: &'analysis LateContext<'tcx>, expression: &'tcx Expr<'tcx>) -> bool {
         let mut collector = Self {
             cx,
             has_failure_path: false,
@@ -820,7 +820,7 @@ impl<'analysis, 'tcx> ConstructionEvidence<'analysis, 'tcx> {
     }
 
     /// Returns whether an expression is an actual target-producing operation.
-    fn produces_target(&self, expression: &Expr<'_>) -> bool {
+    fn is_producing_target(&self, expression: &Expr<'_>) -> bool {
         // Recognize calls, struct expressions, and fieldless variant constructors.
         let is_operation = matches!(
             expression.kind,
@@ -874,8 +874,8 @@ impl<'tcx> Visitor<'tcx> for ConstructionEvidence<'_, 'tcx> {
         {
             self.has_used_source = true;
         }
-        self.has_constructed_target |=
-            self.returned_targets.contains(&expression.hir_id) && self.produces_target(expression);
+        self.has_constructed_target |= self.returned_targets.contains(&expression.hir_id)
+            && self.is_producing_target(expression);
 
         // Nested closures do not contribute construction evidence to the outer function.
         if matches!(expression.kind, ExprKind::Closure(_)) {
@@ -905,7 +905,7 @@ struct ConstructionResultCollector<'analysis, 'tcx> {
 
 impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
     /// Returns whether an expression directly constructs the target type.
-    fn produces_target(&self, expression: &Expr<'_>) -> bool {
+    fn is_producing_target(&self, expression: &Expr<'_>) -> bool {
         let operation = matches!(
             expression.kind,
             ExprKind::Call(..) | ExprKind::MethodCall(..) | ExprKind::Struct(..)
@@ -932,7 +932,7 @@ impl<'analysis, 'tcx> ConstructionResultCollector<'analysis, 'tcx> {
     /// Follows expressions that can contribute to the callable's returned value.
     fn visit_result_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         // A direct construction is a complete target-producing result.
-        if self.produces_target(expression) {
+        if self.is_producing_target(expression) {
             self.returned_targets.insert(expression.hir_id);
             return;
         }
@@ -1062,7 +1062,7 @@ struct ConstructionResultTargetFinder<'collector, 'analysis, 'tcx> {
 impl<'tcx> Visitor<'tcx> for ConstructionResultTargetFinder<'_, '_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         // A direct construction completes this traversal branch.
-        if self.collector.produces_target(expression) {
+        if self.collector.is_producing_target(expression) {
             self.targets.insert(expression.hir_id);
             return;
         }

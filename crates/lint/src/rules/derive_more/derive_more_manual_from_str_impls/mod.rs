@@ -83,7 +83,7 @@ crate::impl_late_lint! {
 
 impl DeriveMoreManualFromStrImpls {
     /// Returns whether a resolved path names the wrapper definition.
-    fn resolution_targets(cx: &LateContext<'_>, resolution: Res, definition: DefId) -> bool {
+    fn is_resolution_targeting(cx: &LateContext<'_>, resolution: Res, definition: DefId) -> bool {
         match resolution {
             Res::Def(_, target) => {
                 target == definition || cx.tcx.opt_parent(target) == Some(definition)
@@ -103,22 +103,22 @@ impl DeriveMoreManualFromStrImpls {
     }
 
     /// Returns whether a construction path names the wrapper definition.
-    fn path_targets(cx: &LateContext<'_>, expression: &Expr<'_>, definition: DefId) -> bool {
+    fn is_path_targeting(cx: &LateContext<'_>, expression: &Expr<'_>, definition: DefId) -> bool {
         // Only paths can directly name the wrapper constructor.
         let ExprKind::Path(path) = expression.kind else {
             return false;
         };
-        Self::resolution_targets(cx, cx.qpath_res(&path, expression.hir_id), definition)
+        Self::is_resolution_targeting(cx, cx.qpath_res(&path, expression.hir_id), definition)
     }
 
     /// Recognizes a direct tuple constructor or one-field named constructor mapper.
-    fn exact_mapper(
+    fn is_exact_mapper(
         cx: &LateContext<'_>,
         expression: &Expr<'_>,
         definition: ty::AdtDef<'_>,
     ) -> bool {
         // A direct wrapper constructor already proves exact mapping.
-        if Self::path_targets(cx, expression, definition.did()) {
+        if Self::is_path_targeting(cx, expression, definition.did()) {
             return true;
         }
 
@@ -149,12 +149,15 @@ impl DeriveMoreManualFromStrImpls {
         };
         match value.kind {
             ExprKind::Struct(path, [field], StructTailExpr::None) => {
-                Self::resolution_targets(cx, cx.qpath_res(path, value.hir_id), definition.did())
-                    && sole_field.name == field.ident.name
+                Self::is_resolution_targeting(
+                    cx,
+                    cx.qpath_res(path, value.hir_id),
+                    definition.did(),
+                ) && sole_field.name == field.ident.name
                     && DirectForwarding::is_binding(cx, field.expr, binding)
             }
             ExprKind::Call(constructor, [argument]) => {
-                Self::path_targets(cx, constructor, definition.did())
+                Self::is_path_targeting(cx, constructor, definition.did())
                     && DirectForwarding::is_binding(cx, argument, binding)
             }
             _ => false,
@@ -162,7 +165,7 @@ impl DeriveMoreManualFromStrImpls {
     }
 
     /// Proves that `FromStr` only parses and wraps a single field.
-    fn exact_forwarding<'tcx>(
+    fn is_exact_forwarding<'tcx>(
         cx: &LateContext<'tcx>,
         item: &ImplItem<'_>,
         body_id: rustc_hir::BodyId,
@@ -213,7 +216,7 @@ impl DeriveMoreManualFromStrImpls {
         if cx.tcx.item_name(map).as_str() != "map"
             || !cx.tcx.is_diagnostic_item(sym::Result, result.did())
             || result_arguments.type_at(0) != sole_field.ty(cx.tcx, arguments)
-            || !Self::exact_mapper(cx, mapper, definition)
+            || !Self::is_exact_mapper(cx, mapper, definition)
         {
             return false;
         }
@@ -295,7 +298,7 @@ impl LateLintPass<'_> for DeriveMoreManualFromStrImpls {
         // Only one-field structs with exact forwarding are derivable newtypes.
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
-            || !Self::exact_forwarding(cx, item, body_id, *definition, arguments, trait_id)
+            || !Self::is_exact_forwarding(cx, item, body_id, *definition, arguments, trait_id)
         {
             return;
         }

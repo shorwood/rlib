@@ -120,11 +120,11 @@ impl BonInconsistentBuilderConversions {
             let Ok(ty) = source_map.span_to_snippet(type_span) else {
                 continue;
             };
-            if BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::WITH) {
+            if BonAttributeAnalysis::has_builder_option(cx, attributes, BuilderOption::WITH) {
                 continue;
             }
             groups.entry(ty).or_default().push(ConversionMember {
-                has_into: BonAttributeAnalysis::builder_has_option(
+                has_into: BonAttributeAnalysis::has_builder_option(
                     cx,
                     attributes,
                     BuilderOption::INTO,
@@ -151,7 +151,7 @@ impl BonInconsistentBuilderConversions {
     fn check_function(cx: &EarlyContext<'_>, attributes: &[rustc_ast::Attribute], function: &Fn) {
         // Functions without a directly inspectable builder expose no member conversion set.
         if BonAttributeAnalysis::builder(attributes).is_none()
-            || BonAttributeAnalysis::builder_contains(cx, attributes, "on(")
+            || BonAttributeAnalysis::contains_builder_value(cx, attributes, "on(")
         {
             return;
         }
@@ -176,8 +176,8 @@ impl BonInconsistentBuilderConversions {
         data: &VariantData,
     ) {
         // Types without a directly inspectable derived builder expose no member conversion set.
-        if !BonAttributeAnalysis::derives_builder(cx, attributes)
-            || BonAttributeAnalysis::builder_contains(cx, attributes, "on(")
+        if !BonAttributeAnalysis::has_builder_derive(cx, attributes)
+            || BonAttributeAnalysis::contains_builder_value(cx, attributes, "on(")
         {
             return;
         }

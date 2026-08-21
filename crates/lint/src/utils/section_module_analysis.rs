@@ -358,7 +358,7 @@ impl ModuleAnalysis {
                 help: "use `PascalCaseAbstraction: Sentence case responsibility`".to_owned(),
                 replacement,
             });
-        } else if !analyzer.rendered_lines_fit(&section.divider.raw_content) {
+        } else if !analyzer.has_fitting_rendered_lines(&section.divider.raw_content) {
             // Describe the configured width failure independently from syntax errors.
             let message = format!(
                 "section divider exceeds the configured {}-character line limit",
@@ -388,7 +388,7 @@ impl ModuleAnalysis {
     ) {
         // Require canonical syntax, width, and at least one declaration participant.
         let is_valid = parsed.error.is_none()
-            && analyzer.rendered_lines_fit(&section.divider.raw_content)
+            && analyzer.has_fitting_rendered_lines(&section.divider.raw_content)
             && !section.participants.is_empty();
 
         // Invalid or empty sections are excluded from semantic companion analyses.
@@ -401,7 +401,7 @@ impl ModuleAnalysis {
         if participants.len() > analyzer.max_declarations_per_section
             && section
                 .participants
-                .has_multiple_declaration_families(namespace)
+                .has_multiple_declaration_families(analyzer, namespace)
         {
             // Use configured scale as corroborating evidence, not a reason to split one family.
             let message = format!(
@@ -514,6 +514,7 @@ impl ModuleAnalysis {
 
     /// Compares an authored prefix with the names grouped beneath it.
     fn mismatch_finding(
+        analyzer: &SectionAnalyzer,
         section: &SectionEventStreamGroup,
         prefix: ModuleSectionPrefix<'_>,
         namespace: Option<&ModuleNamespace>,
@@ -540,12 +541,17 @@ impl ModuleAnalysis {
         }
 
         // Report declarations with no shared naming root directly.
-        let Some(expected) = identifier_case::longest_common_pascal_prefix(&names) else {
+        let Some(expected) = analyzer.semantic_family_prefix(&names) else {
             return Some(Self::unrelated_names_finding(section, prefix));
         };
 
         // The authored divider already matches the inferred declaration family.
         if expected == prefix.text {
+            return None;
+        }
+
+        // A divider may name the shared predicate subject instead of its grammatical prefix.
+        if analyzer.predicate_subject_family_prefix(&names).as_deref() == Some(prefix.text) {
             return None;
         }
 
@@ -580,7 +586,7 @@ impl ModuleAnalysis {
 
         // Malformed, oversized, or empty sections cannot enter semantic analyses.
         if parsed.error.is_some()
-            || !analyzer.rendered_lines_fit(&section.divider.raw_content)
+            || !analyzer.has_fitting_rendered_lines(&section.divider.raw_content)
             || section.participants.is_empty()
         {
             return;
@@ -597,7 +603,7 @@ impl ModuleAnalysis {
         Self::record_duplicate_section(section, prefix, seen_prefixes, analysis);
 
         // Matching section names produce no mismatch diagnostic.
-        let Some(finding) = Self::mismatch_finding(section, prefix, namespace) else {
+        let Some(finding) = Self::mismatch_finding(analyzer, section, prefix, namespace) else {
             return;
         };
         analysis.mismatches.push(finding);

@@ -98,7 +98,7 @@ enum ResolvedCallBoundary {
 impl ResolvedCallBoundary {
     /// Classifies authored type syntax on one direct path call.
     fn for_path<'tcx>(cx: &LateContext<'tcx>, path: &QPath<'tcx>) -> Self {
-        if CallableGenericAnalyzer::path_has_explicit_open_argument(cx, path) {
+        if CallableGenericAnalyzer::has_path_explicit_open_argument(cx, path) {
             Self::Open
         } else {
             Self::Concrete
@@ -150,7 +150,7 @@ impl CallableVisibilityContext {
 }
 
 /// Returns whether the compiler is building an ordinary executable target.
-fn callable_visibility_is_binary_crate(cx: &LateContext<'_>) -> bool {
+fn is_callable_visibility_binary_crate(cx: &LateContext<'_>) -> bool {
     !cx.sess().opts.test
         && cx
             .sess()
@@ -165,7 +165,7 @@ fn callable_visibility_is_binary_crate(cx: &LateContext<'_>) -> bool {
 // -----------------------------------------------------------------------------
 
 /// Returns whether explicit type syntax is inherently abstract.
-const fn explicit_open_type_form_is_open(ty: &Ty<'_, AmbigArg>) -> bool {
+const fn is_explicit_type_form_open(ty: &Ty<'_, AmbigArg>) -> bool {
     matches!(
         ty.kind,
         TyKind::OpaqueDef(_)
@@ -177,7 +177,7 @@ const fn explicit_open_type_form_is_open(ty: &Ty<'_, AmbigArg>) -> bool {
 }
 
 /// Returns whether an explicit type path resolves through an open boundary.
-const fn explicit_open_type_resolution_is_open(resolution: Res) -> bool {
+const fn is_explicit_type_resolution_open(resolution: Res) -> bool {
     matches!(
         resolution,
         Res::Err
@@ -208,7 +208,7 @@ impl<'tcx> Visitor<'tcx> for ExplicitOpenTypeVisitor<'_, 'tcx> {
         }
 
         // Reject inference and abstraction forms before descending into children.
-        if explicit_open_type_form_is_open(ty) {
+        if is_explicit_type_form_open(ty) {
             self.has_open_boundary = true;
             return;
         }
@@ -216,7 +216,7 @@ impl<'tcx> Visitor<'tcx> for ExplicitOpenTypeVisitor<'_, 'tcx> {
         // Resolve paths so aliases and projections remain authored open boundaries.
         if let TyKind::Path(path) = ty.kind {
             let resolution = self.cx.qpath_res(&path, ty.hir_id);
-            self.has_open_boundary = explicit_open_type_resolution_is_open(resolution);
+            self.has_open_boundary = is_explicit_type_resolution_open(resolution);
 
             // Once a path proves an open boundary, nested syntax cannot make it concrete again.
             if self.has_open_boundary {
@@ -262,7 +262,7 @@ impl CallableGenericAnalyzer {
     }
 
     /// Finds explicit generic arguments attached to a direct path call.
-    fn path_has_explicit_open_argument<'tcx>(cx: &LateContext<'tcx>, path: &QPath<'tcx>) -> bool {
+    fn has_path_explicit_open_argument<'tcx>(cx: &LateContext<'tcx>, path: &QPath<'tcx>) -> bool {
         // Type-relative associated calls carry arguments on their terminal segment.
         if let QPath::TypeRelative(_, segment) = path {
             return segment.args.is_some_and(|arguments| {
@@ -353,7 +353,7 @@ impl CallableGenericAnalyzer {
     }
 
     /// Returns whether an authored callable has ordinary safe Rust call semantics.
-    fn eligible_header(header: FnHeader) -> bool {
+    fn is_header_eligible(header: FnHeader) -> bool {
         header.abi == ExternAbi::Rust && !header.is_unsafe()
     }
 
@@ -461,7 +461,7 @@ impl CallableGenericAnalyzer {
         };
 
         // Preserve generated, unsafe, and foreign-call-contract declarations.
-        if item.span.from_expansion() || !Self::eligible_header(function.signature.header) {
+        if item.span.from_expansion() || !Self::is_header_eligible(function.signature.header) {
             return;
         }
 
@@ -512,7 +512,7 @@ impl CallableGenericAnalyzer {
         };
 
         // Generated, unsafe, or foreign callables are outside ordinary generic API guidance.
-        if item.span.from_expansion() || !Self::eligible_header(signature.header) {
+        if item.span.from_expansion() || !Self::is_header_eligible(signature.header) {
             return;
         }
         let parameters = Self::parameters(cx, item.owner_id.def_id, item.generics);
@@ -545,7 +545,7 @@ impl CallableGenericAnalyzer {
     /// Derives source-ordered callable findings from complete active-crate evidence.
     pub(crate) fn findings(self, cx: &LateContext<'_>) -> Vec<GenericAbstractionFinding> {
         let package = VisibilityPackagePolicy::for_current_package();
-        let binary = callable_visibility_is_binary_crate(cx);
+        let binary = is_callable_visibility_binary_crate(cx);
         let evidence = self.evidence;
         let mut findings = Vec::new();
 
@@ -556,7 +556,7 @@ impl CallableGenericAnalyzer {
                 .tcx
                 .effective_visibilities(())
                 .is_exported(declaration.def_id);
-            if !binary && package.preserves_exported_public_items() && exported {
+            if !binary && package.is_preserving_exported_public_items() && exported {
                 continue;
             }
             let visibility =

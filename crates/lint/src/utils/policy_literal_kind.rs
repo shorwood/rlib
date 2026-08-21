@@ -126,7 +126,7 @@ impl PolicyCategory {
     }
 
     /// Returns whether one normalized identifier word names this policy category.
-    pub(super) fn matches_word(self, word: &str) -> bool {
+    pub(super) fn is_matching_word(self, word: &str) -> bool {
         // Select by discriminant so the vocabulary lookup remains uniform.
         POLICY_CATEGORY_VOCABULARIES[self as usize].contains(&word)
     }
@@ -140,7 +140,7 @@ impl PolicyCategory {
             .collect::<Vec<_>>();
         Self::all()
             .into_iter()
-            .find(|category| words.iter().any(|word| category.matches_word(word)))
+            .find(|category| words.iter().any(|word| category.is_matching_word(word)))
     }
 
     /// Ranking used when one literal receives overlapping evidence.

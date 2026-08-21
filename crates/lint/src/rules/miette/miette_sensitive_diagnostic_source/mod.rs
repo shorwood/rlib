@@ -94,7 +94,7 @@ crate::impl_late_lint! {
 
 impl MietteSensitiveDiagnosticSource {
     /// Matches exact and qualified sensitive field names.
-    fn sensitive_name(name: &str) -> bool {
+    fn is_sensitive_name(name: &str) -> bool {
         let name = name.strip_prefix("r#").unwrap_or(name).to_ascii_lowercase();
 
         // Explicit redaction vocabulary marks the source as intentionally sanitized.
@@ -117,7 +117,7 @@ impl MietteSensitiveDiagnosticSource {
     fn check_fields(cx: &LateContext<'_>, fields: &[DiagnosticField]) {
         for field in fields.iter().filter(|field| {
             field.roles.contains(DiagnosticFieldRole::SourceCode)
-                && Self::sensitive_name(&field.name)
+                && Self::is_sensitive_name(&field.name)
         }) {
             Violation {
                 span: field.span,

@@ -192,7 +192,7 @@ impl<'tcx> LateLintPass<'tcx> for MethodLikeFreeFunctions {
         self.interfaces.record_item(cx, item);
 
         // Imports contribute migration constraints but are not free-function method candidates.
-        if self.record_function_import(item) {
+        if self.has_recorded_function_import(item) {
             return;
         }
 
@@ -315,7 +315,7 @@ impl MethodLikeFreeFunctions {
     ///
     /// An imported alias is part of the function's public shape inside the module, so the fixer
     /// leaves that move to the author.
-    fn record_function_import(&mut self, item: &Item<'_>) -> bool {
+    fn has_recorded_function_import(&mut self, item: &Item<'_>) -> bool {
         // Non-import items should continue through ordinary method-candidate discovery.
         let ItemKind::Use(path, _) = item.kind else {
             return false;

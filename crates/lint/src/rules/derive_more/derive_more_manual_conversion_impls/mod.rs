@@ -106,7 +106,7 @@ crate::impl_late_lint! {
 
 impl DeriveMoreManualConversionImpls {
     /// Returns whether a construction path names the wrapper definition.
-    fn path_targets(cx: &LateContext<'_>, resolution: Res, definition: DefId) -> bool {
+    fn is_path_targeting(cx: &LateContext<'_>, resolution: Res, definition: DefId) -> bool {
         match resolution {
             Res::Def(_, target) => target == definition,
             Res::SelfTyAlias { alias_to, .. } => cx
@@ -156,7 +156,7 @@ impl DeriveMoreManualConversionImpls {
                 let [constructed] = fields else {
                     return None;
                 };
-                Self::path_targets(cx, cx.qpath_res(path, expression.hir_id), definition.did())
+                Self::is_path_targeting(cx, cx.qpath_res(path, expression.hir_id), definition.did())
                     && constructed.ident.name == field.name
                     && DirectForwarding::is_binding(cx, constructed.expr, binding)
             }

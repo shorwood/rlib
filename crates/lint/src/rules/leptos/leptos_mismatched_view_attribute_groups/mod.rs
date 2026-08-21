@@ -160,7 +160,7 @@ impl LeptosMismatchedViewAttributeGroups {
     }
 
     /// Returns whether an attribute belongs under the declared responsibility.
-    fn compatible(declared: ViewAttributeCategory, actual: ViewAttributeCategory) -> bool {
+    fn is_compatible(declared: ViewAttributeCategory, actual: ViewAttributeCategory) -> bool {
         declared == actual
             || actual == ViewAttributeCategory::Other
             || matches!(
@@ -199,7 +199,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMismatchedViewAttributeGroups {
                     continue;
                 };
                 for attribute in group.attributes {
-                    if Self::compatible(declared, attribute.category) {
+                    if Self::is_compatible(declared, attribute.category) {
                         continue;
                     }
 

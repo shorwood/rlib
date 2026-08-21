@@ -125,7 +125,7 @@ impl LateLintPass<'_> for SerdeCatchAllVariantsHidingSchemaDrift {
             .variants
             .iter()
             .filter(|variant| {
-                SerdeAttributes::from_attributes(&variant.attrs).has(SerdeFlag::Other)
+                SerdeAttributes::from_attributes(&variant.attrs).has_flag(SerdeFlag::Other)
             })
             .map(|variant| format!("`{}`", variant.ident))
             .collect::<Vec<_>>();

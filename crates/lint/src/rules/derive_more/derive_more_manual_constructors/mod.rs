@@ -94,7 +94,7 @@ crate::impl_late_lint! {
 
 impl DeriveMoreManualConstructors {
     /// Proves that a struct expression forwards every parameter into its matching field.
-    fn exact_struct_assembly(
+    fn is_exact_struct_assembly(
         cx: &LateContext<'_>,
         definition: DefId,
         bindings: &[ParameterBinding],
@@ -102,7 +102,7 @@ impl DeriveMoreManualConstructors {
         fields: &[rustc_hir::ExprField<'_>],
         expression: &rustc_hir::Expr<'_>,
     ) -> bool {
-        Self::path_targets(cx, cx.qpath_res(path, expression.hir_id), definition)
+        Self::is_path_targeting(cx, cx.qpath_res(path, expression.hir_id), definition)
             && fields.len() == bindings.len()
             && cx
                 .tcx
@@ -138,7 +138,7 @@ impl DeriveMoreManualConstructors {
     }
 
     /// Returns whether a construction path names the enclosing type.
-    fn path_targets(cx: &LateContext<'_>, resolution: Res, definition: DefId) -> bool {
+    fn is_path_targeting(cx: &LateContext<'_>, resolution: Res, definition: DefId) -> bool {
         match resolution {
             Res::Def(_, target) => target == definition,
             Res::SelfCtor(implementation) => cx
@@ -158,7 +158,7 @@ impl DeriveMoreManualConstructors {
     }
 
     /// Proves that a constructor assigns every parameter directly to its matching field.
-    fn exact_field_assembly(
+    fn is_exact_field_assembly(
         cx: &LateContext<'_>,
         definition: DefId,
         owner: LocalDefId,
@@ -167,7 +167,7 @@ impl DeriveMoreManualConstructors {
     ) -> bool {
         match expression.kind {
             ExprKind::Struct(path, fields, StructTailExpr::None) => {
-                Self::exact_struct_assembly(cx, definition, bindings, path, fields, expression)
+                Self::is_exact_struct_assembly(cx, definition, bindings, path, fields, expression)
             }
             ExprKind::Call(_, arguments) => DirectForwarding::call(cx, owner, expression)
                 .is_some_and(|call| {
@@ -179,14 +179,18 @@ impl DeriveMoreManualConstructors {
                 }),
             ExprKind::Path(path) => {
                 bindings.is_empty()
-                    && Self::path_targets(cx, cx.qpath_res(&path, expression.hir_id), definition)
+                    && Self::is_path_targeting(
+                        cx,
+                        cx.qpath_res(&path, expression.hir_id),
+                        definition,
+                    )
             }
             _ => false,
         }
     }
 
     /// Proves that the generated constructor preserves the authored callable type.
-    fn signature_matches(
+    fn is_signature_matching(
         cx: &LateContext<'_>,
         implementation: LocalDefId,
         method: LocalDefId,
@@ -268,7 +272,8 @@ impl LateLintPass<'_> for DeriveMoreManualConstructors {
         }
 
         // A differing callable signature carries policy the derive would not preserve.
-        if !Self::signature_matches(cx, implementation, item.owner_id.def_id, definition.did()) {
+        if !Self::is_signature_matching(cx, implementation, item.owner_id.def_id, definition.did())
+        {
             return;
         }
         let body = cx.tcx.hir_body(body_id);
@@ -284,7 +289,7 @@ impl LateLintPass<'_> for DeriveMoreManualConstructors {
         };
 
         // Emit only when every input is assigned unchanged to its matching field.
-        if !Self::exact_field_assembly(
+        if !Self::is_exact_field_assembly(
             cx,
             definition.did(),
             item.owner_id.def_id,

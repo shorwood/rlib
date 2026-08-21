@@ -99,7 +99,7 @@ crate::impl_late_lint! {
 
 impl MietteMisclassifiedRelatedDiagnostics {
     /// Recognizes field names that explicitly claim a causal role.
-    fn causal_name(name: &str) -> bool {
+    fn is_causal_name(name: &str) -> bool {
         matches!(
             name,
             "source"
@@ -119,7 +119,7 @@ impl MietteMisclassifiedRelatedDiagnostics {
     }
 
     /// Recognizes field names that explicitly claim a sibling role.
-    fn sibling_name(name: &str) -> bool {
+    fn is_sibling_name(name: &str) -> bool {
         matches!(
             name,
             "related"
@@ -149,16 +149,17 @@ impl MietteMisclassifiedRelatedDiagnostics {
                 .strip_prefix("r#")
                 .unwrap_or(&field.name)
                 .to_ascii_lowercase();
-            let kind =
-                if field.roles.contains(DiagnosticFieldRole::Related) && Self::causal_name(&name) {
-                    Some(ViolationKind::CauseAsRelated)
-                } else if field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
-                    && Self::sibling_name(&name)
-                {
-                    Some(ViolationKind::SiblingAsCause)
-                } else {
-                    None
-                };
+            let kind = if field.roles.contains(DiagnosticFieldRole::Related)
+                && Self::is_causal_name(&name)
+            {
+                Some(ViolationKind::CauseAsRelated)
+            } else if field.roles.contains(DiagnosticFieldRole::DiagnosticSource)
+                && Self::is_sibling_name(&name)
+            {
+                Some(ViolationKind::SiblingAsCause)
+            } else {
+                None
+            };
 
             let Some(kind) = kind else {
                 continue;

@@ -115,7 +115,7 @@ impl ContextOperation {
 }
 
 /// Returns a primitive or generic container type that lacks a domain identity.
-fn ambiguous_context_type(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+fn is_ambiguous_context_type(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
     let ty = ty.peel_refs();
 
     // Primitive and structural aggregate types lack nominal domain identity directly.
@@ -232,7 +232,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosPrimitiveContextValues {
         };
 
         // Nominal domain types already distinguish the supplied capability.
-        if !(ambiguous_context_type(cx, ty)) {
+        if !(is_ambiguous_context_type(cx, ty)) {
             return;
         }
         Violation {

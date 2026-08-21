@@ -78,7 +78,7 @@ crate::impl_late_lint! {
 
 impl MietteUnstableDiagnosticUrls {
     /// Returns whether a host is externally routable enough for durable documentation.
-    fn public_host(authority: &str) -> bool {
+    fn is_public_host(authority: &str) -> bool {
         // Empty authorities and embedded credentials are not stable public hosts.
         if authority.is_empty() || authority.contains('@') {
             return false;
@@ -142,7 +142,7 @@ impl MietteUnstableDiagnosticUrls {
     }
 
     /// Returns whether a URL is a static public HTTPS address.
-    fn stable_url(url: &str) -> bool {
+    fn is_stable_url(url: &str) -> bool {
         // Durable diagnostic documentation must use an encrypted absolute URL.
         let Some(remainder) = url.strip_prefix("https://") else {
             return false;
@@ -155,7 +155,7 @@ impl MietteUnstableDiagnosticUrls {
         let authority_end = remainder.find(['/', '?', '#']).unwrap_or(remainder.len());
         let (authority, location) = remainder.split_at(authority_end);
         let path = location.split(['?', '#']).next().unwrap_or_default();
-        Self::public_host(authority)
+        Self::is_public_host(authority)
             && path.starts_with('/')
             && path.chars().any(|character| character != '/')
     }
@@ -168,7 +168,7 @@ impl MietteUnstableDiagnosticUrls {
         };
 
         // Stable public HTTPS links already satisfy the documentation contract.
-        if Self::stable_url(url) {
+        if Self::is_stable_url(url) {
             return;
         }
 

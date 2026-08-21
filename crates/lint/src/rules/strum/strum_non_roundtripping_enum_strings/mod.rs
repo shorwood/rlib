@@ -37,10 +37,10 @@ impl Violation {
             StrumDerive::IntoStaticStr,
         ]
         .into_iter()
-        .any(|derive| contract.derives(derive));
+        .any(|derive| contract.has_derive(derive));
 
         // Round-trip analysis requires both generated parsing and a generated string form.
-        if !contract.derives(StrumDerive::EnumString) || !has_output {
+        if !contract.has_derive(StrumDerive::EnumString) || !has_output {
             return Vec::new();
         }
         contract

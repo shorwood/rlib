@@ -161,14 +161,14 @@ impl ManualErrorSource {
                 let method = cx.tcx.hir_impl_item(*method);
                 Self::conventional_field(cx, method)
                     .map(Self::Field)
-                    .or_else(|| Self::conventional_none(cx, method).then_some(Self::Empty))
+                    .or_else(|| Self::is_conventional_none(cx, method).then_some(Self::Empty))
             }
             _ => None,
         }
     }
 
     /// Recognizes an explicit source method that returns the standard `Option::None`.
-    fn conventional_none(cx: &LateContext<'_>, method: &ImplItem<'_>) -> bool {
+    fn is_conventional_none(cx: &LateContext<'_>, method: &ImplItem<'_>) -> bool {
         // Only an unannotated `source` method can use this conventional shape.
         if method.ident.name.as_str() != "source" || !cx.tcx.hir_attrs(method.hir_id()).is_empty() {
             return false;

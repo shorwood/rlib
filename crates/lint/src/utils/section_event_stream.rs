@@ -12,7 +12,6 @@ use rustc_middle::ty;
 use rustc_span::{BytePos, Span};
 
 use super::{ModuleAnalysis, ModuleNamespace};
-use crate::utils::identifier_case;
 use crate::utils::section_analysis::{
     SectionAnalysis, SectionAnalyzer, SectionEventDivider, SectionFinding, SectionParticipant,
 };
@@ -286,6 +285,7 @@ impl SectionEventStreamCandidates {
     /// arbitrarily unrelated value-level API in an oversized section.
     pub(super) fn has_multiple_declaration_families(
         &self,
+        analyzer: &SectionAnalyzer,
         namespace: Option<&ModuleNamespace>,
     ) -> bool {
         let names = self
@@ -301,14 +301,18 @@ impl SectionEventStreamCandidates {
         }
 
         // Declarations without any shared prefix necessarily reveal distinct families.
-        let Some(prefix) = identifier_case::longest_common_pascal_prefix(&names) else {
+        let Some(prefix) = analyzer.semantic_family_prefix(&names) else {
             return true;
         };
         namespace.is_some_and(|namespace| namespace.contains(&prefix))
     }
 
     /// Returns whether the declarations expose several independent naming families.
-    fn has_multiple_conceptual_families(&self, namespace: Option<&ModuleNamespace>) -> bool {
+    fn has_multiple_conceptual_families(
+        &self,
+        analyzer: &SectionAnalyzer,
+        namespace: Option<&ModuleNamespace>,
+    ) -> bool {
         let names = self.family_names();
 
         // A solitary concept cannot establish multiple conceptual families.
@@ -317,7 +321,7 @@ impl SectionEventStreamCandidates {
         }
 
         // Concepts without any shared prefix necessarily reveal distinct families.
-        let Some(prefix) = identifier_case::longest_common_pascal_prefix(&names) else {
+        let Some(prefix) = analyzer.semantic_family_prefix(&names) else {
             return true;
         };
         namespace.is_some_and(|namespace| namespace.contains(&prefix))
@@ -357,13 +361,14 @@ impl SectionEventStreamCandidates {
     }
 
     /// Returns whether this group needs explicit conceptual navigation.
-    fn requires_divider(
+    fn should_have_divider(
         &self,
+        analyzer: &SectionAnalyzer,
         max_declarations_per_section: usize,
         namespace: Option<&ModuleNamespace>,
     ) -> bool {
         self.distinct_declarations().len() > max_declarations_per_section
-            || self.has_multiple_conceptual_families(namespace)
+            || self.has_multiple_conceptual_families(analyzer, namespace)
             || self
                 .0
                 .iter()
@@ -371,9 +376,13 @@ impl SectionEventStreamCandidates {
     }
 
     /// Produces naming-first guidance for a declaration group without a divider.
-    fn missing_guidance(&self, namespace: Option<&ModuleNamespace>) -> String {
+    fn missing_guidance(
+        &self,
+        analyzer: &SectionAnalyzer,
+        namespace: Option<&ModuleNamespace>,
+    ) -> String {
         // Independent concept families need separate responsibility-based sections.
-        if self.has_multiple_conceptual_families(namespace) {
+        if self.has_multiple_conceptual_families(analyzer, namespace) {
             return format!(
                 "add responsibility-based sections for the independently named concepts {}",
                 self.formatted_family_names()
@@ -382,7 +391,7 @@ impl SectionEventStreamCandidates {
         let names = self.names();
 
         // Turn the inferred prefix, or its absence, into naming-first guidance.
-        identifier_case::longest_common_pascal_prefix(&names).map_or_else(
+        analyzer.semantic_family_prefix(&names).map_or_else(
             || format!(
                 "reconsider the names {} so related declarations share a visible prefix, then add a divider; create separate sections only for independent concepts",
                 self.formatted_names()
@@ -394,10 +403,14 @@ impl SectionEventStreamCandidates {
     }
 
     /// Builds the missing-divider finding for this nonempty declaration group.
-    fn missing_finding(&self, namespace: Option<&ModuleNamespace>) -> SectionFinding {
+    fn missing_finding(
+        &self,
+        analyzer: &SectionAnalyzer,
+        namespace: Option<&ModuleNamespace>,
+    ) -> SectionFinding {
         // Prefer an inferred family prefix while keeping naming guidance actionable.
-        let guidance = self.missing_guidance(namespace);
-        let message = if self.has_multiple_conceptual_families(namespace) {
+        let guidance = self.missing_guidance(analyzer, namespace);
+        let message = if self.has_multiple_conceptual_families(analyzer, namespace) {
             "independently named module concepts are not separated by section dividers"
         } else {
             "module declarations are not covered by a section divider"
@@ -447,13 +460,15 @@ impl SectionEventStreamState {
 
     /// Reports and clears declarations accumulated outside a section.
     fn record_uncovered(&mut self, analyzer: &SectionAnalyzer) {
-        if self.uncovered.requires_divider(
+        if self.uncovered.should_have_divider(
+            analyzer,
             analyzer.max_declarations_per_section,
             self.namespace.as_ref(),
         ) {
-            self.analysis
-                .missing
-                .push(self.uncovered.missing_finding(self.namespace.as_ref()));
+            self.analysis.missing.push(
+                self.uncovered
+                    .missing_finding(analyzer, self.namespace.as_ref()),
+            );
         }
         self.uncovered.clear();
     }

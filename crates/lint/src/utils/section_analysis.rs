@@ -7,8 +7,9 @@ use rustc_hir::{HirId, Mod};
 use rustc_lint::{LateContext, LintContext};
 use rustc_span::{BytePos, Span};
 
-use crate::config::core::SectionDividerConfig;
+use crate::config::core::{BooleanPredicateConfig, SectionDividerConfig};
 use crate::config::store::ConfigStore;
+use crate::utils::identifier_case::longest_common_pascal_prefix;
 
 #[path = "section_template.rs"]
 mod template;
@@ -117,13 +118,15 @@ pub struct SectionAnalyzer {
     max_line_length: usize,
     /// Maximum number of distinct declarations governed by one divider.
     max_declarations_per_section: usize,
+    /// Shared callable grammar removed before declaration-family inference.
+    boolean_predicates: BooleanPredicateConfig,
 }
 
 impl SectionAnalyzer {
     /// Loads and validates the shared library configuration.
     pub(crate) fn from_config() -> Self {
         // Load the divider-specific project configuration.
-        let config = &ConfigStore::get().section_dividers;
+        let config = ConfigStore::get();
 
         // Parse the source template before retaining the complete semantic policy.
         // Fail during lint construction when the project template is invalid.
@@ -138,7 +141,8 @@ impl SectionAnalyzer {
         Self {
             template,
             max_line_length: SectionDividerConfig::MAX_LINE_LENGTH,
-            max_declarations_per_section: config.max_declarations_per_section,
+            max_declarations_per_section: config.section_dividers.max_declarations_per_section,
+            boolean_predicates: config.boolean_predicates.clone(),
         }
     }
 
@@ -171,6 +175,20 @@ impl SectionAnalyzer {
         ModuleAnalysis::analyze(self, cx, module, hir_id)
     }
 
+    /// Infers the ownership prefix after removing configured predicate and query grammar.
+    fn predicate_subject_family_prefix(&self, names: &[&str]) -> Option<String> {
+        let semantic_names = names
+            .iter()
+            .map(|name| self.boolean_predicates.semantic_callable_name(name))
+            .collect::<Vec<_>>();
+        longest_common_pascal_prefix(&semantic_names)
+    }
+
+    /// Infers an ownership prefix, using predicate subjects when grammar hides the raw family.
+    fn semantic_family_prefix(&self, names: &[&str]) -> Option<String> {
+        longest_common_pascal_prefix(names).or_else(|| self.predicate_subject_family_prefix(names))
+    }
+
     /// Finds divider templates in an item-free source range.
     fn dividers_in_span(&self, cx: &LateContext<'_>, span: Span) -> Vec<SectionEventDivider> {
         // Unavailable source cannot yield authored divider positions.
@@ -187,7 +205,7 @@ impl SectionAnalyzer {
     }
 
     /// Returns whether rendering `content` stays within the configured line width.
-    fn rendered_lines_fit(&self, content: &str) -> bool {
+    fn has_fitting_rendered_lines(&self, content: &str) -> bool {
         self.template
             .render(content)
             .lines()
@@ -196,7 +214,7 @@ impl SectionAnalyzer {
 
     /// Renders an indented canonical divider when it satisfies the width policy.
     fn render_replacement(&self, request: SectionAnalyzerRenderRequest<'_>) -> Option<String> {
-        self.rendered_lines_fit(request.content).then(|| {
+        self.has_fitting_rendered_lines(request.content).then(|| {
             let rendered = self.template.render(request.content);
             rendered
                 .lines()

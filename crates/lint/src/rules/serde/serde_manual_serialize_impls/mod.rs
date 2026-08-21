@@ -80,7 +80,7 @@ crate::impl_late_lint! {
 
 impl SerdeManualSerializeImpls {
     /// Proves that serialization delegates unchanged to a newtype's sole field.
-    fn exact_transparent_serializer(
+    fn is_exact_transparent_serializer(
         cx: &LateContext<'_>,
         item: &Item<'_>,
         field_name: &str,
@@ -204,7 +204,7 @@ impl LateLintPass<'_> for SerdeManualSerializeImpls {
         // Require a single-field struct and exact forwarding behavior.
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
-            || !Self::exact_transparent_serializer(
+            || !Self::is_exact_transparent_serializer(
                 cx,
                 item,
                 definition

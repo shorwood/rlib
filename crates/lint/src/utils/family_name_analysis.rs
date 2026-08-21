@@ -172,7 +172,7 @@ impl FamilyInference<'_> {
         let replacements = rendered_renames.collect::<Vec<_>>().join(", ");
 
         // Tailor naming guidance to confidence and namespace collisions.
-        let help = if ConfidenceEvidence::allows_exact_names(self.score, availability) {
+        let help = if ConfidenceEvidence::should_allow_exact_names(self.score, availability) {
             format!(
                 "prefer the concept-first names {replacements}; rename before creating additional sections"
             )
@@ -275,7 +275,10 @@ struct ConfidenceEvidence(
 
 impl ConfidenceEvidence {
     /// Returns whether confidence and namespace occupancy permit exact rename advice.
-    const fn allows_exact_names(score: i32, availability: ConfidenceNameAvailability) -> bool {
+    const fn should_allow_exact_names(
+        score: i32,
+        availability: ConfidenceNameAvailability,
+    ) -> bool {
         score >= THRESHOLD_SUGGESTION
             && matches!(availability, ConfidenceNameAvailability::Available)
     }
@@ -372,7 +375,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
     }
 
     /// Detects a lone helper whose relationship to an exact root justifies its prefix.
-    fn single_participant_is_semantically_rooted(&self, root: Option<&SectionParticipant>) -> bool {
+    fn is_single_participant_semantically_rooted(&self, root: Option<&SectionParticipant>) -> bool {
         self.affected.len() == 1
             && root.is_some_and(|root| {
                 let affected = self.affected[0].participant;
@@ -458,7 +461,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
     }
 
     /// Returns whether all affected declarations are adjacent in the full section.
-    fn declarations_are_contiguous(&self) -> bool {
+    fn has_contiguous_declarations(&self) -> bool {
         // Locate affected declarations in the section's complete source order.
         let positions = self.affected.iter().filter_map(|affected| {
             self.section
@@ -559,7 +562,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         let context_matches = prefix.len() >= 2
             && context
                 .map(NameTokens::context)
-                .is_some_and(|context| prefix.matches_context(&context));
+                .is_some_and(|context| prefix.is_matching_context(&context));
 
         // Combine contextual evidence with any reverse owner-child relationship.
         let reverse_owner = self.reverse_owner_relationship();
@@ -578,7 +581,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         let exact_root = root.is_some();
 
         // A lone helper related to an exact family root uses its prefix semantically.
-        if self.single_participant_is_semantically_rooted(root) {
+        if self.is_single_participant_semantically_rooted(root) {
             return None;
         }
 
@@ -623,7 +626,7 @@ impl<'section, 'analysis> FamilyCandidateSet<'section, 'analysis> {
         }
 
         // Account for source locality and ambiguous competing dependency stems.
-        if self.declarations_are_contiguous() {
+        if self.has_contiguous_declarations() {
             confidence.add(ConfidenceSignal::Contiguous);
         }
         if competing_stems {
@@ -697,7 +700,7 @@ impl NameTokens {
     }
 
     /// Compares context words while permitting singular/plural variation at the end.
-    fn matches_context(&self, context: &Self) -> bool {
+    fn is_matching_context(&self, context: &Self) -> bool {
         // Differing word counts cannot describe the same contextual name.
         if self.words.len() != context.words.len() {
             return false;
@@ -896,15 +899,15 @@ mod tests {
     fn matches_snake_case_context_and_plural_variants() {
         assert!(
             NameTokens::pascal("MethodLikeFreeFunctions")
-                .matches_context(&NameTokens::context("method_like_free_functions"))
+                .is_matching_context(&NameTokens::context("method_like_free_functions"))
         );
         assert!(
             NameTokens::pascal("SectionDivider")
-                .matches_context(&NameTokens::context("section_dividers"))
+                .is_matching_context(&NameTokens::context("section_dividers"))
         );
         assert!(
             !NameTokens::pascal("SectionsDivider")
-                .matches_context(&NameTokens::context("section_divider"))
+                .is_matching_context(&NameTokens::context("section_divider"))
         );
     }
 
@@ -927,15 +930,15 @@ mod tests {
 
     #[test]
     fn suppresses_exact_names_when_a_candidate_collides() {
-        assert!(ConfidenceEvidence::allows_exact_names(
+        assert!(ConfidenceEvidence::should_allow_exact_names(
             THRESHOLD_SUGGESTION,
             ConfidenceNameAvailability::Available
         ));
-        assert!(!ConfidenceEvidence::allows_exact_names(
+        assert!(!ConfidenceEvidence::should_allow_exact_names(
             THRESHOLD_SUGGESTION,
             ConfidenceNameAvailability::Occupied
         ));
-        assert!(!ConfidenceEvidence::allows_exact_names(
+        assert!(!ConfidenceEvidence::should_allow_exact_names(
             THRESHOLD_SUGGESTION - 1,
             ConfidenceNameAvailability::Available
         ));

@@ -2,7 +2,7 @@
 
 ## Summary
 
-Checks that named boolean fields in structs use `is_<predicate>` or `has_<predicate>`.
+Checks that named boolean fields in structs use a configured predicate prefix.
 
 ## At a glance
 
@@ -16,8 +16,9 @@ Checks that named boolean fields in structs use `is_<predicate>` or `has_<predic
 
 ## What it catches
 
-Checks that named boolean fields in structs use `is_<predicate>` or `has_<predicate>`. The prefix
-must be followed by a nonempty, ordinarily formed predicate phrase.
+Checks that named boolean fields in structs use a configured predicate prefix. The default prefixes
+are `is_`, `has_`, and `should_`, and each must be followed by a nonempty, ordinarily formed
+predicate phrase.
 
 ## Why this matters
 
@@ -46,6 +47,7 @@ Prefixing them makes their role explicit wherever the fields are read:
 struct Window {
     is_active: bool,
     has_children: bool,
+    should_close: bool,
 }
 ```
 
@@ -59,7 +61,9 @@ Turn this lint off when your project deliberately follows a different style.
 
 ## Settings
 
-This lint has no behavior-specific settings.
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `boolean-predicate-prefixes` | string list | built-in list | Sets property prefixes shared with boolean-result callable naming. Use `".."` to keep the built-in entries. |
 
 ## Known limitations
 
@@ -67,4 +71,5 @@ No known implementation limitations.
 
 ## Related lints
 
+- [`rlib::bool_returning_functions_without_predicate_prefix`](../bool_returning_functions_without_predicate_prefix/README.md) — Applies the shared prefix policy to boolean-result functions and methods.
 - [`rlib::boolean_function_arguments`](../boolean_function_arguments/README.md) — Covers boolean values passed as function arguments.

@@ -124,7 +124,7 @@ impl Block {
         let replacement = FunctionLayoutProse::replacement(content, prefix);
         let is_canonical = (FunctionLayoutProse::is_canonical(content)
             || replacement.as_deref() == Some(first.text.as_str()))
-            && Self::continuations_are_canonical(&comments[1..]);
+            && Self::has_canonical_continuations(&comments[1..]);
         let last = comments.last().expect("comment blocks are nonempty");
 
         // Retain both the complete block and its independently repairable first line.
@@ -158,7 +158,7 @@ impl Block {
     }
 
     /// Validates nonempty natural continuation lines after a phase header.
-    fn continuations_are_canonical(comments: &[FunctionLayoutComment]) -> bool {
+    fn has_canonical_continuations(comments: &[FunctionLayoutComment]) -> bool {
         comments.iter().all(|comment| {
             comment
                 .text
@@ -168,7 +168,7 @@ impl Block {
     }
 
     /// Returns whether a comment header is separated from preceding code by a blank line.
-    fn previous_line_is_blank(cx: &LateContext<'_>, gap: Span, comment: Span) -> bool {
+    fn is_previous_line_blank(cx: &LateContext<'_>, gap: Span, comment: Span) -> bool {
         let before = gap.with_hi(comment.lo());
         let source_map = cx.sess().source_map();
 
@@ -221,7 +221,7 @@ impl FunctionLayoutEntryGap {
             // Check that the header is visually separated and attached to its phase.
             let has_required_blank = previous.is_none_or(|_| {
                 previous_line.is_some_and(|line| block.lines.start() > &(line + 1))
-                    && Block::previous_line_is_blank(cx, span, block.first_span)
+                    && Block::is_previous_line_blank(cx, span, block.first_span)
             });
             let immediately_precedes_code = next_line == Some(block.lines.end() + 1);
             let is_layout_valid = has_required_blank && immediately_precedes_code;

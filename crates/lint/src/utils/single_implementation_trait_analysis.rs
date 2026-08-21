@@ -170,7 +170,7 @@ impl SingleImplementationTraitAnalyzer {
                 .tcx
                 .effective_visibilities(())
                 .is_exported(candidate.def_id);
-            if !binary && package.preserves_exported_public_items() && exported {
+            if !binary && package.is_preserving_exported_public_items() && exported {
                 continue;
             }
 

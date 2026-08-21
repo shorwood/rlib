@@ -216,9 +216,9 @@ impl LateLintPass<'_> for SerdeFlattenedFieldCollisions {
             .filter_map(|(field, hir_field)| {
                 let rust_name = field.ident.as_ref()?.to_string();
                 let attributes = SerdeAttributes::from_attributes(&field.attrs);
-                let flattened = attributes.has(SerdeFlag::Flatten);
-                let serialize = !attributes.has(SerdeFlag::SkipSerialize) && !flattened;
-                let deserialize = !attributes.has(SerdeFlag::SkipDeserialize) && !flattened;
+                let flattened = attributes.has_flag(SerdeFlag::Flatten);
+                let serialize = !attributes.has_flag(SerdeFlag::SkipSerialize) && !flattened;
+                let deserialize = !attributes.has_flag(SerdeFlag::SkipDeserialize) && !flattened;
                 let flatten_target = flattened
                     .then(|| {
                         cx.tcx

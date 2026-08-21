@@ -86,6 +86,7 @@ define_lint_registration! {
         bare_tuple_types,
         bidirectional_module_dependencies,
         bool_fields_without_predicate_prefix,
+        bool_returning_functions_without_predicate_prefix,
         boolean_function_arguments,
         collection_method_like_free_functions,
         constructor_like_free_functions,

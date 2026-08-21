@@ -99,7 +99,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosBooleanComponentProps {
         for property in properties {
             // Ignore props whose resolved wrapper tree carries no boolean state.
             if Self::is_platform_state(property.name.as_str())
-                || !ComponentProps::carries_boolean(cx, property.ty)
+                || !ComponentProps::has_boolean(cx, property.ty)
             {
                 continue;
             }

@@ -41,7 +41,7 @@ pub struct BonContractCatalog {
 
 impl BonContractCatalog {
     /// Returns whether a field is less visible than the struct that owns it.
-    fn field_is_restricted(cx: &LateContext<'_>, owner: LocalDefId, field: LocalDefId) -> bool {
+    fn is_field_restricted(cx: &LateContext<'_>, owner: LocalDefId, field: LocalDefId) -> bool {
         let owner_visibility = cx.tcx.visibility(owner);
         let field_visibility = cx.tcx.visibility(field);
         match owner_visibility {
@@ -167,7 +167,7 @@ impl BonContractCatalog {
                 has_restricted_fields: data
                     .fields()
                     .iter()
-                    .any(|field| Self::field_is_restricted(cx, item.owner_id.def_id, field.def_id)),
+                    .any(|field| Self::is_field_restricted(cx, item.owner_id.def_id, field.def_id)),
             },
         );
     }

@@ -82,7 +82,7 @@ crate::impl_late_lint! {
 
 impl MietteMalformedDiagnosticCodes {
     /// Accepts namespaced snake-case codes and conventional letter-number codes.
-    fn valid_code(code: &str) -> bool {
+    fn is_valid_code(code: &str) -> bool {
         let segments = code.split("::").collect::<Vec<_>>();
 
         // Qualified codes reserve each segment for a stable machine-oriented name.
@@ -123,7 +123,7 @@ impl MietteMalformedDiagnosticCodes {
         };
 
         // Codes matching an accepted shape require no diagnostic.
-        if Self::valid_code(code) {
+        if Self::is_valid_code(code) {
             return;
         }
 

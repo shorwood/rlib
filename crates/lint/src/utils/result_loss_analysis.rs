@@ -288,7 +288,7 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
     }
 
     /// Returns whether a closure statement explicitly disposes of its error binding.
-    fn discards_binding(&self, statement: &Stmt<'_>, binding: HirId) -> bool {
+    fn is_discarding_binding(&self, statement: &Stmt<'_>, binding: HirId) -> bool {
         // A wildcard binding discards the error when initialized from that binding.
         if let StmtKind::Let(local) = statement.kind
             && matches!(local.pat.kind, PatKind::Wild)
@@ -343,7 +343,7 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
             PatKind::Wild => statements.is_empty(),
             PatKind::Binding(_, binding, _, None) => statements
                 .iter()
-                .all(|statement| self.discards_binding(statement, binding)),
+                .all(|statement| self.is_discarding_binding(statement, binding)),
             _ => false,
         }
     }
@@ -425,7 +425,7 @@ impl<'analysis, 'tcx> ResultLossAnalyzer<'analysis, 'tcx> {
             || matches!(parameter.pat.kind, PatKind::Binding(_, binding, _, None)
                 if statements
                     .iter()
-                    .all(|statement| self.discards_binding(statement, binding)))
+                    .all(|statement| self.is_discarding_binding(statement, binding)))
     }
 
     /// Normalizes one direct UFCS call into semantic call parts.

@@ -117,7 +117,7 @@ impl DeriveMoreManualFormattingImpls {
     }
 
     /// Returns whether an expression borrows a field of the receiver binding.
-    fn field_reference(
+    fn is_field_reference(
         cx: &LateContext<'_>,
         expression: &Expr<'_>,
         binding: rustc_hir::HirId,
@@ -135,7 +135,7 @@ impl DeriveMoreManualFormattingImpls {
     }
 
     /// Recognizes formatting that delegates the same trait directly to one field.
-    fn direct_trait_delegation(
+    fn is_direct_trait_delegation(
         cx: &LateContext<'_>,
         owner: LocalDefId,
         expression: &Expr<'_>,
@@ -153,7 +153,7 @@ impl DeriveMoreManualFormattingImpls {
             return false;
         };
         cx.tcx.trait_of_assoc(call.target) == Some(trait_id)
-            && Self::field_reference(cx, value, self_binding)
+            && Self::is_field_reference(cx, value, self_binding)
             && DirectForwarding::is_binding(cx, formatter, formatter_binding)
     }
 
@@ -175,7 +175,7 @@ impl DeriveMoreManualFormattingImpls {
     }
 
     /// Recognizes one `write!` invocation that formats only a receiver field.
-    fn single_field_write(
+    fn is_single_field_write(
         cx: &LateContext<'_>,
         item: &ImplItem<'_>,
         expression: &Expr<'_>,
@@ -373,15 +373,18 @@ impl ExactFormatting {
             return None;
         };
 
-        if DeriveMoreManualFormattingImpls::direct_trait_delegation(
+        if DeriveMoreManualFormattingImpls::is_direct_trait_delegation(
             cx,
             forwarding.typeck_owner,
             forwarding.forwarded,
             *self_binding,
             *formatter_binding,
             trait_id,
-        ) || DeriveMoreManualFormattingImpls::single_field_write(cx, item, forwarding.forwarded)
-        {
+        ) || DeriveMoreManualFormattingImpls::is_single_field_write(
+            cx,
+            item,
+            forwarding.forwarded,
+        ) {
             Some(Self {
                 definition,
                 trait_name,

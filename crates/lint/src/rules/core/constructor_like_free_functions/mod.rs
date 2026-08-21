@@ -198,7 +198,7 @@ impl<'tcx> LateLintPass<'tcx> for ConstructorLikeFreeFunctions {
             {
                 continue;
             }
-            if Self::parser_has_precedence(&self.constructions, &parser_families, candidate) {
+            if Self::has_parser_precedence(&self.constructions, &parser_families, candidate) {
                 continue;
             }
 
@@ -258,7 +258,7 @@ impl ConstructorLikeFreeFunctions {
     }
 
     /// Rejects comments or generated text between the adjacent owner group and function.
-    fn gap_is_whitespace(cx: &LateContext<'_>, previous: Span, function: Span) -> bool {
+    fn is_gap_whitespace(cx: &LateContext<'_>, previous: Span, function: Span) -> bool {
         let gap = previous.with_hi(function.lo()).with_lo(previous.hi());
         let source_map = cx.sess().source_map();
         source_map
@@ -280,7 +280,7 @@ impl ConstructorLikeFreeFunctions {
     }
 
     /// Returns whether a stronger unique-parser diagnostic owns this `candidate`.
-    fn parser_has_precedence(
+    fn has_parser_precedence(
         analysis: &ConstructionAnalysis,
         families: &HashMap<LocalDefId, Vec<&ConstructionCandidate>>,
         candidate: &ConstructionCandidate,
@@ -386,7 +386,7 @@ impl ConstructorLikeFreeFunctions {
         let preceding = Self::preceding_target_item(cx, analysis, candidate)?;
 
         // Comments or other syntax in the ownership gap make automatic wrapping unsafe.
-        if !Self::gap_is_whitespace(cx, preceding.span, candidate.function.item_span) {
+        if !Self::is_gap_whitespace(cx, preceding.span, candidate.function.item_span) {
             return None;
         }
 

@@ -36,8 +36,8 @@ impl Violation {
 
         // An explicit requirement or documentation makes omission policy visible.
         if !OptionType::is_option(&ty)
-            || BonAttributeAnalysis::builder_contains(cx, &parameter.attrs, "required")
-            || BonAttributeAnalysis::has(&parameter.attrs, "doc")
+            || BonAttributeAnalysis::contains_builder_value(cx, &parameter.attrs, "required")
+            || BonAttributeAnalysis::has_attribute(&parameter.attrs, "doc")
         {
             return None;
         }
@@ -115,8 +115,8 @@ impl BonImplicitOptionalBuilderMembers {
     fn check_function(cx: &EarlyContext<'_>, attributes: &[rustc_ast::Attribute], function: &Fn) {
         // Non-builder functions and explicitly required policies need no omission warning.
         if BonAttributeAnalysis::builder(attributes).is_none()
-            || (BonAttributeAnalysis::builder_contains(cx, attributes, "on(")
-                && BonAttributeAnalysis::builder_contains(cx, attributes, "required"))
+            || (BonAttributeAnalysis::contains_builder_value(cx, attributes, "on(")
+                && BonAttributeAnalysis::contains_builder_value(cx, attributes, "required"))
         {
             return;
         }

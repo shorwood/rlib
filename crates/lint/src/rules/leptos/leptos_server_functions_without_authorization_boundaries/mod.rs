@@ -178,7 +178,7 @@ impl LeptosServerFunctionsWithoutAuthorizationBoundaries {
     }
 
     /// Proves that an authorization call occurs earlier in the same lexical scope.
-    fn authorization_precedes(&self, calls: &[CallObservation], sensitive: usize) -> bool {
+    fn has_preceding_authorization(&self, calls: &[CallObservation], sensitive: usize) -> bool {
         calls[..sensitive].iter().any(|call| {
             call.block_depth == 1
                 && self
@@ -237,7 +237,7 @@ impl EarlyLintPass for LeptosServerFunctionsWithoutAuthorizationBoundaries {
         };
 
         // An earlier same-scope authorization call establishes the required boundary.
-        if self.authorization_precedes(&collector.calls, position) {
+        if self.has_preceding_authorization(&collector.calls, position) {
             return;
         }
 

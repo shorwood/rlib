@@ -115,7 +115,7 @@ impl LeptosNeedlesslyClonedSignalValues {
     }
 
     /// Recognizes the deliberately narrow family of inspection method names.
-    fn borrowing_operation_name(name: &str, argument_count: usize) -> bool {
+    fn is_borrowing_operation_name(name: &str, argument_count: usize) -> bool {
         matches!((name, argument_count), ("len" | "is_empty", 0))
     }
 
@@ -127,7 +127,7 @@ impl LeptosNeedlesslyClonedSignalValues {
         };
 
         // Exclude methods outside the deliberately narrow inspection vocabulary.
-        if !Self::borrowing_operation_name(segment.ident.name.as_str(), arguments.len()) {
+        if !Self::is_borrowing_operation_name(segment.ident.name.as_str(), arguments.len()) {
             return false;
         }
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
@@ -181,8 +181,8 @@ mod tests {
 
     #[test]
     fn recognizes_borrow_only_operations() {
-        assert!(LeptosNeedlesslyClonedSignalValues::borrowing_operation_name("len", 0));
-        assert!(LeptosNeedlesslyClonedSignalValues::borrowing_operation_name("is_empty", 0));
-        assert!(!LeptosNeedlesslyClonedSignalValues::borrowing_operation_name("into_iter", 0));
+        assert!(LeptosNeedlesslyClonedSignalValues::is_borrowing_operation_name("len", 0));
+        assert!(LeptosNeedlesslyClonedSignalValues::is_borrowing_operation_name("is_empty", 0));
+        assert!(!LeptosNeedlesslyClonedSignalValues::is_borrowing_operation_name("into_iter", 0));
     }
 }

@@ -91,14 +91,14 @@ impl LateLintPass<'_> for StrumDefaultedPayloadEnumConstruction {
                 .filter(|variant| variant.has_domain_payload)
             {
                 let mut derives = Vec::new();
-                if contract.derives(StrumDerive::EnumIter) {
+                if contract.has_derive(StrumDerive::EnumIter) {
                     derives.push("`EnumIter`");
                 }
-                if contract.derives(StrumDerive::FromRepr) {
+                if contract.has_derive(StrumDerive::FromRepr) {
                     derives.push("`FromRepr`");
                 }
 
-                if contract.derives(StrumDerive::EnumString)
+                if contract.has_derive(StrumDerive::EnumString)
                     && !variant.is_default_capture
                     && !variant.has_explicit_string_payload
                 {

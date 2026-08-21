@@ -138,8 +138,8 @@ impl LateLintPass<'_> for SerdeLossyConditionalSerialization {
         } in fields
         {
             let attributes = SerdeAttributes::from_attributes(&authored_attributes);
-            let has_deserialization_fallback =
-                attributes.has(SerdeFlag::HasDefault) || attributes.has(SerdeFlag::SkipDeserialize);
+            let has_deserialization_fallback = attributes.has_flag(SerdeFlag::HasDefault)
+                || attributes.has_flag(SerdeFlag::SkipDeserialize);
 
             let Some(predicate) = attributes.skip_serializing_if else {
                 continue;

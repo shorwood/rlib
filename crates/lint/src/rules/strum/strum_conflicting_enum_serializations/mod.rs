@@ -56,7 +56,7 @@ impl Violation {
 
     /// Classifies the resolved contract without relying on source spelling alone.
     fn classify(contract: &EnumContract) -> Option<Self> {
-        if contract.derives(StrumDerive::EnumString) {
+        if contract.has_derive(StrumDerive::EnumString) {
             let variants = contract.enabled_variants().collect::<Vec<_>>();
             for (index, left) in variants.iter().enumerate() {
                 for right in variants.iter().skip(index + 1) {
@@ -75,7 +75,7 @@ impl Violation {
             StrumDerive::VariantNames,
         ]
         .into_iter()
-        .any(|derive| contract.derives(derive));
+        .any(|derive| contract.has_derive(derive));
 
         let variant = has_output.then(|| {
             contract

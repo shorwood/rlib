@@ -35,6 +35,7 @@ core = [
     "bare_tuple_types",
     "bidirectional_module_dependencies",
     "bool_fields_without_predicate_prefix",
+    "bool_returning_functions_without_predicate_prefix",
     "boolean_function_arguments",
     "collection_method_like_free_functions",
     "constructor_like_free_functions",
@@ -202,6 +203,10 @@ lints = ["derive_more_manual_forwarding_interfaces"]
 [[example]]
 name = "derive_more_manual_formatting_impls"
 lints = ["derive_more_manual_formatting_impls"]
+dylint-toml = '''
+[rlib-lint]
+enum-display-provider = "derive_more_display"
+'''
 
 [[example]]
 name = "derive_more_manual_from_str_impls"

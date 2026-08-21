@@ -57,7 +57,7 @@ impl ComparisonContract {
         }
 
         // A direct `Ordering` output establishes a total ordering relation.
-        if comparison_type_is_ordering(cx, output) {
+        if is_comparison_type_ordering(cx, output) {
             return Some(Self::TotalOrdering);
         }
 
@@ -66,7 +66,7 @@ impl ComparisonContract {
             return None;
         };
         (cx.tcx.is_diagnostic_item(sym::Option, definition.did())
-            && comparison_type_is_ordering(cx, arguments.type_at(0)))
+            && is_comparison_type_ordering(cx, arguments.type_at(0)))
         .then_some(Self::PartialOrdering)
     }
 
@@ -280,7 +280,7 @@ impl ComparisonAnalysis {
         def_id: LocalDefId,
     ) {
         // Reject trait methods and unsupported function contracts before type analysis.
-        if comparison_source_is_trait_method(cx, def_id) {
+        if is_comparison_source_trait_method(cx, def_id) {
             return;
         }
 
@@ -323,14 +323,14 @@ impl ComparisonAnalysis {
         };
 
         // Qualified names describe policy beyond a neutral comparison operation.
-        if !comparison_source_has_neutral_name(cx, name, type_def_id, contract) {
+        if !has_comparison_source_neutral_name(cx, name, type_def_id, contract) {
             return;
         }
 
         // Floating-point fields require explicit totalization for an `Ord`-like contract.
         if contract == ComparisonContract::TotalOrdering
-            && comparison_type_contains_float_field(cx, type_def_id)
-            && !comparison_source_uses_total_cmp(cx, body)
+            && has_comparison_type_float_field(cx, type_def_id)
+            && !is_comparison_source_using_total_cmp(cx, body)
         {
             return;
         }
@@ -474,7 +474,7 @@ fn comparison_type_same_shared_local_adt<'tcx>(
 }
 
 /// Returns whether a type is exactly `std::cmp::Ordering`.
-fn comparison_type_is_ordering(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+fn is_comparison_type_ordering(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
     // Only nominal types can resolve to the standard `Ordering` definition.
     let ty::Adt(definition, _) = ty.kind() else {
         return false;
@@ -483,7 +483,7 @@ fn comparison_type_is_ordering(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
 }
 
 /// Returns whether a local type directly stores a floating-point value.
-fn comparison_type_contains_float_field(cx: &LateContext<'_>, type_def_id: LocalDefId) -> bool {
+fn has_comparison_type_float_field(cx: &LateContext<'_>, type_def_id: LocalDefId) -> bool {
     cx.tcx
         .adt_def(type_def_id.to_def_id())
         .all_fields()
@@ -583,14 +583,14 @@ impl<'tcx> Visitor<'tcx> for TotalCmpFinder<'_, 'tcx> {
 // -----------------------------------------------------------------------------
 
 /// Returns whether an associated function belongs to a trait implementation.
-fn comparison_source_is_trait_method(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
+fn is_comparison_source_trait_method(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
     cx.tcx
         .opt_local_parent(def_id)
         .is_some_and(|parent| matches!(cx.tcx.def_kind(parent), DefKind::Impl { of_trait: true }))
 }
 
 /// Returns whether authored vocabulary claims one unqualified comparison relation.
-fn comparison_source_has_neutral_name(
+fn has_comparison_source_neutral_name(
     cx: &LateContext<'_>,
     name: Symbol,
     type_def_id: LocalDefId,
@@ -617,7 +617,7 @@ fn comparison_source_has_neutral_name(
 }
 
 /// Returns whether a body explicitly totalizes floating-point ordering.
-fn comparison_source_uses_total_cmp<'tcx>(cx: &LateContext<'tcx>, body: &Body<'tcx>) -> bool {
+fn is_comparison_source_using_total_cmp<'tcx>(cx: &LateContext<'tcx>, body: &Body<'tcx>) -> bool {
     // Traverse the complete body because totalization may occur behind a local binding.
     let mut finder = TotalCmpFinder {
         cx,
@@ -696,7 +696,7 @@ struct RelationEvidenceAnalyzer<'analysis, 'tcx> {
 
 impl<'tcx> RelationEvidenceAnalyzer<'_, 'tcx> {
     /// Returns whether an expression references one provenance family.
-    fn uses(&self, expression: &'tcx Expr<'tcx>, bindings: &HashSet<HirId>) -> bool {
+    fn is_using_bindings(&self, expression: &'tcx Expr<'tcx>, bindings: &HashSet<HirId>) -> bool {
         let mut finder = ComparisonBindingFinder {
             cx: self.cx,
             bindings,
@@ -709,13 +709,14 @@ impl<'tcx> RelationEvidenceAnalyzer<'_, 'tcx> {
     }
 
     /// Returns whether the expressions derive from opposite operands.
-    fn opposite_operands(&self, left: &'tcx Expr<'tcx>, right: &'tcx Expr<'tcx>) -> bool {
-        (self.uses(left, &self.left) && self.uses(right, &self.right))
-            || (self.uses(left, &self.right) && self.uses(right, &self.left))
+    fn has_opposite_operands(&self, left: &'tcx Expr<'tcx>, right: &'tcx Expr<'tcx>) -> bool {
+        (self.is_using_bindings(left, &self.left) && self.is_using_bindings(right, &self.right))
+            || (self.is_using_bindings(left, &self.right)
+                && self.is_using_bindings(right, &self.left))
     }
 
     /// Returns whether an operation resolves into the standard comparison trait stack.
-    fn delegates_to_standard_trait(
+    fn is_delegating_to_standard_trait(
         &self,
         expression: &Expr<'_>,
         left: &Expr<'_>,
@@ -754,12 +755,12 @@ impl<'tcx> RelationEvidenceAnalyzer<'_, 'tcx> {
         // Only the first returned operation that combines both operand families is evidence.
         if self.evidence.is_some()
             || !self.returned_relations.contains(&expression.hir_id)
-            || !self.opposite_operands(left, right)
+            || !self.has_opposite_operands(left, right)
         {
             return;
         }
         let has_standard_trait_delegation =
-            self.delegates_to_standard_trait(expression, left, right);
+            self.is_delegating_to_standard_trait(expression, left, right);
         self.evidence = Some(RelationEvidence {
             span: expression.span,
             has_standard_trait_delegation,
@@ -779,12 +780,12 @@ impl<'tcx> RelationEvidenceAnalyzer<'_, 'tcx> {
         };
 
         // Preserve membership in either independent operand family.
-        if self.uses(initializer, &self.left) {
+        if self.is_using_bindings(initializer, &self.left) {
             self.left.insert(binding);
         }
 
         // Absence from the right family ends propagation for this alias.
-        if !self.uses(initializer, &self.right) {
+        if !self.is_using_bindings(initializer, &self.right) {
             return;
         }
         self.right.insert(binding);

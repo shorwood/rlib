@@ -97,7 +97,7 @@ impl StrumDocumentationUsedAsEnumMessages {
     }
 
     /// Returns whether the receiver enum contains documentation that this API can expose.
-    fn receiver_has_documentation(cx: &LateContext<'_>, receiver: &Expr<'_>) -> bool {
+    fn has_receiver_documentation(cx: &LateContext<'_>, receiver: &Expr<'_>) -> bool {
         cx.typeck_results()
             .expr_ty(receiver)
             .peel_refs()
@@ -170,7 +170,7 @@ impl LateLintPass<'_> for StrumDocumentationUsedAsEnumMessages {
         // Retain only authored documentation reads from documented enum variants.
         if expression.span.from_expansion()
             || segment.ident.name.as_str() != "get_documentation"
-            || !Self::receiver_has_documentation(cx, receiver)
+            || !Self::has_receiver_documentation(cx, receiver)
         {
             return;
         }

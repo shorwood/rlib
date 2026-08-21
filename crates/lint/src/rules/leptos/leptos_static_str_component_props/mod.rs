@@ -99,7 +99,7 @@ impl LeptosStaticStrComponentProps {
     }
 
     /// Finds static string references through wrappers and locally defined carriers.
-    fn carries_static_str<'tcx>(
+    fn has_static_str<'tcx>(
         cx: &LateContext<'tcx>,
         ty: Ty<'tcx>,
         visited: &mut HashSet<DefId>,
@@ -138,7 +138,7 @@ impl LeptosStaticStrComponentProps {
         // Local carrier fields are part of the authored component boundary vocabulary.
         definition
             .all_fields()
-            .any(|field| Self::carries_static_str(cx, field.ty(cx.tcx, arguments), visited))
+            .any(|field| Self::has_static_str(cx, field.ty(cx.tcx, arguments), visited))
     }
 }
 
@@ -154,7 +154,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosStaticStrComponentProps {
         // Report every authored property that directly or indirectly carries static text.
         for property in properties {
             if Self::is_technical_property(property.name.as_str())
-                || !Self::carries_static_str(cx, property.ty, &mut HashSet::new())
+                || !Self::has_static_str(cx, property.ty, &mut HashSet::new())
             {
                 continue;
             }

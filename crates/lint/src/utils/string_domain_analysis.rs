@@ -331,7 +331,7 @@ impl DomainAnalyzer {
         }
 
         // Functions that establish the invariant are producers, not repeated downstream validators.
-        if signature.name.establishes_domain_invariant() {
+        if signature.name.has_invariant_establishing_name() {
             return;
         }
 

@@ -128,7 +128,7 @@ impl DeriveMoreNonRoundtrippingDerivedTextContracts {
             .as_ref()
             .map_or_else(|| "_0".to_owned(), ToString::to_string);
         let format = format.value();
-        (!Self::numeric_format_roundtrips(&NumericFormat {
+        (!Self::is_numeric_format_roundtripping(&NumericFormat {
             format: &format,
             field_name: &field_name,
         }))
@@ -136,7 +136,7 @@ impl DeriveMoreNonRoundtrippingDerivedTextContracts {
     }
 
     /// Returns whether one whole-value placeholder remains accepted by numeric `FromStr`.
-    fn numeric_format_roundtrips(contract: &NumericFormat<'_>) -> bool {
+    fn is_numeric_format_roundtripping(contract: &NumericFormat<'_>) -> bool {
         let format = contract.format;
         let field_name = contract.field_name;
 

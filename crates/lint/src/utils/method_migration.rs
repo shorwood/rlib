@@ -126,7 +126,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
     }
 
     /// Returns whether migrating `other` would overlap this `candidate`'s whole-item edit.
-    fn overlaps_candidate_migration(&self, other: &MethodCandidate) -> bool {
+    fn is_overlapping_candidate_migration(&self, other: &MethodCandidate) -> bool {
         other.function.def_id != self.candidate.function.def_id
             && self
                 .references
@@ -168,7 +168,7 @@ impl<'rule, 'cx, 'tcx> MigrationBuilder<'rule, 'cx, 'tcx> {
             .references
             .candidates
             .iter()
-            .any(|other| self.overlaps_candidate_migration(other));
+            .any(|other| self.is_overlapping_candidate_migration(other));
         (!overlaps_another_migration).then_some(())
     }
 

@@ -210,7 +210,7 @@ fn run(manifest: &Manifest, selected: Option<&str>) {
 #[test]
 fn fixture_ui() {
     // The proxy child owns the test result; the parent only propagates its status.
-    if rerun_with_all_features() {
+    if should_rerun_with_all_features() {
         return;
     }
 
@@ -220,11 +220,11 @@ fn fixture_ui() {
 }
 
 // -----------------------------------------------------------------------------
-// RerunWithAllFeatures: Static proxy process boundary
+// ShouldRerunWithAllFeatures: Static proxy process boundary
 // -----------------------------------------------------------------------------
 
 #[cfg(unix)]
-fn rerun_with_all_features() -> bool {
+fn should_rerun_with_all_features() -> bool {
     // The child already has the proxy environment and must execute fixtures directly.
     if var_os(CHILD_PROCESS).is_some() {
         return false;

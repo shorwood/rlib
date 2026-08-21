@@ -151,7 +151,7 @@ impl LateLintPass<'_> for StrumFilteredEnumCountContracts {
         for count_use in self.uses.drain(..) {
             let Some(contract) = contracts.iter().find(|contract| {
                 contract.def_id == count_use.enum_def
-                    && contract.derives(StrumDerive::EnumCount)
+                    && contract.has_derive(StrumDerive::EnumCount)
                     && contract.variants.iter().any(|variant| {
                         variant.is_deprecated
                             || variant.has_payload

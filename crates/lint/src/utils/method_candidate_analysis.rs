@@ -173,7 +173,7 @@ impl MethodCandidate {
         }
 
         // A struct in another module should own behavior through an explicit public abstraction.
-        if !Self::shares_module_with_struct(cx, def_id, semantic_receiver.struct_def_id) {
+        if !Self::is_sharing_module_with_struct(cx, def_id, semantic_receiver.struct_def_id) {
             return None;
         }
 
@@ -310,7 +310,7 @@ impl MethodCandidate {
     ///
     /// Code produced by an external macro is excluded because this crate cannot reasonably move
     /// or maintain it.
-    fn shares_module_with_struct(
+    fn is_sharing_module_with_struct(
         cx: &LateContext<'_>,
         function_def_id: LocalDefId,
         struct_def_id: LocalDefId,

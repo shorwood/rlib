@@ -313,7 +313,7 @@ impl SerdeAttributes {
 
 impl SerdeAttributes {
     /// Returns whether one Serde behavior flag is enabled.
-    pub fn has(&self, flag: SerdeFlag) -> bool {
+    pub fn has_flag(&self, flag: SerdeFlag) -> bool {
         self.flags.contains(&flag)
     }
 

@@ -86,7 +86,7 @@ impl LateLintPass<'_> for StrumDivergentDiscriminantContracts {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.contracts() {
-            if !(contract.derives(StrumDerive::EnumDiscriminants)
+            if !(contract.has_derive(StrumDerive::EnumDiscriminants)
                 && contract.is_discriminant_external_schema)
             {
                 continue;

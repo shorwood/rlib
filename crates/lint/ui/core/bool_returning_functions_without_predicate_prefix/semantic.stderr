@@ -1,0 +1,146 @@
+warning: boolean-result function or method `ready` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:18:4
+   |
+LL | fn ready() -> bool {
+   |    ^^^^^
+   |
+   = note: `ready` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+note: the lint level is defined here
+  --> $DIR/semantic.rs:5:9
+   |
+LL | #![warn(rlib::bool_returning_functions_without_predicate_prefix)]
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: boolean-result function or method `visible` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:22:4
+   |
+LL | fn visible() -> Flag {
+   |    ^^^^^^^
+   |
+   = note: `visible` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+
+warning: boolean-result function or method `maybe_ready` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:26:4
+   |
+LL | fn maybe_ready() -> Maybe<Flag> {
+   |    ^^^^^^^^^^^
+   |
+   = note: `maybe_ready` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+
+warning: boolean-result function or method `fallible_ready` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:30:4
+   |
+LL | fn fallible_ready() -> Fallible<Maybe<bool>> {
+   |    ^^^^^^^^^^^^^^
+   |
+   = note: `fallible_ready` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+
+warning: boolean-result function or method `load_ready` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:34:10
+   |
+LL | async fn load_ready() -> Result<bool, ()> {
+   |          ^^^^^^^^^^
+   |
+   = note: `load_ready` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+
+warning: boolean-result function or method `is_` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:84:4
+   |
+LL | fn is_() -> bool {
+   |    ^^^
+   |
+   = note: `is_` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+
+warning: boolean-result function or method `should__retry` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:88:4
+   |
+LL | fn should__retry() -> bool {
+   |    ^^^^^^^^^^^^^
+   |
+   = note: `should__retry` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+
+warning: boolean-result function or method `contains_` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:92:4
+   |
+LL | fn contains_() -> bool {
+   |    ^^^^^^^^^
+   |
+   = note: `contains_` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+
+warning: boolean-result function or method `contains__item` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:96:4
+   |
+LL | fn contains__item() -> bool {
+   |    ^^^^^^^^^^^^^^
+   |
+   = note: `contains__item` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+
+warning: boolean-result function or method `ready` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:101:8
+   |
+LL |     fn ready(&self) -> bool;
+   |        ^^^^^
+   |
+   = note: `ready` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+
+warning: boolean-result function or method `visible` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:103:8
+   |
+LL |     fn visible(&self) -> Option<bool> {
+   |        ^^^^^^^
+   |
+   = note: `visible` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+
+warning: boolean-result function or method `load` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:107:14
+   |
+LL |     async fn load(&self) -> Result<bool, ()>;
+   |              ^^^^
+   |
+   = note: `load` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+
+warning: boolean-result function or method `ready` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:113:8
+   |
+LL |     fn ready(&self) -> bool {
+   |        ^^^^^
+   |
+   = note: `ready` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+
+warning: boolean-result function or method `construct` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:117:8
+   |
+LL |     fn construct() -> bool {
+   |        ^^^^^^^^^
+   |
+   = note: `construct` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+
+warning: boolean-result function or method `enabled` should use a configured predicate prefix or query root
+  --> $DIR/semantic.rs:162:12
+   |
+LL |         fn enabled() -> bool {
+   |            ^^^^^^^
+...
+LL | local_function!();
+   | ----------------- in this macro invocation
+   |
+   = note: `enabled` otherwise reads like a value or operation instead of a yes-or-no query
+   = help: choose a predicate-style name that describes the condition returned on the success path
+   = note: this warning originates in the macro `local_function` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: 15 warnings emitted
+

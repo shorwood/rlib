@@ -50,7 +50,9 @@ impl DirectionalNames {
         let attributes = SerdeAttributes::from_attributes(attributes);
 
         // One-way skipped declarations do not promise a symmetric round-trip contract.
-        if attributes.has(SerdeFlag::SkipSerialize) || attributes.has(SerdeFlag::SkipDeserialize) {
+        if attributes.has_flag(SerdeFlag::SkipSerialize)
+            || attributes.has_flag(SerdeFlag::SkipDeserialize)
+        {
             return None;
         }
 

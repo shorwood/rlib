@@ -155,7 +155,7 @@ crate::impl_late_lint! {
 
 impl MietteReportsInLibraryInterfaces {
     /// Returns whether the current crate produces any library artifact.
-    fn library_crate(cx: &LateContext<'_>) -> bool {
+    fn is_library_crate(cx: &LateContext<'_>) -> bool {
         cx.sess()
             .opts
             .crate_types
@@ -172,7 +172,8 @@ impl MietteReportsInLibraryInterfaces {
         declared_output: Option<&HirTy<'_>>,
     ) {
         // Only exported boundaries of library artifacts constrain caller error vocabulary.
-        if !Self::library_crate(cx) || !cx.tcx.effective_visibilities(()).is_exported(definition) {
+        if !Self::is_library_crate(cx) || !cx.tcx.effective_visibilities(()).is_exported(definition)
+        {
             return;
         }
         let output = cx

@@ -210,8 +210,8 @@ impl SerdeDuplicateSerializedNames {
                 let rust_name = &member.rust_name;
                 let attributes = SerdeAttributes::from_attributes(&member.attributes);
                 if match direction {
-                    SerdeDirection::Serialize => attributes.has(SerdeFlag::SkipSerialize),
-                    SerdeDirection::Deserialize => attributes.has(SerdeFlag::SkipDeserialize),
+                    SerdeDirection::Serialize => attributes.has_flag(SerdeFlag::SkipSerialize),
+                    SerdeDirection::Deserialize => attributes.has_flag(SerdeFlag::SkipDeserialize),
                 } {
                     continue;
                 }

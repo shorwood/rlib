@@ -121,7 +121,7 @@ impl LateLintPass<'_> for StrumManualEnumStringConversions {
         };
 
         // Only complete static-string accessors match the generated conversion contract.
-        if !family.returns_static_str(cx)
+        if !family.is_returning_static_str(cx)
             || !matches!(
                 family.method_name.as_str(),
                 "as_str" | "as_static_str" | "name"

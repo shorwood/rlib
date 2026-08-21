@@ -204,8 +204,8 @@ impl LateLintPass<'_> for SerdeNonRoundtrippingSerdeAdapters {
         } in fields
         {
             let attributes = SerdeAttributes::from_attributes(&authored_attributes);
-            if attributes.has(SerdeFlag::SkipSerialize)
-                || attributes.has(SerdeFlag::SkipDeserialize)
+            if attributes.has_flag(SerdeFlag::SkipSerialize)
+                || attributes.has_flag(SerdeFlag::SkipDeserialize)
             {
                 continue;
             }

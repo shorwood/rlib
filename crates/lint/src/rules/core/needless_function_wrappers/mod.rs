@@ -80,7 +80,7 @@ impl RedundantWrapper {
         if target == identity.def_id
             || call.arguments.len() != forwarding.bindings.len()
             || (identity.header.is_async() && !Self::is_async_function(cx, target))
-            || (call.is_method && !Self::shares_inherent_type(cx, identity.def_id, target))
+            || (call.is_method && !Self::has_shared_inherent_type(cx, identity.def_id, target))
         {
             return None;
         }
@@ -109,7 +109,10 @@ impl RedundantWrapper {
 
             // A method wrapper must preserve both total arity and its receiver type.
             if target_signature.inputs().len() != signature.inputs().len()
-                || !Self::same_receiver_type(target_signature.inputs()[0], signature.inputs()[0])
+                || !Self::has_same_receiver_type(
+                    target_signature.inputs()[0],
+                    signature.inputs()[0],
+                )
             {
                 return None;
             }
@@ -156,7 +159,11 @@ impl RedundantWrapper {
 
     /// Prevents receiver auto-deref from turning a meaningful adapter into a `candidate` while still
     /// allowing wrappers that call a method from another impl block for the same type.
-    fn shares_inherent_type(cx: &LateContext<'_>, wrapper: LocalDefId, target: LocalDefId) -> bool {
+    fn has_shared_inherent_type(
+        cx: &LateContext<'_>,
+        wrapper: LocalDefId,
+        target: LocalDefId,
+    ) -> bool {
         // Require both functions to belong to inherent implementation blocks.
         let wrapper_impl = cx.tcx.local_parent(wrapper);
         let target_impl = cx.tcx.local_parent(target);
@@ -189,7 +196,7 @@ impl RedundantWrapper {
     }
 
     /// Compares receiver types while requiring reference mutability to match exactly.
-    fn same_receiver_type<'tcx>(left: Ty<'tcx>, right: Ty<'tcx>) -> bool {
+    fn has_same_receiver_type<'tcx>(left: Ty<'tcx>, right: Ty<'tcx>) -> bool {
         match (left.kind(), right.kind()) {
             (ty::Ref(_, left, left_mutability), ty::Ref(_, right, right_mutability)) => {
                 left == right && left_mutability == right_mutability

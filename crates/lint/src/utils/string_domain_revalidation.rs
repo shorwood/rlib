@@ -140,7 +140,7 @@ impl<'analysis, 'tcx> RevalidationVisitor<'analysis, 'tcx> {
         let name = self.cx.tcx.item_name(def_id);
 
         // Unrelated calls provide no revalidation evidence for their arguments.
-        if !name.establishes_domain_invariant() {
+        if !name.has_invariant_establishing_name() {
             return;
         }
         for argument in arguments {
@@ -156,7 +156,7 @@ impl<'analysis, 'tcx> RevalidationVisitor<'analysis, 'tcx> {
         arguments: &'tcx [Expr<'tcx>],
     ) {
         // Unrelated methods provide no revalidation evidence for receiver or arguments.
-        if !name.establishes_domain_invariant() {
+        if !name.has_invariant_establishing_name() {
             return;
         }
         self.record_bindings(receiver);

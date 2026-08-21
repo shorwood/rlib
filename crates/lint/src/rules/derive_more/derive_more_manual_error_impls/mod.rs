@@ -177,7 +177,7 @@ impl DeriveMoreManualErrorImpls {
     }
 
     /// Returns whether `derive_more` would add source or backtrace behavior to an empty impl.
-    fn derive_adds_behavior(cx: &LateContext<'_>, definition: ty::AdtDef<'_>) -> bool {
+    fn is_derive_adding_behavior(cx: &LateContext<'_>, definition: ty::AdtDef<'_>) -> bool {
         let fields = &definition.non_enum_variant().fields;
         let is_tuple = fields
             .iter()
@@ -194,7 +194,7 @@ impl DeriveMoreManualErrorImpls {
     }
 
     /// Finds the unique field conventionally acting as an error source.
-    fn conventional_source(cx: &LateContext<'_>, method: &rustc_hir::ImplItem<'_>) -> bool {
+    fn has_conventional_source(cx: &LateContext<'_>, method: &rustc_hir::ImplItem<'_>) -> bool {
         // Only an unattributed source method can match derive_more's generated behavior.
         if method.ident.name.as_str() != "source" || !cx.tcx.hir_attrs(method.hir_id()).is_empty() {
             return false;
@@ -271,14 +271,14 @@ impl DeriveMoreManualErrorImpls {
             return false;
         };
         match implementation.items {
-            [] => !Self::derive_adds_behavior(cx, definition),
-            [id] => Self::conventional_source(cx, cx.tcx.hir_impl_item(*id)),
+            [] => !Self::is_derive_adding_behavior(cx, definition),
+            [id] => Self::has_conventional_source(cx, cx.tcx.hir_impl_item(*id)),
             _ => false,
         }
     }
 
     /// Resolves the configured provider when several implementations are available.
-    fn selected(&self, definition: LocalDefId) -> bool {
+    fn is_selected(&self, definition: LocalDefId) -> bool {
         #[cfg(feature = "thiserror")]
         // Overlapping providers report only when configuration selects derive_more.
         if self.overlaps.contains(definition) {
@@ -304,7 +304,7 @@ impl LateLintPass<'_> for DeriveMoreManualErrorImpls {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for candidate in mem::take(&mut self.candidates) {
-            if !self.selected(candidate.definition) {
+            if !self.is_selected(candidate.definition) {
                 continue;
             }
             Violation {

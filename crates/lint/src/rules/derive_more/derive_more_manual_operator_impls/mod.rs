@@ -258,7 +258,7 @@ impl DeriveMoreManualOperatorImpls {
     }
 
     /// Proves that an authored operator applies directly to corresponding newtype fields.
-    fn exact_operator_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) -> bool {
+    fn is_exact_operator_source(cx: &LateContext<'_>, item: &Item<'_>, derive: &str) -> bool {
         // Implementations without authored source cannot be checked for exact forwarding.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return false;
@@ -388,7 +388,7 @@ impl LateLintPass<'_> for DeriveMoreManualOperatorImpls {
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
             || !rhs_is_self
-            || !Self::exact_operator_source(cx, item, derive)
+            || !Self::is_exact_operator_source(cx, item, derive)
         {
             return;
         }

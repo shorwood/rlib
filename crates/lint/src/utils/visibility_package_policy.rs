@@ -70,7 +70,7 @@ impl VisibilityPackagePolicy {
     }
 
     /// Returns whether unobserved downstream Rust consumers must be preserved.
-    pub(super) const fn preserves_exported_public_items(self) -> bool {
+    pub(super) const fn is_preserving_exported_public_items(self) -> bool {
         matches!(self, Self::Publishable)
     }
 }

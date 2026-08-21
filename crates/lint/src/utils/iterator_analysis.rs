@@ -120,7 +120,7 @@ impl IteratorAnalysis {
         def_id: LocalDefId,
     ) {
         // Reject trait methods and unsupported method contracts before type analysis.
-        if iterator_classification_is_trait_method(cx, def_id) {
+        if is_iterator_classification_trait_method(cx, def_id) {
             return;
         }
 
@@ -166,7 +166,7 @@ impl IteratorAnalysis {
 
         // Borrowed yields or policy-bearing names do not claim ordinary owned iteration.
         if matches!(item.kind(), ty::Ref(..) | ty::RawPtr(..))
-            || !iterator_classification_has_neutral_name(cx, ident.name, type_def_id, item)
+            || !has_iterator_classification_neutral_name(cx, ident.name, type_def_id, item)
         {
             return;
         }
@@ -279,7 +279,7 @@ fn iterator_classification_local_adt(ty: Ty<'_>) -> Option<LocalDefId> {
 }
 
 /// Returns whether an associated function belongs to a trait implementation.
-fn iterator_classification_is_trait_method(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
+fn is_iterator_classification_trait_method(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
     cx.tcx
         .opt_local_parent(def_id)
         .is_some_and(|parent| matches!(cx.tcx.def_kind(parent), DefKind::Impl { of_trait: true }))
@@ -300,7 +300,7 @@ fn iterator_classification_option_item<'tcx>(
 }
 
 /// Returns whether a method name claims unqualified sequence advancement.
-fn iterator_classification_has_neutral_name(
+fn has_iterator_classification_neutral_name(
     cx: &LateContext<'_>,
     name: Symbol,
     type_def_id: LocalDefId,
@@ -362,7 +362,7 @@ struct IteratorEvidenceState {
 }
 
 /// Returns whether an expression is a projection rooted in the mutable receiver.
-fn iterator_evidence_is_receiver_rooted(
+fn is_iterator_evidence_receiver_rooted(
     cx: &LateContext<'_>,
     receiver: HirId,
     expression: &Expr<'_>,
@@ -378,11 +378,11 @@ fn iterator_evidence_is_receiver_rooted(
         ExprKind::Index(base, _, _) => Some(base),
         _ => None,
     };
-    base.is_some_and(|base| iterator_evidence_is_receiver_rooted(cx, receiver, base))
+    base.is_some_and(|base| is_iterator_evidence_receiver_rooted(cx, receiver, base))
 }
 
 /// Returns whether an expression is the receiver path itself.
-fn iterator_evidence_is_direct_receiver(
+fn is_iterator_evidence_direct_receiver(
     cx: &LateContext<'_>,
     receiver: HirId,
     expression: &Expr<'_>,
@@ -413,7 +413,7 @@ struct IteratorReceiverUse<'set, 'analysis, 'tcx> {
 impl<'tcx> Visitor<'tcx> for IteratorReceiverUse<'_, '_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         // The first receiver-owned value completes this existence query.
-        if iterator_evidence_is_receiver_rooted(self.cx, self.receiver, expression)
+        if is_iterator_evidence_receiver_rooted(self.cx, self.receiver, expression)
             || matches!(
                 expression.kind,
                 ExprKind::Path(path)
@@ -452,7 +452,7 @@ struct IteratorFieldUse<'set, 'analysis, 'tcx> {
 impl<'tcx> Visitor<'tcx> for IteratorFieldUse<'_, '_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         if let ExprKind::Field(base, field) = expression.kind
-            && iterator_evidence_is_direct_receiver(self.cx, self.receiver, base)
+            && is_iterator_evidence_direct_receiver(self.cx, self.receiver, base)
         {
             self.fields.insert(field.name);
         }
@@ -554,7 +554,7 @@ impl<'analysis, 'tcx> IteratorEvidence<'analysis, 'tcx> {
     }
 
     /// Returns whether an expression reads receiver-owned state directly or through a local.
-    fn uses_receiver_value(&self, expression: &'tcx Expr<'tcx>) -> bool {
+    fn is_using_receiver_value(&self, expression: &'tcx Expr<'tcx>) -> bool {
         let mut use_finder = IteratorReceiverUse {
             cx: self.cx,
             receiver: self.receiver,
@@ -581,7 +581,7 @@ impl<'analysis, 'tcx> IteratorEvidence<'analysis, 'tcx> {
     fn mutated_receiver_field(&self, expression: &'tcx Expr<'tcx>) -> Option<Symbol> {
         match expression.kind {
             ExprKind::Field(base, field)
-                if iterator_evidence_is_direct_receiver(self.cx, self.receiver, base) =>
+                if is_iterator_evidence_direct_receiver(self.cx, self.receiver, base) =>
             {
                 Some(field.name)
             }
@@ -608,7 +608,7 @@ impl<'tcx> Visitor<'tcx> for IteratorEvidence<'_, 'tcx> {
     fn visit_stmt(&mut self, statement: &'tcx Stmt<'tcx>) {
         if let StmtKind::Let(local) = statement.kind
             && let Some(initializer) = local.init
-            && self.uses_receiver_value(initializer)
+            && self.is_using_receiver_value(initializer)
             && let PatKind::Binding(_, binding, _, None) = local.pat.kind
         {
             self.receiver_derived.insert(binding);
@@ -620,7 +620,7 @@ impl<'tcx> Visitor<'tcx> for IteratorEvidence<'_, 'tcx> {
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         // Only receiver values contributing to the method result establish yielded-item evidence.
-        if self.returned.contains(&expression.hir_id) && self.uses_receiver_value(expression) {
+        if self.returned.contains(&expression.hir_id) && self.is_using_receiver_value(expression) {
             self.state.has_returned_receiver_use = true;
             self.state
                 .returned_receiver_fields

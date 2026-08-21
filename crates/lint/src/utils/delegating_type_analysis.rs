@@ -21,7 +21,7 @@ use super::impl_target::ImplTargetExt;
 use super::visibility_package_policy::VisibilityPackagePolicy;
 
 /// Returns whether the compiler is building an ordinary executable target.
-fn delegating_type_is_binary_crate(cx: &LateContext<'_>) -> bool {
+fn is_delegating_type_binary_crate(cx: &LateContext<'_>) -> bool {
     !cx.sess().opts.test
         && cx
             .sess()
@@ -120,7 +120,7 @@ pub struct DelegatingTypeAnalyzer {
 
 impl DelegatingTypeAnalyzer {
     /// Returns whether wrapper and target receivers preserve ownership and borrow mutability.
-    fn receiver_modes_match(wrapper: ty::Ty<'_>, target: ty::Ty<'_>) -> bool {
+    fn is_matching_receiver_modes(wrapper: ty::Ty<'_>, target: ty::Ty<'_>) -> bool {
         match (wrapper.kind(), target.kind()) {
             (ty::Ref(_, _, wrapper_mutability), ty::Ref(_, _, target_mutability)) => {
                 wrapper_mutability == target_mutability
@@ -227,8 +227,10 @@ impl DelegatingTypeAnalyzer {
             .skip_binder();
 
         // Wrapper and target receivers must preserve ownership and borrow mutability.
-        if !Self::receiver_modes_match(wrapper_signature.inputs()[0], target_signature.inputs()[0])
-        {
+        if !Self::is_matching_receiver_modes(
+            wrapper_signature.inputs()[0],
+            target_signature.inputs()[0],
+        ) {
             return None;
         }
 
@@ -437,7 +439,7 @@ impl DelegatingTypeAnalyzer {
     /// Derives source-ordered findings after complete active-crate analysis.
     pub(crate) fn findings(self, cx: &LateContext<'_>) -> Vec<DelegatingTypeFinding> {
         let package = VisibilityPackagePolicy::for_current_package();
-        let binary = delegating_type_is_binary_crate(cx);
+        let binary = is_delegating_type_binary_crate(cx);
         let mut evidence = self.evidence;
         let mut findings = Vec::new();
         for candidate in self.candidates.into_values() {
@@ -460,7 +462,7 @@ impl DelegatingTypeAnalyzer {
                 .tcx
                 .effective_visibilities(())
                 .is_exported(candidate.def_id);
-            if !binary && package.preserves_exported_public_items() && exported {
+            if !binary && package.is_preserving_exported_public_items() && exported {
                 continue;
             }
 

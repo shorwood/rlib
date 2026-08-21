@@ -96,7 +96,7 @@ crate::impl_late_lint! {
 
 impl MisorderedInherentImplItems {
     /// Returns whether the resolved return type contains the inherent impl's self type.
-    fn returns_self_type(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
+    fn is_returning_self_type(cx: &LateContext<'_>, item: &ImplItem<'_>) -> bool {
         // Non-function associated items have no return type to classify.
         let ImplItemKind::Fn(signature, _) = item.kind else {
             return false;
@@ -129,7 +129,7 @@ impl MisorderedInherentImplItems {
             ImplItemKind::Fn(signature, _) => {
                 if signature.decl.implicit_self.has_implicit_self() {
                     4
-                } else if Self::returns_self_type(cx, item) {
+                } else if Self::is_returning_self_type(cx, item) {
                     2
                 } else {
                     3

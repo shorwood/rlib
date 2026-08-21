@@ -281,7 +281,7 @@ fn local_adt(ty: Ty<'_>) -> Option<LocalDefId> {
 // -----------------------------------------------------------------------------
 
 /// Returns whether a declaration owns unresolved type or const parameters.
-fn standard_interface_eligibility_has_type_or_const_parameters(
+fn has_standard_interface_eligibility_type_or_const_parameters(
     cx: &LateContext<'_>,
     def_id: LocalDefId,
 ) -> bool {
@@ -293,7 +293,7 @@ fn standard_interface_eligibility_has_type_or_const_parameters(
 }
 
 /// Returns whether a function belongs to a trait declaration or implementation.
-fn standard_interface_eligibility_is_trait_method(
+fn is_standard_interface_eligibility_trait_method(
     cx: &LateContext<'_>,
     def_id: LocalDefId,
 ) -> bool {
@@ -306,7 +306,7 @@ fn standard_interface_eligibility_is_trait_method(
 }
 
 /// Returns whether an associated function belongs to an inherent implementation.
-fn standard_interface_eligibility_is_inherent_method(
+fn is_standard_interface_eligibility_inherent_method(
     cx: &LateContext<'_>,
     def_id: LocalDefId,
 ) -> bool {
@@ -320,7 +320,7 @@ fn standard_interface_eligibility_is_inherent_method(
 // -----------------------------------------------------------------------------
 
 /// Recognizes exact `String` and `Cow<str>` return contracts.
-fn standard_interface_text_is_owned(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+fn is_standard_interface_text_owned(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
     // Non-ADT outputs cannot be owned textual contracts.
     let ty::Adt(definition, arguments) = ty.kind() else {
         return false;
@@ -331,13 +331,13 @@ fn standard_interface_text_is_owned(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
 }
 
 /// Recognizes owned text and immutable string slices.
-fn standard_interface_text_is_textual(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
-    standard_interface_text_is_owned(cx, ty)
+fn is_standard_interface_text_output(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+    is_standard_interface_text_owned(cx, ty)
         || matches!(ty.kind(), ty::Ref(_, inner, rustc_hir::Mutability::Not) if inner.is_str())
 }
 
 /// Returns whether a helper name carries only presentation and target vocabulary.
-fn standard_interface_text_has_neutral_name(
+fn has_standard_interface_text_neutral_name(
     cx: &LateContext<'_>,
     name: Symbol,
     target: LocalDefId,
@@ -361,21 +361,21 @@ fn standard_interface_text_has_neutral_name(
 }
 
 // -----------------------------------------------------------------------------
-// StandardInterfaceVocabularyIs: Authored convention names
+// StandardInterfaceVocabulary: Authored convention names
 // -----------------------------------------------------------------------------
 
 /// Recognizes project-specific message accessor conventions.
-fn standard_interface_vocabulary_is_message_accessor(name: &str) -> bool {
+fn is_standard_interface_vocabulary_message_accessor(name: &str) -> bool {
     ["description", "display_message", "message", "reason"].contains(&name)
 }
 
 /// Recognizes project-specific causal accessor conventions.
-fn standard_interface_vocabulary_is_causal_accessor(name: &str) -> bool {
+fn is_standard_interface_vocabulary_causal_accessor(name: &str) -> bool {
     ["cause", "inner", "source"].contains(&name)
 }
 
 /// Returns whether a type name carries strong secret-bearing vocabulary.
-fn standard_interface_vocabulary_is_secret_type(name: &str) -> bool {
+fn is_standard_interface_vocabulary_secret_type(name: &str) -> bool {
     let snake = name.to_case(Case::Snake);
     SECRET_TYPE_MARKERS
         .iter()
@@ -437,7 +437,7 @@ impl StandardInterfaceAnalysis {
         let field_ty = cx.tcx.type_of(field.def_id).instantiate_identity();
 
         // Only textual message-like fields establish presentation conventions.
-        if !is_message || !standard_interface_text_is_textual(cx, field_ty) {
+        if !is_message || !is_standard_interface_text_output(cx, field_ty) {
             return;
         }
 
@@ -606,7 +606,7 @@ impl StandardInterfaceAnalysis {
     fn record_type(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         // Generated or generic declarations cannot establish a concrete local interface.
         if item.span.from_expansion()
-            || standard_interface_eligibility_has_type_or_const_parameters(cx, item.owner_id.def_id)
+            || has_standard_interface_eligibility_type_or_const_parameters(cx, item.owner_id.def_id)
         {
             return;
         }
@@ -629,7 +629,7 @@ impl StandardInterfaceAnalysis {
         let classification = InterfaceTypeClassification {
             is_error_named,
             is_structured_data,
-            is_secret: standard_interface_vocabulary_is_secret_type(name),
+            is_secret: is_standard_interface_vocabulary_secret_type(name),
         };
 
         // Initialize empty authored convention evidence.
@@ -788,8 +788,8 @@ impl StandardInterfaceAnalysis {
             || matches!(header.constness, rustc_hir::Constness::Const);
 
         let is_ineligible = cx.tcx.def_span(def_id).from_expansion()
-            || standard_interface_eligibility_has_type_or_const_parameters(cx, def_id)
-            || standard_interface_eligibility_is_trait_method(cx, def_id)
+            || has_standard_interface_eligibility_type_or_const_parameters(cx, def_id)
+            || is_standard_interface_eligibility_trait_method(cx, def_id)
             || body.params.len() != 1;
 
         // Unsupported signatures cannot serve as simple presentation helpers.
@@ -818,7 +818,7 @@ impl StandardInterfaceAnalysis {
         }
 
         // Trait-owned methods are governed by their trait contract, not local ownership.
-        if !is_free && !standard_interface_eligibility_is_inherent_method(cx, def_id) {
+        if !is_free && !is_standard_interface_eligibility_inherent_method(cx, def_id) {
             return;
         }
 
@@ -835,8 +835,8 @@ impl StandardInterfaceAnalysis {
 
         // Record project-specific presentation and causal accessors first.
         let output = signature.output();
-        if standard_interface_text_is_textual(cx, output)
-            && standard_interface_vocabulary_is_message_accessor(name.as_str())
+        if is_standard_interface_text_output(cx, output)
+            && is_standard_interface_vocabulary_message_accessor(name.as_str())
             && let Some(declaration) = self.types.get_mut(&target)
         {
             declaration
@@ -844,7 +844,7 @@ impl StandardInterfaceAnalysis {
                 .presentation_spans
                 .push(cx.tcx.def_span(def_id));
         }
-        if standard_interface_vocabulary_is_causal_accessor(name.as_str())
+        if is_standard_interface_vocabulary_causal_accessor(name.as_str())
             && let Some(causal) = CausalEvidence::from_output(cx, output, cx.tcx.def_span(def_id))
             && let Some(declaration) = self.types.get_mut(&target)
         {
@@ -852,9 +852,9 @@ impl StandardInterfaceAnalysis {
         }
 
         // Only neutral owned-text helpers can claim canonical formatting ownership.
-        if !standard_interface_text_is_owned(cx, output)
+        if !is_standard_interface_text_owned(cx, output)
             || name.as_str() == "to_string"
-            || !standard_interface_text_has_neutral_name(cx, name, target)
+            || !has_standard_interface_text_neutral_name(cx, name, target)
         {
             return;
         }

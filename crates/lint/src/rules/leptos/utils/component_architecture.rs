@@ -742,7 +742,7 @@ impl<'ast> Visit<'ast> for FunctionCollector<'_> {
         let terminal = call_terminal(&call.func);
         if let Some(terminal) = terminal.as_deref() {
             self.function_calls.insert(terminal.to_owned());
-            if reactive_primitive_call(call, terminal) {
+            if is_reactive_primitive_call(call, terminal) {
                 self.reactive_primitives
                     .push(self.document.span(self.offsets.range(call.span())));
             }
@@ -1015,7 +1015,7 @@ const REACTIVE_PRIMITIVE_PATH_SUFFIXES: &[&str] = &[
 ];
 
 /// Returns whether a call directly constructs one Leptos reactive primitive.
-fn reactive_primitive_call(call: &ExprCall, terminal: &str) -> bool {
+fn is_reactive_primitive_call(call: &ExprCall, terminal: &str) -> bool {
     // Free constructor functions unambiguously create reactive state.
     if REACTIVE_PRIMITIVE_FUNCTIONS.contains(&terminal) {
         return true;

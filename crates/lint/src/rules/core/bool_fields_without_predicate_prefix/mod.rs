@@ -10,6 +10,8 @@ use rustc_hir::{FieldDef, HirId};
 use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::{Span, Symbol};
 
+use crate::config::core::BooleanPredicateConfig;
+use crate::config::store::ConfigStore;
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::source_provenance::{FieldProvenanceExt, SpanProvenanceExt};
 
@@ -25,13 +27,15 @@ struct Violation {
     span: Span,
     /// Field name used in diagnostic guidance.
     name: Symbol,
+    /// Configuration-backed forms accepted by the field policy.
+    expectation: String,
 }
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Owned(format!(
-            "boolean struct field `{}` should use `is_<predicate>` or `has_<predicate>`",
-            self.name
+            "boolean struct field `{}` should use {}",
+            self.name, self.expectation
         ))
     }
 
@@ -65,14 +69,26 @@ impl LateViolation for Violation {
 // -----------------------------------------------------------------------------
 
 /// Late lint pass that requires boolean field names to read as predicates.
-struct BoolFieldsWithoutPredicatePrefix;
+struct BoolFieldsWithoutPredicatePrefix {
+    /// Shared property naming policy.
+    config: BooleanPredicateConfig,
+}
+
+impl BoolFieldsWithoutPredicatePrefix {
+    /// Builds the pass from validated project configuration.
+    fn new() -> Self {
+        Self {
+            config: ConfigStore::get().boolean_predicates.clone(),
+        }
+    }
+}
 
 crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
     pub BOOL_FIELDS_WITHOUT_PREDICATE_PREFIX,
     Warn,
-    "enforces is_ or has_ prefixes for boolean struct fields",
-    BoolFieldsWithoutPredicatePrefix
+    "enforces configured predicate prefixes for boolean struct fields",
+    BoolFieldsWithoutPredicatePrefix::new()
 }
 
 impl LateLintPass<'_> for BoolFieldsWithoutPredicatePrefix {
@@ -105,13 +121,9 @@ impl LateLintPass<'_> for BoolFieldsWithoutPredicatePrefix {
 
         // Predicate-style names already communicate that callers should expect a boolean value.
         let name = field.ident.name.as_str();
-        let has_predicate_name = ["is_", "has_"].iter().any(|prefix| {
-            name.strip_prefix(prefix)
-                .is_some_and(|predicate| !predicate.is_empty() && !predicate.starts_with('_'))
-        });
 
-        // Established predicate prefixes already communicate boolean semantics.
-        if has_predicate_name {
+        // Accepted project vocabulary needs no diagnostic.
+        if self.config.is_field_name(name) {
             return;
         }
 
@@ -120,6 +132,7 @@ impl LateLintPass<'_> for BoolFieldsWithoutPredicatePrefix {
             hir_id: field.hir_id,
             span: field.ident.span,
             name: field.ident.name,
+            expectation: self.config.field_expectation(),
         }
         .emit(cx);
     }

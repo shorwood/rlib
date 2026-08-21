@@ -192,7 +192,7 @@ struct SerdeFormatSpecificSerdeImpls;
 
 impl SerdeFormatSpecificSerdeImpls {
     /// Returns whether documentation establishes an intentional format-specific contract.
-    fn documents_format_policy(source: &str) -> bool {
+    fn has_documented_format_policy(source: &str) -> bool {
         source
             .lines()
             .filter_map(|line| {
@@ -257,7 +257,7 @@ impl LateLintPass<'_> for SerdeFormatSpecificSerdeImpls {
         };
 
         // Explicit format documentation turns the coupling into an authored contract.
-        if Self::documents_format_policy(&source) {
+        if Self::has_documented_format_policy(&source) {
             return;
         }
 

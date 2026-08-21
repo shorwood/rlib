@@ -121,7 +121,7 @@ impl MietteManualDiagnosticImpls {
     }
 
     /// Recognizes boxed static text used by code, help, and URL methods.
-    fn static_box(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+    fn is_static_box(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
         // Metadata must first be wrapped in standard `Option::Some`.
         let Some(expression) = Self::some_argument(cx, expression) else {
             return false;
@@ -163,7 +163,7 @@ impl MietteManualDiagnosticImpls {
     }
 
     /// Recognizes a static Miette severity variant wrapped by `Some`.
-    fn static_severity(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+    fn is_static_severity(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
         // Severity metadata must wrap a direct variant path in `Option::Some`.
         let Some(Expr {
             kind: ExprKind::Path(path),
@@ -190,7 +190,7 @@ impl MietteManualDiagnosticImpls {
     }
 
     /// Recognizes a direct reference to one field on `self`.
-    fn direct_reference(cx: &LateContext<'_>, body: &Body<'_>, expression: &Expr<'_>) -> bool {
+    fn is_direct_reference(cx: &LateContext<'_>, body: &Body<'_>, expression: &Expr<'_>) -> bool {
         // Field metadata must wrap an immutable field borrow in `Option::Some`.
         let Some(Expr {
             kind: ExprKind::AddrOf(_, Mutability::Not, field),
@@ -241,9 +241,11 @@ impl MietteManualDiagnosticImpls {
             let name = method.ident.name.to_string();
 
             let derivable = match name.as_str() {
-                "code" | "help" | "url" => Self::static_box(cx, expression),
-                "severity" => Self::static_severity(cx, expression),
-                "source_code" | "diagnostic_source" => Self::direct_reference(cx, body, expression),
+                "code" | "help" | "url" => Self::is_static_box(cx, expression),
+                "severity" => Self::is_static_severity(cx, expression),
+                "source_code" | "diagnostic_source" => {
+                    Self::is_direct_reference(cx, body, expression)
+                }
                 _ => false,
             };
 

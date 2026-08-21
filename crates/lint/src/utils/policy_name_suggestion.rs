@@ -31,7 +31,10 @@ pub(super) fn for_authored_name(name: &str, category: PolicyCategory) -> Option<
         .collect::<Vec<_>>();
 
     // A name must state its policy category before mechanical normalization is safe.
-    if !normalized.iter().any(|word| category.matches_word(word)) {
+    if !normalized
+        .iter()
+        .any(|word| category.is_matching_word(word))
+    {
         return None;
     }
     Some(to_upper_snake(name))
@@ -53,7 +56,7 @@ impl ConfigurationNameContext<'_> {
             let word = word.to_ascii_lowercase();
             !PolicyCategory::all()
                 .into_iter()
-                .any(|candidate| candidate.matches_word(&word))
+                .any(|candidate| candidate.is_matching_word(&word))
         });
         has_domain_word.then_some(suggestion)
     }

@@ -95,7 +95,7 @@ crate::impl_late_lint! {
 
 impl SerdeDefaultsHidingMissingData {
     /// Returns whether documentation actually explains the missing-data policy.
-    fn documents_default(attributes: &[syn::Attribute]) -> bool {
+    fn has_documented_default(attributes: &[syn::Attribute]) -> bool {
         attributes
             .iter()
             .filter(|attribute| attribute.path().is_ident("doc"))
@@ -160,10 +160,10 @@ impl LateLintPass<'_> for SerdeDefaultsHidingMissingData {
         } in fields
         {
             let serde = SerdeAttributes::from_attributes(&attributes);
-            if Self::documents_default(&attributes)
+            if Self::has_documented_default(&attributes)
                 || Self::is_option(cx, field_definition)
-                || serde.has(SerdeFlag::SkipDeserialize)
-                || !serde.has(SerdeFlag::ImplicitDefault)
+                || serde.has_flag(SerdeFlag::SkipDeserialize)
+                || !serde.has_flag(SerdeFlag::ImplicitDefault)
             {
                 continue;
             }

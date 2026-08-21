@@ -276,7 +276,7 @@ pub struct ViewBindings;
 
 impl ViewBindings {
     /// Returns whether one prop flows exclusively into exactly one native `bind:*` call.
-    pub fn exclusively_forwards_to_native_bind(
+    pub fn is_exclusively_forwarding_to_native_bind(
         cx: &LateContext<'_>,
         owner: LocalDefId,
         binding: HirId,

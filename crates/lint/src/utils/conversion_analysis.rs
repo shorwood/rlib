@@ -822,7 +822,7 @@ impl<'analysis, 'tcx> ConversionEvidence<'analysis, 'tcx> {
     }
 
     /// Returns whether an expression contains any source-derived local reference.
-    fn uses_tainted(&self, expression: &'tcx Expr<'tcx>) -> bool {
+    fn is_using_tainted_input(&self, expression: &'tcx Expr<'tcx>) -> bool {
         let mut finder = ConversionEvidenceTaintedUse {
             cx: self.cx,
             tainted: &self.tainted,
@@ -833,7 +833,7 @@ impl<'analysis, 'tcx> ConversionEvidence<'analysis, 'tcx> {
     }
 
     /// Returns whether this expression constructs the promised target.
-    fn produces_target(&self, expression: &Expr<'_>) -> bool {
+    fn is_producing_target(&self, expression: &Expr<'_>) -> bool {
         // Require an actual construction operation before comparing its resolved result.
         let operation = self.is_construction_operation(expression);
 
@@ -877,7 +877,7 @@ impl<'tcx> Visitor<'tcx> for ConversionEvidence<'_, 'tcx> {
         };
         if let Some(initializer) = local.init {
             self.visit_expr(initializer);
-            if self.uses_tainted(initializer) {
+            if self.is_using_tainted_input(initializer) {
                 ConversionEvidenceBindingCollector {
                     bindings: &mut self.tainted,
                 }
@@ -895,15 +895,15 @@ impl<'tcx> Visitor<'tcx> for ConversionEvidence<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         self.record_effect(expression);
         if self.returned_targets.contains(&expression.hir_id)
-            && self.produces_target(expression)
-            && self.uses_tainted(expression)
+            && self.is_producing_target(expression)
+            && self.is_using_tainted_input(expression)
         {
             self.has_source_reached_target = true;
         }
 
         // Assignment is fully traversed after preserving taint state.
         if let ExprKind::Assign(left, right, _) = expression.kind {
-            let right_is_tainted = self.uses_tainted(right);
+            let right_is_tainted = self.is_using_tainted_input(right);
             self.visit_expr(right);
             if let ExprKind::Path(path) = left.kind
                 && let Res::Local(binding) = self.cx.qpath_res(&path, left.hir_id)
@@ -918,7 +918,7 @@ impl<'tcx> Visitor<'tcx> for ConversionEvidence<'_, 'tcx> {
             return;
         }
         if let ExprKind::Match(scrutinee, arms, _) = expression.kind
-            && self.uses_tainted(scrutinee)
+            && self.is_using_tainted_input(scrutinee)
         {
             for arm in arms {
                 ConversionEvidenceBindingCollector {
@@ -949,7 +949,7 @@ struct ConversionResultCollector<'analysis, 'tcx, 'set> {
 
 impl<'tcx> ConversionResultCollector<'_, 'tcx, '_> {
     /// Returns whether an expression directly constructs the promised target.
-    fn produces_target(&self, expression: &Expr<'_>) -> bool {
+    fn is_producing_target(&self, expression: &Expr<'_>) -> bool {
         let operation = matches!(
             expression.kind,
             ExprKind::Call(..) | ExprKind::MethodCall(..) | ExprKind::Struct(..)
@@ -973,7 +973,7 @@ impl<'tcx> ConversionResultCollector<'_, 'tcx, '_> {
     /// Follows only expression positions whose value contributes to a return contract.
     fn visit_result_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         // A direct target construction needs no deeper return-position traversal.
-        if self.produces_target(expression) {
+        if self.is_producing_target(expression) {
             self.returned_targets.insert(expression.hir_id);
             return;
         }

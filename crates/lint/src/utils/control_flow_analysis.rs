@@ -274,7 +274,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
     }
 
     /// Returns whether an expression exits its current control-flow path.
-    fn expression_diverges(&self, expression: &Expr<'_>) -> bool {
+    fn is_expression_diverging(&self, expression: &Expr<'_>) -> bool {
         // Explicit jump expressions diverge without requiring type-based `never` inference.
         if matches!(
             expression.kind,
@@ -295,7 +295,7 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         if !block.span.from_expansion()
             && let Some(expression) = Self::block_last_expression(block)
             && let ExprKind::If(_, then, None) = expression.kind
-            && !self.expression_diverges(then)
+            && !self.is_expression_diverging(then)
             && !matches!(exit, ControlFlowAnalyzerGuardExit::None)
         {
             // Name the guard exit that can replace the trailing branch.
@@ -356,8 +356,8 @@ impl<'analysis, 'tcx> ControlFlowAnalyzer<'analysis, 'tcx> {
         // Find guard-clause opportunities before increasing the recorded depth.
         self.visit_expr(condition);
         if let Some(otherwise) = otherwise {
-            let then_diverges = self.expression_diverges(then);
-            let otherwise_diverges = self.expression_diverges(otherwise);
+            let then_diverges = self.is_expression_diverging(then);
+            let otherwise_diverges = self.is_expression_diverging(otherwise);
             if then_diverges ^ otherwise_diverges {
                 self.push_needless(ControlFlowFinding {
                     span: expression.span,

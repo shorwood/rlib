@@ -193,7 +193,7 @@ impl DeriveMoreManualForwardingInterfaces {
     }
 
     /// Returns whether an argument is the expected receiver field with matching mutability.
-    fn field_argument(
+    fn is_field_argument(
         cx: &LateContext<'_>,
         expression: &Expr<'_>,
         binding: rustc_hir::HirId,
@@ -212,7 +212,7 @@ impl DeriveMoreManualForwardingInterfaces {
     }
 
     /// Recognizes ordinary indexing syntax over one receiver field.
-    fn direct_index(
+    fn is_direct_index(
         cx: &LateContext<'_>,
         owner: LocalDefId,
         expression: &Expr<'_>,
@@ -311,7 +311,7 @@ impl ContractTarget {
         let first = call.arguments.first()?;
 
         // The first call argument must be the expected wrapper field borrow.
-        if !DeriveMoreManualForwardingInterfaces::field_argument(
+        if !DeriveMoreManualForwardingInterfaces::is_field_argument(
             cx,
             first,
             bindings[0],
@@ -431,7 +431,7 @@ impl ContractTarget {
 
         // Indexing derives can preserve ordinary indexing syntax directly.
         if matches!(derive, "Index" | "IndexMut")
-            && DeriveMoreManualForwardingInterfaces::direct_index(
+            && DeriveMoreManualForwardingInterfaces::is_direct_index(
                 cx,
                 forwarding.typeck_owner,
                 forwarding.forwarded,

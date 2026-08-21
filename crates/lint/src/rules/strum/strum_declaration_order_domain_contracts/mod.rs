@@ -70,7 +70,7 @@ crate::impl_late_lint! {
 
 impl StrumDeclarationOrderDomainContracts {
     /// Recognizes APIs whose vocabulary makes declaration order part of the domain contract.
-    fn order_sensitive_context(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> bool {
+    fn is_order_sensitive_context(cx: &LateContext<'_>, hir_id: rustc_hir::HirId) -> bool {
         let name = cx
             .tcx
             .hir_parent_iter(hir_id)
@@ -102,7 +102,8 @@ impl StrumDeclarationOrderDomainContracts {
 impl LateLintPass<'_> for StrumDeclarationOrderDomainContracts {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
         // Generated expressions and order-insensitive contexts cannot expose this contract.
-        if expression.span.from_expansion() || !Self::order_sensitive_context(cx, expression.hir_id)
+        if expression.span.from_expansion()
+            || !Self::is_order_sensitive_context(cx, expression.hir_id)
         {
             return;
         }

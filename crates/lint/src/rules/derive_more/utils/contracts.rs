@@ -39,7 +39,7 @@ pub struct DeriveMoreContractCatalog {
 
 impl DeriveMoreContractCatalog {
     /// Returns whether a field is less visible than the nominal type that owns it.
-    fn field_is_restricted(cx: &LateContext<'_>, owner: LocalDefId, field: LocalDefId) -> bool {
+    fn is_field_restricted(cx: &LateContext<'_>, owner: LocalDefId, field: LocalDefId) -> bool {
         let owner_visibility = cx.tcx.visibility(owner);
         let field_visibility = cx.tcx.visibility(field);
         match owner_visibility {
@@ -185,10 +185,10 @@ impl DeriveMoreContractCatalog {
         // Derive the aggregate visibility guarantees recorded for later lint passes.
         let has_restricted_fields = fields
             .iter()
-            .any(|field| Self::field_is_restricted(cx, owner, field.def_id));
+            .any(|field| Self::is_field_restricted(cx, owner, field.def_id));
         let has_all_fields_restricted = fields
             .iter()
-            .all(|field| Self::field_is_restricted(cx, owner, field.def_id));
+            .all(|field| Self::is_field_restricted(cx, owner, field.def_id));
         self.types.insert(
             owner,
             DeriveMoreTypeContract {

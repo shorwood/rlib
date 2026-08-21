@@ -59,7 +59,7 @@ struct CollectionExpressionAnalysis;
 
 impl CollectionExpressionAnalysis {
     /// Returns whether the crate can use Strum derives as a remediation.
-    fn strum_derives_available(cx: &LateContext<'_>) -> bool {
+    fn has_available_strum_derives(cx: &LateContext<'_>) -> bool {
         cx.tcx.sess.opts.externs.get("strum").is_some()
     }
 
@@ -375,7 +375,8 @@ impl CountCandidate {
     /// Recovers a constant or method that returns the enum's exact cardinality.
     pub(crate) fn from_impl_item(cx: &LateContext<'_>, item: &ImplItem<'_>) -> Option<Self> {
         // Replacement requires Strum derives to be available in the current crate.
-        if item.span.from_expansion() || !CollectionExpressionAnalysis::strum_derives_available(cx)
+        if item.span.from_expansion()
+            || !CollectionExpressionAnalysis::has_available_strum_derives(cx)
         {
             return None;
         }
@@ -680,7 +681,7 @@ impl CollectionCandidate {
         definition: LocalDefId,
     ) -> Option<Self> {
         // Collection replacement requires Strum derives to be available.
-        if !CollectionExpressionAnalysis::strum_derives_available(cx) {
+        if !CollectionExpressionAnalysis::has_available_strum_derives(cx) {
             return None;
         }
         let expression = cx.tcx.hir_body(body_id).value;

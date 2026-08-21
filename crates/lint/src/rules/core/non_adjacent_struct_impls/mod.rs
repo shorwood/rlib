@@ -215,7 +215,7 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
     }
 
     /// Returns whether moving an impl would cross a textually scoped macro definition.
-    fn crosses_macro_definition(&self, impl_: ImplGroupItem<'_>) -> bool {
+    fn is_crossing_macro_definition(&self, impl_: ImplGroupItem<'_>) -> bool {
         let target = self.group.struct_index;
         let start = target.min(impl_.index);
         let end = target.max(impl_.index);
@@ -230,7 +230,7 @@ impl<'lint, 'hir> Migration<'lint, 'hir> {
             .group
             .impls
             .iter()
-            .any(|impl_| self.crosses_macro_definition(*impl_));
+            .any(|impl_| self.is_crossing_macro_definition(*impl_));
 
         // Permit the move only when textual macro scope cannot change.
         if crosses_macro {

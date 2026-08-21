@@ -166,7 +166,7 @@ pub struct GenericAbstractionFinding {
 // -----------------------------------------------------------------------------
 
 /// Returns whether one type form is inherently inferred or abstract.
-const fn generic_abstraction_open_type_form_is_open(ty: &Ty<'_, AmbigArg>) -> bool {
+const fn is_generic_abstraction_type_form_open(ty: &Ty<'_, AmbigArg>) -> bool {
     matches!(
         ty.kind,
         TyKind::OpaqueDef(_)
@@ -178,7 +178,7 @@ const fn generic_abstraction_open_type_form_is_open(ty: &Ty<'_, AmbigArg>) -> bo
 }
 
 /// Returns whether a resolved path denotes a forwarded or unresolved type.
-const fn generic_abstraction_open_type_resolution_is_open(resolution: Res) -> bool {
+const fn is_generic_abstraction_type_resolution_open(resolution: Res) -> bool {
     matches!(
         resolution,
         Res::Err
@@ -210,7 +210,7 @@ impl<'tcx> Visitor<'tcx> for GenericAbstractionOpenTypeVisitor<'_, 'tcx> {
         }
 
         // Reject inference and abstraction forms before descending into their children.
-        if generic_abstraction_open_type_form_is_open(ty) {
+        if is_generic_abstraction_type_form_open(ty) {
             self.has_open_boundary = true;
             return;
         }
@@ -218,7 +218,7 @@ impl<'tcx> Visitor<'tcx> for GenericAbstractionOpenTypeVisitor<'_, 'tcx> {
         // Parameters, projections, and aliases do not prove one stable concrete substitution.
         if let TyKind::Path(qpath) = ty.kind {
             let resolution = self.cx.qpath_res(&qpath, ty.hir_id);
-            self.has_open_boundary = generic_abstraction_open_type_resolution_is_open(resolution);
+            self.has_open_boundary = is_generic_abstraction_type_resolution_open(resolution);
 
             // Stop once this resolved path proves the substitution remains open.
             if self.has_open_boundary {
@@ -513,7 +513,7 @@ impl GenericAbstractionAnalyzer {
                 .tcx
                 .effective_visibilities(())
                 .is_exported(declaration.def_id);
-            if !binary && package.preserves_exported_public_items() && exported {
+            if !binary && package.is_preserving_exported_public_items() && exported {
                 continue;
             }
 

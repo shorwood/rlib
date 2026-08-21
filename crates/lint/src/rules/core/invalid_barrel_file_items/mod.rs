@@ -224,13 +224,13 @@ impl InvalidBarrelFileItems {
             Some("lib.rs") => true,
             Some("mod.rs") => path
                 .parent()
-                .is_some_and(Self::directory_has_child_module_source),
+                .is_some_and(Self::has_directory_child_module_source),
             _ => false,
         }
     }
 
     /// Returns whether a directory contains an immediate child in either standard Rust layout.
-    fn directory_has_child_module_source(directory: &Path) -> bool {
+    fn has_directory_child_module_source(directory: &Path) -> bool {
         // An unreadable directory cannot prove that a sibling module file exists.
         let Ok(entries) = directory.read_dir() else {
             return false;

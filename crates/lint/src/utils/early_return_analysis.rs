@@ -65,7 +65,7 @@ impl<'analysis, 'tcx> EarlyReturnAnalyzer<'analysis, 'tcx> {
     }
 
     /// Returns whether `statement` precedes later work in its direct block.
-    fn block_has_later_entry(block: &Block<'_>, statement: HirId) -> bool {
+    fn has_later_block_entry(block: &Block<'_>, statement: HirId) -> bool {
         block
             .stmts
             .iter()
@@ -97,7 +97,7 @@ impl<'analysis, 'tcx> EarlyReturnAnalyzer<'analysis, 'tcx> {
                 Node::Block(block)
                     if statement
                         .take()
-                        .is_some_and(|statement| Self::block_has_later_entry(block, statement)) =>
+                        .is_some_and(|statement| Self::has_later_block_entry(block, statement)) =>
                 {
                     return guard;
                 }

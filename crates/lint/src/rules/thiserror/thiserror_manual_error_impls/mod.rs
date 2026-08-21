@@ -99,7 +99,7 @@ impl ThiserrorManualErrorImpls {
     }
 
     /// Returns whether thiserror owns this complete error contract.
-    fn uses_thiserror_provider(&self, source_field: Option<&str>) -> bool {
+    fn is_using_thiserror_provider(&self, source_field: Option<&str>) -> bool {
         if cfg!(feature = "derive_more") && source_field.is_none_or(|field| field == "source") {
             self.config.error_implementation() == Some(ErrorImplementationProvider::ThiserrorError)
         } else {
@@ -115,7 +115,7 @@ impl LateLintPass<'_> for ThiserrorManualErrorImpls {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for candidate in self.catalog.candidates() {
-            if !self.uses_thiserror_provider(candidate.source_field.as_deref()) {
+            if !self.is_using_thiserror_provider(candidate.source_field.as_deref()) {
                 continue;
             }
 

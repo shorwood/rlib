@@ -146,13 +146,13 @@ impl LateLintPass<'_> for ThiserrorOpaqueErrorsExposingRepresentations {
             });
             for (field, hir_field) in variant.fields.iter().zip(hir_variant.data.fields()) {
                 let attributes = ThiserrorAttributes::from_attributes(&field.attrs);
-                let conventional_source = field
+                let has_conventional_source = field
                     .ident
                     .as_ref()
                     .is_some_and(|identifier| identifier == "source");
 
                 if !(attributes.is_source
-                    || conventional_source
+                    || has_conventional_source
                     || (is_transparent && variant.fields.len() == 1))
                 {
                     continue;

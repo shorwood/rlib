@@ -95,7 +95,7 @@ impl ThiserrorManualFromErrorVariants {
     }
 
     /// Returns whether configuration assigns this conversion to thiserror.
-    fn uses_thiserror_provider(&self) -> bool {
+    fn is_using_thiserror_provider(&self) -> bool {
         if cfg!(feature = "derive_more") {
             self.config.error_variant_conversion()
                 == Some(ErrorVariantConversionProvider::ThiserrorFrom)
@@ -122,7 +122,7 @@ impl LateLintPass<'_> for ThiserrorManualFromErrorVariants {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         // Manual conversions are replaceable only when Thiserror owns the error contract.
-        if !self.uses_thiserror_provider() {
+        if !self.is_using_thiserror_provider() {
             return;
         }
         for candidate in self.candidates.drain(..) {

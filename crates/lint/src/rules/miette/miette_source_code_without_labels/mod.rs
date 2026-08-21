@@ -119,7 +119,7 @@ crate::impl_late_lint! {
 
 impl MietteSourceCodeWithoutLabels {
     /// Returns whether a local nested diagnostic can select a source location.
-    fn nested_focus(
+    fn has_nested_focus(
         catalog: &DiagnosticCatalog,
         target: LocalDefId,
         visited: &mut HashSet<LocalDefId>,
@@ -148,7 +148,7 @@ impl MietteSourceCodeWithoutLabels {
                         || field.roles.contains(DiagnosticFieldRole::DiagnosticSource))
                         && field
                             .target
-                            .is_none_or(|target| Self::nested_focus(catalog, target, visited)))
+                            .is_none_or(|target| Self::has_nested_focus(catalog, target, visited)))
             })
     }
 
@@ -173,7 +173,7 @@ impl MietteSourceCodeWithoutLabels {
                     || ((field.roles.contains(DiagnosticFieldRole::Related)
                         || field.roles.contains(DiagnosticFieldRole::DiagnosticSource))
                         && field.target.is_none_or(|target| {
-                            Self::nested_focus(catalog, target, &mut HashSet::new())
+                            Self::has_nested_focus(catalog, target, &mut HashSet::new())
                         }))
             })
         {

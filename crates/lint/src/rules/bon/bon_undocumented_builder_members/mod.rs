@@ -52,19 +52,19 @@ impl Violation {
             Err(_error) => return None,
         };
         let behavior = if OptionType::is_option(&ty)
-            && !BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::REQUIRED)
+            && !BonAttributeAnalysis::has_builder_option(cx, attributes, BuilderOption::REQUIRED)
         {
             "optional"
-        } else if BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::DEFAULT) {
+        } else if BonAttributeAnalysis::has_builder_option(cx, attributes, BuilderOption::DEFAULT) {
             "default"
-        } else if BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::INTO)
-            || BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::WITH)
+        } else if BonAttributeAnalysis::has_builder_option(cx, attributes, BuilderOption::INTO)
+            || BonAttributeAnalysis::has_builder_option(cx, attributes, BuilderOption::WITH)
         {
             "conversion"
         } else {
             // Ordinary visible members have no non-obvious generated policy to document.
-            if !BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::SKIP)
-                && !BonAttributeAnalysis::builder_has_option(cx, attributes, BuilderOption::FIELD)
+            if !BonAttributeAnalysis::has_builder_option(cx, attributes, BuilderOption::SKIP)
+                && !BonAttributeAnalysis::has_builder_option(cx, attributes, BuilderOption::FIELD)
             {
                 return None;
             }
@@ -286,7 +286,7 @@ impl EarlyLintPass for BonUndocumentedBuilderMembers {
             }
             ItemKind::Struct(_, _, data)
                 if matches!(item.vis.kind, VisibilityKind::Public)
-                    && BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
+                    && BonAttributeAnalysis::has_builder_derive(cx, &item.attrs) =>
             {
                 for field in data.fields() {
                     // Fields with ordinary documented behavior produce no diagnostic.

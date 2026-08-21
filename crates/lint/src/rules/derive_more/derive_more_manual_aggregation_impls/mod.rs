@@ -95,7 +95,7 @@ crate::impl_late_lint! {
 
 impl DeriveMoreManualAggregationImpls {
     /// Proves that aggregation maps inputs to the sole field and wraps the result unchanged.
-    fn exact_aggregation_source(
+    fn is_exact_aggregation_source(
         cx: &LateContext<'_>,
         item: &Item<'_>,
         names: &AggregationNames<'_>,
@@ -220,7 +220,6 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
             return;
         };
         let derive_name = cx.tcx.item_name(trait_id);
-
         let derive = derive_name.as_str();
 
         // Only core aggregation traits have this derive_more replacement.
@@ -268,7 +267,7 @@ impl LateLintPass<'_> for DeriveMoreManualAggregationImpls {
         .then(|| field.name.as_str());
 
         // Source syntax must exactly map the field, aggregate it, and reconstruct the wrapper.
-        if !Self::exact_aggregation_source(
+        if !Self::is_exact_aggregation_source(
             cx,
             item,
             &AggregationNames {

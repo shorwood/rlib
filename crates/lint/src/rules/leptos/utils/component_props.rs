@@ -140,7 +140,7 @@ impl ComponentProps {
     }
 
     /// Returns whether a prop directly or through an accepted wrapper carries boolean state.
-    pub fn carries_boolean(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+    pub fn has_boolean(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
         // Accept a direct boolean before attempting to inspect wrapper identity.
         if ty.is_bool() {
             return true;
@@ -158,7 +158,7 @@ impl ComponentProps {
         arguments
             .types()
             .next()
-            .is_some_and(|inner| Self::carries_boolean(cx, inner))
+            .is_some_and(|inner| Self::has_boolean(cx, inner))
     }
 
     /// Builds one property after generated-to-authored field alignment has been proven.

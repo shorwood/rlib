@@ -176,7 +176,7 @@ impl LateLintPass<'_> for DiscardedResults {
 
 impl DiscardedResults {
     /// Returns whether an underscore-prefixed binding is subsequently read in its body.
-    fn binding_is_used(cx: &LateContext<'_>, expression: &Expr<'_>, binding: HirId) -> bool {
+    fn is_binding_used(cx: &LateContext<'_>, expression: &Expr<'_>, binding: HirId) -> bool {
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
         let mut usage = DiscardedBindingUse {
             cx,
@@ -212,7 +212,7 @@ impl DiscardedResults {
         let initializer = local.init?;
 
         // A subsequently used underscore binding is not actually discarding its value.
-        if binding.is_some_and(|binding| Self::binding_is_used(cx, initializer, binding)) {
+        if binding.is_some_and(|binding| Self::is_binding_used(cx, initializer, binding)) {
             return None;
         }
 

@@ -128,7 +128,7 @@ impl DeriveMorePanicProneDerivedVariantAccessors {
     }
 
     /// Proves that the receiver is constructed as the variant required by the accessor.
-    fn receiver_constructs_expected_variant(
+    fn is_receiver_constructing_expected_variant(
         cx: &LateContext<'_>,
         receiver: &Expr<'_>,
         method: &str,
@@ -181,7 +181,7 @@ impl LateLintPass<'_> for DeriveMorePanicProneDerivedVariantAccessors {
         let method = segment.ident.name.to_string();
 
         // A directly matching variant construction satisfies the generated precondition.
-        if Self::receiver_constructs_expected_variant(cx, receiver, &method) {
+        if Self::is_receiver_constructing_expected_variant(cx, receiver, &method) {
             return;
         }
 

@@ -108,7 +108,7 @@ crate::impl_late_lint! {
 
 impl SerdeSensitiveFieldsSerializedByDefault {
     /// Recognizes field names conventionally associated with credentials or secret material.
-    fn sensitive_name(name: &str) -> bool {
+    fn is_sensitive_name(name: &str) -> bool {
         let name = name.strip_prefix("r#").unwrap_or(name).to_ascii_lowercase();
         let components = name.split(['_', '.']).collect::<Vec<_>>();
 
@@ -139,10 +139,10 @@ impl SerdeSensitiveFieldsSerializedByDefault {
     }
 
     /// Recognizes strings and byte containers that can expose raw secret material.
-    fn raw_secret_carrier(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
+    fn is_raw_secret_carrier(cx: &LateContext<'_>, ty: Ty<'_>) -> bool {
         match ty.kind() {
             ty::Str => true,
-            ty::Ref(_, inner, _) => Self::raw_secret_carrier(cx, *inner),
+            ty::Ref(_, inner, _) => Self::is_raw_secret_carrier(cx, *inner),
             ty::Slice(inner) | ty::Array(inner, _) => {
                 matches!(inner.kind(), ty::Uint(ty::UintTy::U8))
             }
@@ -159,7 +159,7 @@ impl SerdeSensitiveFieldsSerializedByDefault {
     }
 
     /// Returns whether Serde attributes explicitly omit or transform a sensitive field.
-    fn explicit_sensitive_policy(path: &str) -> bool {
+    fn has_explicit_sensitive_policy(path: &str) -> bool {
         let path = path.to_ascii_lowercase();
         ["redact", "secret", "encrypt", "mask"]
             .iter()
@@ -207,16 +207,16 @@ impl LateLintPass<'_> for SerdeSensitiveFieldsSerializedByDefault {
                     definition: field_definition,
                 } = field;
                 let attributes = SerdeAttributes::from_attributes(&authored_attributes);
-                let is_raw_default = !attributes.has(SerdeFlag::SkipSerialize)
-                    && Self::sensitive_name(&name)
-                    && Self::raw_secret_carrier(
+                let is_raw_default = !attributes.has_flag(SerdeFlag::SkipSerialize)
+                    && Self::is_sensitive_name(&name)
+                    && Self::is_raw_secret_carrier(
                         cx,
                         cx.tcx.type_of(field_definition).instantiate_identity(),
                     )
                     && !attributes
                         .serialize_with
                         .as_deref()
-                        .is_some_and(Self::explicit_sensitive_policy);
+                        .is_some_and(Self::has_explicit_sensitive_policy);
                 is_raw_default.then(|| format!("`{name}`"))
             })
             .collect::<Vec<_>>();

@@ -102,7 +102,7 @@ impl ParameterSignature {
         };
 
         // Exclude repeated trait implementations and source owned by external generators.
-        if Self::belongs_to_trait_impl(cx, def_id)
+        if Self::is_trait_impl_member(cx, def_id)
             || name.span.in_external_macro(cx.sess().source_map())
             || !identifier_case::is_snake(name.name.as_str())
             || Self::is_framework_generated(cx, name, def_id)
@@ -190,7 +190,7 @@ impl ParameterSignature {
     }
 
     /// Returns whether this definition is a method inside a trait implementation.
-    fn belongs_to_trait_impl(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
+    fn is_trait_impl_member(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
         cx.tcx.opt_local_parent(def_id).is_some_and(|parent| {
             matches!(cx.tcx.def_kind(parent), DefKind::Impl { of_trait: true })
         })
@@ -271,7 +271,7 @@ impl ParameterSignature {
     }
 
     /// Recognizes conventional same-domain roles that need no distinct newtypes.
-    fn roles_are_conventional(
+    fn has_conventional_roles(
         function: Symbol,
         kind: ParameterKind,
         parameters: &[&Parameter],
@@ -281,17 +281,17 @@ impl ParameterSignature {
             .map(|parameter| parameter.name.as_str().to_owned())
             .collect::<Vec<_>>();
         names.sort_unstable();
-        parameter_role::parameter_role_names_are_conventional(function.as_str(), kind, &names)
+        parameter_role::has_conventional_parameter_role_names(function.as_str(), kind, &names)
     }
 
     /// Requires precise authored names before inferring distinct domains.
-    fn roles_are_distinct(parameters: &[&Parameter]) -> bool {
+    fn has_distinct_roles(parameters: &[&Parameter]) -> bool {
         let mut unique_names = HashSet::new();
         for parameter in parameters {
             let name = parameter.name.as_str();
 
             // Weak role names cannot prove distinct semantic domains at call sites.
-            if parameter_role::parameter_role_is_weak(name) {
+            if parameter_role::is_parameter_role_weak(name) {
                 return false;
             }
             unique_names.insert(name);
@@ -339,8 +339,8 @@ impl ParameterSignature {
         let mut groups = Vec::new();
         for (ParameterFamily { kind, .. }, parameters) in grouped {
             if parameters.len() < MIN_AMBIGUOUS_PARAMETER_COUNT
-                || !Self::roles_are_distinct(&parameters)
-                || Self::roles_are_conventional(self.name, kind, &parameters)
+                || !Self::has_distinct_roles(&parameters)
+                || Self::has_conventional_roles(self.name, kind, &parameters)
             {
                 continue;
             }

@@ -129,7 +129,7 @@ impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
         };
 
         // Containers that accept unknown fields have no policy conflict with flattening.
-        if !SerdeAttributes::from_attributes(&attributes).has(SerdeFlag::DenyUnknownFields) {
+        if !SerdeAttributes::from_attributes(&attributes).has_flag(SerdeFlag::DenyUnknownFields) {
             return;
         }
 
@@ -140,8 +140,9 @@ impl LateLintPass<'_> for SerdeFlattenedUnknownFieldPolicies {
                      name, attributes, ..
                  }| {
                     let serde = SerdeAttributes::from_attributes(&attributes);
-                    (serde.has(SerdeFlag::Flatten) && !serde.has(SerdeFlag::SkipDeserialize))
-                        .then(|| format!("`{name}`"))
+                    (serde.has_flag(SerdeFlag::Flatten)
+                        && !serde.has_flag(SerdeFlag::SkipDeserialize))
+                    .then(|| format!("`{name}`"))
                 },
             )
             .collect::<Vec<_>>();

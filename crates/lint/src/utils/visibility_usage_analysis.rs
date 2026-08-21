@@ -85,7 +85,7 @@ enum VisibilityUseKind {
 impl VisibilityUseKind {
     /// Classifies one owner module while keeping the binary mapping on this enum.
     fn for_module(analyzer: &VisibilityUsageAnalyzer, tcx: TyCtxt<'_>, module: LocalDefId) -> Self {
-        if analyzer.module_is_test_owned(tcx, module) {
+        if analyzer.is_module_test_owned(tcx, module) {
             Self::Test
         } else {
             Self::Production
@@ -370,7 +370,7 @@ impl VisibilityUsageAnalyzer {
             // Preserve only externally reachable APIs in packages that may be published.
             let preserve_public = current == VisibilityBoundary::Public
                 && !binary
-                && package.preserves_exported_public_items()
+                && package.is_preserving_exported_public_items()
                 && exported;
 
             // Retain shrinkable declarations and test-constrained equal boundaries.
@@ -664,7 +664,7 @@ impl VisibilityUsageAnalyzer {
     }
 
     /// Returns whether a module lies within a canonical in-source test module.
-    fn module_is_test_owned(&self, tcx: TyCtxt<'_>, module: LocalDefId) -> bool {
+    fn is_module_test_owned(&self, tcx: TyCtxt<'_>, module: LocalDefId) -> bool {
         let mut cursor = Some(module);
         while let Some(candidate) = cursor {
             // A canonical test ancestor makes every descendant use test-only.

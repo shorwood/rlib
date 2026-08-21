@@ -1,4 +1,4 @@
-warning: boolean struct field `active` should use `is_<predicate>` or `has_<predicate>`
+warning: boolean struct field `active` should use `is_<predicate>`, `has_<predicate>`, or `should_<predicate>`
   --> $DIR/semantic.rs:22:5
    |
 LL |     active: bool,
@@ -8,7 +8,7 @@ LL |     active: bool,
    = help: choose a predicate-style name that describes what the boolean means
    = note: requested on the command line with `-W rlib::bool-fields-without-predicate-prefix`
 
-warning: boolean struct field `visible` should use `is_<predicate>` or `has_<predicate>`
+warning: boolean struct field `visible` should use `is_<predicate>`, `has_<predicate>`, or `should_<predicate>`
   --> $DIR/semantic.rs:23:5
    |
 LL |     visible: Flag,
@@ -17,8 +17,8 @@ LL |     visible: Flag,
    = note: `visible` otherwise reads like a value or command instead of a yes-or-no property
    = help: choose a predicate-style name that describes what the boolean means
 
-warning: boolean struct field `is_` should use `is_<predicate>` or `has_<predicate>`
-  --> $DIR/semantic.rs:36:5
+warning: boolean struct field `is_` should use `is_<predicate>`, `has_<predicate>`, or `should_<predicate>`
+  --> $DIR/semantic.rs:37:5
    |
 LL |     is_: bool,
    |     ^^^
@@ -26,8 +26,8 @@ LL |     is_: bool,
    = note: `is_` otherwise reads like a value or command instead of a yes-or-no property
    = help: choose a predicate-style name that describes what the boolean means
 
-warning: boolean struct field `has_` should use `is_<predicate>` or `has_<predicate>`
-  --> $DIR/semantic.rs:37:5
+warning: boolean struct field `has_` should use `is_<predicate>`, `has_<predicate>`, or `should_<predicate>`
+  --> $DIR/semantic.rs:38:5
    |
 LL |     has_: bool,
    |     ^^^^
@@ -35,8 +35,17 @@ LL |     has_: bool,
    = note: `has_` otherwise reads like a value or command instead of a yes-or-no property
    = help: choose a predicate-style name that describes what the boolean means
 
-warning: boolean struct field `is__active` should use `is_<predicate>` or `has_<predicate>`
-  --> $DIR/semantic.rs:38:5
+warning: boolean struct field `should_` should use `is_<predicate>`, `has_<predicate>`, or `should_<predicate>`
+  --> $DIR/semantic.rs:39:5
+   |
+LL |     should_: bool,
+   |     ^^^^^^^
+   |
+   = note: `should_` otherwise reads like a value or command instead of a yes-or-no property
+   = help: choose a predicate-style name that describes what the boolean means
+
+warning: boolean struct field `is__active` should use `is_<predicate>`, `has_<predicate>`, or `should_<predicate>`
+  --> $DIR/semantic.rs:40:5
    |
 LL |     is__active: bool,
    |     ^^^^^^^^^^
@@ -44,8 +53,26 @@ LL |     is__active: bool,
    = note: `is__active` otherwise reads like a value or command instead of a yes-or-no property
    = help: choose a predicate-style name that describes what the boolean means
 
-warning: boolean struct field `enabled` should use `is_<predicate>` or `has_<predicate>`
-  --> $DIR/semantic.rs:57:13
+warning: boolean struct field `should__refresh` should use `is_<predicate>`, `has_<predicate>`, or `should_<predicate>`
+  --> $DIR/semantic.rs:41:5
+   |
+LL |     should__refresh: bool,
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: `should__refresh` otherwise reads like a value or command instead of a yes-or-no property
+   = help: choose a predicate-style name that describes what the boolean means
+
+warning: boolean struct field `contains_items` should use `is_<predicate>`, `has_<predicate>`, or `should_<predicate>`
+  --> $DIR/semantic.rs:42:5
+   |
+LL |     contains_items: bool,
+   |     ^^^^^^^^^^^^^^
+   |
+   = note: `contains_items` otherwise reads like a value or command instead of a yes-or-no property
+   = help: choose a predicate-style name that describes what the boolean means
+
+warning: boolean struct field `enabled` should use `is_<predicate>`, `has_<predicate>`, or `should_<predicate>`
+  --> $DIR/semantic.rs:61:13
    |
 LL |             enabled: bool,
    |             ^^^^^^^
@@ -57,5 +84,5 @@ LL | local_struct!();
    = help: choose a predicate-style name that describes what the boolean means
    = note: this warning originates in the macro `local_struct` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-warning: 6 warnings emitted
+warning: 9 warnings emitted
 

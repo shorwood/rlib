@@ -231,7 +231,7 @@ impl CollectionConstructionAnalysis {
         def_id: LocalDefId,
     ) {
         // Reject trait methods and unsupported compile-time or unsafe contracts.
-        if collection_classification_is_trait_method(cx, def_id) {
+        if is_collection_classification_trait_method(cx, def_id) {
             return;
         }
 
@@ -269,7 +269,7 @@ impl CollectionConstructionAnalysis {
         }
 
         // Contextual names preserve domain policy outside the standard trait contract.
-        let has_neutral_name = collection_classification_has_neutral_name(
+        let has_neutral_name = has_collection_classification_neutral_name(
             cx,
             ident.name,
             shape.target_def_id,
@@ -411,7 +411,7 @@ fn collection_classification_local_adt(ty: Ty<'_>) -> Option<LocalDefId> {
 }
 
 /// Returns whether a function returns a mutable reference to the selected target.
-fn collection_classification_returns_target(output: Ty<'_>, target: LocalDefId) -> bool {
+fn is_collection_classification_returning_target(output: Ty<'_>, target: LocalDefId) -> bool {
     // Fluent extension must return a mutable reference to the target wrapper.
     let ty::Ref(_, returned, Mutability::Mut) = output.kind() else {
         return false;
@@ -420,14 +420,14 @@ fn collection_classification_returns_target(output: Ty<'_>, target: LocalDefId) 
 }
 
 /// Returns whether an associated function belongs to a trait implementation.
-fn collection_classification_is_trait_method(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
+fn is_collection_classification_trait_method(cx: &LateContext<'_>, def_id: LocalDefId) -> bool {
     cx.tcx
         .opt_local_parent(def_id)
         .is_some_and(|parent| matches!(cx.tcx.def_kind(parent), DefKind::Impl { of_trait: true }))
 }
 
 /// Returns whether authored vocabulary claims only a generic collection contract.
-fn collection_classification_has_neutral_name(
+fn has_collection_classification_neutral_name(
     cx: &LateContext<'_>,
     name: Symbol,
     target: LocalDefId,
@@ -494,7 +494,7 @@ impl CollectionFunctionShape {
 
         // Fluent mutation may return the same mutable receiver instead of unit.
         let returns_unit = output.is_unit();
-        let returns_receiver = collection_classification_returns_target(output, target_def_id);
+        let returns_receiver = is_collection_classification_returning_target(output, target_def_id);
 
         // Materialize the extension contract only after validating its return shape.
         let shape = Self {
@@ -661,7 +661,7 @@ impl CollectionEvidence<'_, '_, '_> {
 
 impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
     /// Returns whether an expression references the iterable source parameter.
-    fn uses_source(&self, expression: &'tcx Expr<'tcx>) -> bool {
+    fn is_using_source(&self, expression: &'tcx Expr<'tcx>) -> bool {
         let mut finder = CollectionEvidenceSourceFinder {
             cx: self.cx,
             source: self.source,
@@ -727,9 +727,11 @@ impl<'tcx> CollectionEvidence<'_, 'tcx, '_> {
             "take_while",
         ]
         .contains(&name);
-        let uses_source = self.uses_source(receiver)
-            || arguments.iter().any(|argument| self.uses_source(argument));
-        self.state.has_policy |= is_policy && uses_source;
+        let is_using_source = self.is_using_source(receiver)
+            || arguments
+                .iter()
+                .any(|argument| self.is_using_source(argument));
+        self.state.has_policy |= is_policy && is_using_source;
     }
 
     /// Records a write into collection storage owned by the target type.
@@ -819,7 +821,7 @@ impl<'tcx> Visitor<'tcx> for CollectionEvidence<'_, 'tcx, '_> {
         match expression.kind {
             // For-loop desugaring needs its own source-loop-depth accounting.
             ExprKind::Match(scrutinee, _, MatchSource::ForLoopDesugar) => {
-                let iterates_source = self.uses_source(scrutinee);
+                let iterates_source = self.is_using_source(scrutinee);
                 self.state.source_loop_depth += usize::from(iterates_source);
                 intravisit::walk_expr(self, expression);
                 self.state.source_loop_depth -= usize::from(iterates_source);

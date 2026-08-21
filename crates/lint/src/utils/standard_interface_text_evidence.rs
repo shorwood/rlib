@@ -102,7 +102,7 @@ struct TextBodyAnalyzer<'analysis, 'tcx> {
 
 impl<'tcx> TextBodyAnalyzer<'_, 'tcx> {
     /// Returns whether one expression references the authored input binding.
-    fn expression_uses_input(&self, expression: &'tcx Expr<'tcx>) -> bool {
+    fn is_expression_using_input(&self, expression: &'tcx Expr<'tcx>) -> bool {
         let mut finder = TextInputUseFinder {
             cx: self.cx,
             bindings: &self.bindings,
@@ -119,7 +119,7 @@ impl<'tcx> TextBodyAnalyzer<'_, 'tcx> {
         receiver: &'tcx Expr<'tcx>,
     ) -> Option<DefId> {
         // Calls on receivers unrelated to the authored input provide no delegation evidence.
-        if !self.expression_uses_input(receiver) {
+        if !self.is_expression_using_input(receiver) {
             return None;
         }
         self.cx
@@ -136,7 +136,7 @@ impl<'tcx> TextBodyAnalyzer<'_, 'tcx> {
         // Calls without any input-derived argument cannot implement the accessor contract.
         if !arguments
             .iter()
-            .any(|argument| self.expression_uses_input(argument))
+            .any(|argument| self.is_expression_using_input(argument))
         {
             return None;
         }
@@ -163,7 +163,7 @@ impl<'tcx> Visitor<'tcx> for TextBodyAnalyzer<'_, 'tcx> {
         if let StmtKind::Let(local) = statement.kind
             && let Some(initializer) = local.init
         {
-            let derives_from_input = self.expression_uses_input(initializer);
+            let derives_from_input = self.is_expression_using_input(initializer);
             self.visit_expr(initializer);
             if derives_from_input {
                 self.record_bindings(local.pat);
@@ -178,7 +178,7 @@ impl<'tcx> Visitor<'tcx> for TextBodyAnalyzer<'_, 'tcx> {
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         if self.result_expressions.contains(&expression.hir_id)
-            && self.expression_uses_input(expression)
+            && self.is_expression_using_input(expression)
         {
             self.evidence.has_input_use = true;
         }
@@ -201,7 +201,7 @@ impl<'tcx> Visitor<'tcx> for TextBodyAnalyzer<'_, 'tcx> {
 
         // Assignments update receiver-derived binding provenance before normal traversal resumes.
         if let ExprKind::Assign(left, right, _) = expression.kind {
-            let derives_from_input = self.expression_uses_input(right);
+            let derives_from_input = self.is_expression_using_input(right);
             self.visit_expr(right);
             if let ExprKind::Path(path) = left.kind
                 && let Res::Local(binding) = self.cx.qpath_res(&path, left.hir_id)

@@ -104,13 +104,13 @@ impl ImplicitNames {
             let name = name.replace("r#", "");
             if serialize_rule.is_none()
                 && attributes.rename_serialize.is_none()
-                && !attributes.has(SerdeFlag::SkipSerialize)
+                && !attributes.has_flag(SerdeFlag::SkipSerialize)
             {
                 serialize.push(name.clone());
             }
             if !(deserialize_rule.is_none()
                 && attributes.rename_deserialize.is_none()
-                && !attributes.has(SerdeFlag::SkipDeserialize))
+                && !attributes.has_flag(SerdeFlag::SkipDeserialize))
             {
                 continue;
             }
@@ -172,10 +172,10 @@ impl ContractNames {
 
         let mut serialize = Vec::new();
         let mut deserialize = Vec::new();
-        if !container.has(SerdeFlag::Untagged) {
+        if !container.has_flag(SerdeFlag::Untagged) {
             let variants = enumeration.variants.iter().filter_map(|variant| {
                 let attributes = SerdeAttributes::from_attributes(&variant.attrs);
-                (!attributes.has(SerdeFlag::Untagged)).then(|| ImplicitMember {
+                (!attributes.has_flag(SerdeFlag::Untagged)).then(|| ImplicitMember {
                     name: variant.ident.to_string(),
                     attributes,
                 })

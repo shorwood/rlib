@@ -18,10 +18,10 @@ pub struct ReactiveCapability;
 
 impl ReactiveCapability {
     /// Returns whether `ty`, optionally through `Option`, exposes reactive mutation authority.
-    pub fn carries_mutation<'tcx>(cx: &LateContext<'tcx>, owner: LocalDefId, ty: Ty<'tcx>) -> bool {
+    pub fn has_mutation<'tcx>(cx: &LateContext<'tcx>, owner: LocalDefId, ty: Ty<'tcx>) -> bool {
         // Preserve absence as transparent while excluding arbitrary capability containers.
         if let Some(inner) = Self::option_inner(cx, ty) {
-            return Self::carries_mutation(cx, owner, inner);
+            return Self::has_mutation(cx, owner, inner);
         }
 
         // Ask the trait solver under the component's own generic typing environment.

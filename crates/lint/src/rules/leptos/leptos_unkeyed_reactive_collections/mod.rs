@@ -81,7 +81,7 @@ crate::impl_late_lint! {
 
 impl LeptosUnkeyedReactiveCollections {
     /// Returns whether a method belongs to a named semantic trait.
-    fn method_belongs_to(
+    fn is_method_owned_by(
         cx: &LateContext<'_>,
         expression: &Expr<'_>,
         identity: TraitMethodIdentity,
@@ -109,7 +109,7 @@ impl LeptosUnkeyedReactiveCollections {
         ["map", "filter_map", "flat_map", "map_while", "scan"]
             .into_iter()
             .any(|method| {
-                Self::method_belongs_to(
+                Self::is_method_owned_by(
                     cx,
                     expression,
                     TraitMethodIdentity {
@@ -122,7 +122,7 @@ impl LeptosUnkeyedReactiveCollections {
     }
 
     /// Returns whether the rendering chain originates in a tracked signal read.
-    fn chain_contains_reactive_read(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+    fn contains_reactive_read(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
         // A non-method expression terminates the receiver chain without a tracked read.
         let ExprKind::MethodCall(_, receiver, arguments, _) = expression.kind else {
             return false;
@@ -138,7 +138,7 @@ impl LeptosUnkeyedReactiveCollections {
         .into_iter()
         .any(|(owning_trait, method, argument_count)| {
             arguments.len() == argument_count
-                && Self::method_belongs_to(
+                && Self::is_method_owned_by(
                     cx,
                     expression,
                     TraitMethodIdentity {
@@ -153,7 +153,7 @@ impl LeptosUnkeyedReactiveCollections {
         if tracked_read {
             return true;
         }
-        Self::chain_contains_reactive_read(cx, receiver)
+        Self::contains_reactive_read(cx, receiver)
     }
 }
 
@@ -166,7 +166,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosUnkeyedReactiveCollections {
 
         // Calls with arguments or a different semantic method are not `collect_view` terminals.
         if !arguments.is_empty()
-            || !Self::method_belongs_to(
+            || !Self::is_method_owned_by(
                 cx,
                 expression,
                 TraitMethodIdentity {
@@ -186,7 +186,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosUnkeyedReactiveCollections {
 
         // Only mapped children sourced from a tracked read create the unkeyed reactive pattern.
         if !Self::is_view_mapping_adapter(cx, receiver)
-            || !Self::chain_contains_reactive_read(cx, collection)
+            || !Self::contains_reactive_read(cx, collection)
         {
             return;
         }

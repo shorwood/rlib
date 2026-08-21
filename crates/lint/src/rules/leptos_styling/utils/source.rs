@@ -97,7 +97,7 @@ impl ComponentStyleAnalysis {
             return None;
         };
         let declared = style_sheet.declared.as_ref()?;
-        source_same_file(declared, &self.paired_css_path()).then_some(style_sheet)
+        is_same_source_file(declared, &self.paired_css_path()).then_some(style_sheet)
     }
 }
 
@@ -204,7 +204,7 @@ impl RustStyleCollector<'_> {
         };
 
         // Reject class expressions containing raw or foreign class identities.
-        if source_collect_class_expression(value, &mut self.class_references) {
+        if has_collected_class_expression(value, &mut self.class_references) {
             return;
         }
         self.class_findings.push(ComponentStyleFinding {
@@ -625,7 +625,7 @@ fn source_resolve_style_path(rust_path: &Path, declared: &str) -> PathBuf {
 }
 
 /// Returns whether two paths identify the same canonical filesystem entry.
-fn source_same_file(left: &Path, right: &Path) -> bool {
+fn is_same_source_file(left: &Path, right: &Path) -> bool {
     let left = left.canonicalize().unwrap_or_else(|_| left.to_path_buf());
     let right = right.canonicalize().unwrap_or_else(|_| right.to_path_buf());
     left == right
@@ -693,21 +693,21 @@ fn source_block_value(block: &syn::Block) -> Option<&Expr> {
 }
 
 /// Validates both value branches of one conditional class expression.
-fn source_collect_conditional_class_expression(
+fn has_collected_conditional_class_expression(
     expression: &syn::ExprIf,
     references: &mut BTreeSet<String>,
 ) -> bool {
     let then_ok = source_block_value(&expression.then_branch)
-        .is_some_and(|expression| source_collect_class_expression(expression, references));
+        .is_some_and(|expression| has_collected_class_expression(expression, references));
     let else_ok = expression
         .else_branch
         .as_ref()
-        .is_none_or(|(_, expression)| source_collect_class_expression(expression, references));
+        .is_none_or(|(_, expression)| has_collected_class_expression(expression, references));
     then_ok && else_ok
 }
 
 /// Validates a class expression and records every generated constant it references.
-fn source_collect_class_expression(expression: &Expr, references: &mut BTreeSet<String>) -> bool {
+fn has_collected_class_expression(expression: &Expr, references: &mut BTreeSet<String>) -> bool {
     match expression {
         Expr::Path(path) => source_local_style_constant(path)
             .map(|reference| references.insert(reference))
@@ -715,34 +715,34 @@ fn source_collect_class_expression(expression: &Expr, references: &mut BTreeSet<
         Expr::Lit(literal) => {
             matches!(&literal.lit, Lit::Str(value) if value.value().trim().is_empty())
         }
-        Expr::Paren(expression) => source_collect_class_expression(&expression.expr, references),
-        Expr::Group(expression) => source_collect_class_expression(&expression.expr, references),
-        Expr::Closure(closure) => source_collect_class_expression(&closure.body, references),
+        Expr::Paren(expression) => has_collected_class_expression(&expression.expr, references),
+        Expr::Group(expression) => has_collected_class_expression(&expression.expr, references),
+        Expr::Closure(closure) => has_collected_class_expression(&closure.body, references),
         Expr::Block(block) => source_block_value(&block.block)
-            .is_some_and(|expression| source_collect_class_expression(expression, references)),
-        Expr::If(expression) => source_collect_conditional_class_expression(expression, references),
+            .is_some_and(|expression| has_collected_class_expression(expression, references)),
+        Expr::If(expression) => has_collected_conditional_class_expression(expression, references),
         Expr::Match(expression) => expression
             .arms
             .iter()
-            .all(|arm| source_collect_class_expression(&arm.body, references)),
+            .all(|arm| has_collected_class_expression(&arm.body, references)),
         Expr::Tuple(tuple) => {
             // An empty tuple contributes no untyped class value.
             let Some(first) = tuple.elems.first() else {
                 return true;
             };
-            if tuple.elems.len() == 2 && source_collect_class_expression(first, references) {
+            if tuple.elems.len() == 2 && has_collected_class_expression(first, references) {
                 true
             } else {
                 tuple
                     .elems
                     .iter()
-                    .all(|element| source_collect_class_expression(element, references))
+                    .all(|element| has_collected_class_expression(element, references))
             }
         }
         Expr::Array(array) => array
             .elems
             .iter()
-            .all(|element| source_collect_class_expression(element, references)),
+            .all(|element| has_collected_class_expression(element, references)),
         _ => false,
     }
 }
@@ -754,7 +754,7 @@ mod tests {
     use syn::{Expr, Macro};
 
     use super::{
-        StylesheetFacts, generated_constant, source_collect_class_expression,
+        StylesheetFacts, generated_constant, has_collected_class_expression,
         source_collect_style_token_references,
     };
 
@@ -769,10 +769,7 @@ mod tests {
         let expression: Expr =
             syn::parse_quote!(move || if selected { style::SELECTED } else { "" });
         let mut references = BTreeSet::new();
-        assert!(source_collect_class_expression(
-            &expression,
-            &mut references
-        ));
+        assert!(has_collected_class_expression(&expression, &mut references));
         assert_eq!(references, BTreeSet::from(["SELECTED".to_owned()]));
     }
 
@@ -783,7 +780,7 @@ mod tests {
             syn::parse_quote!(shared::SELECTED),
             syn::parse_quote!(classes()),
         ] {
-            assert!(!source_collect_class_expression(
+            assert!(!has_collected_class_expression(
                 &expression,
                 &mut BTreeSet::new()
             ));

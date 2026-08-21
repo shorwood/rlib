@@ -84,7 +84,11 @@ impl BonAttributeAnalysis {
     }
 
     /// Returns whether a builder attribute contains an authored policy token.
-    pub fn builder_contains(cx: &EarlyContext<'_>, attributes: &[Attribute], needle: &str) -> bool {
+    pub fn contains_builder_value(
+        cx: &EarlyContext<'_>,
+        attributes: &[Attribute],
+        needle: &str,
+    ) -> bool {
         // A declaration without a builder attribute contains no builder policy.
         let Some(attribute) = Self::builder(attributes) else {
             return false;
@@ -93,7 +97,7 @@ impl BonAttributeAnalysis {
     }
 
     /// Returns whether a builder attribute contains a top-level option with this exact name.
-    pub fn builder_has_option(
+    pub fn has_builder_option(
         cx: &EarlyContext<'_>,
         attributes: &[Attribute],
         expected: BuilderOption,
@@ -138,7 +142,7 @@ impl BonAttributeAnalysis {
     }
 
     /// Returns whether a top-level builder option is present without a value or payload.
-    pub fn builder_has_bare_option(
+    pub fn has_builder_bare_option(
         cx: &EarlyContext<'_>,
         attributes: &[Attribute],
         expected: BuilderOption,
@@ -183,7 +187,7 @@ impl BonAttributeAnalysis {
     }
 
     /// Returns whether the attributes derive `bon::Builder`.
-    pub fn derives_builder(cx: &EarlyContext<'_>, attributes: &[Attribute]) -> bool {
+    pub fn has_builder_derive(cx: &EarlyContext<'_>, attributes: &[Attribute]) -> bool {
         attributes.iter().any(|attribute| {
             Self::name(attribute).is_some_and(|name| name.as_str() == "derive")
                 && Self::source(cx, attribute).is_ok_and(|source| source.contains("bon::Builder"))
@@ -198,7 +202,7 @@ impl BonAttributeAnalysis {
     }
 
     /// Returns whether a declaration carries an attribute with the requested final path name.
-    pub fn has(attributes: &[Attribute], name: &str) -> bool {
+    pub fn has_attribute(attributes: &[Attribute], name: &str) -> bool {
         attributes
             .iter()
             .any(|attribute| Self::name(attribute).is_some_and(|actual| actual.as_str() == name))

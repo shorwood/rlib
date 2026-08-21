@@ -469,6 +469,17 @@ const CONFIGURABLE_LINTS: &[ConfigurableLint] = &[
         &[("bon-api-baseline", "`[]`")],
     ),
     configurable_lint!(
+        "core/bool_fields_without_predicate_prefix",
+        &[("boolean-predicate-prefixes", "built-in list")],
+    ),
+    configurable_lint!(
+        "core/bool_returning_functions_without_predicate_prefix",
+        &[
+            ("boolean-predicate-prefixes", "built-in list"),
+            ("boolean-query-roots", "built-in list"),
+        ],
+    ),
+    configurable_lint!(
         "core/deeply_nested_control_flow",
         &[("control-flow-depth-threshold", "`2`")],
     ),

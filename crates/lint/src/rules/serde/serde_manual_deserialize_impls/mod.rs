@@ -83,7 +83,7 @@ crate::impl_late_lint! {
 
 impl SerdeManualDeserializeImpls {
     /// Proves that deserialization delegates to one field and wraps the result unchanged.
-    fn exact_transparent_deserializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
+    fn is_exact_transparent_deserializer(cx: &LateContext<'_>, item: &Item<'_>) -> bool {
         // Missing authored source cannot prove an exact manual implementation.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return false;
@@ -210,7 +210,7 @@ impl LateLintPass<'_> for SerdeManualDeserializeImpls {
         // Require a single-field struct and exact forwarding behavior.
         if !definition.is_struct()
             || definition.non_enum_variant().fields.len() != 1
-            || !Self::exact_transparent_deserializer(cx, item)
+            || !Self::is_exact_transparent_deserializer(cx, item)
         {
             return;
         }

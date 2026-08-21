@@ -126,11 +126,11 @@ impl EarlyLintPass for BonRedundantPositionalAndBuilderApis {
             .inputs
             .iter()
             .filter(|parameter| {
-                BonAttributeAnalysis::builder_has_option(
+                BonAttributeAnalysis::has_builder_option(
                     cx,
                     &parameter.attrs,
                     BuilderOption::START_FN,
-                ) || BonAttributeAnalysis::builder_has_option(
+                ) || BonAttributeAnalysis::has_builder_option(
                     cx,
                     &parameter.attrs,
                     BuilderOption::FINISH_FN,

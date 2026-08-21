@@ -1,5 +1,7 @@
 use super::bon::BonApiBaselineConfig;
-use super::core::{ExtensionTraitConfig, FunctionStructureConfig, SectionDividerConfig};
+use super::core::{
+    BooleanPredicateConfig, ExtensionTraitConfig, FunctionStructureConfig, SectionDividerConfig,
+};
 use super::framework::DeriveResolutionConfig;
 use super::leptos::{
     LeptosArchitectureConfig, LeptosServerAuthorizationConfig, LeptosStylingCssFormattingConfig,
@@ -14,6 +16,8 @@ const LIBRARY_NAME: &str = env!("CARGO_PKG_NAME");
 
 /// Validated configuration consumed by all lint passes.
 pub struct Config {
+    /// Shared boolean property and query vocabulary.
+    pub(crate) boolean_predicates: BooleanPredicateConfig,
     /// Shared function-complexity policy.
     pub(crate) function_structure: FunctionStructureConfig,
     /// Shared module-section policy.
@@ -153,6 +157,7 @@ impl TryFrom<FileConfig> for Config {
 
         // Assemble every validated domain policy from focused mappings.
         Ok(Self {
+            boolean_predicates: BooleanPredicateConfig::try_from(&file)?,
             function_structure: Self::function_structure(&file),
             section_dividers: Self::section_dividers(&file),
             extension_traits: Self::extension_traits(&file),
@@ -216,6 +221,66 @@ mod tests {
     }
 
     #[test]
+    fn applies_default_boolean_naming_vocabulary() {
+        let config = parse("").expect("default configuration should parse");
+        assert!(config.boolean_predicates.is_field_name("is_ready"));
+        assert!(config.boolean_predicates.is_field_name("has_items"));
+        assert!(config.boolean_predicates.is_field_name("should_retry"));
+        assert!(!config.boolean_predicates.is_field_name("contains_items"));
+        assert!(config.boolean_predicates.is_callable_name("contains"));
+        assert!(
+            config
+                .boolean_predicates
+                .is_callable_name("starts_with_prefix")
+        );
+        assert_eq!(
+            config
+                .boolean_predicates
+                .semantic_callable_name("is_collection_candidate"),
+            "collection_candidate"
+        );
+        assert_eq!(
+            config
+                .boolean_predicates
+                .semantic_callable_name("contains_collection_candidate"),
+            "collection_candidate"
+        );
+        assert!(!config.boolean_predicates.is_callable_name("contains_"));
+        assert!(!config.boolean_predicates.is_callable_name("contains__item"));
+    }
+
+    #[test]
+    fn replaces_boolean_naming_vocabulary() {
+        let config = parse(
+            r#"
+                boolean-predicate-prefixes = ["can_"]
+                boolean-query-roots = ["matches"]
+            "#,
+        )
+        .expect("replacement vocabulary should parse");
+        assert!(config.boolean_predicates.is_field_name("can_retry"));
+        assert!(!config.boolean_predicates.is_field_name("is_ready"));
+        assert!(config.boolean_predicates.is_callable_name("matches"));
+        assert!(config.boolean_predicates.is_callable_name("matches_kind"));
+        assert!(!config.boolean_predicates.is_callable_name("contains"));
+    }
+
+    #[test]
+    fn extends_boolean_naming_vocabulary() {
+        let config = parse(
+            r#"
+                boolean-predicate-prefixes = ["can_", ".."]
+                boolean-query-roots = ["matches", ".."]
+            "#,
+        )
+        .expect("extended vocabulary should parse");
+        assert!(config.boolean_predicates.is_field_name("can_retry"));
+        assert!(config.boolean_predicates.is_field_name("should_retry"));
+        assert!(config.boolean_predicates.is_callable_name("matches_kind"));
+        assert!(config.boolean_predicates.is_callable_name("contains_item"));
+    }
+
+    #[test]
     fn rejects_zero_thresholds() {
         assert!(parse("control-flow-depth-threshold = 0").is_err());
     }
@@ -245,6 +310,19 @@ mod tests {
         assert!(parse(r#"miette-generic-help-phrases = ["", "use the source"]"#).is_err());
         assert!(parse(r#"miette-generic-help-phrases = ["retry", "retry"]"#).is_err());
         assert!(parse(r#"miette-generic-help-phrases = ["..", ".."]"#).is_err());
+        assert!(parse(r"boolean-predicate-prefixes = []").is_err());
+        assert!(parse(r#"boolean-predicate-prefixes = ["is"]"#).is_err());
+        assert!(parse(r#"boolean-predicate-prefixes = ["is__"]"#).is_err());
+        assert!(parse(r#"boolean-query-roots = ["contains_"]"#).is_err());
+        assert!(
+            parse(
+                r#"
+                    boolean-predicate-prefixes = ["matches_"]
+                    boolean-query-roots = ["matches"]
+                "#,
+            )
+            .is_err()
+        );
     }
 
     #[test]

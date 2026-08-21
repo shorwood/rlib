@@ -262,7 +262,7 @@ impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
             for shape in shapes {
                 for source in &shape.sources {
                     if self.catalog.derived_type(source.target).is_none()
-                        || !self.source_provides_backtrace(source.target)
+                        || !self.has_source_backtrace_provider(source.target)
                         || source.is_forwarding_backtrace
                     {
                         continue;
@@ -290,7 +290,7 @@ impl LateLintPass<'_> for ThiserrorUnpropagatedErrorBacktraces {
 
 impl ThiserrorUnpropagatedErrorBacktraces {
     /// Recursively determines whether an error captures or forwards a trace.
-    fn provides_backtrace(
+    fn has_backtrace_provider(
         &self,
         definition: LocalDefId,
         visiting: &mut HashSet<LocalDefId>,
@@ -305,7 +305,7 @@ impl ThiserrorUnpropagatedErrorBacktraces {
                     || shape.sources.iter().any(|source| {
                         source.is_forwarding_backtrace
                             && self.catalog.derived_type(source.target).is_some()
-                            && self.provides_backtrace(source.target, visiting)
+                            && self.has_backtrace_provider(source.target, visiting)
                     })
             })
         });
@@ -314,7 +314,7 @@ impl ThiserrorUnpropagatedErrorBacktraces {
     }
 
     /// Starts a cycle-safe backtrace availability query for one source type.
-    fn source_provides_backtrace(&self, definition: LocalDefId) -> bool {
-        self.provides_backtrace(definition, &mut HashSet::new())
+    fn has_source_backtrace_provider(&self, definition: LocalDefId) -> bool {
+        self.has_backtrace_provider(definition, &mut HashSet::new())
     }
 }

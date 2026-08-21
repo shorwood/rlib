@@ -45,8 +45,8 @@ impl Violation {
         }
         .parse()?;
 
-        (BonIncoherentBuilderVocabulary::generic_member_name(&configured)
-            && !BonIncoherentBuilderVocabulary::generic_member_name(&established))
+        (BonIncoherentBuilderVocabulary::is_generic_member_name(&configured)
+            && !BonIncoherentBuilderVocabulary::is_generic_member_name(&established))
         .then_some(Self {
             span: attribute.span,
             configured,
@@ -106,12 +106,12 @@ crate::impl_pre_expansion_lint! {
 
 impl BonIncoherentBuilderVocabulary {
     /// Returns whether a generated operation name lacks domain meaning.
-    fn generic_operation_name(name: &str) -> bool {
+    fn is_generic_operation_name(name: &str) -> bool {
         matches!(name, "done" | "execute" | "finish" | "process" | "run")
     }
 
     /// Returns whether a generated member name lacks domain meaning.
-    fn generic_member_name(name: &str) -> bool {
+    fn is_generic_member_name(name: &str) -> bool {
         matches!(name, "arg" | "data" | "item" | "param" | "thing" | "value")
     }
 
@@ -151,7 +151,7 @@ impl BonIncoherentBuilderVocabulary {
                 key,
             })
             .parse()
-                && Self::generic_operation_name(&configured)
+                && Self::is_generic_operation_name(&configured)
                 && !operation.split('_').any(|word| word == configured)
             {
                 Violation {
@@ -213,7 +213,7 @@ impl EarlyLintPass for BonIncoherentBuilderVocabulary {
                 }
             }
             ItemKind::Struct(_, _, data)
-                if BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
+                if BonAttributeAnalysis::has_builder_derive(cx, &item.attrs) =>
             {
                 let operation = item
                     .kind

@@ -203,10 +203,10 @@ impl LateLintPass<'_> for SerdeRemoteRepresentationsDriftingFromSources {
                 continue;
             };
             let attributes = SerdeAttributes::from_attributes(&field.attrs);
-            if !attributes.has(SerdeFlag::SkipSerialize) {
+            if !attributes.has_flag(SerdeFlag::SkipSerialize) {
                 serialize_fields.insert(name.clone());
             }
-            if attributes.has(SerdeFlag::SkipDeserialize) {
+            if attributes.has_flag(SerdeFlag::SkipDeserialize) {
                 continue;
             }
             deserialize_fields.insert(name);

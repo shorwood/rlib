@@ -116,11 +116,11 @@ impl VariantShape {
             let attributes = SerdeAttributes::from_attributes(&field.attrs);
 
             // Fields skipped during deserialization do not constrain accepted input shapes.
-            if attributes.has(SerdeFlag::SkipDeserialize) {
+            if attributes.has_flag(SerdeFlag::SkipDeserialize) {
                 continue;
             }
             let rust_name = field.ident.as_ref()?.to_string();
-            let has_default = attributes.has(SerdeFlag::HasDefault);
+            let has_default = attributes.has_flag(SerdeFlag::HasDefault);
             let name = attributes.rename_deserialize.unwrap_or(rust_name);
 
             shape.fields.insert(
@@ -157,7 +157,10 @@ impl VariantShape {
             // A shared required field with disjoint scalar domains prevents overlap.
             if let (Some(first_domain), Some(second_domain)) =
                 (self.fields.get(key), second.fields.get(key))
-                && !SerdeAmbiguousUntaggedEnums::domains_overlap(first_domain, second_domain)
+                && !SerdeAmbiguousUntaggedEnums::has_overlapping_domains(
+                    first_domain,
+                    second_domain,
+                )
             {
                 return None;
             }
@@ -190,7 +193,7 @@ crate::impl_late_lint! {
 
 impl SerdeAmbiguousUntaggedEnums {
     /// Returns whether two scalar domains share at least one wire value.
-    fn domains_overlap(first: &str, second: &str) -> bool {
+    fn has_overlapping_domains(first: &str, second: &str) -> bool {
         let numeric = |domain: &str| {
             matches!(
                 domain,
@@ -318,7 +321,7 @@ impl LateLintPass<'_> for SerdeAmbiguousUntaggedEnums {
         let container = SerdeAttributes::from_attributes(&enumeration.attrs);
 
         // Tagged enums already carry an explicit disambiguating wire field.
-        if !container.has(SerdeFlag::Untagged) {
+        if !container.has_flag(SerdeFlag::Untagged) {
             return;
         }
 
@@ -327,12 +330,13 @@ impl LateLintPass<'_> for SerdeAmbiguousUntaggedEnums {
             .iter()
             .filter_map(|variant| {
                 // Variants skipped during deserialization accept no input shape.
-                if SerdeAttributes::from_attributes(&variant.attrs).has(SerdeFlag::SkipDeserialize)
+                if SerdeAttributes::from_attributes(&variant.attrs)
+                    .has_flag(SerdeFlag::SkipDeserialize)
                 {
                     return None;
                 }
                 VariantShape::from_variant(variant).map(|mut shape| {
-                    shape.is_closed = container.has(SerdeFlag::DenyUnknownFields);
+                    shape.is_closed = container.has_flag(SerdeFlag::DenyUnknownFields);
                     shape
                 })
             })

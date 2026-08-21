@@ -64,12 +64,12 @@ impl Violation {
                 // Missing attribute source prevents inspection of its conditional payload.
                 Err(_error) => return None,
             };
-            Self::builder_payload_changes_contract(&source).then_some(attribute.span)
+            Self::is_builder_payload_changing_contract(&source).then_some(attribute.span)
         })
     }
 
     /// Returns whether a `builder(...)` payload contains a contract-changing policy token.
-    fn builder_payload_changes_contract(source: &str) -> bool {
+    fn is_builder_payload_changing_contract(source: &str) -> bool {
         source.match_indices("builder(").any(|(start, marker)| {
             let payload = &source[start + marker.len()..];
             let payload = payload.split(')').next().unwrap_or(payload);
@@ -163,7 +163,7 @@ impl EarlyLintPass for BonIncoherentConditionalBuilderMembers {
                 }
             }
             ItemKind::Struct(_, _, data)
-                if BonAttributeAnalysis::derives_builder(cx, &item.attrs) =>
+                if BonAttributeAnalysis::has_builder_derive(cx, &item.attrs) =>
             {
                 for field in data.fields() {
                     let Some(violation) = Violation::field_violation(cx, field) else {

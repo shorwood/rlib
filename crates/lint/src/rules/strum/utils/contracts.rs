@@ -30,7 +30,7 @@ struct IdentifierTypeNames<'name> {
 /// Returns whether an identifier contains a type name as complete, contiguous name components.
 impl IdentifierTypeNames<'_> {
     /// Returns whether the identifier contains the type name as complete components.
-    fn identifier_mentions_type(&self) -> bool {
+    fn is_identifier_mentioning_type(&self) -> bool {
         let identifier = self.identifier.trim_start_matches("r#").to_snake_case();
         let type_name = self.type_name.trim_start_matches("r#").to_snake_case();
         let identifier_components = identifier.split('_').collect::<Vec<_>>();
@@ -238,7 +238,7 @@ impl EnumContract {
     }
 
     /// Returns whether this enum has one generated Strum contract.
-    pub(crate) fn derives(&self, derive: StrumDerive) -> bool {
+    pub(crate) fn has_derive(&self, derive: StrumDerive) -> bool {
         self.derives.contains(&derive)
     }
 
@@ -383,7 +383,7 @@ impl ContractCatalog {
                         identifier: table.name.as_str(),
                         type_name: contract.name.as_str(),
                     }
-                    .identifier_mentions_type())
+                    .is_identifier_mentioning_type())
         });
         let first = matches.next()?;
         matches.next().is_none().then_some(first)
@@ -571,7 +571,7 @@ impl StrumAttributeValue {
     }
 
     /// Reads a boolean flag, treating a bare flag as enabled.
-    fn boolean(meta: &ParseNestedMeta<'_>) -> syn::Result<bool> {
+    fn is_boolean(meta: &ParseNestedMeta<'_>) -> syn::Result<bool> {
         if meta.input.peek(Token![=]) {
             Ok(meta.value()?.parse::<LitBool>()?.value)
         } else {
@@ -609,7 +609,7 @@ impl TypeAttributes {
                 if meta.path.is_ident("serialize_all") {
                     output.from_name = CaseStyle::from_name(&StrumAttributeValue::string(&meta)?);
                 } else if meta.path.is_ident("ascii_case_insensitive") {
-                    output.is_ascii_case_insensitive = StrumAttributeValue::boolean(&meta)?;
+                    output.is_ascii_case_insensitive = StrumAttributeValue::is_boolean(&meta)?;
                 } else if meta.path.is_ident("prefix") {
                     output.prefix = Some(StrumAttributeValue::string(&meta)?);
                 } else if meta.path.is_ident("suffix") {
@@ -677,7 +677,8 @@ impl VariantAttributes {
                     let _constructor = StrumAttributeValue::string(&meta)?;
                     output.has_explicit_string_payload = true;
                 } else if meta.path.is_ident("ascii_case_insensitive") {
-                    output.is_ascii_case_insensitive = Some(StrumAttributeValue::boolean(&meta)?);
+                    output.is_ascii_case_insensitive =
+                        Some(StrumAttributeValue::is_boolean(&meta)?);
                 } else if meta.path.is_ident("message") {
                     output.message = Some(StrumAttributeValue::string(&meta)?);
                 } else if meta.path.is_ident("detailed_message") {

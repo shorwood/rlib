@@ -38,7 +38,7 @@ impl BehaviorVocabulary {
     }
 
     /// Returns whether a word describes establishment of a domain invariant.
-    fn establishes_invariant(word: &str) -> bool {
+    fn is_establishing_invariant(word: &str) -> bool {
         matches!(
             word,
             "canonicalize" | "check" | "normalize" | "parse" | "sanitize" | "validate"
@@ -118,7 +118,7 @@ pub(super) trait StringDomainSymbolExt {
     fn has_domain_behavior(self) -> bool;
 
     /// Returns whether this identifier names an invariant-establishing operation.
-    fn establishes_domain_invariant(self) -> bool;
+    fn has_invariant_establishing_name(self) -> bool;
 
     /// Infers a domain concept from this precise parameter or field name.
     fn parameter_domain(self) -> Option<String>;
@@ -135,11 +135,11 @@ impl StringDomainSymbolExt for Symbol {
             .any(|word| BehaviorVocabulary::contains(word))
     }
 
-    fn establishes_domain_invariant(self) -> bool {
+    fn has_invariant_establishing_name(self) -> bool {
         DomainWords::normalized(self)
             .0
             .iter()
-            .any(|word| BehaviorVocabulary::establishes_invariant(word))
+            .any(|word| BehaviorVocabulary::is_establishing_invariant(word))
     }
 
     fn parameter_domain(self) -> Option<String> {

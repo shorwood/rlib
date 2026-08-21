@@ -144,7 +144,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosAttributeBoundControlledInputs {
         let ty = cx.tcx.typeck(owner).expr_ty(expression);
 
         // Immutable values cannot participate in two-way controlled input state.
-        if !ReactiveCapability::carries_mutation(cx, owner, ty) {
+        if !ReactiveCapability::has_mutation(cx, owner, ty) {
             return;
         }
 

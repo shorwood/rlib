@@ -20,7 +20,7 @@ Finds direct boolean function and method parameters. One boolean is accepted onl
 exact setter shape such as `set_enabled(enabled: bool)`, with no other non-receiver
 parameters; two or more are always rejected.
 Boolean returns, predicate callbacks, and wrapped state such as `Option<bool>` are outside
-the rule.
+the rule; boolean-result naming is covered separately.
 
 ## Why this matters
 
@@ -73,4 +73,5 @@ No known implementation limitations.
 ## Related lints
 
 - [`rlib::bool_fields_without_predicate_prefix`](../bool_fields_without_predicate_prefix/README.md) — Covers boolean values stored in named fields.
+- [`rlib::bool_returning_functions_without_predicate_prefix`](../bool_returning_functions_without_predicate_prefix/README.md) — Covers predicate naming for boolean results.
 - [`rlib::ambiguous_primitive_parameters`](../ambiguous_primitive_parameters/README.md) — Covers repeated primitive types with different meanings.

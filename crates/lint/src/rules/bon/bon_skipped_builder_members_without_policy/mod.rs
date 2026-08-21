@@ -30,7 +30,7 @@ impl Violation {
         let attribute = BonAttributeAnalysis::builder(&field.attrs)?;
 
         // Documentation and marker fields make the implicit default intentional.
-        if !BonAttributeAnalysis::builder_has_bare_option(cx, &field.attrs, BuilderOption::SKIP)
+        if !BonAttributeAnalysis::has_builder_bare_option(cx, &field.attrs, BuilderOption::SKIP)
             || field.attrs.iter().any(|attribute| {
                 attribute
                     .doc_str()
@@ -119,7 +119,7 @@ impl EarlyLintPass for BonSkippedBuilderMembersWithoutPolicy {
         };
 
         // Structs without a derived builder have no generated member surface.
-        if !BonAttributeAnalysis::derives_builder(cx, &item.attrs) {
+        if !BonAttributeAnalysis::has_builder_derive(cx, &item.attrs) {
             return;
         }
         for field in data.fields() {

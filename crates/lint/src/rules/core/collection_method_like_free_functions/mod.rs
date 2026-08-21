@@ -257,7 +257,7 @@ impl<'tcx> Candidate<'tcx> {
     }
 
     /// Compares generic argument lists while preserving parameter-position equivalence.
-    fn same_generic_arguments<'analysis>(
+    fn has_same_generic_arguments<'analysis>(
         expected: ty::GenericArgsRef<'analysis>,
         actual: ty::GenericArgsRef<'analysis>,
     ) -> bool {
@@ -267,7 +267,9 @@ impl<'tcx> Candidate<'tcx> {
                 .zip(actual.iter())
                 .all(
                     |(expected, actual)| match (expected.as_type(), actual.as_type()) {
-                        (Some(expected), Some(actual)) => Self::same_type_shape(expected, actual),
+                        (Some(expected), Some(actual)) => {
+                            Self::has_same_type_shape(expected, actual)
+                        }
                         (Some(_), None) | (None, Some(_)) => false,
                         (None, None) => match (expected.as_const(), actual.as_const()) {
                             (Some(expected), Some(actual)) => {
@@ -289,7 +291,7 @@ impl<'tcx> Candidate<'tcx> {
     }
 
     /// Compares generic instantiations while treating same-position parameters as alpha-equivalent.
-    fn same_type_shape<'analysis>(expected: Ty<'analysis>, actual: Ty<'analysis>) -> bool {
+    fn has_same_type_shape<'analysis>(expected: Ty<'analysis>, actual: Ty<'analysis>) -> bool {
         match (expected.kind(), actual.kind()) {
             (ty::Param(expected), ty::Param(actual)) => expected.index == actual.index,
             (
@@ -297,19 +299,21 @@ impl<'tcx> Candidate<'tcx> {
                 ty::Adt(actual_definition, actual_arguments),
             ) => {
                 expected_definition.did() == actual_definition.did()
-                    && Self::same_generic_arguments(expected_arguments, actual_arguments)
+                    && Self::has_same_generic_arguments(expected_arguments, actual_arguments)
             }
             (ty::Ref(_, expected, expected_mutability), ty::Ref(_, actual, actual_mutability)) => {
                 expected_mutability == actual_mutability
-                    && Self::same_type_shape(*expected, *actual)
+                    && Self::has_same_type_shape(*expected, *actual)
             }
-            (ty::Slice(expected), ty::Slice(actual)) => Self::same_type_shape(*expected, *actual),
+            (ty::Slice(expected), ty::Slice(actual)) => {
+                Self::has_same_type_shape(*expected, *actual)
+            }
             (ty::Tuple(expected), ty::Tuple(actual)) => {
                 expected.len() == actual.len()
                     && expected
                         .iter()
                         .zip(actual.iter())
-                        .all(|(expected, actual)| Self::same_type_shape(expected, actual))
+                        .all(|(expected, actual)| Self::has_same_type_shape(expected, actual))
             }
             _ => expected == actual,
         }
@@ -319,7 +323,7 @@ impl<'tcx> Candidate<'tcx> {
     ///
     /// Functions and values may legally share this spelling with a struct, so they must not be
     /// mistaken for wrapper conflicts.
-    fn occupies_wrapper_name(&self, item: &Item<'_>) -> bool {
+    fn is_occupying_wrapper_name(&self, item: &Item<'_>) -> bool {
         // Require an item with the canonical wrapper spelling.
         if item
             .kind
@@ -359,7 +363,7 @@ impl<'tcx> Candidate<'tcx> {
         // Resolve any declaration occupying the canonical wrapper name.
         let Some(item) = module_items
             .iter()
-            .find(|item| self.occupies_wrapper_name(item))
+            .find(|item| self.is_occupying_wrapper_name(item))
         else {
             return CandidateWrapperState::Missing;
         };
@@ -374,7 +378,7 @@ impl<'tcx> Candidate<'tcx> {
         let has_expected_field = fields.fields().iter().any(|field| {
             field.ident.name == items
                 && Self::vector_element(cx, cx.tcx.type_of(field.def_id).instantiate_identity())
-                    .is_some_and(|element| Self::same_type_shape(self.element.ty, element))
+                    .is_some_and(|element| Self::has_same_type_shape(self.element.ty, element))
         });
         if has_expected_field {
             CandidateWrapperState::Compatible

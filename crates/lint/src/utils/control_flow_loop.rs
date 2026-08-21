@@ -21,7 +21,11 @@ impl LoopBodyRelation {
     }
 
     /// Classifies expression parents that establish a block's relationship to a loop.
-    fn expression(cx: &LateContext<'_>, expression: &Expr<'_>, block: &Block<'_>) -> Option<bool> {
+    fn is_expression_loop_body_relation(
+        cx: &LateContext<'_>,
+        expression: &Expr<'_>,
+        block: &Block<'_>,
+    ) -> Option<bool> {
         match expression.kind {
             ExprKind::Loop(..) => Some(Self::ends_with_block(cx, expression, block)),
             ExprKind::Closure(..)
@@ -32,9 +36,13 @@ impl LoopBodyRelation {
     }
 
     /// Classifies whether a parent proves or disproves that a block is a direct loop body.
-    fn parent(cx: &LateContext<'_>, parent: HirId, block: &Block<'_>) -> Option<bool> {
+    fn is_parent_loop_body_relation(
+        cx: &LateContext<'_>,
+        parent: HirId,
+        block: &Block<'_>,
+    ) -> Option<bool> {
         match cx.tcx.hir_node(parent) {
-            Node::Expr(expression) => Self::expression(cx, expression, block),
+            Node::Expr(expression) => Self::is_expression_loop_body_relation(cx, expression, block),
             Node::Item(_) | Node::TraitItem(_) | Node::ImplItem(_) | Node::Crate(_) => Some(false),
             _ => None,
         }
@@ -59,7 +67,9 @@ impl LoopBodyExt for Block<'_> {
             }
 
             // The first structural loop relation determines whether this is the direct body.
-            if let Some(is_direct) = LoopBodyRelation::parent(cx, parent, self) {
+            if let Some(is_direct) =
+                LoopBodyRelation::is_parent_loop_body_relation(cx, parent, self)
+            {
                 return is_direct;
             }
             current = parent;

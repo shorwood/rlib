@@ -84,8 +84,8 @@ impl LateLintPass<'_> for StrumDivergentVariantNameContracts {
 
     fn check_crate_post(&mut self, cx: &LateContext<'_>) {
         for contract in self.catalog.contracts() {
-            if !contract.derives(StrumDerive::VariantNames)
-                || !contract.derives(StrumDerive::EnumString)
+            if !contract.has_derive(StrumDerive::VariantNames)
+                || !contract.has_derive(StrumDerive::EnumString)
             {
                 continue;
             }

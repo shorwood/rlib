@@ -1,4 +1,4 @@
-// aux-build: external_macro.rs
+// aux-build: boolean_field_external_macro.rs
 
 #![feature(register_tool)]
 #![allow(
@@ -10,9 +10,9 @@
 )]
 #![register_tool(rlib_lint)]
 
-extern crate external_macro;
+extern crate boolean_field_external_macro;
 
-use external_macro::external_struct;
+use boolean_field_external_macro::external_struct;
 
 // A semantic boolean alias should be treated exactly like `bool`.
 type Flag = bool;
@@ -27,6 +27,7 @@ struct Invalid {
 struct Valid {
     is_active: bool,
     has_focus: Flag,
+    should_refresh: bool,
     r#is_ready: bool,
     count: usize,
 }
@@ -35,7 +36,10 @@ struct Valid {
 struct EmptyPredicate {
     is_: bool,
     has_: bool,
+    should_: bool,
     is__active: bool,
+    should__refresh: bool,
+    contains_items: bool,
 }
 
 // Tuple fields and fields belonging to enum variants are outside this lint's scope.

@@ -217,7 +217,7 @@ impl VariantValueFamily {
     }
 
     /// Returns whether the function's exact output is a static string reference.
-    pub(crate) fn returns_static_str(&self, cx: &LateContext<'_>) -> bool {
+    pub(crate) fn is_returning_static_str(&self, cx: &LateContext<'_>) -> bool {
         let output = cx
             .tcx
             .fn_sig(self.definition)
@@ -459,7 +459,7 @@ impl StringParserCandidate {
                 return None;
             }
             if matches!(arm.pat.kind, PatKind::Wild)
-                && AuthoredContractAnalysis::result_err(cx, arm.body)
+                && AuthoredContractAnalysis::is_result_err(cx, arm.body)
             {
                 fallback = true;
                 continue;
@@ -817,7 +817,7 @@ impl AuthoredContractAnalysis {
     }
 
     /// Returns whether an expression constructs standard `Result::Err`.
-    fn result_err(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+    fn is_result_err(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
         // `Err` recognition requires a one-argument constructor call.
         let ExprKind::Call(callee, [_]) = Self::peel_transparent(expression).kind else {
             return false;

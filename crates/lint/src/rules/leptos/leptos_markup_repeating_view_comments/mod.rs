@@ -78,7 +78,7 @@ fn heading_normalize(value: &str) -> String {
 }
 
 /// Returns whether one heading exactly translates its only structural node.
-fn heading_repeats_node(content: &str, node: NodeText<'_>) -> bool {
+fn is_heading_repeating_node(content: &str, node: NodeText<'_>) -> bool {
     let heading = heading_normalize(content);
     let name = node.name;
     let terminal_name = name
@@ -156,7 +156,7 @@ impl<'tcx> LateLintPass<'tcx> for LeptosMarkupRepeatingViewComments {
             let Some(name) = node.name.as_deref() else {
                 continue;
             };
-            if !heading_repeats_node(
+            if !is_heading_repeating_node(
                 content,
                 NodeText {
                     name,
@@ -186,53 +186,53 @@ crate::impl_late_lint! {
 
 #[cfg(test)]
 mod tests {
-    use super::{NodeText, heading_repeats_node};
+    use super::{NodeText, is_heading_repeating_node};
 
     #[test]
     fn recognizes_only_exact_structural_restatements() {
-        assert!(heading_repeats_node(
+        assert!(is_heading_repeating_node(
             "Navigation",
             NodeText {
                 name: "Navigation",
                 literal: None,
             }
         ));
-        assert!(heading_repeats_node(
+        assert!(is_heading_repeating_node(
             "Navigation",
             NodeText {
                 name: "nav",
                 literal: None,
             }
         ));
-        assert!(heading_repeats_node(
+        assert!(is_heading_repeating_node(
             "Submit button",
             NodeText {
                 name: "button",
                 literal: Some("Submit"),
             }
         ));
-        assert!(heading_repeats_node(
+        assert!(is_heading_repeating_node(
             "Navigation",
             NodeText {
                 name: "components::Navigation",
                 literal: None,
             }
         ));
-        assert!(heading_repeats_node(
+        assert!(is_heading_repeating_node(
             "Account status",
             NodeText {
                 name: "h2",
                 literal: Some("Account status"),
             }
         ));
-        assert!(!heading_repeats_node(
+        assert!(!is_heading_repeating_node(
             "Account navigation",
             NodeText {
                 name: "Navigation",
                 literal: None,
             }
         ));
-        assert!(!heading_repeats_node(
+        assert!(!is_heading_repeating_node(
             "Submit button",
             NodeText {
                 name: "button",
