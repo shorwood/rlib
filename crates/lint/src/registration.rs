@@ -219,7 +219,7 @@ define_lint_registration! {
         leptos_server_functions_without_authorization_boundaries,
         leptos_static_str_component_props,
         leptos_unsanitized_inner_html,
-        leptos_unkeyed_reactive_collections,
+        leptos_manual_view_iteration,
         leptos_unnamed_composables,
         leptos_unreactive_signal_reads_in_views,
         leptos_unscoped_spawned_tasks,

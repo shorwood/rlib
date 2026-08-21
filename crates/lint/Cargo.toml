@@ -550,8 +550,8 @@ path = "ui/leptos/leptos_unsanitized_inner_html/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
-name = "leptos_unkeyed_reactive_collections"
-path = "ui/leptos/leptos_unkeyed_reactive_collections/semantic.rs"
+name = "leptos_manual_view_iteration"
+path = "ui/leptos/leptos_manual_view_iteration/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]

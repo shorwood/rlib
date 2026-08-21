@@ -7,7 +7,7 @@
     rlib::leptos_manual_resource_refetch_signals,
     rlib::leptos_needlessly_cloned_signal_values,
     rlib::leptos_reactive_writes_during_view_construction,
-    rlib::leptos_unkeyed_reactive_collections,
+    rlib::leptos_manual_view_iteration,
     rlib::leptos_unsanitized_inner_html,
     rlib::leptos_writable_signal_component_props,
     unknown_lints

@@ -23,10 +23,10 @@ struct TraitMethodIdentity {
 }
 
 // -----------------------------------------------------------------------------
-// Violation: Unkeyed reactive collection diagnostic
+// Violation: Manual view iteration diagnostic
 // -----------------------------------------------------------------------------
 
-/// Reactive collection rendered through positional iterator collection.
+/// Repeated view structure hidden inside an iterator collection chain.
 struct Violation {
     /// Collection expression used to honor local lint attributes.
     owner: rustc_hir::HirId,
@@ -36,27 +36,30 @@ struct Violation {
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
-        Cow::Borrowed("reactive collection is rendered without stable keys")
+        Cow::Borrowed("views are collected through manual iterator mapping")
     }
 
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
-            "collecting mapped views identifies children only by position, so filtering, reordering, or insertion can recreate unrelated DOM state",
+            "iterator-driven rendering hides the collection, identity key, and child template inside Rust expressions instead of exposing them in the view tree",
         )
     }
 
     fn remediation_message(&self) -> Cow<'_, str> {
-        Cow::Borrowed("render the changing collection with `<For>` and a stable domain key")
+        Cow::Borrowed("replace this mapping chain with `<For>` and a stable domain key")
     }
 
     fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
-            LEPTOS_UNKEYED_REACTIVE_COLLECTIONS,
+            LEPTOS_MANUAL_VIEW_ITERATION,
             self.owner,
             self.span,
             DiagDecorator(|diag| {
                 diag.primary_message(self.primary_message().into_owned());
-                diag.span_label(self.span, "these children are collected positionally");
+                diag.span_label(
+                    self.span,
+                    "this repeated view is hidden in an iterator chain",
+                );
                 diag.note(self.rationale_message().into_owned());
                 diag.help(self.remediation_message().into_owned());
             }),
@@ -65,21 +68,21 @@ impl LateViolation for Violation {
 }
 
 // -----------------------------------------------------------------------------
-// LeptosUnkeyedReactiveCollections: Child identity policy
+// LeptosManualViewIteration: Declarative collection rendering
 // -----------------------------------------------------------------------------
 
-/// Late lint pass that requires stable identity for changing reactive collections.
-struct LeptosUnkeyedReactiveCollections;
+/// Late lint pass that requires repeated views to use declarative Leptos markup.
+struct LeptosManualViewIteration;
 
 crate::impl_late_lint! {
     #[doc = include_str!("README.md")]
-    pub LEPTOS_UNKEYED_REACTIVE_COLLECTIONS,
+    pub LEPTOS_MANUAL_VIEW_ITERATION,
     Warn,
-    "rejects positionally collected views derived from reactive collections",
-    LeptosUnkeyedReactiveCollections
+    "requires declarative Leptos For components instead of mapped view collection",
+    LeptosManualViewIteration
 }
 
-impl LeptosUnkeyedReactiveCollections {
+impl LeptosManualViewIteration {
     /// Returns whether a method belongs to a named semantic trait.
     fn is_method_owned_by(
         cx: &LateContext<'_>,
@@ -121,43 +124,24 @@ impl LeptosUnkeyedReactiveCollections {
             })
     }
 
-    /// Returns whether the rendering chain originates in a tracked signal read.
-    fn contains_reactive_read(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
-        // A non-method expression terminates the receiver chain without a tracked read.
-        let ExprKind::MethodCall(_, receiver, arguments, _) = expression.kind else {
-            return false;
-        };
-        let tracked_read = [
-            ("Get", "get", 0),
-            ("Get", "try_get", 0),
-            ("Read", "read", 0),
-            ("Read", "try_read", 0),
-            ("With", "with", 1),
-            ("With", "try_with", 1),
-        ]
-        .into_iter()
-        .any(|(owning_trait, method, argument_count)| {
-            arguments.len() == argument_count
-                && Self::is_method_owned_by(
-                    cx,
-                    expression,
-                    TraitMethodIdentity {
-                        defining_crate: "reactive_graph",
-                        method,
-                        owning_trait,
-                    },
-                )
-        });
-
-        // Finding a tracked read anywhere in the chain establishes reactive collection input.
-        if tracked_read {
+    /// Returns whether a receiver chain contains a standard view-mapping adapter.
+    fn contains_view_mapping_adapter(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
+        // A resolved mapping adapter establishes manual view construction for the whole chain.
+        if Self::is_view_mapping_adapter(cx, expression) {
             return true;
         }
-        Self::contains_reactive_read(cx, receiver)
+
+        // A non-method expression terminates the authored iterator chain.
+        let ExprKind::MethodCall(_, receiver, _, _) = expression.kind else {
+            return false;
+        };
+
+        // Receiver traversal preserves semantic method identity across intervening adapters.
+        Self::contains_view_mapping_adapter(cx, receiver)
     }
 }
 
-impl<'tcx> LateLintPass<'tcx> for LeptosUnkeyedReactiveCollections {
+impl<'tcx> LateLintPass<'tcx> for LeptosManualViewIteration {
     fn check_expr(&mut self, cx: &LateContext<'tcx>, expression: &'tcx Expr<'tcx>) {
         // Only method calls can terminate in Leptos's collection-view conversion.
         let ExprKind::MethodCall(_, receiver, arguments, _) = expression.kind else {
@@ -179,15 +163,8 @@ impl<'tcx> LateLintPass<'tcx> for LeptosUnkeyedReactiveCollections {
             return;
         }
 
-        // A direct mapping adapter must immediately precede collection into a view.
-        let ExprKind::MethodCall(_, collection, [_], _) = receiver.kind else {
-            return;
-        };
-
-        // Only mapped children sourced from a tracked read create the unkeyed reactive pattern.
-        if !Self::is_view_mapping_adapter(cx, receiver)
-            || !Self::contains_reactive_read(cx, collection)
-        {
+        // Any standard mapping adapter in the receiver chain hides repeated view structure.
+        if !Self::contains_view_mapping_adapter(cx, receiver) {
             return;
         }
 

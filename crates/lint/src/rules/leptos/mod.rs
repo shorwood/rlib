@@ -31,7 +31,7 @@ pub mod leptos_resource_fetchers_rereading_sources;
 pub mod leptos_server_functions_without_authorization_boundaries;
 pub mod leptos_static_str_component_props;
 pub mod leptos_unsanitized_inner_html;
-pub mod leptos_unkeyed_reactive_collections;
+pub mod leptos_manual_view_iteration;
 pub mod leptos_unnamed_composables;
 pub mod leptos_unreactive_signal_reads_in_views;
 pub mod leptos_unscoped_spawned_tasks;

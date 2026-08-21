@@ -8,7 +8,7 @@
     rlib::leptos_needlessly_cloned_signal_values,
     rlib::leptos_reactive_writes_during_view_construction,
     rlib::leptos_reactive_writes_in_resource_fetchers,
-    rlib::leptos_unkeyed_reactive_collections,
+    rlib::leptos_manual_view_iteration,
     rlib::leptos_unreactive_signal_reads_in_views,
     rlib::leptos_unsanitized_inner_html,
     rlib::leptos_writable_signal_component_props,

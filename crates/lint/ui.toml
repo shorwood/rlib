@@ -533,8 +533,8 @@ name = "leptos_unsanitized_inner_html"
 lints = ["leptos_unsanitized_inner_html"]
 
 [[example]]
-name = "leptos_unkeyed_reactive_collections"
-lints = ["leptos_unkeyed_reactive_collections"]
+name = "leptos_manual_view_iteration"
+lints = ["leptos_manual_view_iteration"]
 
 [[example]]
 name = "leptos_unlocalized_view_literals"

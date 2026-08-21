@@ -10,7 +10,7 @@
     rlib::leptos_read_then_replace_signals,
     rlib::leptos_reactive_writes_during_view_construction,
     rlib::leptos_reactive_writes_in_resource_fetchers,
-    rlib::leptos_unkeyed_reactive_collections,
+    rlib::leptos_manual_view_iteration,
     rlib::leptos_unsanitized_inner_html,
     rlib::leptos_writable_signal_component_props,
     unknown_lints
