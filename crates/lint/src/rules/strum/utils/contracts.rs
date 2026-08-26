@@ -508,7 +508,7 @@ enum CaseStyle {
     Kebab,
     /// Lowercase with no word separator.
     Lower,
-    /// Lower snake case under Strum's `mixed_case` spelling.
+    /// Lower camel case under Strum's `mixed_case` spelling.
     Mixed,
     /// Upper camel case, such as `VariantName`.
     Pascal,
@@ -551,7 +551,8 @@ impl CaseStyle {
             Some(Self::Camel) => value.to_lower_camel_case(),
             Some(Self::Kebab) => value.to_kebab_case(),
             Some(Self::Lower) => value.to_lowercase(),
-            Some(Self::Mixed | Self::Snake) => value.to_snake_case(),
+            Some(Self::Mixed) => value.to_lower_camel_case(),
+            Some(Self::Snake) => value.to_snake_case(),
             Some(Self::Pascal) => value.to_upper_camel_case(),
             Some(Self::ScreamingKebab) => value.to_shouty_kebab_case(),
             Some(Self::ScreamingSnake) => value.to_shouty_snake_case(),
@@ -561,6 +562,11 @@ impl CaseStyle {
             None => value.to_owned(),
         }
     }
+}
+
+/// Applies Strum's pinned case conversion for an authored `serialize_all` value.
+pub(crate) fn apply_case(value: &str, case: &str) -> String {
+    CaseStyle::apply(value, CaseStyle::from_name(case))
 }
 
 // -----------------------------------------------------------------------------

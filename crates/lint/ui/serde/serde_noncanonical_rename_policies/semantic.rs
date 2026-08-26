@@ -67,9 +67,23 @@ struct DirectionalShorthand {
 }
 
 #[derive(serde::Serialize)]
+struct IdenticalInactivePrivateDirection {
+    #[serde(rename(serialize = "wireValue", deserialize = "wireValue"))]
+    value: u64,
+}
+
+#[derive(serde::Serialize)]
 struct InactivePrivateDirection {
     #[serde(rename(serialize = "wireValue", deserialize = "legacyValue"))]
     value: u64,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum FullyInheritedDirectionalOverride {
+    #[serde(rename(serialize = "userCreated", deserialize = "userCreated"))]
+    UserCreated,
+    UserDeleted,
 }
 
 #[derive(serde::Serialize)]

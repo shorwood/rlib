@@ -187,20 +187,46 @@ impl SerdeNoncanonicalRenamePolicies {
             return;
         }
         if names.serialize.is_some() && names.serialize == names.deserialize {
-            self.candidates.push(Candidate {
-                definition: group.definition,
-                owner: group.owner,
-                span: group.span,
-                activation: Activation::Both,
-                detail: format!(
-                    "{} declares identical serialization and deserialization names",
-                    names.subject
+            for (activation, detail, remediation, private_only) in [
+                (
+                    Activation::Both,
+                    format!(
+                        "{} declares identical serialization and deserialization names",
+                        names.subject
+                    ),
+                    "use the nondirectional Serde shorthand for the shared name".to_owned(),
+                    false,
                 ),
-                remediation: "use the nondirectional Serde shorthand for the shared name"
-                    .to_owned(),
-                suggestion: None,
-                private_only: false,
-            });
+                (
+                    Activation::Only(SerdeDirection::Serialize),
+                    format!(
+                        "{} configures deserialization, but this private type derives only serialization",
+                        names.subject
+                    ),
+                    "remove the inactive deserialization naming branch".to_owned(),
+                    true,
+                ),
+                (
+                    Activation::Only(SerdeDirection::Deserialize),
+                    format!(
+                        "{} configures serialization, but this private type derives only deserialization",
+                        names.subject
+                    ),
+                    "remove the inactive serialization naming branch".to_owned(),
+                    true,
+                ),
+            ] {
+                self.candidates.push(Candidate {
+                    definition: group.definition,
+                    owner: group.owner,
+                    span: group.span,
+                    activation,
+                    detail,
+                    remediation,
+                    suggestion: None,
+                    private_only,
+                });
+            }
             return;
         }
         for (active, inactive_name, inactive_label) in [
@@ -235,13 +261,37 @@ impl SerdeNoncanonicalRenamePolicies {
         }
     }
 
-    fn record_member_directional_names(&mut self, group: &Group<'_>) {
+    fn record_member_directional_names(&mut self, cx: &LateContext<'_>, group: &Group<'_>) {
+        let exported = cx
+            .tcx
+            .effective_visibilities(())
+            .is_exported(group.definition);
         for member in group.members {
+            let serialize = member.attributes.rename_serialize.as_deref();
+            let deserialize = member.attributes.rename_deserialize.as_deref();
+            let shared = if serialize.is_some() && serialize == deserialize {
+                serialize
+            } else {
+                None
+            };
+            let removal_takes_precedence = shared.is_some_and(|shared| {
+                Self::symmetric_removal_preserves_both_directions(group, member, shared)
+                    && if Self::participates(member, SerdeDirection::Serialize) {
+                        group.inherited[0].is_some() || !exported
+                    } else if Self::participates(member, SerdeDirection::Deserialize) {
+                        group.inherited[1].is_some() || !exported
+                    } else {
+                        false
+                    }
+            });
+            if removal_takes_precedence {
+                continue;
+            }
             self.record_directional_names(
                 group,
                 DirectionalNames {
-                    serialize: member.attributes.rename_serialize.as_deref(),
-                    deserialize: member.attributes.rename_deserialize.as_deref(),
+                    serialize,
+                    deserialize,
                     authored_directionally: member.attributes.rename_directional,
                     subject: &member.name,
                 },
@@ -507,7 +557,7 @@ impl SerdeNoncanonicalRenamePolicies {
     }
 
     fn record_group(&mut self, cx: &LateContext<'_>, group: &Group<'_>) {
-        self.record_member_directional_names(group);
+        self.record_member_directional_names(cx, group);
         let mut combined_factoring = false;
         if group.inherited == [None, None] {
             let serialize = group

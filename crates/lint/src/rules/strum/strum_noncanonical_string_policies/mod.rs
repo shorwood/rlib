@@ -5,17 +5,15 @@ extern crate rustc_span;
 use std::borrow::Cow;
 use std::collections::HashSet;
 
-use heck::{
-    ToKebabCase, ToLowerCamelCase, ToShoutyKebabCase, ToShoutySnakeCase, ToSnakeCase, ToTitleCase,
-    ToTrainCase, ToUpperCamelCase,
-};
 use rustc_errors::{Applicability, DiagDecorator};
 use rustc_hir::{HirId, Item};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::utils::contracts::{ContractCatalog, EnumContract, StrumDerive, VariantContract};
+use super::utils::contracts::{
+    ContractCatalog, EnumContract, StrumDerive, VariantContract, apply_case,
+};
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::name_policy::{
     CandidatePolicy, factor_names, factor_names_with_required, standalone_attribute_span,
@@ -34,23 +32,6 @@ const CASES: [&str; 10] = [
     "Train-Case",
     "UPPERCASE",
 ];
-
-fn apply_case(value: &str, case: &str) -> String {
-    match case {
-        "camelCase" => value.to_lower_camel_case(),
-        "kebab-case" => value.to_kebab_case(),
-        "lowercase" => value.to_lowercase(),
-        "mixed_case" => value.to_lower_camel_case(),
-        "snake_case" => value.to_snake_case(),
-        "PascalCase" => value.to_upper_camel_case(),
-        "SCREAMING-KEBAB-CASE" => value.to_shouty_kebab_case(),
-        "SCREAMING_SNAKE_CASE" => value.to_shouty_snake_case(),
-        "title_case" => value.to_title_case(),
-        "Train-Case" => value.to_train_case(),
-        "UPPERCASE" => value.to_uppercase(),
-        _ => value.to_owned(),
-    }
-}
 
 #[derive(Default)]
 struct TypeAttributes {
