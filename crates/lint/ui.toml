@@ -93,6 +93,10 @@ core = [
 
 # Every Cargo [[example]] target must appear below exactly once.
 [[example]]
+name = "axum_ad_hoc_response_wrappers"
+lints = ["axum_ad_hoc_response_wrappers"]
+
+[[example]]
 name = "bon_builders_bypassing_construction_invariants"
 lints = ["bon_builders_bypassing_construction_invariants"]
 

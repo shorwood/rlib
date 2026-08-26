@@ -144,6 +144,10 @@ define_lint_registration! {
         unparenthesized_mixed_boolean_operators,
         visibility_required_only_by_tests,
     }
+    #[cfg(feature = "axum")]
+    axum {
+        axum_ad_hoc_response_wrappers,
+    }
     #[cfg(feature = "bon")]
     bon {
         bon_builders_bypassing_construction_invariants,

@@ -39,6 +39,7 @@ it is allowed, shown as a warning, or treated as an error.
 | Family | Cargo feature | What it covers |
 | --- | --- | --- |
 | [Core](./core/README.md) | always | General Rust rules for clear modules, APIs, control flow, names, documentation, and error handling. |
+| [Axum](./axum/README.md) | `axum` | Rules that assign response rendering to typed `IntoResponse` implementations. |
 | [Bon](./bon/README.md) | `bon` | Rules for Bon builders, including construction safety, public API shape, compatibility, and generated member behavior. |
 | [Derive More](./derive_more/README.md) | `derive_more` | Rules that compare hand-written trait code with Derive More and protect invariants when derives create new operations. |
 | [Framework](./framework/README.md) | `framework` | Rules that ask projects to choose which derive crate owns an overlapping generated interface. |

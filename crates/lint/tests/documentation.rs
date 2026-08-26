@@ -654,6 +654,11 @@ const FAMILIES: &[Family] = &[
         feature: "always",
     },
     Family {
+        name: "axum",
+        title: "Axum",
+        feature: "axum",
+    },
+    Family {
         name: "bon",
         title: "Bon",
         feature: "bon",

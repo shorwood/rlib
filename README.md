@@ -2,7 +2,7 @@
 
 rlib is a collection of compiler-backed lints for Rust architecture, API design, and ecosystem
 crates. It runs as a Cargo subcommand and includes dedicated lint families for libraries such as
-Serde, SQLx, Strum, Leptos, and thiserror.
+Axum, Serde, SQLx, Strum, Leptos, and thiserror.
 
 See the [lint catalog](crates/lint/src/rules/README.md) for the available rules.
 

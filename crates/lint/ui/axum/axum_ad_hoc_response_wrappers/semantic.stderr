@@ -1,0 +1,115 @@
+warning: Axum response-producing callable `free_response` is an ad hoc response wrapper
+  --> $DIR/semantic.rs:8:4
+   |
+LL | fn free_response(value: String) -> Response {
+   |    ^^^^^^^^^^^^^                   -------- this return contract exposes Axum response rendering
+   |
+   = note: `IntoResponse` gives response rendering a type owner that handlers and generic Axum APIs can compose directly
+   = help: define a local wrapper containing the required inputs and implement `IntoResponse` for it
+   = note: requested on the command line with `-W rlib::axum-ad-hoc-response-wrappers`
+
+warning: Axum response-producing callable `alias_response` is an ad hoc response wrapper
+  --> $DIR/semantic.rs:12:4
+   |
+LL | fn alias_response() -> AppResponse {
+   |    ^^^^^^^^^^^^^^      ----------- this return contract exposes Axum response rendering
+   |
+   = note: `IntoResponse` gives response rendering a type owner that handlers and generic Axum APIs can compose directly
+   = help: define a local wrapper containing the required inputs and implement `IntoResponse` for it
+
+warning: Axum response-producing callable `opaque_response` is an ad hoc response wrapper
+  --> $DIR/semantic.rs:16:4
+   |
+LL | fn opaque_response(value: String) -> impl IntoResponse {
+   |    ^^^^^^^^^^^^^^^                   ----------------- this return contract exposes Axum response rendering
+   |
+   = note: `IntoResponse` gives response rendering a type owner that handlers and generic Axum APIs can compose directly
+   = help: define a local wrapper containing the required inputs and implement `IntoResponse` for it
+
+warning: Axum response-producing callable `no_store` is an ad hoc response wrapper
+  --> $DIR/semantic.rs:20:4
+   |
+LL | fn no_store(value: impl IntoResponse) -> Response {
+   |    ^^^^^^^^                              -------- this return contract exposes Axum response rendering
+   |
+   = note: `IntoResponse` gives response rendering a type owner that handlers and generic Axum APIs can compose directly
+   = help: define a local wrapper containing the required inputs and implement `IntoResponse` for it
+
+warning: Axum response-producing callable `fallible_response` is an ad hoc response wrapper
+  --> $DIR/semantic.rs:24:4
+   |
+LL | fn fallible_response() -> Result<Option<Result<String, Response>>, String> {
+   |    ^^^^^^^^^^^^^^^^^      ------------------------------------------------ this return contract exposes Axum response rendering
+   |
+   = note: `IntoResponse` gives response rendering a type owner that handlers and generic Axum APIs can compose directly
+   = help: define a local wrapper containing the required inputs and implement `IntoResponse` for it
+
+warning: Axum response-producing callable `fallible_opaque_response` is an ad hoc response wrapper
+  --> $DIR/semantic.rs:28:4
+   |
+LL | fn fallible_opaque_response() -> Result<Option<impl IntoResponse>, String> {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^      ----------------------------------------- this return contract exposes Axum response rendering
+   |
+   = note: `IntoResponse` gives response rendering a type owner that handlers and generic Axum APIs can compose directly
+   = help: define a local wrapper containing the required inputs and implement `IntoResponse` for it
+
+warning: Axum response-producing callable `into_response` is an ad hoc response wrapper
+  --> $DIR/semantic.rs:35:8
+   |
+LL |     fn into_response(self, _delay_ms: u64) -> Response {
+   |        ^^^^^^^^^^^^^                          -------- this return contract exposes Axum response rendering
+   |
+   = note: `IntoResponse` gives response rendering a type owner that handlers and generic Axum APIs can compose directly
+   = help: replace this method with an `IntoResponse` implementation and move any additional arguments into the wrapper state
+
+warning: Axum response-producing callable `into_sse_response` is an ad hoc response wrapper
+  --> $DIR/semantic.rs:39:8
+   |
+LL |     fn into_sse_response(self, _delay_ms: u64) -> impl IntoResponse {
+   |        ^^^^^^^^^^^^^^^^^                          ----------------- this return contract exposes Axum response rendering
+   |
+   = note: `IntoResponse` gives response rendering a type owner that handlers and generic Axum APIs can compose directly
+   = help: replace this method with an `IntoResponse` implementation and move any additional arguments into the wrapper state
+
+warning: Axum response-producing callable `response` is an ad hoc response wrapper
+  --> $DIR/semantic.rs:45:8
+   |
+LL |     fn response(&self) -> Response;
+   |        ^^^^^^^^           -------- this return contract exposes Axum response rendering
+   |
+   = note: `IntoResponse` gives response rendering a type owner that handlers and generic Axum APIs can compose directly
+   = help: replace this trait response method with `IntoResponse` implementations on the concrete response types
+
+warning: Axum response-producing callable `opaque_response` is an ad hoc response wrapper
+  --> $DIR/semantic.rs:47:8
+   |
+LL |     fn opaque_response(&self) -> impl IntoResponse;
+   |        ^^^^^^^^^^^^^^^           ----------------- this return contract exposes Axum response rendering
+   |
+   = note: `IntoResponse` gives response rendering a type owner that handlers and generic Axum APIs can compose directly
+   = help: replace this trait response method with `IntoResponse` implementations on the concrete response types
+
+warning: Axum response-producing callable `macro_response` is an ad hoc response wrapper
+  --> $DIR/semantic.rs:64:12
+   |
+LL |         fn macro_response() -> Response {
+   |            ^^^^^^^^^^^^^^      -------- this return contract exposes Axum response rendering
+...
+LL | local_response_helper!();
+   | ------------------------ in this macro invocation
+   |
+   = note: `IntoResponse` gives response rendering a type owner that handlers and generic Axum APIs can compose directly
+   = help: define a local wrapper containing the required inputs and implement `IntoResponse` for it
+   = note: this warning originates in the macro `local_response_helper` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: Axum response-producing callable `explicit_default_body_response` is an ad hoc response wrapper
+  --> $DIR/semantic.rs:140:4
+   |
+LL | fn explicit_default_body_response() -> HttpResponse<Body> {
+   |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^      ------------------ this return contract exposes Axum response rendering
+   |
+   = note: `IntoResponse` gives response rendering a type owner that handlers and generic Axum APIs can compose directly
+   = help: define a local wrapper containing the required inputs and implement `IntoResponse` for it
+
+warning: 12 warnings emitted
+

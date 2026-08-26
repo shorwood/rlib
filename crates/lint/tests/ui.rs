@@ -1,6 +1,7 @@
 //! Manifest-driven UI regression tests.
 
 #![cfg(all(
+    feature = "axum",
     feature = "bon",
     feature = "derive_more",
     feature = "leptos_i18n",

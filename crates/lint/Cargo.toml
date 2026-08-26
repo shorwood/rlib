@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 [features]
 default = ["leptos_i18n"]
 framework = []
+axum = []
 bon = []
 derive_more = ["framework", "dep:quote", "dep:syn"]
 leptos = ["dep:leptosfmt-formatter", "dep:proc-macro2", "dep:quote", "dep:rstml", "dep:syn"]
@@ -40,6 +41,7 @@ syn = { version = "2", features = ["full", "parsing", "visit"], optional = true 
 toml = "1.1"
 
 [dev-dependencies]
+axum = "=0.8.9"
 bon = "=3.9.3"
 dylint_testing = "=6.0.1"
 leptos = { version = "=0.8.20", features = ["ssr"] }
@@ -47,6 +49,11 @@ miette = { version = "=7.6.0", features = ["derive"] }
 reactive_stores = "=0.4.3"
 sqlx = { version = "=0.9.0", features = ["macros", "runtime-tokio", "sqlite"] }
 thiserror = "=2.0.19"
+
+[[example]]
+name = "axum_ad_hoc_response_wrappers"
+path = "ui/axum/axum_ad_hoc_response_wrappers/semantic.rs"
+required-features = ["axum"]
 
 [[example]]
 name = "bon_builders_bypassing_construction_invariants"
