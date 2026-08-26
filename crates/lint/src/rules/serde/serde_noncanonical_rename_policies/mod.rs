@@ -44,6 +44,7 @@ struct Candidate {
 
 #[derive(Clone, Copy)]
 enum Activation {
+    Any,
     Direction(SerdeDirection),
     Both,
     Only(SerdeDirection),
@@ -261,6 +262,95 @@ impl SerdeNoncanonicalRenamePolicies {
         }
     }
 
+    fn record_skipped_member_directions(
+        &mut self,
+        group: &Group<'_>,
+        member: &Member,
+        serialize: Option<&str>,
+        deserialize: Option<&str>,
+    ) -> bool {
+        if !member.attributes.rename_directional {
+            return false;
+        }
+        let participates = [
+            Self::participates(member, SerdeDirection::Serialize),
+            Self::participates(member, SerdeDirection::Deserialize),
+        ];
+        let authored = [serialize, deserialize];
+        match participates {
+            [true, true] => false,
+            [false, false] => {
+                if authored.iter().any(Option::is_some) {
+                    self.candidates.push(Candidate {
+                        definition: group.definition,
+                        owner: group.owner,
+                        span: group.span,
+                        activation: Activation::Any,
+                        detail: format!(
+                            "{} is skipped during both serialization and deserialization, so its directional rename is inactive",
+                            member.name
+                        ),
+                        remediation: "remove the inactive member rename".to_owned(),
+                        suggestion: None,
+                        private_only: false,
+                    });
+                }
+                true
+            }
+            participation => {
+                let (active, inactive, inactive_name, inactive_label) = if participation[0] {
+                    (
+                        SerdeDirection::Serialize,
+                        SerdeDirection::Deserialize,
+                        deserialize,
+                        "deserialization",
+                    )
+                } else {
+                    (
+                        SerdeDirection::Deserialize,
+                        SerdeDirection::Serialize,
+                        serialize,
+                        "serialization",
+                    )
+                };
+                if inactive_name.is_some() {
+                    self.candidates.push(Candidate {
+                        definition: group.definition,
+                        owner: group.owner,
+                        span: group.span,
+                        activation: Activation::Direction(active),
+                        detail: format!(
+                            "{} is skipped during {inactive_label}, so its {inactive_label} name is inactive",
+                            member.name
+                        ),
+                        remediation: format!(
+                            "remove the inactive {inactive_label} naming branch"
+                        ),
+                        suggestion: None,
+                        private_only: false,
+                    });
+                }
+                if authored.iter().any(Option::is_some) {
+                    self.candidates.push(Candidate {
+                        definition: group.definition,
+                        owner: group.owner,
+                        span: group.span,
+                        activation: Activation::Only(inactive),
+                        detail: format!(
+                            "{} has no active naming direction because {} is not derived and it is skipped during {inactive_label}",
+                            member.name,
+                            active.label()
+                        ),
+                        remediation: "remove the inactive member rename".to_owned(),
+                        suggestion: None,
+                        private_only: false,
+                    });
+                }
+                true
+            }
+        }
+    }
+
     fn record_member_directional_names(&mut self, cx: &LateContext<'_>, group: &Group<'_>) {
         let exported = cx
             .tcx
@@ -285,6 +375,9 @@ impl SerdeNoncanonicalRenamePolicies {
                     }
             });
             if removal_takes_precedence {
+                continue;
+            }
+            if self.record_skipped_member_directions(group, member, serialize, deserialize) {
                 continue;
             }
             self.record_directional_names(
@@ -884,6 +977,7 @@ impl LateLintPass<'_> for SerdeNoncanonicalRenamePolicies {
             let serialize = has_derive(SerdeDirection::Serialize);
             let deserialize = has_derive(SerdeDirection::Deserialize);
             let active = match candidate.activation {
+                Activation::Any => serialize || deserialize,
                 Activation::Direction(SerdeDirection::Serialize) => serialize,
                 Activation::Direction(SerdeDirection::Deserialize) => deserialize,
                 Activation::Both => serialize && deserialize,

@@ -86,6 +86,30 @@ enum FullyInheritedDirectionalOverride {
     UserDeleted,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SkippedDirectionalBranch {
+    #[serde(
+        skip_deserializing,
+        rename(serialize = "wireValue", deserialize = "wireValue")
+    )]
+    value: u64,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct FullySkippedDirectionalRename {
+    #[serde(skip, rename(serialize = "wireValue", deserialize = "legacyValue"))]
+    value: u64,
+}
+
+#[derive(serde::Deserialize)]
+struct OnlySkippedDerivedDirection {
+    #[serde(
+        skip_deserializing,
+        rename(serialize = "wireValue", deserialize = "legacyValue")
+    )]
+    value: u64,
+}
+
 #[derive(serde::Serialize)]
 pub struct PreservedPublicDirection {
     #[serde(rename(serialize = "wireValue", deserialize = "legacyValue"))]
