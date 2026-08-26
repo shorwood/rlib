@@ -694,6 +694,11 @@ const FAMILIES: &[Family] = &[
         feature: "serde",
     },
     Family {
+        name: "sqlx",
+        title: "SQLx",
+        feature: "sqlx",
+    },
+    Family {
         name: "strum",
         title: "Strum",
         feature: "strum",

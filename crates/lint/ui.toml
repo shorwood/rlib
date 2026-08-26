@@ -759,3 +759,51 @@ lints = ["strum_manual_variant_names"]
 [[example]]
 name = "strum_non_roundtripping_enum_strings"
 lints = ["strum_non_roundtripping_enum_strings"]
+
+[[example]]
+name = "sqlx_dynamic_queries_cached_persistently"
+lints = ["sqlx_dynamic_queries_cached_persistently"]
+
+[[example]]
+name = "sqlx_manual_row_mapping"
+lints = ["sqlx_manual_row_mapping"]
+
+[[example]]
+name = "sqlx_needless_pool_acquisition"
+lints = ["sqlx_needless_pool_acquisition"]
+
+[[example]]
+name = "sqlx_panicking_row_access"
+lints = ["sqlx_panicking_row_access"]
+
+[[example]]
+name = "sqlx_queries_in_loops"
+lints = ["sqlx_queries_in_loops"]
+
+[[example]]
+name = "sqlx_query_builder_reused_without_reset"
+lints = ["sqlx_query_builder_reused_without_reset"]
+
+[[example]]
+name = "sqlx_static_queries_without_compile_time_checks"
+lints = ["sqlx_static_queries_without_compile_time_checks"]
+
+[[example]]
+name = "sqlx_transactions_implicitly_rolled_back"
+lints = ["sqlx_transactions_implicitly_rolled_back"]
+
+[[example]]
+name = "sqlx_unchecked_query_macros"
+lints = ["sqlx_unchecked_query_macros"]
+
+[[example]]
+name = "sqlx_unchecked_row_decoding"
+lints = ["sqlx_unchecked_row_decoding"]
+
+[[example]]
+name = "sqlx_unstructured_assert_sql_safe"
+lints = ["sqlx_unstructured_assert_sql_safe"]
+
+[[example]]
+name = "sqlx_unstructured_query_builder_fragments"
+lints = ["sqlx_unstructured_query_builder_fragments"]

@@ -15,7 +15,7 @@
         "x86_64-darwin"
         "aarch64-darwin"
       ];
-      devEnvironmentFor = system:
+      componentsFor = system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
 
@@ -42,11 +42,38 @@
             rustToolchain = rust.toolchain;
             toolchainLabel = rust.toolchainLabel;
           };
+          sqlfluff = pkgs.sqlfluff.overridePythonAttrs (_old: rec {
+            version = "4.3.0";
+            src = pkgs.fetchPypi {
+              pname = "sqlfluff";
+              inherit version;
+              hash = "sha256-qmR7NyERLxrKWB7+jqqBWjMq4hRhCglGWS+YoZ7x6Ms=";
+            };
+          });
+        in
+          {
+            inherit pkgs rust rustPlatform dylintTools dylintDriver sqlfluff;
+          };
+      rlibPackageFor = system:
+        let
+          components = componentsFor system;
+        in
+          components.pkgs.callPackage ./nix/rlib.nix {
+            inherit (components) rustPlatform dylintDriver sqlfluff;
+            rustToolchain = components.rust.toolchain;
+            toolchainLabel = components.rust.toolchainLabel;
+          };
+      devEnvironmentFor = system:
+        let
+          components = componentsFor system;
+          inherit (components) pkgs rust dylintTools dylintDriver;
+          rlib = rlibPackageFor system;
         in
           pkgs.mkShell {
             packages = [
               rust.toolchain
               dylintTools
+              rlib
               pkgs.just
               pkgs.openssl
               pkgs.pkg-config
@@ -66,6 +93,16 @@
             DYLINT_DRIVER_PATH = "${dylintDriver}";
           };
     in {
+      packages = forAllSystems (system: {
+        default = rlibPackageFor system;
+        rlib = rlibPackageFor system;
+      });
+      apps = forAllSystems (system: {
+        default = {
+          type = "app";
+          program = "${rlibPackageFor system}/bin/cargo-rlib";
+        };
+      });
       devShells = forAllSystems (system: {
         default = devEnvironmentFor system;
       });

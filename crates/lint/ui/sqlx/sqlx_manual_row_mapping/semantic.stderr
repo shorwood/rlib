@@ -1,0 +1,16 @@
+warning: struct is populated by repetitive access to one SQLx row
+  --> $DIR/semantic.rs:11:8
+   |
+LL |       Ok(User {
+   |  ________^
+LL | |         id: row.try_get("id")?,
+LL | |         name: row.try_get("name")?,
+LL | |     })
+   | |_____^
+   |
+   = note: mechanical field-by-field decoding duplicates the schema mapping and its error handling
+   = help: derive `FromRow` and use `query_as`, or use `query_as!` for compile-time checked named output
+   = note: requested on the command line with `-W rlib::sqlx-manual-row-mapping`
+
+warning: 1 warning emitted
+

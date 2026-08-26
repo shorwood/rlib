@@ -1,0 +1,23 @@
+[package]
+name = "rlib-cli"
+version = "0.1.0"
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "cargo-rlib"
+path = "src/main.rs"
+
+[dependencies]
+cargo_metadata = "0.23"
+clap = { version = "4", features = ["derive"] }
+derive_more = { version = "2", features = ["display", "error"] }
+dylint = "=6.0.1"
+rlib-sqlx-model = { path = "../sqlx-model" }
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+
+[lints]
+workspace = true

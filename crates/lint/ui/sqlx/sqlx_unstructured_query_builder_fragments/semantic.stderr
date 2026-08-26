@@ -1,0 +1,12 @@
+warning: runtime value is appended directly to SQL text
+  --> $DIR/semantic.rs:5:18
+   |
+LL |     builder.push(fragment);
+   |                  ^^^^^^^^
+   |
+   = note: `QueryBuilder::push` performs no sanitization, so unstructured values can change the query grammar
+   = help: use `push_bind` for data or an exhaustively rendered domain type for structural SQL fragments
+   = note: requested on the command line with `-W rlib::sqlx-unstructured-query-builder-fragments`
+
+warning: 1 warning emitted
+

@@ -13,6 +13,8 @@ pub mod leptos_styling;
 pub mod miette;
 #[cfg(feature = "serde")]
 pub mod serde;
+#[cfg(feature = "sqlx")]
+pub mod sqlx;
 #[cfg(feature = "strum")]
 pub mod strum;
 #[cfg(feature = "thiserror")]

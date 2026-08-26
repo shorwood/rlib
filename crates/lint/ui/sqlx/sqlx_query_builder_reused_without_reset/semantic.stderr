@@ -1,0 +1,12 @@
+warning: QueryBuilder is modified after build without being reset
+  --> $DIR/semantic.rs:7:5
+   |
+LL |     builder.push(" LIMIT 1");
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: SQLx requires `reset()` before any reuse after `build*()` and otherwise panics
+   = help: call `reset()` after the built query is finished, or create a fresh builder
+   = note: requested on the command line with `-W rlib::sqlx-query-builder-reused-without-reset`
+
+warning: 1 warning emitted
+

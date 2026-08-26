@@ -25,7 +25,6 @@ LL | impl ClosedPackageService for Worker {
    |                               ------ sole implementation for `Worker`
    |
    = note: `Worker` is the only concrete local implementation; no generic bound, `impl Trait`, trait object, associated-type projection, dependent supertrait, or trait alias uses this contract polymorphically
-   = note: this public trait is analyzed because the package declares `publish = false`
    = help: move the contract onto `Worker` and use the concrete type directly; retain the trait when a real polymorphic boundary is introduced
 
 warning: 2 warnings emitted

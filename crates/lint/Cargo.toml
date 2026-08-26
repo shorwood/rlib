@@ -17,6 +17,7 @@ leptos_i18n = ["leptos"]
 leptos_styling = ["leptos", "dep:malva", "dep:raffia"]
 miette = ["dep:syn"]
 serde = ["dep:syn"]
+sqlx = ["dep:proc-macro2", "dep:rlib-sqlx-model", "dep:serde_json", "dep:syn"]
 strum = ["framework", "dep:syn"]
 thiserror = ["framework", "dep:syn"]
 
@@ -30,8 +31,10 @@ malva = { version = "=0.16.0", optional = true }
 proc-macro2 = { version = "1", features = ["span-locations"], optional = true }
 quote = { version = "1", optional = true }
 raffia = { version = "=0.12.0", optional = true }
+rlib-sqlx-model = { path = "../sqlx-model", optional = true }
 rstml = { version = "=0.12.1", optional = true }
 serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", optional = true }
 strum = { version = "=0.28.0", features = ["derive"] }
 syn = { version = "2", features = ["full", "parsing", "visit"], optional = true }
 toml = "1.1"
@@ -42,6 +45,7 @@ dylint_testing = "=6.0.1"
 leptos = { version = "=0.8.20", features = ["ssr"] }
 miette = { version = "=7.6.0", features = ["derive"] }
 reactive_stores = "=0.4.3"
+sqlx = { version = "=0.9.0", features = ["macros", "runtime-tokio", "sqlite"] }
 thiserror = "=2.0.19"
 
 [[example]]
@@ -793,6 +797,66 @@ required-features = ["strum"]
 name = "strum_non_roundtripping_enum_strings"
 path = "ui/strum/strum_non_roundtripping_enum_strings/semantic.rs"
 required-features = ["strum"]
+
+[[example]]
+name = "sqlx_dynamic_queries_cached_persistently"
+path = "ui/sqlx/sqlx_dynamic_queries_cached_persistently/semantic.rs"
+required-features = ["sqlx"]
+
+[[example]]
+name = "sqlx_manual_row_mapping"
+path = "ui/sqlx/sqlx_manual_row_mapping/semantic.rs"
+required-features = ["sqlx"]
+
+[[example]]
+name = "sqlx_needless_pool_acquisition"
+path = "ui/sqlx/sqlx_needless_pool_acquisition/semantic.rs"
+required-features = ["sqlx"]
+
+[[example]]
+name = "sqlx_panicking_row_access"
+path = "ui/sqlx/sqlx_panicking_row_access/semantic.rs"
+required-features = ["sqlx"]
+
+[[example]]
+name = "sqlx_queries_in_loops"
+path = "ui/sqlx/sqlx_queries_in_loops/semantic.rs"
+required-features = ["sqlx"]
+
+[[example]]
+name = "sqlx_query_builder_reused_without_reset"
+path = "ui/sqlx/sqlx_query_builder_reused_without_reset/semantic.rs"
+required-features = ["sqlx"]
+
+[[example]]
+name = "sqlx_static_queries_without_compile_time_checks"
+path = "ui/sqlx/sqlx_static_queries_without_compile_time_checks/semantic.rs"
+required-features = ["sqlx"]
+
+[[example]]
+name = "sqlx_transactions_implicitly_rolled_back"
+path = "ui/sqlx/sqlx_transactions_implicitly_rolled_back/semantic.rs"
+required-features = ["sqlx"]
+
+[[example]]
+name = "sqlx_unchecked_query_macros"
+path = "ui/sqlx/sqlx_unchecked_query_macros/semantic.rs"
+required-features = ["sqlx"]
+
+[[example]]
+name = "sqlx_unchecked_row_decoding"
+path = "ui/sqlx/sqlx_unchecked_row_decoding/semantic.rs"
+required-features = ["sqlx"]
+
+[[example]]
+name = "sqlx_unstructured_assert_sql_safe"
+path = "ui/sqlx/sqlx_unstructured_assert_sql_safe/semantic.rs"
+required-features = ["sqlx"]
+
+[[example]]
+name = "sqlx_unstructured_query_builder_fragments"
+path = "ui/sqlx/sqlx_unstructured_query_builder_fragments/semantic.rs"
+required-features = ["sqlx"]
 
 [lints]
 workspace = true

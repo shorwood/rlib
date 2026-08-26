@@ -1,0 +1,12 @@
+warning: `AssertSqlSafe` wraps an unstructured runtime string
+  --> $DIR/semantic.rs:4:46
+   |
+LL |     let _query = sqlx::query::<sqlx::Sqlite>(sqlx::AssertSqlSafe(sql));
+   |                                              ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: a safety assertion does not prevent formatted or user-controlled values from becoming executable SQL
+   = help: bind data values and represent dynamic identifiers or keywords with an exhaustively rendered domain type
+   = note: requested on the command line with `-W rlib::sqlx-unstructured-assert-sql-safe`
+
+warning: 1 warning emitted
+

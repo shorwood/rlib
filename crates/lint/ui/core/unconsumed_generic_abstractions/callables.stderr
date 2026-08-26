@@ -41,7 +41,6 @@ LL |     let _ = closed_package(5_u16);
    |             --------------------- `u16` resolves here
    |
    = note: every active authored call resolves `T` to `u16`; no generic forwarding, callable escape, unnameable type, or second concrete substitution demonstrates that this parameter is consumed polymorphically
-   = note: this public declaration is analyzed because the package declares `publish = false`
    = help: specialize `T` as `u16` in the signature and remove the generic parameter until another substitution is required
 
 warning: type parameter `T` on associated function `associated` has only one concrete substitution

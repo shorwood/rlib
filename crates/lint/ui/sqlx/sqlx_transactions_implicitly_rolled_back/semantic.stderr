@@ -1,0 +1,12 @@
+warning: SQLx transaction can leave this function without explicit finalization
+  --> $DIR/semantic.rs:4:5
+   |
+LL |     let _transaction = pool.begin().await?;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: dropping a live transaction rolls it back implicitly, hiding the function's commit policy in destructor behavior
+   = help: explicitly call `commit()` or `rollback()` on every intended transaction path
+   = note: requested on the command line with `-W rlib::sqlx-transactions-implicitly-rolled-back`
+
+warning: 1 warning emitted
+

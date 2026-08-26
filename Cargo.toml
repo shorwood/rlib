@@ -1,7 +1,9 @@
 [workspace]
 resolver = "3"
 members = [
+    "crates/cli",
     "crates/lint",
+    "crates/sqlx-model",
 ]
 
 [workspace.package]

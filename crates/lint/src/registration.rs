@@ -59,6 +59,9 @@ macro_rules! define_lint_registration {
                 }
             )*
 
+            #[cfg(feature = "sqlx")]
+            crate::rules::sqlx::extraction::register(lint_store);
+
             let all_lints = lint_store.get_lints()[all_lint_start..]
                 .iter()
                 .map(|lint| LintId::of(lint))
@@ -281,6 +284,21 @@ define_lint_registration! {
         serde_remote_representations_drifting_from_sources,
         serde_sensitive_fields_serialized_by_default,
         serde_unstable_implicit_wire_names,
+    }
+    #[cfg(feature = "sqlx")]
+    sqlx {
+        sqlx_dynamic_queries_cached_persistently,
+        sqlx_manual_row_mapping,
+        sqlx_needless_pool_acquisition,
+        sqlx_panicking_row_access,
+        sqlx_queries_in_loops,
+        sqlx_query_builder_reused_without_reset,
+        sqlx_static_queries_without_compile_time_checks,
+        sqlx_transactions_implicitly_rolled_back,
+        sqlx_unchecked_query_macros,
+        sqlx_unchecked_row_decoding,
+        sqlx_unstructured_assert_sql_safe,
+        sqlx_unstructured_query_builder_fragments,
     }
     #[cfg(feature = "strum")]
     strum {

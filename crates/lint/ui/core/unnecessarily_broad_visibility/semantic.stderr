@@ -36,7 +36,6 @@ LL | pub mod parent {
    | ^^^
    |
    = note: all observed uses are reachable with `private` from defining module `crate`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
-   = note: unrestricted `pub` is analyzed because this package declares `publish = false`
 help: narrow `parent` to `private` after confirming cfg-disabled and external consumers do not require the broader boundary
    |
 LL - pub mod parent {
@@ -127,7 +126,6 @@ LL | pub mod tuple_owner {
    | ^^^
    |
    = note: all observed uses are reachable with `private` from defining module `crate`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
-   = note: unrestricted `pub` is analyzed because this package declares `publish = false`
 help: narrow `tuple_owner` to `private` after confirming cfg-disabled and external consumers do not require the broader boundary
    |
 LL - pub mod tuple_owner {
@@ -157,7 +155,6 @@ LL | pub fn unused_public_function() {}
    | ^^^
    |
    = note: all observed uses are reachable with `private` from defining module `crate`; broader visibility enlarges the dependency surface and permits ownership that the current module structure does not require
-   = note: unrestricted `pub` is analyzed because this package declares `publish = false`
 help: narrow `unused_public_function` to `private` after confirming cfg-disabled and external consumers do not require the broader boundary
    |
 LL - pub fn unused_public_function() {}

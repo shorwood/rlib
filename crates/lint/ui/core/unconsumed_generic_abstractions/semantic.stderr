@@ -76,7 +76,6 @@ LL | type ClosedPackageUse = ClosedPackage<Concrete>;
    |                         ----------------------- `Concrete` is supplied here
    |
    = note: every active authored use supplies `Concrete`; no generic forwarding, inferred argument, projection, opaque type, trait object, alias, or second concrete substitution demonstrates that this parameter is consumed polymorphically
-   = note: this public declaration is analyzed because the package declares `publish = false`
    = help: replace `T` with `Concrete` until a second real substitution is required
 
 warning: type parameter `T` on struct `WithLifetimeAndConst` has only one concrete substitution

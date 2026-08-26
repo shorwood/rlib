@@ -33,7 +33,6 @@ LL |     fn write(&self, value: u16) -> u16 {
    |        ----- forwards unchanged
    |
    = note: every behavior-bearing method forwards receiver, arguments, return value, and error behavior unchanged; no trait contract, invariant, representation policy, or lifecycle behavior gives `RecordWrapper` distinct ownership
-   = note: this public type is analyzed because the package declares `publish = false`
    = help: use `Inner` directly, or move a real invariant or behavioral policy into `RecordWrapper`
 
 warning: 2 warnings emitted

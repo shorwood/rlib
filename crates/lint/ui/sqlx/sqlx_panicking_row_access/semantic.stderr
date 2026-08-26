@@ -1,0 +1,12 @@
+warning: `Row::get` can panic on database row drift
+  --> $DIR/semantic.rs:6:20
+   |
+LL |     let _id: i64 = row.get("id");
+   |                    ^^^^^^^^^^^^^
+   |
+   = note: missing columns and incompatible values are runtime database failures rather than process invariants
+   = help: use the corresponding fallible accessor or map the row through `FromRow`/`query_as`
+   = note: requested on the command line with `-W rlib::sqlx-panicking-row-access`
+
+warning: 1 warning emitted
+

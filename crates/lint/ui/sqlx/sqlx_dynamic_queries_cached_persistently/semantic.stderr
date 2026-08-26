@@ -1,0 +1,12 @@
+warning: runtime-varying query shape remains persistently cached
+  --> $DIR/semantic.rs:8:5
+   |
+LL |     builder.build().execute(pool).await?;
+   |     ^^^^^^^^^^^^^^^
+   |
+   = note: each distinct bind cardinality can occupy another prepared-statement cache entry on every connection
+   = help: call `.persistent(false)` on the built query before executing it
+   = note: requested on the command line with `-W rlib::sqlx-dynamic-queries-cached-persistently`
+
+warning: 1 warning emitted
+

@@ -1,0 +1,14 @@
+warning: SQLx query is executed once per loop iteration
+  --> $DIR/semantic.rs:5:9
+   |
+LL | /         sqlx::query("DELETE FROM jobs WHERE id = ?")
+LL | |             .bind(id)
+LL | |             .execute(pool)
+   | |__________________________^
+   |
+   = note: per-item database round trips multiply latency and can exhaust the connection pool under load
+   = help: batch values, express the operation as one set-based query, join related data, or preload it before the loop
+   = note: requested on the command line with `-W rlib::sqlx-queries-in-loops`
+
+warning: 1 warning emitted
+

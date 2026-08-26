@@ -47,5 +47,6 @@ it is allowed, shown as a warning, or treated as an error.
 | [Leptos Styling](./leptos_styling/README.md) | `leptos_styling` | Rules for colocated, scoped, typed, and consistently formatted Leptos component styles. |
 | [Miette](./miette/README.md) | `miette` | Rules for useful, safe, and consistent Miette diagnostics. |
 | [Serde](./serde/README.md) | `serde` | Rules for stable Serde data formats and round-trip behavior. |
+| [SQLx](./sqlx/README.md) | `sqlx` | Rules for checked SQL, explicit database lifecycles, typed row decoding, and efficient query execution. |
 | [Strum](./strum/README.md) | `strum` | Rules that replace repeated enum helpers with Strum derives while preserving names, values, and iteration behavior. |
 | [thiserror](./thiserror/README.md) | `thiserror` | Rules for clear thiserror messages, complete source chains, safe public errors, and replaceable hand-written code. |

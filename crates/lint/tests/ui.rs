@@ -7,6 +7,7 @@
     feature = "leptos_styling",
     feature = "miette",
     feature = "serde",
+    feature = "sqlx",
     feature = "strum",
     feature = "thiserror"
 ))]
@@ -251,6 +252,7 @@ fn should_rerun_with_all_features() -> bool {
         var_os("RUSTC").expect("Cargo should expose the Rust compiler path"),
     );
     command.env("DYLINT_TOML", include_str!("../../../dylint.toml"));
+    command.env("DATABASE_URL", "sqlite::memory:");
     command.env("PATH", path);
 
     // Propagate the child result through the ordinary test assertion.

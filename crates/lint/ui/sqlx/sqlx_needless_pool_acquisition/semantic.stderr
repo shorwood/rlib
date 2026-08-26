@@ -1,0 +1,12 @@
+warning: pool connection is acquired only to execute one SQLx query
+  --> $DIR/semantic.rs:4:5
+   |
+LL |     let mut connection = pool.acquire().await?;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: SQLx pools implement `Executor` directly, so the extra acquisition adds lifecycle state without changing query ownership
+   = help: execute the query against `&pool` directly
+   = note: requested on the command line with `-W rlib::sqlx-needless-pool-acquisition`
+
+warning: 1 warning emitted
+

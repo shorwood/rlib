@@ -1,0 +1,14 @@
+pub mod sqlx_dynamic_queries_cached_persistently;
+pub mod sqlx_manual_row_mapping;
+pub mod sqlx_needless_pool_acquisition;
+pub mod sqlx_panicking_row_access;
+pub mod sqlx_queries_in_loops;
+pub mod sqlx_query_builder_reused_without_reset;
+pub mod sqlx_static_queries_without_compile_time_checks;
+pub mod sqlx_transactions_implicitly_rolled_back;
+pub mod sqlx_unchecked_query_macros;
+pub mod sqlx_unchecked_row_decoding;
+pub mod sqlx_unstructured_assert_sql_safe;
+pub mod sqlx_unstructured_query_builder_fragments;
+pub mod extraction;
+mod utils;
