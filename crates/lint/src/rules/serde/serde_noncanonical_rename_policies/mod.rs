@@ -268,33 +268,32 @@ impl SerdeNoncanonicalRenamePolicies {
         member: &Member,
         serialize: Option<&str>,
         deserialize: Option<&str>,
+        exported: bool,
     ) -> bool {
-        if !member.attributes.rename_directional {
-            return false;
-        }
         let participates = [
             Self::participates(member, SerdeDirection::Serialize),
             Self::participates(member, SerdeDirection::Deserialize),
         ];
         let authored = [serialize, deserialize];
+        if authored.iter().all(Option::is_none) {
+            return false;
+        }
         match participates {
             [true, true] => false,
             [false, false] => {
-                if authored.iter().any(Option::is_some) {
-                    self.candidates.push(Candidate {
-                        definition: group.definition,
-                        owner: group.owner,
-                        span: group.span,
-                        activation: Activation::Any,
-                        detail: format!(
-                            "{} is skipped during both serialization and deserialization, so its directional rename is inactive",
-                            member.name
-                        ),
-                        remediation: "remove the inactive member rename".to_owned(),
-                        suggestion: None,
-                        private_only: false,
-                    });
-                }
+                self.candidates.push(Candidate {
+                    definition: group.definition,
+                    owner: group.owner,
+                    span: group.span,
+                    activation: Activation::Any,
+                    detail: format!(
+                        "{} is skipped during both serialization and deserialization, so its member rename is inactive",
+                        member.name
+                    ),
+                    remediation: "remove the inactive member rename".to_owned(),
+                    suggestion: None,
+                    private_only: false,
+                });
                 true
             }
             participation => {
@@ -313,7 +312,22 @@ impl SerdeNoncanonicalRenamePolicies {
                         "serialization",
                     )
                 };
-                if inactive_name.is_some() {
+                let active_name = match active {
+                    SerdeDirection::Serialize => serialize,
+                    SerdeDirection::Deserialize => deserialize,
+                };
+                let active_inherited = match active {
+                    SerdeDirection::Serialize => group.inherited[0],
+                    SerdeDirection::Deserialize => group.inherited[1],
+                };
+                let active_name_is_redundant = active_name.is_none_or(|name| {
+                    (active_inherited.is_some() && member.inherited_name(active_inherited) == name)
+                        || (active_inherited.is_none() && !exported && member.rust_name() == name)
+                });
+                if member.attributes.rename_directional
+                    && inactive_name.is_some()
+                    && !active_name_is_redundant
+                {
                     self.candidates.push(Candidate {
                         definition: group.definition,
                         owner: group.owner,
@@ -330,23 +344,21 @@ impl SerdeNoncanonicalRenamePolicies {
                         private_only: false,
                     });
                 }
-                if authored.iter().any(Option::is_some) {
-                    self.candidates.push(Candidate {
-                        definition: group.definition,
-                        owner: group.owner,
-                        span: group.span,
-                        activation: Activation::Only(inactive),
-                        detail: format!(
-                            "{} has no active naming direction because {} is not derived and it is skipped during {inactive_label}",
-                            member.name,
-                            active.label()
-                        ),
-                        remediation: "remove the inactive member rename".to_owned(),
-                        suggestion: None,
-                        private_only: false,
-                    });
-                }
-                true
+                self.candidates.push(Candidate {
+                    definition: group.definition,
+                    owner: group.owner,
+                    span: group.span,
+                    activation: Activation::Only(inactive),
+                    detail: format!(
+                        "{} has no active naming direction because {} is not derived and it is skipped during {inactive_label}",
+                        member.name,
+                        active.label()
+                    ),
+                    remediation: "remove the inactive member rename".to_owned(),
+                    suggestion: None,
+                    private_only: false,
+                });
+                member.attributes.rename_directional || active_name_is_redundant
             }
         }
     }
@@ -377,7 +389,13 @@ impl SerdeNoncanonicalRenamePolicies {
             if removal_takes_precedence {
                 continue;
             }
-            if self.record_skipped_member_directions(group, member, serialize, deserialize) {
+            if self.record_skipped_member_directions(
+                group,
+                member,
+                serialize,
+                deserialize,
+                exported,
+            ) {
                 continue;
             }
             self.record_directional_names(

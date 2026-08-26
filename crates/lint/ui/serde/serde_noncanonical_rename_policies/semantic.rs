@@ -96,9 +96,19 @@ struct SkippedDirectionalBranch {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-struct FullySkippedDirectionalRename {
-    #[serde(skip, rename(serialize = "wireValue", deserialize = "legacyValue"))]
+struct FullySkippedMemberRename {
+    #[serde(skip, rename = "wireValue")]
     value: u64,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SkippedInheritedDirectionalBranches {
+    #[serde(
+        skip_deserializing,
+        rename(serialize = "userCreated", deserialize = "legacyValue")
+    )]
+    user_created: u64,
 }
 
 #[derive(serde::Deserialize)]

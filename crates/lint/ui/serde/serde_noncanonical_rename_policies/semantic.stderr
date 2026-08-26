@@ -135,17 +135,32 @@ LL | | }
 warning: this Serde rename policy is noncanonical
   --> $DIR/semantic.rs:99:1
    |
-LL | / struct FullySkippedDirectionalRename {
-LL | |     #[serde(skip, rename(serialize = "wireValue", deserialize = "legacyValue"))]
+LL | / struct FullySkippedMemberRename {
+LL | |     #[serde(skip, rename = "wireValue")]
 LL | |     value: u64,
 LL | | }
    | |_^
    |
-   = note: value is skipped during both serialization and deserialization, so its directional rename is inactive
+   = note: value is skipped during both serialization and deserialization, so its member rename is inactive
    = help: remove the inactive member rename
 
 warning: this Serde rename policy is noncanonical
-  --> $DIR/semantic.rs:105:1
+  --> $DIR/semantic.rs:106:1
+   |
+LL | / struct SkippedInheritedDirectionalBranches {
+LL | |     #[serde(
+LL | |         skip_deserializing,
+LL | |         rename(serialize = "userCreated", deserialize = "legacyValue")
+LL | |     )]
+LL | |     user_created: u64,
+LL | | }
+   | |_^
+   |
+   = note: `user_created` already receives `userCreated` from the inherited `camelCase` policy
+   = help: remove the redundant member rename
+
+warning: this Serde rename policy is noncanonical
+  --> $DIR/semantic.rs:115:1
    |
 LL | / struct OnlySkippedDerivedDirection {
 LL | |     #[serde(
@@ -159,5 +174,5 @@ LL | | }
    = note: value has no active naming direction because serialization is not derived and it is skipped during deserialization
    = help: remove the inactive member rename
 
-warning: 13 warnings emitted
+warning: 14 warnings emitted
 
