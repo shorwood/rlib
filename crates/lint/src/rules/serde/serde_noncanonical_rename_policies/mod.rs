@@ -320,7 +320,23 @@ impl SerdeNoncanonicalRenamePolicies {
                     SerdeDirection::Serialize => group.inherited[0],
                     SerdeDirection::Deserialize => group.inherited[1],
                 };
-                let active_name_is_redundant = active_name.is_none_or(|name| {
+                if active_name.is_none() {
+                    self.candidates.push(Candidate {
+                        definition: group.definition,
+                        owner: group.owner,
+                        span: group.span,
+                        activation: Activation::Any,
+                        detail: format!(
+                            "{} defines a name only for skipped {inactive_label}",
+                            member.name
+                        ),
+                        remediation: "remove the inactive member rename".to_owned(),
+                        suggestion: None,
+                        private_only: false,
+                    });
+                    return true;
+                }
+                let active_name_is_redundant = active_name.is_some_and(|name| {
                     (active_inherited.is_some() && member.inherited_name(active_inherited) == name)
                         || (active_inherited.is_none() && !exported && member.rust_name() == name)
                 });
