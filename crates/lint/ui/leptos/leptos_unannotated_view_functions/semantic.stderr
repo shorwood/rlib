@@ -1,0 +1,48 @@
+warning: view function `snake_view` is not declared as a Leptos component
+  --> $DIR/semantic.rs:9:4
+   |
+LL | fn snake_view() -> impl IntoView {
+   |    ^^^^^^^^^^ this function exposes an explicit view contract
+   |
+   = note: an ordinary function call hides component identity and keeps its inputs outside Leptos's declarative props interface
+   = help: add `#[component]` and update callers to use the generated PascalCase component tag and props
+   = note: requested on the command line with `-W rlib::leptos-unannotated-view-functions`
+
+warning: view function `PascalView` is not declared as a Leptos component
+  --> $DIR/semantic.rs:13:4
+   |
+LL | fn PascalView() -> AnyView {
+   |    ^^^^^^^^^^ this function exposes an explicit view contract
+   |
+   = note: an ordinary function call hides component identity and keeps its inputs outside Leptos's declarative props interface
+   = help: add `#[component]` and update callers to use the generated PascalCase component tag and props
+
+warning: view function `aliased_view` is not declared as a Leptos component
+  --> $DIR/semantic.rs:17:4
+   |
+LL | fn aliased_view() -> ErasedView {
+   |    ^^^^^^^^^^^^ this function exposes an explicit view contract
+   |
+   = note: an ordinary function call hides component identity and keeps its inputs outside Leptos's declarative props interface
+   = help: add `#[component]` and update callers to use the generated PascalCase component tag and props
+
+warning: view function `concrete_view` is not declared as a Leptos component
+  --> $DIR/semantic.rs:21:4
+   |
+LL | fn concrete_view() -> View<&'static str> {
+   |    ^^^^^^^^^^^^^ this function exposes an explicit view contract
+   |
+   = note: an ordinary function call hides component identity and keeps its inputs outside Leptos's declarative props interface
+   = help: add `#[component]` and update callers to use the generated PascalCase component tag and props
+
+warning: view function `forwarded_view` is not declared as a Leptos component
+  --> $DIR/semantic.rs:25:4
+   |
+LL | fn forwarded_view(view: AnyView) -> AnyView {
+   |    ^^^^^^^^^^^^^^ this function exposes an explicit view contract
+   |
+   = note: an ordinary function call hides component identity and keeps its inputs outside Leptos's declarative props interface
+   = help: add `#[component]` and update callers to use the generated PascalCase component tag and props
+
+warning: 5 warnings emitted
+

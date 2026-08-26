@@ -1,0 +1,90 @@
+warning: boolean views are selected through an `if`/`else` expression
+  --> $DIR/semantic.rs:8:5
+   |
+LL | /     if flag {
+LL | |         view! { <span>"configured"</span> }.into_any()
+LL | |     } else {
+LL | |         view! { <span>"empty"</span> }.into_any()
+LL | |     }
+   | |_____^ this boolean selects the rendered view
+   |
+   = note: Rust control flow hides the condition and alternatives instead of representing them as declarative view structure
+   = help: replace this selection with `<Show when=... fallback=...>`
+   = note: requested on the command line with `-W rlib::leptos-manual-boolean-view-selection`
+
+warning: boolean views are selected through a boolean `match` expression
+  --> $DIR/semantic.rs:16:5
+   |
+LL | /     match flag {
+LL | |         true => view! { <strong>"yes"</strong> }.into_any(),
+LL | |         false => view! { <em>"no"</em> }.into_any(),
+LL | |     }
+   | |_____^ this boolean selects the rendered view
+   |
+   = note: Rust control flow hides the condition and alternatives instead of representing them as declarative view structure
+   = help: replace this selection with `<Show when=... fallback=...>`
+
+warning: boolean views are selected through a boolean `match` expression
+  --> $DIR/semantic.rs:23:5
+   |
+LL | /     match flag {
+LL | |         false => view! { <small>"no"</small> }.into_any(),
+LL | |         _ => view! { <strong>"yes"</strong> }.into_any(),
+LL | |     }
+   | |_____^ this boolean selects the rendered view
+   |
+   = note: Rust control flow hides the condition and alternatives instead of representing them as declarative view structure
+   = help: replace this selection with `<Show when=... fallback=...>`
+
+warning: boolean views are selected through `bool::then`
+  --> $DIR/semantic.rs:30:17
+   |
+LL |     let _lazy = flag.then(|| view! { <span>"lazy"</span> }.into_any());
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this boolean selects the rendered view
+   |
+   = note: Rust control flow hides the condition and alternatives instead of representing them as declarative view structure
+   = help: replace this selection with `<Show when=... fallback=...>`
+
+warning: boolean views are selected through `bool::then_some`
+  --> $DIR/semantic.rs:31:18
+   |
+LL |     let _eager = flag.then_some(view! { <span>"eager"</span> }.into_any());
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this boolean selects the rendered view
+   |
+   = note: Rust control flow hides the condition and alternatives instead of representing them as declarative view structure
+   = help: replace this selection with `<Show when=... fallback=...>`
+
+warning: boolean views are selected through `bool::then`
+  --> $DIR/semantic.rs:32:22
+   |
+LL |     let _ufcs_lazy = bool::then(flag, || view! { <span>"ufcs lazy"</span> }.into_any());
+   |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this boolean selects the rendered view
+   |
+   = note: Rust control flow hides the condition and alternatives instead of representing them as declarative view structure
+   = help: replace this selection with `<Show when=... fallback=...>`
+
+warning: boolean views are selected through `bool::then_some`
+  --> $DIR/semantic.rs:33:23
+   |
+LL |     let _ufcs_eager = bool::then_some(flag, view! { <span>"ufcs eager"</span> }.into_any());
+   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this boolean selects the rendered view
+   |
+   = note: Rust control flow hides the condition and alternatives instead of representing them as declarative view structure
+   = help: replace this selection with `<Show when=... fallback=...>`
+
+warning: boolean views are selected through an `if`/`else` expression
+  --> $DIR/semantic.rs:39:18
+   |
+LL |           {move || if flag.get() {
+   |  __________________^
+LL | |             view! { <span>"on"</span> }.into_any()
+LL | |         } else {
+LL | |             view! { <span>"off"</span> }.into_any()
+LL | |         }}
+   | |_________^ this boolean selects the rendered view
+   |
+   = note: Rust control flow hides the condition and alternatives instead of representing them as declarative view structure
+   = help: replace this selection with `<Show when=... fallback=...>`
+
+warning: 8 warnings emitted
+

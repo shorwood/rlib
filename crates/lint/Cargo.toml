@@ -470,6 +470,16 @@ path = "ui/leptos/leptos_manual_resource_refetch_signals/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]
+name = "leptos_manual_boolean_view_selection"
+path = "ui/leptos/leptos_manual_boolean_view_selection/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "leptos_manual_optional_view_mapping"
+path = "ui/leptos/leptos_manual_optional_view_mapping/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
 name = "leptos_missing_view_section_comments"
 path = "ui/leptos/leptos_missing_view_section_comments/semantic.rs"
 required-features = ["leptos"]
@@ -552,6 +562,11 @@ required-features = ["leptos"]
 [[example]]
 name = "leptos_manual_view_iteration"
 path = "ui/leptos/leptos_manual_view_iteration/semantic.rs"
+required-features = ["leptos"]
+
+[[example]]
+name = "leptos_unannotated_view_functions"
+path = "ui/leptos/leptos_unannotated_view_functions/semantic.rs"
 required-features = ["leptos"]
 
 [[example]]

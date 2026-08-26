@@ -1,0 +1,84 @@
+warning: optional view is constructed through `Option::map`
+  --> $DIR/semantic.rs:8:5
+   |
+LL |     value.map(|value| view! { <span>{value}</span> }.into_any())
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this option selects the rendered view
+   |
+   = note: option mapping hides the presence condition, bound payload, and fallback outside the declarative view tree
+   = help: replace this mapping with `<ShowLet some=... let:value fallback=...>`
+   = note: requested on the command line with `-W rlib::leptos-manual-optional-view-mapping`
+
+warning: optional view is constructed through `Option::map_or`
+  --> $DIR/semantic.rs:12:5
+   |
+LL | /     value.map_or(view! { <span>"empty"</span> }.into_any(), |value| {
+LL | |         view! { <strong>{value}</strong> }.into_any()
+LL | |     })
+   | |______^ this option selects the rendered view
+   |
+   = note: option mapping hides the presence condition, bound payload, and fallback outside the declarative view tree
+   = help: replace this mapping with `<ShowLet some=... let:value fallback=...>`
+
+warning: optional view is constructed through `Option::map_or_else`
+  --> $DIR/semantic.rs:18:5
+   |
+LL | /     value.map_or_else(
+LL | |         || view! { <span>"empty"</span> }.into_any(),
+LL | |         |value| view! { <strong>{value}</strong> }.into_any(),
+LL | |     )
+   | |_____^ this option selects the rendered view
+   |
+   = note: option mapping hides the presence condition, bound payload, and fallback outside the declarative view tree
+   = help: replace this mapping with `<ShowLet some=... let:value fallback=...>`
+
+warning: optional view is constructed through `Option::map`
+  --> $DIR/semantic.rs:25:19
+   |
+LL |       let _mapped = Option::map(value.clone(), |value| {
+   |  ___________________^
+LL | |         view! { <span>{value}</span> }.into_any()
+LL | |     });
+   | |______^ this option selects the rendered view
+   |
+   = note: option mapping hides the presence condition, bound payload, and fallback outside the declarative view tree
+   = help: replace this mapping with `<ShowLet some=... let:value fallback=...>`
+
+warning: optional view is constructed through `Option::map_or`
+  --> $DIR/semantic.rs:28:18
+   |
+LL |       let _eager = Option::map_or(
+   |  __________________^
+LL | |         value.clone(),
+LL | |         view! { <span>"empty"</span> }.into_any(),
+LL | |         |value| view! { <strong>{value}</strong> }.into_any(),
+LL | |     );
+   | |_____^ this option selects the rendered view
+   |
+   = note: option mapping hides the presence condition, bound payload, and fallback outside the declarative view tree
+   = help: replace this mapping with `<ShowLet some=... let:value fallback=...>`
+
+warning: optional view is constructed through `Option::map_or_else`
+  --> $DIR/semantic.rs:33:17
+   |
+LL |       let _lazy = Option::map_or_else(
+   |  _________________^
+LL | |         value,
+LL | |         || view! { <span>"empty"</span> }.into_any(),
+LL | |         |value| view! { <strong>{value}</strong> }.into_any(),
+LL | |     );
+   | |_____^ this option selects the rendered view
+   |
+   = note: option mapping hides the presence condition, bound payload, and fallback outside the declarative view tree
+   = help: replace this mapping with `<ShowLet some=... let:value fallback=...>`
+
+warning: optional view is constructed through `Option::map`
+  --> $DIR/semantic.rs:43:5
+   |
+LL |     value.map(|value| view! { <span>{value.0}</span> }.into_any())
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this option selects the rendered view
+   |
+   = note: option mapping hides the presence condition, bound payload, and fallback outside the declarative view tree
+   = help: replace this mapping with `<ShowLet some=... let:value fallback=...>`
+
+warning: 7 warnings emitted
+

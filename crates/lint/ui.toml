@@ -462,6 +462,14 @@ name = "leptos_manual_resource_refetch_signals"
 lints = ["leptos_manual_resource_refetch_signals"]
 
 [[example]]
+name = "leptos_manual_boolean_view_selection"
+lints = ["leptos_manual_boolean_view_selection"]
+
+[[example]]
+name = "leptos_manual_optional_view_mapping"
+lints = ["leptos_manual_optional_view_mapping"]
+
+[[example]]
 name = "leptos_missing_view_section_comments"
 lints = ["leptos_missing_view_section_comments"]
 
@@ -535,6 +543,10 @@ lints = ["leptos_unsanitized_inner_html"]
 [[example]]
 name = "leptos_manual_view_iteration"
 lints = ["leptos_manual_view_iteration"]
+
+[[example]]
+name = "leptos_unannotated_view_functions"
+lints = ["leptos_unannotated_view_functions"]
 
 [[example]]
 name = "leptos_unlocalized_view_literals"
