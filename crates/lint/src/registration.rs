@@ -176,6 +176,8 @@ define_lint_registration! {
         derive_more_manual_operator_impls,
         derive_more_manual_variant_accessors,
         derive_more_mutable_forwarding_bypassing_invariants,
+        derive_more_noncanonical_display_policies,
+        derive_more_noncanonical_from_str_policies,
         derive_more_non_roundtripping_derived_text_contracts,
         derive_more_opaque_derived_display_contracts,
         derive_more_operator_derives_bypassing_invariants,
@@ -274,6 +276,7 @@ define_lint_registration! {
         serde_lossy_conditional_serialization,
         serde_manual_deserialize_impls,
         serde_manual_serialize_impls,
+        serde_noncanonical_rename_policies,
         serde_non_roundtripping_serde_adapters,
         serde_remote_representations_drifting_from_sources,
         serde_sensitive_fields_serialized_by_default,
@@ -299,6 +302,7 @@ define_lint_registration! {
         strum_manual_repr_conversions,
         strum_manual_variant_arrays,
         strum_manual_variant_names,
+        strum_noncanonical_string_policies,
         strum_non_roundtripping_enum_strings,
     }
     #[cfg(feature = "thiserror")]

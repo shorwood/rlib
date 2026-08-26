@@ -16,6 +16,8 @@ pub mod derive_more_manual_operator_impls;
 pub mod derive_more_manual_variant_accessors;
 pub mod derive_more_mutable_forwarding_bypassing_invariants;
 pub mod derive_more_non_roundtripping_derived_text_contracts;
+pub mod derive_more_noncanonical_display_policies;
+pub mod derive_more_noncanonical_from_str_policies;
 pub mod derive_more_opaque_derived_display_contracts;
 pub mod derive_more_operator_derives_bypassing_invariants;
 pub mod derive_more_panic_prone_derived_variant_accessors;

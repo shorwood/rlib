@@ -1,0 +1,26 @@
+warning: this derive_more FromStr naming policy is noncanonical
+  --> $DIR/semantic.rs:4:1
+   |
+LL | / enum FactoredNames {
+LL | |     #[from_str(rename_all = "camelCase")]
+LL | |     UserCreated,
+LL | |     #[from_str(rename_all = "camelCase")]
+...  |
+LL | |     LegacyMode,
+LL | | }
+   | |_^
+   |
+   = note: variant parser casings reduce to one exact `camelCase` policy
+   = help: declare `#[from_str(rename_all = "camelCase")]` on the enum and retain exact overrides only for LegacyMode
+   = note: requested on the command line with `-W rlib::derive-more-noncanonical-from-str-policies`
+
+warning: this derive_more FromStr naming policy is noncanonical
+  --> $DIR/semantic.rs:16:5
+   |
+LL |     #[from_str(rename_all = "camelCase")]
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: remove the redundant variant-level `from_str` directive
+   |
+   = note: `UserCreated` repeats the inherited `camelCase` parser policy
+
+warning: 2 warnings emitted
+

@@ -182,14 +182,20 @@ pub struct SerdeAttributes {
     pub rename_serialize: Option<String>,
     /// Explicit wire name accepted while deserializing this declaration.
     pub rename_deserialize: Option<String>,
+    /// Whether the member rename was authored with direction-specific branches.
+    pub rename_directional: bool,
     /// Case conversion inherited by serialized child names.
     pub rename_all_serialize: Option<String>,
     /// Case conversion inherited by deserialized child names.
     pub rename_all_deserialize: Option<String>,
+    /// Whether `rename_all` was authored with direction-specific branches.
+    pub rename_all_directional: bool,
     /// Case conversion inherited by serialized fields of every enum variant.
     pub rename_all_fields_serialize: Option<String>,
     /// Case conversion inherited by deserialized fields of every enum variant.
     pub rename_all_fields_deserialize: Option<String>,
+    /// Whether `rename_all_fields` was authored with direction-specific branches.
+    pub rename_all_fields_directional: bool,
     /// Additional wire names accepted during deserialization.
     pub aliases: Vec<String>,
     /// Independent Serde behaviors enabled by authored attributes.
@@ -228,6 +234,7 @@ impl SerdeAttributes {
                             result.rename_all_fields_serialize = Some(value.clone());
                             result.rename_all_fields_deserialize = Some(value);
                         } else {
+                            result.rename_all_fields_directional = true;
                             meta.parse_nested_meta(|direction| {
                                 let value = direction.value()?.parse::<syn::LitStr>()?.value();
                                 if direction.path.is_ident("serialize") {
@@ -245,6 +252,10 @@ impl SerdeAttributes {
                         let value = meta.value()?.parse::<syn::LitStr>()?.value();
                         result.set_directional_name(scope, None, value);
                     } else {
+                        match scope {
+                            SerdeNameScope::Member => result.rename_directional = true,
+                            SerdeNameScope::Container => result.rename_all_directional = true,
+                        }
                         meta.parse_nested_meta(|direction| {
                             let value = direction.value()?.parse::<syn::LitStr>()?.value();
                             let direction = if direction.path.is_ident("serialize") {
@@ -370,6 +381,60 @@ impl SerdeCase {
             _ => name.to_owned(),
         }
     }
+
+    /// Applies Serde's pinned rename algorithm for an enum variant.
+    pub fn apply_to_variant(variant: &str, rule: Option<&str>) -> String {
+        match rule {
+            Some("lowercase") => variant.to_ascii_lowercase(),
+            Some("UPPERCASE") => variant.to_ascii_uppercase(),
+            Some("camelCase") => variant[..1].to_ascii_lowercase() + &variant[1..],
+            Some("snake_case" | "SCREAMING_SNAKE_CASE" | "kebab-case" | "SCREAMING-KEBAB-CASE") => {
+                let mut snake = String::new();
+                for (index, character) in variant.char_indices() {
+                    if index > 0 && character.is_uppercase() {
+                        snake.push('_');
+                    }
+                    snake.push(character.to_ascii_lowercase());
+                }
+                match rule {
+                    Some("SCREAMING_SNAKE_CASE") => snake.to_ascii_uppercase(),
+                    Some("kebab-case") => snake.replace('_', "-"),
+                    Some("SCREAMING-KEBAB-CASE") => snake.to_ascii_uppercase().replace('_', "-"),
+                    _ => snake,
+                }
+            }
+            None | Some(_) => variant.to_owned(),
+        }
+    }
+
+    /// Applies Serde's pinned rename algorithm for a struct or variant field.
+    pub fn apply_to_field(field: &str, rule: Option<&str>) -> String {
+        match rule {
+            Some("UPPERCASE" | "SCREAMING_SNAKE_CASE") => field.to_ascii_uppercase(),
+            Some("PascalCase" | "camelCase") => {
+                let mut pascal = String::new();
+                let mut capitalize = true;
+                for character in field.chars() {
+                    if character == '_' {
+                        capitalize = true;
+                    } else if capitalize {
+                        pascal.push(character.to_ascii_uppercase());
+                        capitalize = false;
+                    } else {
+                        pascal.push(character);
+                    }
+                }
+                if rule == Some("camelCase") {
+                    pascal[..1].to_ascii_lowercase() + &pascal[1..]
+                } else {
+                    pascal
+                }
+            }
+            Some("kebab-case") => field.replace('_', "-"),
+            Some("SCREAMING-KEBAB-CASE") => field.to_ascii_uppercase().replace('_', "-"),
+            None | Some(_) => field.to_owned(),
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -476,6 +541,31 @@ impl SerdeContractCatalog {
                 name: identifier.name,
                 has_restricted_fields,
             },
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SerdeCase;
+
+    #[test]
+    fn serde_case_preserves_variant_and_field_algorithms() {
+        assert_eq!(
+            SerdeCase::apply_to_variant("XMLHttp", Some("snake_case")),
+            "x_m_l_http"
+        );
+        assert_eq!(
+            SerdeCase::apply_to_variant("XMLHttp", Some("camelCase")),
+            "xMLHttp"
+        );
+        assert_eq!(
+            SerdeCase::apply_to_field("http_status", Some("PascalCase")),
+            "HttpStatus"
+        );
+        assert_eq!(
+            SerdeCase::apply_to_field("http_status", Some("camelCase")),
+            "httpStatus"
         );
     }
 }

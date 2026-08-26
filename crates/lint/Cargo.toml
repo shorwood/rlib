@@ -360,6 +360,26 @@ path = "ui/thiserror/thiserror_unreported_error_sources/semantic.rs"
 required-features = ["thiserror"]
 
 [[example]]
+name = "derive_more_noncanonical_display_policies"
+path = "ui/derive_more/derive_more_noncanonical_display_policies/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
+name = "derive_more_noncanonical_from_str_policies"
+path = "ui/derive_more/derive_more_noncanonical_from_str_policies/semantic.rs"
+required-features = ["derive_more"]
+
+[[example]]
+name = "serde_noncanonical_rename_policies"
+path = "ui/serde/serde_noncanonical_rename_policies/semantic.rs"
+required-features = ["serde"]
+
+[[example]]
+name = "strum_noncanonical_string_policies"
+path = "ui/strum/strum_noncanonical_string_policies/semantic.rs"
+required-features = ["strum"]
+
+[[example]]
 name = "thiserror_ambiguous_error_sources"
 path = "ui/thiserror/thiserror_ambiguous_error_sources/semantic.rs"
 required-features = ["thiserror"]

@@ -6,6 +6,8 @@ pub mod diagnostic;
 pub mod direct_forwarding;
 mod function_layout_source;
 mod identifier_case;
+#[cfg(any(feature = "derive_more", feature = "serde", feature = "strum"))]
+pub mod name_policy;
 pub mod collection_construction_analysis;
 pub mod comparison_analysis;
 pub mod construction_analysis;

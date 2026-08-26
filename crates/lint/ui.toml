@@ -366,6 +366,22 @@ name = "thiserror_unreported_error_sources"
 lints = ["thiserror_unreported_error_sources"]
 
 [[example]]
+name = "derive_more_noncanonical_display_policies"
+lints = ["derive_more_noncanonical_display_policies"]
+
+[[example]]
+name = "derive_more_noncanonical_from_str_policies"
+lints = ["derive_more_noncanonical_from_str_policies"]
+
+[[example]]
+name = "serde_noncanonical_rename_policies"
+lints = ["serde_noncanonical_rename_policies"]
+
+[[example]]
+name = "strum_noncanonical_string_policies"
+lints = ["strum_noncanonical_string_policies"]
+
+[[example]]
 name = "thiserror_ambiguous_error_sources"
 lints = ["thiserror_ambiguous_error_sources"]
 

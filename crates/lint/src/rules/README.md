@@ -30,6 +30,7 @@ it is allowed, shown as a warning, or treated as an error.
 | Fix | Meaning |
 | --- | --- |
 | Automatic | Every reported case has a machine-applicable edit. |
+| Partial | Some reported cases have a machine-applicable edit; coordinated refactors remain manual. |
 | Needs review | The compiler can suggest an edit, but some cases need a person to check it. |
 | Manual | The compiler explains the problem but does not edit the code. |
 

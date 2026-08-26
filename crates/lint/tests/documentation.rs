@@ -175,6 +175,10 @@ impl<'document> DocumentContext<'document> {
                     && !source.contains("Applicability::MaybeIncorrect"),
                 "{family}/{name} must provide machine-applicable suggestions"
             ),
+            "Partial" => assert!(
+                source.contains("Applicability::MachineApplicable"),
+                "{family}/{name} must provide at least one machine-applicable suggestion"
+            ),
             "Needs review" => assert!(
                 source.contains("Applicability::MaybeIncorrect"),
                 "{family}/{name} must provide a reviewable suggestion"
@@ -414,7 +418,7 @@ const LINT_PURPOSES: [&str; 5] = [
 ];
 
 /// Supported descriptions of compiler-assisted fixes.
-const LINT_FIXES: [&str; 3] = ["Automatic", "Needs review", "Manual"];
+const LINT_FIXES: [&str; 4] = ["Automatic", "Partial", "Needs review", "Manual"];
 
 // -----------------------------------------------------------------------------
 // ExampleHeadings: Required before-and-after examples

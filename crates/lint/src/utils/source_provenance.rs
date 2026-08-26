@@ -60,6 +60,7 @@ impl ItemProvenanceExt for Item<'_> {
     feature = "derive_more",
     feature = "miette",
     feature = "serde",
+    feature = "strum",
     feature = "thiserror"
 ))]
 #[derive(derive_more::Deref)]
@@ -72,6 +73,7 @@ pub struct AuthoredItemSource(
     feature = "derive_more",
     feature = "miette",
     feature = "serde",
+    feature = "strum",
     feature = "thiserror"
 ))]
 impl AuthoredItemSource {

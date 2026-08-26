@@ -18,3 +18,4 @@ pub mod strum_manual_repr_conversions;
 pub mod strum_manual_variant_arrays;
 pub mod strum_manual_variant_names;
 pub mod strum_non_roundtripping_enum_strings;
+pub mod strum_noncanonical_string_policies;
