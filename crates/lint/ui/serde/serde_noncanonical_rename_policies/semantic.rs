@@ -10,6 +10,16 @@ enum FactoredNames {
     LegacyMode,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+enum FactoredBidirectionalNames {
+    #[serde(rename = "userCreated")]
+    UserCreated,
+    #[serde(rename = "userDeleted")]
+    UserDeleted,
+    #[serde(rename = "legacy")]
+    LegacyMode,
+}
+
 #[derive(serde::Serialize)]
 enum FactoredFields {
     Current {
@@ -66,6 +76,14 @@ struct InactivePrivateDirection {
 pub struct PreservedPublicDirection {
     #[serde(rename(serialize = "wireValue", deserialize = "legacyValue"))]
     value: u64,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
+enum DirectionallyMeaningfulShorthand {
+    #[serde(rename = "userCreated")]
+    UserCreated,
+    UserDeleted,
 }
 
 fn main() {}

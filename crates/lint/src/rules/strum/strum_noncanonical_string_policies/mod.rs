@@ -17,14 +17,15 @@ use rustc_span::def_id::LocalDefId;
 
 use super::utils::contracts::{ContractCatalog, EnumContract, StrumDerive, VariantContract};
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::name_policy::{CandidatePolicy, factor_names, standalone_attribute_span};
+use crate::utils::name_policy::{
+    CandidatePolicy, factor_names, factor_names_with_required, standalone_attribute_span,
+};
 use crate::utils::source_provenance::AuthoredItemSource;
 
-const CASES: [&str; 11] = [
+const CASES: [&str; 10] = [
     "camelCase",
     "kebab-case",
     "lowercase",
-    "mixed_case",
     "PascalCase",
     "SCREAMING-KEBAB-CASE",
     "SCREAMING_SNAKE_CASE",
@@ -39,7 +40,8 @@ fn apply_case(value: &str, case: &str) -> String {
         "camelCase" => value.to_lower_camel_case(),
         "kebab-case" => value.to_kebab_case(),
         "lowercase" => value.to_lowercase(),
-        "mixed_case" | "snake_case" => value.to_snake_case(),
+        "mixed_case" => value.to_lower_camel_case(),
+        "snake_case" => value.to_snake_case(),
         "PascalCase" => value.to_upper_camel_case(),
         "SCREAMING-KEBAB-CASE" => value.to_shouty_kebab_case(),
         "SCREAMING_SNAKE_CASE" => value.to_shouty_snake_case(),
@@ -262,6 +264,7 @@ impl StrumNoncanonicalStringPolicies {
         active: &[ActiveVariant<'_>],
         names: &[String],
         authored: usize,
+        required_exceptions: &[bool],
     ) {
         let policies = CASES.map(|case| CandidatePolicy {
             name: case,
@@ -271,7 +274,9 @@ impl StrumNoncanonicalStringPolicies {
                 .collect(),
             directive_cost: 1,
         });
-        if let Some(policy) = factor_names(names, authored, policies) {
+        if let Some(policy) =
+            factor_names_with_required(names, authored, required_exceptions, policies)
+        {
             let exceptions = policy
                 .exceptions
                 .iter()
@@ -414,6 +419,17 @@ impl StrumNoncanonicalStringPolicies {
         if ty.serialize_all.is_some() || active.is_empty() {
             return;
         }
+        // A type-level policy reaches every participating variant. Only factor when the entire
+        // generated contract is represented by the spelling model below.
+        if parsed
+            .iter()
+            .zip(&contract.variants)
+            .any(|(attributes, variant)| {
+                attributes.disabled || attributes.transparent || variant.has_payload
+            })
+        {
+            return;
+        }
         let names = active
             .iter()
             .map(|((variant, attributes), _)| {
@@ -424,17 +440,24 @@ impl StrumNoncanonicalStringPolicies {
                     .unwrap_or_else(|| variant.ident.to_string())
             })
             .collect::<Vec<_>>();
+        let required_exceptions = active
+            .iter()
+            .map(|((_, attributes), _)| {
+                attributes.serializations.len() > 1 || attributes.to_string.is_some()
+            })
+            .collect::<Vec<_>>();
         let authored = active
             .iter()
             .filter(|((_, attributes), _)| {
-                attributes.serializations.len() == 1 && attributes.to_string.is_none()
+                !attributes.serializations.is_empty() || attributes.to_string.is_some()
             })
             .count();
-        Self::factor_case(cx, pending, &active, &names, authored);
+        Self::factor_case(cx, pending, &active, &names, authored, &required_exceptions);
         // Prefix and suffix affect output derives but not EnumString's parser language.
         if !contract.has_derive(StrumDerive::EnumString)
             && ty.prefix.is_none()
             && ty.suffix.is_none()
+            && required_exceptions.iter().all(|required| !required)
         {
             Self::factor_affixes(cx, pending, &active, &names, authored);
         }
@@ -472,5 +495,15 @@ impl LateLintPass<'_> for StrumNoncanonicalStringPolicies {
             };
             Self::analyze(cx, &pending, contract);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::apply_case;
+
+    #[test]
+    fn mixed_case_matches_strums_lower_camel_contract() {
+        assert_eq!(apply_case("UserCreated", "mixed_case"), "userCreated");
     }
 }

@@ -11,6 +11,18 @@ enum FactoredNames {
 }
 
 #[derive(strum::Display)]
+enum FactoredNamesWithAlias {
+    #[strum(serialize = "userCreated", serialize = "legacy-created")]
+    UserCreated,
+    #[strum(serialize = "userDeleted")]
+    UserDeleted,
+    #[strum(serialize = "userUpdated")]
+    UserUpdated,
+    #[strum(serialize = "legacy")]
+    LegacyMode,
+}
+
+#[derive(strum::Display)]
 #[strum(serialize_all = "camelCase")]
 enum RedundantOverride {
     #[strum(serialize = "userCreated")]
@@ -42,6 +54,24 @@ enum PreservedParserAliases {
     UserDeleted,
     #[strum(serialize = "apiUserUpdated")]
     UserUpdated,
+}
+
+#[derive(strum::Display)]
+#[strum(serialize_all = "mixed_case")]
+enum MixedCaseIsLowerCamel {
+    #[strum(serialize = "user_created")]
+    UserCreated,
+}
+
+#[derive(strum::Display)]
+enum PayloadVariantPreventsFactoring {
+    #[strum(serialize = "userCreated")]
+    UserCreated,
+    #[strum(serialize = "userDeleted")]
+    UserDeleted,
+    #[strum(serialize = "userUpdated")]
+    UserUpdated,
+    Payload(String),
 }
 
 fn main() {}

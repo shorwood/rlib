@@ -15,7 +15,9 @@ use super::utils::contracts::{
     SerdeAttributes, SerdeCase, SerdeContractCatalog, SerdeDirection, SerdeFlag,
 };
 use crate::utils::diagnostic::LateViolation;
-use crate::utils::name_policy::{CandidatePolicy, factor_names, standalone_attribute_span};
+use crate::utils::name_policy::{
+    CandidatePolicy, FactoredPolicy, factor_names, standalone_attribute_span,
+};
 use crate::utils::source_provenance::AuthoredItemSource;
 
 const CASES: [&str; 8] = [
@@ -150,6 +152,36 @@ impl SerdeNoncanonicalRenamePolicies {
         }
     }
 
+    fn participates(member: &Member, direction: SerdeDirection) -> bool {
+        match direction {
+            SerdeDirection::Serialize => !member.attributes.has_flag(SerdeFlag::SkipSerialize),
+            SerdeDirection::Deserialize => !member.attributes.has_flag(SerdeFlag::SkipDeserialize),
+        }
+    }
+
+    fn symmetric_removal_preserves_both_directions(
+        group: &Group<'_>,
+        member: &Member,
+        rename: &str,
+    ) -> bool {
+        [SerdeDirection::Serialize, SerdeDirection::Deserialize]
+            .into_iter()
+            .zip(group.inherited)
+            .all(|(direction, inherited)| {
+                !Self::participates(member, direction) || member.inherited_name(inherited) == rename
+            })
+    }
+
+    fn is_primary_participating_direction(member: &Member, direction: SerdeDirection) -> bool {
+        match direction {
+            SerdeDirection::Serialize => Self::participates(member, SerdeDirection::Serialize),
+            SerdeDirection::Deserialize => {
+                !Self::participates(member, SerdeDirection::Serialize)
+                    && Self::participates(member, SerdeDirection::Deserialize)
+            }
+        }
+    }
+
     fn record_directional_names(&mut self, group: &Group<'_>, names: DirectionalNames<'_>) {
         if !names.authored_directionally {
             return;
@@ -238,6 +270,32 @@ impl SerdeNoncanonicalRenamePolicies {
         });
     }
 
+    fn push_symmetric_removal(
+        &mut self,
+        cx: &LateContext<'_>,
+        group: &Group<'_>,
+        removal: Removal,
+    ) {
+        let suggestion = standalone_attribute_span(cx, group.span, &removal.expected)
+            .map(|span| (span, String::new()));
+        for activation in [
+            Activation::Both,
+            Activation::Only(SerdeDirection::Serialize),
+            Activation::Only(SerdeDirection::Deserialize),
+        ] {
+            self.candidates.push(Candidate {
+                definition: group.definition,
+                owner: group.owner,
+                span: suggestion.as_ref().map_or(group.span, |(span, _)| *span),
+                activation,
+                detail: removal.detail.clone(),
+                remediation: removal.remediation.to_owned(),
+                suggestion: suggestion.clone(),
+                private_only: removal.private_only,
+            });
+        }
+    }
+
     fn record_inherited(
         &mut self,
         cx: &LateContext<'_>,
@@ -255,35 +313,49 @@ impl SerdeNoncanonicalRenamePolicies {
             }
             let symmetric = member.attributes.rename_serialize.as_deref() == Some(rename)
                 && member.attributes.rename_deserialize.as_deref() == Some(rename);
-            let expected = symmetric.then(|| format!("#[serde(rename=\"{rename}\")]"));
-            let suggestion = expected.and_then(|expected| {
-                standalone_attribute_span(cx, group.span, &expected)
-                    .map(|span| (span, String::new()))
-            });
+            if symmetric
+                && !Self::symmetric_removal_preserves_both_directions(group, member, rename)
+            {
+                continue;
+            }
+            let detail = format!(
+                "`{}` already receives `{rename}` from the inherited `{rule}` policy",
+                member.name
+            );
+            if symmetric {
+                if !Self::is_primary_participating_direction(member, direction) {
+                    continue;
+                }
+                self.push_symmetric_removal(
+                    cx,
+                    group,
+                    Removal {
+                        expected: format!("#[serde(rename=\"{rename}\")]"),
+                        detail,
+                        remediation: "remove the redundant member rename",
+                        private_only: false,
+                    },
+                );
+                continue;
+            }
             self.candidates.push(Candidate {
                 definition: group.definition,
                 owner: group.owner,
-                span: suggestion.as_ref().map_or(group.span, |(span, _)| *span),
+                span: group.span,
                 activation: Activation::Direction(direction),
-                detail: format!(
-                    "`{}` already receives `{rename}` from the inherited `{rule}` policy",
-                    member.name
-                ),
+                detail,
                 remediation: "remove the redundant member rename".to_owned(),
-                suggestion,
+                suggestion: None,
                 private_only: false,
             });
         }
     }
 
-    fn record_factoring(
-        &mut self,
-        group: &Group<'_>,
+    fn factoring_policy(
         active: &[&Member],
         effective: &[String],
         authored: usize,
-        direction: SerdeDirection,
-    ) {
+    ) -> Option<FactoredPolicy> {
         let policies = CASES.map(|case| CandidatePolicy {
             name: case,
             names: active
@@ -292,9 +364,18 @@ impl SerdeNoncanonicalRenamePolicies {
                 .collect(),
             directive_cost: 1,
         });
-        let Some(policy) = factor_names(effective, authored, policies) else {
-            return;
-        };
+        factor_names(effective, authored, policies)
+    }
+
+    fn push_factoring(
+        &mut self,
+        group: &Group<'_>,
+        active: &[&Member],
+        authored: usize,
+        policy: &FactoredPolicy,
+        activation: Activation,
+        direction: Option<SerdeDirection>,
+    ) {
         let exceptions = policy
             .exceptions
             .iter()
@@ -305,25 +386,54 @@ impl SerdeNoncanonicalRenamePolicies {
         } else {
             format!(" and keep overrides only for {}", exceptions.join(", "))
         };
+        let remediation = if let Some(direction) = direction {
+            format!(
+                "declare `{} = \"{}\"` for {}{exception_text}",
+                group.scope,
+                policy.name,
+                direction.label()
+            )
+        } else {
+            format!(
+                "declare nondirectional `{} = \"{}\"`{exception_text}",
+                group.scope, policy.name
+            )
+        };
         self.candidates.push(Candidate {
             definition: group.definition,
             owner: group.owner,
             span: group.span,
-            activation: Activation::Direction(direction),
+            activation,
             detail: format!(
                 "{authored} member renames reduce to one `{}` default with {} exception(s)",
                 policy.name,
                 policy.exceptions.len()
             ),
-            remediation: format!(
-                "declare `{} = \"{}\"` for {}{exception_text}",
-                group.scope,
-                policy.name,
-                direction.label()
-            ),
+            remediation,
             suggestion: None,
             private_only: false,
         });
+    }
+
+    fn record_factoring(
+        &mut self,
+        group: &Group<'_>,
+        active: &[&Member],
+        effective: &[String],
+        authored: usize,
+        direction: SerdeDirection,
+    ) {
+        let Some(policy) = Self::factoring_policy(active, effective, authored) else {
+            return;
+        };
+        self.push_factoring(
+            group,
+            active,
+            authored,
+            &policy,
+            Activation::Direction(direction),
+            Some(direction),
+        );
     }
 
     fn record_identity(
@@ -338,20 +448,29 @@ impl SerdeNoncanonicalRenamePolicies {
                 continue;
             };
             if rename == member.rust_name() {
-                self.push_removal(
-                    cx,
-                    group,
-                    direction,
-                    Removal {
-                        expected: format!("#[serde(rename=\"{rename}\")]"),
-                        detail: format!(
-                            "`{}` is renamed to its unchanged Rust spelling",
-                            member.name
-                        ),
-                        remediation: "remove the behavior-neutral member rename",
-                        private_only: true,
-                    },
-                );
+                let symmetric = member.attributes.rename_serialize.as_deref() == Some(rename)
+                    && member.attributes.rename_deserialize.as_deref() == Some(rename);
+                if symmetric
+                    && !Self::symmetric_removal_preserves_both_directions(group, member, rename)
+                {
+                    continue;
+                }
+                let removal = Removal {
+                    expected: format!("#[serde(rename=\"{rename}\")]"),
+                    detail: format!(
+                        "`{}` is renamed to its unchanged Rust spelling",
+                        member.name
+                    ),
+                    remediation: "remove the behavior-neutral member rename",
+                    private_only: true,
+                };
+                if symmetric {
+                    if Self::is_primary_participating_direction(member, direction) {
+                        self.push_symmetric_removal(cx, group, removal);
+                    }
+                    continue;
+                }
+                self.push_removal(cx, group, direction, removal);
             }
         }
     }
@@ -389,6 +508,82 @@ impl SerdeNoncanonicalRenamePolicies {
 
     fn record_group(&mut self, cx: &LateContext<'_>, group: &Group<'_>) {
         self.record_member_directional_names(group);
+        let mut combined_factoring = false;
+        if group.inherited == [None, None] {
+            let serialize = group
+                .members
+                .iter()
+                .filter(|member| Self::participates(member, SerdeDirection::Serialize))
+                .collect::<Vec<_>>();
+            let deserialize = group
+                .members
+                .iter()
+                .filter(|member| Self::participates(member, SerdeDirection::Deserialize))
+                .collect::<Vec<_>>();
+            let same_members = serialize
+                .iter()
+                .map(|member| member.name.as_str())
+                .eq(deserialize.iter().map(|member| member.name.as_str()));
+            if same_members {
+                let serialize_effective = serialize
+                    .iter()
+                    .map(|member| {
+                        Self::explicit_name(member, SerdeDirection::Serialize)
+                            .map_or_else(|| member.inherited_name(None), str::to_owned)
+                    })
+                    .collect::<Vec<_>>();
+                let deserialize_effective = deserialize
+                    .iter()
+                    .map(|member| {
+                        Self::explicit_name(member, SerdeDirection::Deserialize)
+                            .map_or_else(|| member.inherited_name(None), str::to_owned)
+                    })
+                    .collect::<Vec<_>>();
+                let serialize_authored = serialize
+                    .iter()
+                    .filter(|member| {
+                        Self::explicit_name(member, SerdeDirection::Serialize).is_some()
+                    })
+                    .count();
+                let deserialize_authored = deserialize
+                    .iter()
+                    .filter(|member| {
+                        Self::explicit_name(member, SerdeDirection::Deserialize).is_some()
+                    })
+                    .count();
+                if serialize_effective == deserialize_effective
+                    && serialize_authored == deserialize_authored
+                    && let Some(policy) =
+                        Self::factoring_policy(&serialize, &serialize_effective, serialize_authored)
+                {
+                    self.push_factoring(
+                        group,
+                        &serialize,
+                        serialize_authored,
+                        &policy,
+                        Activation::Both,
+                        None,
+                    );
+                    self.push_factoring(
+                        group,
+                        &serialize,
+                        serialize_authored,
+                        &policy,
+                        Activation::Only(SerdeDirection::Serialize),
+                        Some(SerdeDirection::Serialize),
+                    );
+                    self.push_factoring(
+                        group,
+                        &serialize,
+                        serialize_authored,
+                        &policy,
+                        Activation::Only(SerdeDirection::Deserialize),
+                        Some(SerdeDirection::Deserialize),
+                    );
+                    combined_factoring = true;
+                }
+            }
+        }
         for (direction, inherited) in [SerdeDirection::Serialize, SerdeDirection::Deserialize]
             .into_iter()
             .zip(group.inherited)
@@ -396,14 +591,7 @@ impl SerdeNoncanonicalRenamePolicies {
             let active = group
                 .members
                 .iter()
-                .filter(|member| match direction {
-                    SerdeDirection::Serialize => {
-                        !member.attributes.has_flag(SerdeFlag::SkipSerialize)
-                    }
-                    SerdeDirection::Deserialize => {
-                        !member.attributes.has_flag(SerdeFlag::SkipDeserialize)
-                    }
-                })
+                .filter(|member| Self::participates(member, direction))
                 .collect::<Vec<_>>();
             let effective = active
                 .iter()
@@ -419,7 +607,9 @@ impl SerdeNoncanonicalRenamePolicies {
             if let Some(rule) = inherited {
                 self.record_inherited(cx, group, &active, direction, rule);
             } else {
-                self.record_factoring(group, &active, &effective, authored, direction);
+                if !combined_factoring {
+                    self.record_factoring(group, &active, &effective, authored, direction);
+                }
                 self.record_identity(cx, group, &active, direction);
             }
             if matches!(direction, SerdeDirection::Deserialize) {

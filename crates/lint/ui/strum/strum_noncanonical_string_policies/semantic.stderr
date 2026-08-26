@@ -15,7 +15,22 @@ LL | | }
    = note: requested on the command line with `-W rlib::strum-noncanonical-string-policies`
 
 warning: this Strum string policy is noncanonical
-  --> $DIR/semantic.rs:16:5
+  --> $DIR/semantic.rs:14:1
+   |
+LL | / enum FactoredNamesWithAlias {
+LL | |     #[strum(serialize = "userCreated", serialize = "legacy-created")]
+LL | |     UserCreated,
+LL | |     #[strum(serialize = "userDeleted")]
+...  |
+LL | |     LegacyMode,
+LL | | }
+   | |_^
+   |
+   = note: 4 variant spellings reduce to one `camelCase` policy
+   = help: declare `#[strum(serialize_all = "camelCase")]`; retain overrides only for UserCreated, LegacyMode
+
+warning: this Strum string policy is noncanonical
+  --> $DIR/semantic.rs:28:5
    |
 LL |     #[strum(serialize = "userCreated")]
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: remove the redundant `serialize` directive
@@ -23,7 +38,7 @@ LL |     #[strum(serialize = "userCreated")]
    = note: `UserCreated` already receives `userCreated` from its inherited spelling
 
 warning: this Strum string policy is noncanonical
-  --> $DIR/semantic.rs:24:5
+  --> $DIR/semantic.rs:36:5
    |
 LL |     Ready,
    |     ^^^^^
@@ -32,7 +47,7 @@ LL |     Ready,
    = help: remove the redundant `to_string` directive
 
 warning: this Strum string policy is noncanonical
-  --> $DIR/semantic.rs:28:1
+  --> $DIR/semantic.rs:40:1
    |
 LL | / enum AffixedNames {
 LL | |     #[strum(serialize = "userCreatedApi")]
@@ -46,5 +61,5 @@ LL | | }
    = note: variant output spellings repeat one case policy and common affixes
    = help: declare `serialize_all = "camelCase"`, suffix = "Api" on the enum
 
-warning: 4 warnings emitted
+warning: 5 warnings emitted
 

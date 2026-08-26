@@ -17,6 +17,21 @@ LL | | }
 warning: this Serde rename policy is noncanonical
   --> $DIR/semantic.rs:14:1
    |
+LL | / enum FactoredBidirectionalNames {
+LL | |     #[serde(rename = "userCreated")]
+LL | |     UserCreated,
+LL | |     #[serde(rename = "userDeleted")]
+...  |
+LL | |     LegacyMode,
+LL | | }
+   | |_^
+   |
+   = note: 3 member renames reduce to one `camelCase` default with 1 exception(s)
+   = help: declare nondirectional `rename_all = "camelCase"` and keep overrides only for LegacyMode
+
+warning: this Serde rename policy is noncanonical
+  --> $DIR/semantic.rs:24:1
+   |
 LL | / enum FactoredFields {
 LL | |     Current {
 LL | |         #[serde(rename = "firstValue")]
@@ -30,7 +45,7 @@ LL | | }
    = help: declare `rename_all_fields = "camelCase"` for serialization and keep overrides only for legacy_mode
 
 warning: this Serde rename policy is noncanonical
-  --> $DIR/semantic.rs:30:5
+  --> $DIR/semantic.rs:40:5
    |
 LL |     #[serde(rename = "userCreated")]
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: remove the redundant member rename
@@ -38,7 +53,7 @@ LL |     #[serde(rename = "userCreated")]
    = note: `UserCreated` already receives `userCreated` from the inherited `camelCase` policy
 
 warning: this Serde rename policy is noncanonical
-  --> $DIR/semantic.rs:37:5
+  --> $DIR/semantic.rs:47:5
    |
 LL |     #[serde(alias = "value")]
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^ help: remove the redundant Serde alias
@@ -46,7 +61,7 @@ LL |     #[serde(alias = "value")]
    = note: alias `value` accepts no additional spelling for `value`
 
 warning: this Serde rename policy is noncanonical
-  --> $DIR/semantic.rs:43:5
+  --> $DIR/semantic.rs:53:5
    |
 LL |     #[serde(rename = "value")]
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^ help: remove the behavior-neutral member rename
@@ -54,7 +69,7 @@ LL |     #[serde(rename = "value")]
    = note: `value` is renamed to its unchanged Rust spelling
 
 warning: this Serde rename policy is noncanonical
-  --> $DIR/semantic.rs:54:1
+  --> $DIR/semantic.rs:64:1
    |
 LL | / struct DirectionalShorthand {
 LL | |     #[serde(rename(serialize = "wireValue", deserialize = "wireValue"))]
@@ -66,7 +81,7 @@ LL | | }
    = help: use the nondirectional Serde shorthand for the shared name
 
 warning: this Serde rename policy is noncanonical
-  --> $DIR/semantic.rs:60:1
+  --> $DIR/semantic.rs:70:1
    |
 LL | / struct InactivePrivateDirection {
 LL | |     #[serde(rename(serialize = "wireValue", deserialize = "legacyValue"))]
@@ -77,5 +92,5 @@ LL | | }
    = note: value configures deserialization, but this private type derives only serialization
    = help: remove the inactive deserialization naming branch
 
-warning: 7 warnings emitted
+warning: 8 warnings emitted
 

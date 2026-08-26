@@ -34,6 +34,25 @@ pub fn factor_names(
     authored_directives: usize,
     candidates: impl IntoIterator<Item = CandidatePolicy>,
 ) -> Option<FactoredPolicy> {
+    let required_exceptions = vec![false; effective_names.len()];
+    factor_names_with_required(
+        effective_names,
+        authored_directives,
+        &required_exceptions,
+        candidates,
+    )
+}
+
+/// Selects a container policy while retaining members whose leaf directives carry extra behavior.
+pub fn factor_names_with_required(
+    effective_names: &[String],
+    authored_directives: usize,
+    required_exceptions: &[bool],
+    candidates: impl IntoIterator<Item = CandidatePolicy>,
+) -> Option<FactoredPolicy> {
+    if required_exceptions.len() != effective_names.len() {
+        return None;
+    }
     let mut best: Option<FactoredPolicy> = None;
     let mut ambiguous = false;
 
@@ -46,7 +65,9 @@ pub fn factor_names(
             .iter()
             .zip(effective_names)
             .enumerate()
-            .filter_map(|(index, (candidate, effective))| (candidate != effective).then_some(index))
+            .filter_map(|(index, (candidate, effective))| {
+                (required_exceptions[index] || candidate != effective).then_some(index)
+            })
             .collect::<Vec<_>>();
         let directive_cost = candidate.directive_cost + exceptions.len();
         if directive_cost >= authored_directives {
@@ -128,7 +149,7 @@ pub fn standalone_attribute_span(
 
 #[cfg(test)]
 mod tests {
-    use super::{CandidatePolicy, factor_names};
+    use super::{CandidatePolicy, factor_names, factor_names_with_required};
 
     #[test]
     fn selects_a_smaller_default_with_an_exception() {
@@ -178,5 +199,25 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn retains_semantically_required_leaf_directives() {
+        let effective = ["firstValue", "secondValue", "thirdValue", "legacy"].map(str::to_owned);
+        let policy = factor_names_with_required(
+            &effective,
+            4,
+            &[true, false, false, false],
+            [CandidatePolicy {
+                name: "camelCase",
+                names: ["firstValue", "secondValue", "thirdValue", "legacyValue"]
+                    .map(str::to_owned)
+                    .into(),
+                directive_cost: 1,
+            }],
+        )
+        .expect("the alias-bearing member and spelling exception should both remain");
+
+        assert_eq!(policy.exceptions, [0, 3]);
     }
 }
