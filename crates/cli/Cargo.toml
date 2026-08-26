@@ -11,7 +11,8 @@ path = "src/main.rs"
 [dependencies]
 cargo_metadata = "0.23"
 clap = { version = "4", features = ["derive"] }
-derive_more = { version = "2", features = ["display", "error"] }
+color-eyre = { version = "0.6", default-features = false }
+derive_more = { version = "2", features = ["display", "error", "from"] }
 dylint = "=6.0.1"
 rlib-sqlx-model = { path = "../sqlx-model" }
 semver = "1"
