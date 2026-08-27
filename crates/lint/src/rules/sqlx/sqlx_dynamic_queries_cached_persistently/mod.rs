@@ -13,11 +13,18 @@ use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::utils::{is_query_execution, operation, root_local};
+use super::utils::{SqlxExprExt as _, is_query_execution};
 use crate::utils::diagnostic::LateViolation;
 
+// -----------------------------------------------------------------------------
+// Violation: Persistent dynamic query
+// -----------------------------------------------------------------------------
+
+/// One varying query shape left in SQLx's persistent statement cache.
 struct Violation {
+    /// HIR owner receiving the lint.
     owner: rustc_hir::HirId,
+    /// Authored query expression span.
     span: Span,
 }
 
@@ -50,8 +57,14 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// SqlxDynamicQueriesCachedPersistently: Lint pass
+// -----------------------------------------------------------------------------
+
+/// Tracks builders with varying bind cardinality and verifies their cache policy.
 #[derive(Default)]
 struct SqlxDynamicQueriesCachedPersistently {
+    /// Varying builder bindings grouped by enclosing body.
     varying_builders: HashMap<LocalDefId, HashSet<rustc_hir::HirId>>,
 }
 
@@ -64,10 +77,14 @@ crate::impl_late_lint! {
 }
 
 impl SqlxDynamicQueriesCachedPersistently {
+    /// Returns whether a receiver chain explicitly disables persistent caching.
     fn has_false_persistent(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
-        let Some(call) = operation(cx, expression) else {
+        // Non-SQLx expressions terminate the receiver-chain search.
+        let Some(call) = expression.sqlx_operation(cx) else {
             return false;
         };
+
+        // The first explicit false policy resolves the receiver-chain query.
         if call.name == "persistent"
             && matches!(call.arguments, [argument] if matches!(argument.kind, ExprKind::Lit(literal) if matches!(literal.node, LitKind::Bool(false))))
         {
@@ -77,10 +94,14 @@ impl SqlxDynamicQueriesCachedPersistently {
             .is_some_and(|receiver| Self::has_false_persistent(cx, receiver))
     }
 
+    /// Returns whether a receiver chain constructs a runtime-varying bind shape.
     fn has_varying_builder_shape(cx: &LateContext<'_>, expression: &Expr<'_>) -> bool {
-        let Some(call) = operation(cx, expression) else {
+        // Non-SQLx expressions terminate the receiver-chain search.
+        let Some(call) = expression.sqlx_operation(cx) else {
             return false;
         };
+
+        // Varying collection expansion is sufficient to classify the query shape.
         if matches!(call.name.as_str(), "push_values" | "push_tuples") {
             return true;
         }
@@ -92,14 +113,20 @@ impl SqlxDynamicQueriesCachedPersistently {
 impl LateLintPass<'_> for SqlxDynamicQueriesCachedPersistently {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
         let owner = cx.tcx.hir_enclosing_body_owner(expression.hir_id);
+
+        // Expansion internals are owned by the originating macro.
         if expression.span.from_expansion() {
             return;
         }
-        let Some(call) = operation(cx, expression) else {
+
+        // Non-SQLx expressions cannot alter or execute a query builder.
+        let Some(call) = expression.sqlx_operation(cx) else {
             return;
         };
+
+        // Recording a varying builder completes this expression's classification.
         if matches!(call.name.as_str(), "push_values" | "push_tuples")
-            && let Some(binding) = call.receiver.and_then(root_local)
+            && let Some(binding) = call.receiver.and_then(|receiver| receiver.root_local())
         {
             self.varying_builders
                 .entry(owner)
@@ -107,14 +134,18 @@ impl LateLintPass<'_> for SqlxDynamicQueriesCachedPersistently {
                 .insert(binding);
             return;
         }
+
+        // Free functions do not execute a built query receiver.
         let Some(query) = call.receiver else {
             return;
         };
-        let recorded_shape = root_local(query).is_some_and(|binding| {
+        let recorded_shape = query.root_local().is_some_and(|binding| {
             self.varying_builders
                 .get(&owner)
                 .is_some_and(|builders| builders.contains(&binding))
         });
+
+        // Stable, non-executed, or explicitly nonpersistent queries need no remediation.
         if !is_query_execution(&call.name)
             || !(recorded_shape || Self::has_varying_builder_shape(cx, query))
             || Self::has_false_persistent(cx, query)

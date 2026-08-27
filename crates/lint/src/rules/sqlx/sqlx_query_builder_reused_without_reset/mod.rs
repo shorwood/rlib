@@ -11,17 +11,32 @@ use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::utils::{operation, root_local};
+use super::utils::SqlxExprExt as _;
 use crate::utils::diagnostic::LateViolation;
 
+// -----------------------------------------------------------------------------
+// ReuseKind: Invalid post-build operation
+// -----------------------------------------------------------------------------
+
+/// Operation attempted after QueryBuilder entered its built state.
 enum ReuseKind {
+    /// A second built query was requested.
     Build,
+    /// SQL text or binds were mutated after building.
     Mutation,
 }
 
+// -----------------------------------------------------------------------------
+// Violation: QueryBuilder reuse without reset
+// -----------------------------------------------------------------------------
+
+/// One invalid operation on a QueryBuilder that has already been built.
 struct Violation {
+    /// HIR owner receiving the lint.
     owner: rustc_hir::HirId,
+    /// Authored invalid operation span.
     span: Span,
+    /// Kind of invalid reuse detected.
     kind: ReuseKind,
 }
 
@@ -57,9 +72,16 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// SqlxQueryBuilderReusedWithoutReset: Lint pass
+// -----------------------------------------------------------------------------
+
+/// Tracks built QueryBuilder bindings until an explicit reset.
 #[derive(Default)]
 struct SqlxQueryBuilderReusedWithoutReset {
+    /// Function body owning the currently tracked bindings.
     owner: Option<LocalDefId>,
+    /// Builder bindings that have entered their built state.
     built: HashSet<rustc_hir::HirId>,
 }
 
@@ -78,18 +100,28 @@ impl LateLintPass<'_> for SqlxQueryBuilderReusedWithoutReset {
             self.owner = Some(owner);
             self.built.clear();
         }
+
+        // Expansion internals are owned by the originating macro.
         if expression.span.from_expansion() {
             return;
         }
-        let Some(call) = operation(cx, expression) else {
+
+        // Non-SQLx expressions cannot mutate QueryBuilder state.
+        let Some(call) = expression.sqlx_operation(cx) else {
             return;
         };
+
+        // Free functions do not operate on a tracked builder receiver.
         let Some(receiver) = call.receiver else {
             return;
         };
-        let Some(binding) = root_local(receiver) else {
+
+        // Temporary builders do not survive for a later invalid reuse.
+        let Some(binding) = receiver.root_local() else {
             return;
         };
+
+        // Reset returns the builder to a reusable state and completes this transition.
         if call.name == "reset" {
             self.built.remove(&binding);
             return;

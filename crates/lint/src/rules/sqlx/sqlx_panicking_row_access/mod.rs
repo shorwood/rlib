@@ -9,12 +9,20 @@ use rustc_hir::Expr;
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::Span;
 
-use super::utils::operation;
+use super::utils::SqlxExprExt as _;
 use crate::utils::diagnostic::LateViolation;
 
+// -----------------------------------------------------------------------------
+// Violation: Panicking row access
+// -----------------------------------------------------------------------------
+
+/// One SQLx row accessor that converts data drift into a panic.
 struct Violation {
+    /// HIR owner receiving the lint.
     owner: rustc_hir::HirId,
+    /// Authored accessor call span.
     span: Span,
+    /// Panicking Row method name.
     operation: String,
 }
 
@@ -25,16 +33,19 @@ impl LateViolation for Violation {
             self.operation
         ))
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "missing columns and incompatible values are runtime database failures rather than process invariants",
         )
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(
             "use the corresponding fallible accessor or map the row through `FromRow`/`query_as`",
         )
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
             SQLX_PANICKING_ROW_ACCESS,
@@ -49,6 +60,11 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// SqlxPanickingRowAccess: Lint pass
+// -----------------------------------------------------------------------------
+
+/// Detects panicking access through SQLx's Row trait.
 struct SqlxPanickingRowAccess;
 
 crate::impl_late_lint! {
@@ -61,18 +77,27 @@ crate::impl_late_lint! {
 
 impl LateLintPass<'_> for SqlxPanickingRowAccess {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        // Expansion internals are owned by the originating macro.
         if expression.span.from_expansion() {
             return;
         }
-        let Some(call) = operation(cx, expression) else {
+
+        // Non-SQLx expressions cannot invoke the Row contract.
+        let Some(call) = expression.sqlx_operation(cx) else {
             return;
         };
+
+        // Fallible accessors and unrelated operations preserve runtime failures.
         if !matches!(call.name.as_str(), "get" | "column") {
             return;
         }
+
+        // Free functions do not implement an associated Row method.
         let Some(trait_id) = cx.tcx.trait_of_assoc(call.definition) else {
             return;
         };
+
+        // Same-named methods on other SQLx traits are outside this rule.
         if cx.tcx.item_name(trait_id).as_str() != "Row" {
             return;
         }

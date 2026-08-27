@@ -16,10 +16,15 @@ use super::utils::contracts::{
 };
 use crate::utils::diagnostic::LateViolation;
 use crate::utils::name_policy::{
-    CandidatePolicy, factor_names, factor_names_with_required, standalone_attribute_span,
+    AuthoredAttributeSpanExt as _, NamingPolicyCandidate, NamingPolicyFactor,
 };
 use crate::utils::source_provenance::AuthoredItemSource;
 
+// -----------------------------------------------------------------------------
+// Cases: Strum naming policies
+// -----------------------------------------------------------------------------
+
+/// Strum naming policies considered for container factoring.
 const CASES: [&str; 10] = [
     "camelCase",
     "kebab-case",
@@ -33,96 +38,232 @@ const CASES: [&str; 10] = [
     "UPPERCASE",
 ];
 
+// -----------------------------------------------------------------------------
+// TypeAttributes: Relevant enum policy
+// -----------------------------------------------------------------------------
+
+/// String policy authored on a Strum enum.
 #[derive(Default)]
 struct TypeAttributes {
+    /// Case conversion applied to participating variants.
     serialize_all: Option<String>,
+    /// Common output prefix.
     prefix: Option<String>,
+    /// Common output suffix.
     suffix: Option<String>,
 }
 
+impl TypeAttributes {
+    /// Reads relevant Strum policy from enum attributes.
+    fn from_attributes(attributes: &[syn::Attribute]) -> Self {
+        let mut output = Self::default();
+        for attribute in attributes
+            .iter()
+            .filter(|attribute| attribute.path().is_ident("strum"))
+        {
+            match attribute.parse_nested_meta(|meta| {
+                let value = || Ok::<_, syn::Error>(meta.value()?.parse::<syn::LitStr>()?.value());
+                if meta.path.is_ident("serialize_all") {
+                    output.serialize_all = Some(value()?);
+                } else if meta.path.is_ident("prefix") {
+                    output.prefix = Some(value()?);
+                } else if meta.path.is_ident("suffix") {
+                    output.suffix = Some(value()?);
+                }
+                Ok(())
+            }) {
+                Ok(()) | Err(_) => {}
+            }
+        }
+        output
+    }
+}
+
+// -----------------------------------------------------------------------------
+// VariantAttributes: Relevant variant policy
+// -----------------------------------------------------------------------------
+
+/// String spellings and participation flags authored on one Strum variant.
 #[derive(Default)]
 struct VariantAttributes {
+    /// Parser and output spellings in authored order.
     serializations: Vec<String>,
+    /// Explicit preferred output spelling.
     to_string: Option<String>,
-    disabled: bool,
-    transparent: bool,
+    /// Whether the variant is excluded from generated string contracts.
+    is_disabled: bool,
+    /// Whether string behavior delegates to a payload field.
+    is_transparent: bool,
 }
 
-fn parse_type(attributes: &[syn::Attribute]) -> TypeAttributes {
-    let mut output = TypeAttributes::default();
-    for attribute in attributes
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("strum"))
-    {
-        let _ = attribute.parse_nested_meta(|meta| {
-            let value = || Ok::<_, syn::Error>(meta.value()?.parse::<syn::LitStr>()?.value());
-            if meta.path.is_ident("serialize_all") {
-                output.serialize_all = Some(value()?);
-            } else if meta.path.is_ident("prefix") {
-                output.prefix = Some(value()?);
-            } else if meta.path.is_ident("suffix") {
-                output.suffix = Some(value()?);
+impl VariantAttributes {
+    /// Reads relevant Strum policy from variant attributes.
+    fn from_attributes(attributes: &[syn::Attribute]) -> Self {
+        let mut output = Self::default();
+        for attribute in attributes
+            .iter()
+            .filter(|attribute| attribute.path().is_ident("strum"))
+        {
+            match attribute.parse_nested_meta(|meta| {
+                if meta.path.is_ident("serialize") {
+                    output
+                        .serializations
+                        .push(meta.value()?.parse::<syn::LitStr>()?.value());
+                } else if meta.path.is_ident("to_string") {
+                    output.to_string = Some(meta.value()?.parse::<syn::LitStr>()?.value());
+                } else if meta.path.is_ident("disabled") {
+                    output.is_disabled = true;
+                } else if meta.path.is_ident("transparent") {
+                    output.is_transparent = true;
+                }
+                Ok(())
+            }) {
+                Ok(()) | Err(_) => {}
             }
-            Ok(())
-        });
+        }
+        output
     }
-    output
 }
 
-fn parse_variant(attributes: &[syn::Attribute]) -> VariantAttributes {
-    let mut output = VariantAttributes::default();
-    for attribute in attributes
-        .iter()
-        .filter(|attribute| attribute.path().is_ident("strum"))
-    {
-        let _ = attribute.parse_nested_meta(|meta| {
-            if meta.path.is_ident("serialize") {
-                output
-                    .serializations
-                    .push(meta.value()?.parse::<syn::LitStr>()?.value());
-            } else if meta.path.is_ident("to_string") {
-                output.to_string = Some(meta.value()?.parse::<syn::LitStr>()?.value());
-            } else if meta.path.is_ident("disabled") {
-                output.disabled = true;
-            } else if meta.path.is_ident("transparent") {
-                output.transparent = true;
-            }
-            Ok(())
-        });
-    }
-    output
-}
+// -----------------------------------------------------------------------------
+// Pending: Deferred enum analysis
+// -----------------------------------------------------------------------------
 
+/// Authored enum retained until its generated Strum contract is known.
 struct Pending {
+    /// Local definition used for generated contract lookup.
     definition: LocalDefId,
+    /// HIR owner receiving diagnostics.
     owner: HirId,
+    /// Authored enum span.
     span: Span,
+    /// Parsed authored enum syntax.
     enumeration: syn::ItemEnum,
 }
 
-type ActiveVariant<'a> = (
-    (&'a syn::Variant, &'a VariantAttributes),
-    &'a VariantContract,
-);
+// -----------------------------------------------------------------------------
+// ActiveVariant: Participating variant state
+// -----------------------------------------------------------------------------
 
-struct Violation {
-    owner: HirId,
+/// Authored and generated facts for one variant participating in string contracts.
+struct ActiveVariant<'a> {
+    /// Authored variant syntax.
+    variant: &'a syn::Variant,
+    /// Parsed authored Strum policy.
+    attributes: &'a VariantAttributes,
+    /// Generated Strum contract.
+    contract: &'a VariantContract,
+}
+
+// -----------------------------------------------------------------------------
+// FactorInputs: Container factoring evidence
+// -----------------------------------------------------------------------------
+
+/// Effective variant spellings and authored costs used by policy factoring.
+struct FactorInputs {
+    /// Effective output name for each active variant.
+    names: Vec<String>,
+    /// Variants whose extra spellings require a leaf exception.
+    required_exceptions: Vec<bool>,
+    /// Number of authored leaf directives represented by the input.
+    authored: usize,
+}
+
+impl From<&[ActiveVariant<'_>]> for FactorInputs {
+    fn from(active: &[ActiveVariant<'_>]) -> Self {
+        let names = active
+            .iter()
+            .map(|active| {
+                active
+                    .attributes
+                    .serializations
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| active.variant.ident.to_string())
+            })
+            .collect();
+        let required_exceptions = active
+            .iter()
+            .map(|active| {
+                active.attributes.serializations.len() > 1 || active.attributes.to_string.is_some()
+            })
+            .collect();
+        let authored = active
+            .iter()
+            .filter(|active| {
+                !active.attributes.serializations.is_empty()
+                    || active.attributes.to_string.is_some()
+            })
+            .count();
+        Self {
+            names,
+            required_exceptions,
+            authored,
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// AffixPolicy: Factored case and affixes
+// -----------------------------------------------------------------------------
+
+/// Candidate container policy reproducing every active variant spelling.
+struct AffixPolicy {
+    /// Strum case conversion name.
+    case: &'static str,
+    /// Common output prefix.
+    prefix: String,
+    /// Common output suffix.
+    suffix: String,
+    /// Number of required container directives.
+    directive_cost: usize,
+    /// Generated names in declaration order.
+    names: Vec<String>,
+}
+
+// -----------------------------------------------------------------------------
+// Suggestion: Machine-applicable source edit
+// -----------------------------------------------------------------------------
+
+/// Exact source replacement for a redundant Strum attribute.
+struct Suggestion {
+    /// Authored source range to replace.
     span: Span,
+    /// Replacement source text.
+    replacement: String,
+}
+
+// -----------------------------------------------------------------------------
+// Violation: Noncanonical Strum string policy
+// -----------------------------------------------------------------------------
+
+/// One redundant spelling or factorable enum-wide policy.
+struct Violation {
+    /// HIR owner receiving the lint.
+    owner: HirId,
+    /// Primary diagnostic span.
+    span: Span,
+    /// Explanation of the redundant representation.
     detail: String,
+    /// Canonical representation requested from the author.
     remediation: String,
-    suggestion: Option<(Span, String)>,
+    /// Safe edit for a uniquely located redundant attribute.
+    suggestion: Option<Suggestion>,
 }
 
 impl LateViolation for Violation {
     fn primary_message(&self) -> Cow<'_, str> {
         Cow::Borrowed("this Strum string policy is noncanonical")
     }
+
     fn rationale_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.detail)
     }
+
     fn remediation_message(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.remediation)
     }
+
     fn emit(self, cx: &LateContext<'_>) {
         cx.tcx.emit_node_span_lint(
             STRUM_NONCANONICAL_STRING_POLICIES,
@@ -132,11 +273,11 @@ impl LateViolation for Violation {
                 diag.primary_message(self.primary_message().into_owned());
                 diag.note(self.rationale_message().into_owned());
                 let remediation = self.remediation_message().into_owned();
-                if let Some((span, replacement)) = self.suggestion {
+                if let Some(suggestion) = self.suggestion {
                     diag.span_suggestion(
-                        span,
+                        suggestion.span,
                         remediation,
-                        replacement,
+                        suggestion.replacement,
                         Applicability::MachineApplicable,
                     );
                 } else {
@@ -147,9 +288,16 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// StrumNoncanonicalStringPolicies: Lint pass
+// -----------------------------------------------------------------------------
+
+/// Collects authored enums and compares spellings with generated Strum contracts.
 #[derive(Default)]
 struct StrumNoncanonicalStringPolicies {
+    /// Generated Strum contract catalog.
     catalog: ContractCatalog,
+    /// Authored enums awaiting generated-contract correlation.
     pending: Vec<Pending>,
 }
 
@@ -162,13 +310,52 @@ crate::impl_late_lint! {
 }
 
 impl StrumNoncanonicalStringPolicies {
+    /// Returns whether Strum already selects this explicit output implicitly.
+    fn is_implicit_output(attributes: &VariantAttributes, output: &str) -> bool {
+        let serializations = &attributes.serializations;
+        serializations
+            .iter()
+            .any(|serialization| serialization == output)
+            && serializations
+                .iter()
+                .max_by_key(|serialization| serialization.len())
+                .is_some_and(|longest| longest == output)
+    }
+
+    /// Reports a redundant explicit output selected by Strum's longest-name rule.
+    fn analyze_output(cx: &LateContext<'_>, pending: &Pending, active: &ActiveVariant<'_>) {
+        // Variants without an explicit output have no leaf directive to remove.
+        let Some(output) = &active.attributes.to_string else {
+            return;
+        };
+
+        // Only the unambiguous longest parser spelling is an implicit output.
+        if !Self::is_implicit_output(active.attributes, output) {
+            return;
+        }
+        Violation {
+            owner: pending.owner,
+            span: active.contract.span,
+            detail: format!(
+                "`to_string = \"{output}\"` repeats the unambiguous longest serialization"
+            ),
+            remediation: "remove the redundant `to_string` directive".to_owned(),
+            suggestion: None,
+        }
+        .emit(cx);
+    }
+
+    /// Reports redundant and duplicate leaf spellings for participating variants.
     fn analyze_variants(
         cx: &LateContext<'_>,
         pending: &Pending,
         ty: &TypeAttributes,
         active: &[ActiveVariant<'_>],
     ) {
-        for ((variant, attributes), variant_contract) in active {
+        for active_variant in active {
+            let variant = active_variant.variant;
+            let attributes = active_variant.attributes;
+            let variant_contract = active_variant.contract;
             let implicit = apply_case(
                 &variant.ident.to_string(),
                 ty.serialize_all.as_deref().unwrap_or(""),
@@ -179,13 +366,18 @@ impl StrumNoncanonicalStringPolicies {
             {
                 let value = &attributes.serializations[0];
                 let expected = format!("#[strum(serialize=\"{value}\")]");
-                let suggestion = standalone_attribute_span(cx, pending.span, &expected)
-                    .map(|span| (span, String::new()));
+                let suggestion = pending
+                    .span
+                    .standalone_attribute(cx, &expected)
+                    .map(|span| Suggestion {
+                        span,
+                        replacement: String::new(),
+                    });
                 Violation {
                     owner: pending.owner,
                     span: suggestion
                         .as_ref()
-                        .map_or(variant_contract.span, |(span, _)| *span),
+                        .map_or(variant_contract.span, |edit| edit.span),
                     detail: format!(
                         "`{}` already receives `{value}` from its inherited spelling",
                         variant.ident
@@ -214,31 +406,45 @@ impl StrumNoncanonicalStringPolicies {
                 .emit(cx);
             }
 
-            if let Some(output) = &attributes.to_string
-                && attributes
-                    .serializations
-                    .iter()
-                    .any(|serialization| serialization == output)
-                && attributes
-                    .serializations
-                    .iter()
-                    .max_by_key(|serialization| serialization.len())
-                    == Some(output)
-            {
-                Violation {
-                    owner: pending.owner,
-                    span: variant_contract.span,
-                    detail: format!(
-                        "`to_string = \"{output}\"` repeats the unambiguous longest serialization"
-                    ),
-                    remediation: "remove the redundant `to_string` directive".to_owned(),
-                    suggestion: None,
-                }
-                .emit(cx);
-            }
+            Self::analyze_output(cx, pending, active_variant);
         }
     }
 
+    /// Emits the selected case policy and names retained leaf exceptions.
+    fn emit_case_factor(
+        cx: &LateContext<'_>,
+        pending: &Pending,
+        active: &[ActiveVariant<'_>],
+        authored: usize,
+        policy: &NamingPolicyFactor,
+    ) {
+        let exceptions = policy
+            .exceptions
+            .iter()
+            .map(|index| active[*index].variant.ident.to_string())
+            .collect::<Vec<_>>();
+        let suffix = if exceptions.is_empty() {
+            String::new()
+        } else {
+            format!("; retain overrides only for {}", exceptions.join(", "))
+        };
+        Violation {
+            owner: pending.owner,
+            span: pending.span,
+            detail: format!(
+                "{authored} variant spellings reduce to one `{}` policy",
+                policy.name
+            ),
+            remediation: format!(
+                "declare `#[strum(serialize_all = \"{}\")]`{suffix}",
+                policy.name
+            ),
+            suggestion: None,
+        }
+        .emit(cx);
+    }
+
+    /// Factors variant spellings into one case policy while retaining required exceptions.
     fn factor_case(
         cx: &LateContext<'_>,
         pending: &Pending,
@@ -247,52 +453,36 @@ impl StrumNoncanonicalStringPolicies {
         authored: usize,
         required_exceptions: &[bool],
     ) {
-        let policies = CASES.map(|case| CandidatePolicy {
+        let policies = CASES.map(|case| NamingPolicyCandidate {
             name: case,
             names: active
                 .iter()
-                .map(|((variant, _), _)| apply_case(&variant.ident.to_string(), case))
+                .map(|active| apply_case(&active.variant.ident.to_string(), case))
                 .collect(),
             directive_cost: 1,
         });
-        if let Some(policy) =
-            factor_names_with_required(names, authored, required_exceptions, policies)
-        {
-            let exceptions = policy
-                .exceptions
-                .iter()
-                .map(|index| active[*index].0.0.ident.to_string())
-                .collect::<Vec<_>>();
-            let suffix = if exceptions.is_empty() {
-                String::new()
-            } else {
-                format!("; retain overrides only for {}", exceptions.join(", "))
-            };
-            Violation {
-                owner: pending.owner,
-                span: pending.span,
-                detail: format!(
-                    "{authored} variant spellings reduce to one `{}` policy",
-                    policy.name
-                ),
-                remediation: format!(
-                    "declare `#[strum(serialize_all = \"{}\")]`{suffix}",
-                    policy.name
-                ),
-                suggestion: None,
-            }
-            .emit(cx);
-        }
+
+        // Ambiguous or non-reducing mappings do not justify changing authored policy.
+        let Some(policy) = NamingPolicyFactor::factor_with_required(
+            names,
+            authored,
+            required_exceptions,
+            policies,
+        ) else {
+            return;
+        };
+        Self::emit_case_factor(cx, pending, active, authored, &policy);
     }
 
+    /// Builds a container policy when all names share one case conversion and affix pair.
     fn affix_policy(
         active: &[ActiveVariant<'_>],
         names: &[String],
         case: &'static str,
-    ) -> Option<(&'static str, String, String, usize, Vec<String>)> {
+    ) -> Option<AffixPolicy> {
         let converted = active
             .iter()
-            .map(|((variant, _), _)| apply_case(&variant.ident.to_string(), case))
+            .map(|active| apply_case(&active.variant.ident.to_string(), case))
             .collect::<Vec<_>>();
         let pairs = names
             .iter()
@@ -303,6 +493,8 @@ impl StrumNoncanonicalStringPolicies {
             })
             .collect::<Vec<_>>();
         let (prefix, suffix) = *pairs.first()?;
+
+        // Partial or identity affixes do not establish one useful container policy.
         if pairs.len() != names.len()
             || (prefix.is_empty() && suffix.is_empty())
             || !pairs.iter().all(|pair| *pair == (prefix, suffix))
@@ -314,9 +506,41 @@ impl StrumNoncanonicalStringPolicies {
             .iter()
             .map(|base| format!("{prefix}{base}{suffix}"))
             .collect();
-        Some((case, prefix.to_owned(), suffix.to_owned(), cost, generated))
+        Some(AffixPolicy {
+            case,
+            prefix: prefix.to_owned(),
+            suffix: suffix.to_owned(),
+            directive_cost: cost,
+            names: generated,
+        })
     }
 
+    /// Emits the selected case policy and its common affixes.
+    fn emit_affix_factor(cx: &LateContext<'_>, pending: &Pending, affixes: &AffixPolicy) {
+        let prefix = if affixes.prefix.is_empty() {
+            String::new()
+        } else {
+            format!(", prefix = \"{}\"", affixes.prefix)
+        };
+        let suffix = if affixes.suffix.is_empty() {
+            String::new()
+        } else {
+            format!(", suffix = \"{}\"", affixes.suffix)
+        };
+        Violation {
+            owner: pending.owner,
+            span: pending.span,
+            detail: "variant output spellings repeat one case policy and common affixes".to_owned(),
+            remediation: format!(
+                "declare `serialize_all = \"{}\"`{prefix}{suffix} on the enum",
+                affixes.case
+            ),
+            suggestion: None,
+        }
+        .emit(cx);
+    }
+
+    /// Factors variant spellings into one case policy with common prefix and suffix.
     fn factor_affixes(
         cx: &LateContext<'_>,
         pending: &Pending,
@@ -330,44 +554,30 @@ impl StrumNoncanonicalStringPolicies {
             .collect::<Vec<_>>();
         let policies = affix_policies
             .iter()
-            .map(|(case, _, _, directive_cost, generated)| CandidatePolicy {
-                name: case,
-                names: generated.clone(),
-                directive_cost: *directive_cost,
+            .map(|candidate| NamingPolicyCandidate {
+                name: candidate.case,
+                names: candidate.names.clone(),
+                directive_cost: candidate.directive_cost,
             });
-        let Some(policy) = factor_names(names, authored, policies) else {
+
+        // Ambiguous or non-reducing mappings do not justify changing authored policy.
+        let Some(policy) = NamingPolicyFactor::factor(names, authored, policies) else {
             return;
         };
-        let Some((case, prefix, suffix, _, _)) = affix_policies
+
+        // The selected factor must retain its corresponding affix representation.
+        let Some(affixes) = affix_policies
             .iter()
-            .find(|(case, _, _, _, _)| *case == policy.name)
+            .find(|candidate| candidate.case == policy.name)
         else {
             return;
         };
-        let prefix = if prefix.is_empty() {
-            String::new()
-        } else {
-            format!(", prefix = \"{prefix}\"")
-        };
-        let suffix = if suffix.is_empty() {
-            String::new()
-        } else {
-            format!(", suffix = \"{suffix}\"")
-        };
-        Violation {
-            owner: pending.owner,
-            span: pending.span,
-            detail: "variant output spellings repeat one case policy and common affixes".to_owned(),
-            remediation: format!(
-                "declare `serialize_all = \"{case}\"`{prefix}{suffix} on the enum"
-            ),
-            suggestion: None,
-        }
-        .emit(cx);
+        Self::emit_affix_factor(cx, pending, affixes);
     }
 
-    fn analyze(cx: &LateContext<'_>, pending: &Pending, contract: &EnumContract) {
-        let has_string_derive = [
+    /// Returns whether generated behavior includes a Strum string contract.
+    fn has_string_derive(contract: &EnumContract) -> bool {
+        [
             StrumDerive::AsRefStr,
             StrumDerive::Display,
             StrumDerive::EnumString,
@@ -375,85 +585,101 @@ impl StrumNoncanonicalStringPolicies {
             StrumDerive::VariantNames,
         ]
         .into_iter()
-        .any(|derive| contract.has_derive(derive));
-        if !has_string_derive {
+        .any(|derive| contract.has_derive(derive))
+    }
+
+    /// Selects variants whose shape participates in type-wide string policy.
+    fn active_variants<'a>(
+        pending: &'a Pending,
+        parsed: &'a [VariantAttributes],
+        contract: &'a EnumContract,
+    ) -> Vec<ActiveVariant<'a>> {
+        pending
+            .enumeration
+            .variants
+            .iter()
+            .zip(parsed)
+            .zip(&contract.variants)
+            .filter_map(|((variant, attributes), contract)| {
+                (!attributes.is_disabled && !attributes.is_transparent && !contract.has_payload)
+                    .then_some(ActiveVariant {
+                        variant,
+                        attributes,
+                        contract,
+                    })
+            })
+            .collect()
+    }
+
+    /// Correlates one authored enum with generated Strum string behavior.
+    fn analyze(cx: &LateContext<'_>, pending: &Pending, contract: &EnumContract) {
+        // Enums without a string-producing or parsing derive have no Strum spelling contract.
+        if !Self::has_string_derive(contract) {
             return;
         }
-        let ty = parse_type(&pending.enumeration.attrs);
+        let ty = TypeAttributes::from_attributes(&pending.enumeration.attrs);
         let parsed = pending
             .enumeration
             .variants
             .iter()
-            .map(|variant| parse_variant(&variant.attrs))
+            .map(|variant| VariantAttributes::from_attributes(&variant.attrs))
             .collect::<Vec<_>>();
-        let active = pending
-            .enumeration
-            .variants
-            .iter()
-            .zip(&parsed)
-            .zip(&contract.variants)
-            .filter(|((_, attributes), contract)| {
-                !attributes.disabled && !attributes.transparent && !contract.has_payload
-            })
-            .collect::<Vec<_>>();
+        let active = Self::active_variants(pending, &parsed, contract);
         Self::analyze_variants(cx, pending, &ty, &active);
+
+        // Existing container policy or no participating variants leaves nothing to factor.
         if ty.serialize_all.is_some() || active.is_empty() {
             return;
         }
+
         // A type-level policy reaches every participating variant. Only factor when the entire
         // generated contract is represented by the spelling model below.
         if parsed
             .iter()
             .zip(&contract.variants)
             .any(|(attributes, variant)| {
-                attributes.disabled || attributes.transparent || variant.has_payload
+                attributes.is_disabled || attributes.is_transparent || variant.has_payload
             })
         {
             return;
         }
-        let names = active
-            .iter()
-            .map(|((variant, attributes), _)| {
-                attributes
-                    .serializations
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| variant.ident.to_string())
-            })
-            .collect::<Vec<_>>();
-        let required_exceptions = active
-            .iter()
-            .map(|((_, attributes), _)| {
-                attributes.serializations.len() > 1 || attributes.to_string.is_some()
-            })
-            .collect::<Vec<_>>();
-        let authored = active
-            .iter()
-            .filter(|((_, attributes), _)| {
-                !attributes.serializations.is_empty() || attributes.to_string.is_some()
-            })
-            .count();
-        Self::factor_case(cx, pending, &active, &names, authored, &required_exceptions);
+        let inputs = FactorInputs::from(active.as_slice());
+        Self::factor_case(
+            cx,
+            pending,
+            &active,
+            &inputs.names,
+            inputs.authored,
+            &inputs.required_exceptions,
+        );
+
         // Prefix and suffix affect output derives but not EnumString's parser language.
-        if !contract.has_derive(StrumDerive::EnumString)
-            && ty.prefix.is_none()
-            && ty.suffix.is_none()
-            && required_exceptions.iter().all(|required| !required)
+        if contract.has_derive(StrumDerive::EnumString)
+            || ty.prefix.is_some()
+            || ty.suffix.is_some()
+            || inputs.required_exceptions.iter().any(|required| *required)
         {
-            Self::factor_affixes(cx, pending, &active, &names, authored);
+            return;
         }
+        Self::factor_affixes(cx, pending, &active, &inputs.names, inputs.authored);
     }
 }
 
 impl LateLintPass<'_> for StrumNoncanonicalStringPolicies {
     fn check_item(&mut self, cx: &LateContext<'_>, item: &Item<'_>) {
         self.catalog.check_item(cx, item);
+
+        // Macro-generated enums have no stable authored attribute representation.
         if item.span.from_expansion() {
             return;
         }
+
+        // Unavailable source cannot support syntax-aware attribute analysis.
         let Some(source) = AuthoredItemSource::for_item(cx, item) else {
             return;
         };
+
+        // Non-enum and invalid syntax is outside Strum's enum string policy.
         let Ok(enumeration) = syn::parse_str::<syn::ItemEnum>(&source) else {
             return;
         };

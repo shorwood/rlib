@@ -15,10 +15,16 @@ use rustc_middle::ty;
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::utils::{is_query_execution, operation};
+use super::utils::{SqlxExprExt as _, is_query_execution};
 use crate::utils::diagnostic::LateViolation;
 
+// -----------------------------------------------------------------------------
+// Violation: Needless pool acquisition
+// -----------------------------------------------------------------------------
+
+/// One connection acquired solely to execute a query supported by the pool.
 struct Violation {
+    /// Authored acquisition statement span.
     span: Span,
 }
 
@@ -50,12 +56,20 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// AcquireFinder: Pool acquisition lookup
+// -----------------------------------------------------------------------------
+
+/// Finds a SQLx Pool acquisition inside an initializer expression.
 struct AcquireFinder<'cx, 'tcx> {
+    /// Compiler context used to resolve SQLx calls and types.
     cx: &'cx LateContext<'tcx>,
-    found: bool,
+    /// Whether a qualifying acquisition has been found.
+    is_found: bool,
 }
 
 impl AcquireFinder<'_, '_> {
+    /// Returns whether an expression has SQLx's Pool type.
     fn is_pool(&self, expression: &Expr<'_>) -> bool {
         let ty = self
             .cx
@@ -71,14 +85,17 @@ impl AcquireFinder<'_, '_> {
 
 impl<'tcx> Visitor<'tcx> for AcquireFinder<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if self.found {
+        // Discovery is complete after the first qualifying acquisition.
+        if self.is_found {
             return;
         }
-        if let Some(call) = operation(self.cx, expression)
+
+        // A qualifying acquisition completes the initializer-local search.
+        if let Some(call) = expression.sqlx_operation(self.cx)
             && call.name == "acquire"
             && call.receiver.is_some_and(|receiver| self.is_pool(receiver))
         {
-            self.found = true;
+            self.is_found = true;
             return;
         }
         intravisit::walk_expr(self, expression);
@@ -87,51 +104,76 @@ impl<'tcx> Visitor<'tcx> for AcquireFinder<'_, 'tcx> {
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
 }
 
+// -----------------------------------------------------------------------------
+// LocalUseFinder: Binding reference lookup
+// -----------------------------------------------------------------------------
+
+/// Finds a reference to one local connection binding.
 struct LocalUseFinder {
+    /// Local binding being searched for.
     binding: HirId,
-    found: bool,
+    /// Whether the binding has been referenced.
+    is_found: bool,
 }
 
 impl<'tcx> Visitor<'tcx> for LocalUseFinder {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
+        // A matching local path completes the expression-local search.
         if let ExprKind::Path(QPath::Resolved(_, path)) = expression.kind
             && matches!(path.res, Res::Local(binding) if binding == self.binding)
         {
-            self.found = true;
+            self.is_found = true;
             return;
         }
         intravisit::walk_expr(self, expression);
     }
 }
 
+// -----------------------------------------------------------------------------
+// ConnectionUse: Acquired connection lifecycle
+// -----------------------------------------------------------------------------
+
+/// Usage facts collected for one connection acquired from a pool.
 struct ConnectionUse {
+    /// Acquisition statement span.
     span: Span,
+    /// Number of references to the local binding.
     uses: usize,
-    query_executor: bool,
+    /// Whether the binding is passed to a query execution operation.
+    is_query_executor: bool,
 }
 
+// -----------------------------------------------------------------------------
+// PoolAnalysis: Function-local connection analysis
+// -----------------------------------------------------------------------------
+
+/// Tracks acquired connections and classifies their uses within one function body.
 struct PoolAnalysis<'cx, 'tcx> {
+    /// Compiler context used to resolve SQLx operations.
     cx: &'cx LateContext<'tcx>,
+    /// Connection usage indexed by local binding.
     connections: HashMap<HirId, ConnectionUse>,
 }
 
 impl<'tcx> PoolAnalysis<'_, 'tcx> {
-    fn acquired_from_pool(&self, expression: &'tcx Expr<'tcx>) -> bool {
-        let mut finder = AcquireFinder {
-            cx: self.cx,
-            found: false,
-        };
-        finder.visit_expr(expression);
-        finder.found
-    }
-
+    /// Returns whether an expression references the selected local binding.
     fn contains(expression: &'tcx Expr<'tcx>, binding: HirId) -> bool {
         let mut finder = LocalUseFinder {
             binding,
-            found: false,
+            is_found: false,
         };
         finder.visit_expr(expression);
-        finder.found
+        finder.is_found
+    }
+
+    /// Returns whether an expression contains a SQLx Pool acquisition.
+    fn is_acquired_from_pool(&self, expression: &'tcx Expr<'tcx>) -> bool {
+        let mut finder = AcquireFinder {
+            cx: self.cx,
+            is_found: false,
+        };
+        finder.visit_expr(expression);
+        finder.is_found
     }
 }
 
@@ -140,14 +182,14 @@ impl<'tcx> Visitor<'tcx> for PoolAnalysis<'_, 'tcx> {
         if let StmtKind::Let(local) = statement.kind
             && let PatKind::Binding(_, binding, _, None) = local.pat.kind
             && let Some(initializer) = local.init
-            && self.acquired_from_pool(initializer)
+            && self.is_acquired_from_pool(initializer)
         {
             self.connections.insert(
                 binding,
                 ConnectionUse {
                     span: statement.span,
                     uses: 0,
-                    query_executor: false,
+                    is_query_executor: false,
                 },
             );
         }
@@ -170,21 +212,22 @@ impl<'tcx> Visitor<'tcx> for PoolAnalysis<'_, 'tcx> {
                 .uses += 1;
         }
 
-        if let Some(call) = operation(self.cx, expression)
+        if let Some(call) = expression.sqlx_operation(self.cx)
             && is_query_execution(&call.name)
         {
             let bindings: Vec<_> = self.connections.keys().copied().collect();
             for binding in bindings {
-                if call
+                if !call
                     .arguments
                     .iter()
                     .any(|argument| Self::contains(argument, binding))
                 {
-                    self.connections
-                        .get_mut(&binding)
-                        .expect("known binding")
-                        .query_executor = true;
+                    continue;
                 }
+                self.connections
+                    .get_mut(&binding)
+                    .expect("known binding")
+                    .is_query_executor = true;
             }
         }
         intravisit::walk_expr(self, expression);
@@ -193,6 +236,11 @@ impl<'tcx> Visitor<'tcx> for PoolAnalysis<'_, 'tcx> {
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
 }
 
+// -----------------------------------------------------------------------------
+// SqlxNeedlessPoolAcquisition: Lint pass
+// -----------------------------------------------------------------------------
+
+/// Detects connections whose only purpose can be served directly by their pool.
 struct SqlxNeedlessPoolAcquisition;
 
 crate::impl_late_lint! {
@@ -219,12 +267,13 @@ impl<'tcx> LateLintPass<'tcx> for SqlxNeedlessPoolAcquisition {
         };
         analysis.visit_body(body);
         for connection in analysis.connections.into_values() {
-            if connection.uses == 1 && connection.query_executor {
-                Violation {
-                    span: connection.span,
-                }
-                .emit(cx);
+            if connection.uses != 1 || !connection.is_query_executor {
+                continue;
             }
+            Violation {
+                span: connection.span,
+            }
+            .emit(cx);
         }
     }
 }

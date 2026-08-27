@@ -32,6 +32,20 @@ enum CargoImplicitLibrary {
     Present,
 }
 
+impl CargoImplicitLibrary {
+    /// Classifies whether a manifest directory contains Cargo's conventional library source.
+    fn at_manifest(path: &Path) -> Self {
+        if path
+            .parent()
+            .is_some_and(|root| root.join("src/lib.rs").is_file())
+        {
+            Self::Present
+        } else {
+            Self::Absent
+        }
+    }
+}
+
 // -----------------------------------------------------------------------------
 // VisibilityPackagePolicy: External api intent
 // -----------------------------------------------------------------------------
@@ -60,14 +74,7 @@ impl VisibilityPackagePolicy {
         let Ok(source) = read_to_string(path) else {
             return Self::Publishable;
         };
-        let implicit_library = if path
-            .parent()
-            .is_some_and(|root| root.join("src/lib.rs").is_file())
-        {
-            CargoImplicitLibrary::Present
-        } else {
-            CargoImplicitLibrary::Absent
-        };
+        let implicit_library = CargoImplicitLibrary::at_manifest(path);
         Self::from_manifest_source(&source, implicit_library)
     }
 

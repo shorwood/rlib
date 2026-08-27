@@ -183,19 +183,19 @@ pub struct SerdeAttributes {
     /// Explicit wire name accepted while deserializing this declaration.
     pub rename_deserialize: Option<String>,
     /// Whether the member rename was authored with direction-specific branches.
-    pub rename_directional: bool,
+    pub is_rename_directional: bool,
     /// Case conversion inherited by serialized child names.
     pub rename_all_serialize: Option<String>,
     /// Case conversion inherited by deserialized child names.
     pub rename_all_deserialize: Option<String>,
     /// Whether `rename_all` was authored with direction-specific branches.
-    pub rename_all_directional: bool,
+    pub is_rename_all_directional: bool,
     /// Case conversion inherited by serialized fields of every enum variant.
     pub rename_all_fields_serialize: Option<String>,
     /// Case conversion inherited by deserialized fields of every enum variant.
     pub rename_all_fields_deserialize: Option<String>,
     /// Whether `rename_all_fields` was authored with direction-specific branches.
-    pub rename_all_fields_directional: bool,
+    pub is_rename_all_fields_directional: bool,
     /// Additional wire names accepted during deserialization.
     pub aliases: Vec<String>,
     /// Independent Serde behaviors enabled by authored attributes.
@@ -234,7 +234,7 @@ impl SerdeAttributes {
                             result.rename_all_fields_serialize = Some(value.clone());
                             result.rename_all_fields_deserialize = Some(value);
                         } else {
-                            result.rename_all_fields_directional = true;
+                            result.is_rename_all_fields_directional = true;
                             meta.parse_nested_meta(|direction| {
                                 let value = direction.value()?.parse::<syn::LitStr>()?.value();
                                 if direction.path.is_ident("serialize") {
@@ -253,8 +253,8 @@ impl SerdeAttributes {
                         result.set_directional_name(scope, None, value);
                     } else {
                         match scope {
-                            SerdeNameScope::Member => result.rename_directional = true,
-                            SerdeNameScope::Container => result.rename_all_directional = true,
+                            SerdeNameScope::Member => result.is_rename_directional = true,
+                            SerdeNameScope::Container => result.is_rename_all_directional = true,
                         }
                         meta.parse_nested_meta(|direction| {
                             let value = direction.value()?.parse::<syn::LitStr>()?.value();
@@ -412,18 +412,7 @@ impl SerdeCase {
         match rule {
             Some("UPPERCASE" | "SCREAMING_SNAKE_CASE") => field.to_ascii_uppercase(),
             Some("PascalCase" | "camelCase") => {
-                let mut pascal = String::new();
-                let mut capitalize = true;
-                for character in field.chars() {
-                    if character == '_' {
-                        capitalize = true;
-                    } else if capitalize {
-                        pascal.push(character.to_ascii_uppercase());
-                        capitalize = false;
-                    } else {
-                        pascal.push(character);
-                    }
-                }
+                let pascal = Self::pascal_field(field);
                 if rule == Some("camelCase") {
                     pascal[..1].to_ascii_lowercase() + &pascal[1..]
                 } else {
@@ -434,6 +423,23 @@ impl SerdeCase {
             Some("SCREAMING-KEBAB-CASE") => field.to_ascii_uppercase().replace('_', "-"),
             None | Some(_) => field.to_owned(),
         }
+    }
+
+    /// Converts a snake-case Rust field identifier to Serde's PascalCase spelling.
+    fn pascal_field(field: &str) -> String {
+        let mut pascal = String::new();
+        let mut capitalize = true;
+        for character in field.chars() {
+            if character == '_' {
+                capitalize = true;
+            } else if capitalize {
+                pascal.push(character.to_ascii_uppercase());
+                capitalize = false;
+            } else {
+                pascal.push(character);
+            }
+        }
+        pascal
     }
 }
 

@@ -12,10 +12,16 @@ use rustc_lint::{LateContext, LateLintPass, LintContext};
 use rustc_span::Span;
 use rustc_span::def_id::LocalDefId;
 
-use super::utils::{operation, root_local};
+use super::utils::SqlxExprExt as _;
 use crate::utils::diagnostic::LateViolation;
 
+// -----------------------------------------------------------------------------
+// Violation: Implicit transaction rollback
+// -----------------------------------------------------------------------------
+
+/// One transaction binding still live when its function body ends.
 struct Violation {
+    /// Authored transaction binding span.
     span: Span,
 }
 
@@ -49,18 +55,31 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// BeginFinder: Transaction creation lookup
+// -----------------------------------------------------------------------------
+
+/// Finds a SQLx transaction begin operation inside an initializer.
 struct BeginFinder<'cx, 'tcx> {
+    /// Compiler context used to resolve SQLx calls.
     cx: &'cx LateContext<'tcx>,
-    found: bool,
+    /// Whether a begin operation has been found.
+    is_found: bool,
 }
 
 impl<'tcx> Visitor<'tcx> for BeginFinder<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if self.found {
+        // Discovery is complete after the first begin operation.
+        if self.is_found {
             return;
         }
-        if operation(self.cx, expression).is_some_and(|call| call.name == "begin") {
-            self.found = true;
+
+        // A begin operation completes the initializer-local search.
+        if expression
+            .sqlx_operation(self.cx)
+            .is_some_and(|call| call.name == "begin")
+        {
+            self.is_found = true;
             return;
         }
         intravisit::walk_expr(self, expression);
@@ -69,19 +88,27 @@ impl<'tcx> Visitor<'tcx> for BeginFinder<'_, 'tcx> {
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
 }
 
+// -----------------------------------------------------------------------------
+// TransactionAnalysis: Function-local transaction lifecycle
+// -----------------------------------------------------------------------------
+
+/// Tracks transaction bindings until an explicit commit or rollback.
 struct TransactionAnalysis<'cx, 'tcx> {
+    /// Compiler context used to resolve SQLx operations.
     cx: &'cx LateContext<'tcx>,
+    /// Live transaction bindings and their declaration spans.
     live: HashMap<HirId, Span>,
 }
 
 impl<'tcx> TransactionAnalysis<'_, 'tcx> {
-    fn begins_transaction(&self, expression: &'tcx Expr<'tcx>) -> bool {
+    /// Returns whether an initializer contains a SQLx begin operation.
+    fn is_begin_transaction(&self, expression: &'tcx Expr<'tcx>) -> bool {
         let mut finder = BeginFinder {
             cx: self.cx,
-            found: false,
+            is_found: false,
         };
         finder.visit_expr(expression);
-        finder.found
+        finder.is_found
     }
 }
 
@@ -90,7 +117,7 @@ impl<'tcx> Visitor<'tcx> for TransactionAnalysis<'_, 'tcx> {
         if let StmtKind::Let(local) = statement.kind
             && let PatKind::Binding(_, binding, _, None) = local.pat.kind
             && let Some(initializer) = local.init
-            && self.begins_transaction(initializer)
+            && self.is_begin_transaction(initializer)
         {
             self.live.insert(binding, statement.span);
         }
@@ -98,9 +125,9 @@ impl<'tcx> Visitor<'tcx> for TransactionAnalysis<'_, 'tcx> {
     }
 
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
-        if let Some(call) = operation(self.cx, expression)
+        if let Some(call) = expression.sqlx_operation(self.cx)
             && matches!(call.name.as_str(), "commit" | "rollback")
-            && let Some(binding) = call.receiver.and_then(root_local)
+            && let Some(binding) = call.receiver.and_then(|receiver| receiver.root_local())
         {
             self.live.remove(&binding);
         }
@@ -110,6 +137,11 @@ impl<'tcx> Visitor<'tcx> for TransactionAnalysis<'_, 'tcx> {
     fn visit_nested_body(&mut self, _: rustc_hir::BodyId) {}
 }
 
+// -----------------------------------------------------------------------------
+// SqlxTransactionsImplicitlyRolledBack: Lint pass
+// -----------------------------------------------------------------------------
+
+/// Detects transaction bindings that rely on drop for rollback policy.
 struct SqlxTransactionsImplicitlyRolledBack;
 
 crate::impl_late_lint! {

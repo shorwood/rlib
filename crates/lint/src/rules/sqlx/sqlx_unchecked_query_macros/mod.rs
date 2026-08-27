@@ -10,12 +10,20 @@ use rustc_hir::Expr;
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_span::{Pos, Span};
 
-use super::utils::sqlx_macro;
+use super::utils::SqlxMacroSpanExt as _;
 use crate::utils::diagnostic::LateViolation;
 
+// -----------------------------------------------------------------------------
+// Violation: Unchecked query macro
+// -----------------------------------------------------------------------------
+
+/// One authored SQLx macro invocation that skips Rust type checking.
 struct Violation {
+    /// HIR owner receiving the lint.
     owner: rustc_hir::HirId,
+    /// Authored macro call span.
     span: Span,
+    /// Public unchecked macro name.
     macro_name: String,
 }
 
@@ -53,9 +61,28 @@ impl LateViolation for Violation {
     }
 }
 
+// -----------------------------------------------------------------------------
+// MacroRange: Deduplication identity
+// -----------------------------------------------------------------------------
+
+/// Byte range identifying one authored macro call site.
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+struct MacroRange {
+    /// Inclusive start byte position.
+    start: u32,
+    /// Exclusive end byte position.
+    end: u32,
+}
+
+// -----------------------------------------------------------------------------
+// SqlxUncheckedQueryMacros: Lint pass
+// -----------------------------------------------------------------------------
+
+/// Detects each authored unchecked macro once across its expanded expressions.
 #[derive(Default)]
 struct SqlxUncheckedQueryMacros {
-    seen: BTreeSet<(u32, u32)>,
+    /// Byte ranges of macro call sites already diagnosed.
+    seen: BTreeSet<MacroRange>,
 }
 
 crate::impl_late_lint! {
@@ -68,13 +95,19 @@ crate::impl_late_lint! {
 
 impl LateLintPass<'_> for SqlxUncheckedQueryMacros {
     fn check_expr(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
-        let Some((name, call_site)) = sqlx_macro(cx, expression.span) else {
+        // Expressions outside SQLx macro expansions have no macro policy to inspect.
+        let Some(macro_call) = expression.span.sqlx_macro(cx) else {
             return;
         };
+        let name = macro_call.name;
+        let call_site = macro_call.call_site;
+
+        // Checked macros and previously visited expansion nodes need no diagnostic.
         if !name.contains("unchecked")
-            || !self
-                .seen
-                .insert((call_site.lo().to_u32(), call_site.hi().to_u32()))
+            || !self.seen.insert(MacroRange {
+                start: call_site.lo().to_u32(),
+                end: call_site.hi().to_u32(),
+            })
         {
             return;
         }

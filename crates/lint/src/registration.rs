@@ -4,6 +4,8 @@ extern crate rustc_session;
 use rustc_session::lint::LintId;
 
 use crate::rules;
+#[cfg(feature = "sqlx")]
+use crate::rules::sqlx::extraction::SqlxExtractionLintStoreExt as _;
 
 // Registers this library as a dylint plugin with the compiler process that loaded it.
 dylint_linting::dylint_library!();
@@ -60,7 +62,9 @@ macro_rules! define_lint_registration {
             )*
 
             #[cfg(feature = "sqlx")]
-            crate::rules::sqlx::extraction::register(lint_store);
+            {
+                lint_store.register_sqlx_extraction();
+            }
 
             let all_lints = lint_store.get_lints()[all_lint_start..]
                 .iter()

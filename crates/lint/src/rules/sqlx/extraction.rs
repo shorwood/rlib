@@ -21,12 +21,15 @@ use rustc_span::{Pos, Span};
 use syn::parse::{Parse, ParseStream};
 use syn::{Expr as SynExpr, LitStr, Token};
 
-use super::utils::{operation, root_local, sqlx_macro, static_string};
+use super::utils::{SqlxExprExt as _, SqlxMacroSpanExt as _};
 
-const MANIFEST_ENV: &str = "RLIB_SQLX_MANIFEST_DIR";
-const WORKSPACE_ENV: &str = "RLIB_SQLX_WORKSPACE_ROOT";
+// -----------------------------------------------------------------------------
+// MacroArguments: Parsed SQLx macro inputs
+// -----------------------------------------------------------------------------
 
+/// Comma-separated expressions accepted by the SQLx query macro family.
 struct MacroArguments {
+    /// Parsed arguments in authored order.
     values: Vec<SynExpr>,
 }
 
@@ -44,54 +47,117 @@ impl Parse for MacroArguments {
     }
 }
 
-/// Compiler-backed query collection enabled only by the companion command.
-struct QueryExtractor {
-    output: PathBuf,
-    workspace: PathBuf,
-    package_manifest: PathBuf,
-    documents: BTreeMap<String, QueryDocument>,
-    builders: HashMap<HirId, BuilderDocument>,
+// -----------------------------------------------------------------------------
+// SourceLocation: Authored span coordinates
+// -----------------------------------------------------------------------------
+
+/// Local Rust source path and byte range for an authored span.
+struct SourceLocation {
+    /// Canonical local Rust source path when canonicalization succeeds.
+    rust_path: PathBuf,
+    /// Byte range relative to the containing Rust source file.
+    literal_span: ByteRange,
 }
 
+// -----------------------------------------------------------------------------
+// MacroLiteral: Query macro source argument
+// -----------------------------------------------------------------------------
+
+/// Static query argument extracted from one SQLx macro invocation.
+struct MacroLiteral {
+    /// Authored string literal.
+    value: LitStr,
+    /// Whether the literal identifies an external SQL file.
+    is_file: bool,
+}
+
+// -----------------------------------------------------------------------------
+// BuilderDocument: Incrementally assembled query source
+// -----------------------------------------------------------------------------
+
+/// Static QueryBuilder content and its Rust-to-SQL source mapping.
 struct BuilderDocument {
+    /// SQL text assembled so far.
     text: String,
+    /// Rust source file containing every retained fragment.
     rust_path: PathBuf,
+    /// Span of the builder's initial static literal.
     literal_span: ByteRange,
+    /// SQL-to-Rust source mappings for static fragments.
     source_segments: Vec<SourceSegment>,
 }
 
+// -----------------------------------------------------------------------------
+// QueryExtractor: Compiler-backed query collection
+// -----------------------------------------------------------------------------
+
+/// Compiler-backed query collection enabled only by the companion command.
+struct QueryExtractor {
+    /// Directory receiving this crate's query manifest.
+    output: PathBuf,
+    /// Canonical workspace source boundary.
+    workspace: PathBuf,
+    /// Cargo manifest for the package currently being compiled.
+    package_manifest: PathBuf,
+    /// Deduplicated documents keyed by origin and SQL text.
+    documents: BTreeMap<String, QueryDocument>,
+    /// Static QueryBuilder state indexed by local binding.
+    builders: HashMap<HirId, BuilderDocument>,
+}
+
 impl QueryExtractor {
+    /// Environment variable locating the directory for extracted query manifests.
+    const MANIFEST_ENV: &'static str = "RLIB_SQLX_MANIFEST_DIR";
+
+    /// Environment variable carrying the canonical workspace source boundary.
+    const WORKSPACE_ENV: &'static str = "RLIB_SQLX_WORKSPACE_ROOT";
+
+    /// Constructs an extractor only for invocations configured by the companion command.
     fn from_environment() -> Option<Self> {
         Some(Self {
-            output: PathBuf::from(env::var_os(MANIFEST_ENV)?),
-            workspace: PathBuf::from(env::var_os(WORKSPACE_ENV)?),
+            output: PathBuf::from(env::var_os(Self::MANIFEST_ENV)?),
+            workspace: PathBuf::from(env::var_os(Self::WORKSPACE_ENV)?),
             package_manifest: PathBuf::from(env::var_os("CARGO_MANIFEST_DIR")?).join("Cargo.toml"),
             documents: BTreeMap::new(),
             builders: HashMap::new(),
         })
     }
 
-    fn source_location(cx: &LateContext<'_>, span: Span) -> Option<(PathBuf, ByteRange)> {
+    /// Resolves an authored span to a local path and file-relative byte range.
+    fn source_location(cx: &LateContext<'_>, span: Span) -> Option<SourceLocation> {
         let source_map = cx.sess().source_map();
         let path = source_map.span_to_filename(span).into_local_path()?;
         let file = source_map.lookup_source_file(span.lo());
         let start = (span.lo() - file.start_pos).to_u32();
         let end = (span.hi() - file.start_pos).to_u32();
-        Some((
-            path.canonicalize().unwrap_or(path),
-            ByteRange { start, end },
-        ))
+        Some(SourceLocation {
+            rust_path: path.canonicalize().unwrap_or(path),
+            literal_span: ByteRange { start, end },
+        })
     }
 
+    /// Creates an inline query origin with a source mapping when the SQL is directly authored.
     fn inline_origin(cx: &LateContext<'_>, span: Span, sql: &str) -> Option<QueryOrigin> {
-        let (rust_path, literal_span) = Self::source_location(cx, span)?;
-        let snippet = cx.sess().source_map().span_to_snippet(span).ok();
+        let SourceLocation {
+            rust_path,
+            literal_span,
+        } = Self::source_location(cx, span)?;
+        let snippet = match cx.sess().source_map().span_to_snippet(span) {
+            Ok(snippet) => Some(snippet),
+            Err(_unavailable_source) => None,
+        };
         let source_segments = snippet
             .as_deref()
             .and_then(|snippet| snippet.find(sql))
             .and_then(|relative| {
-                let relative = u32::try_from(relative).ok()?;
-                let length = u32::try_from(sql.len()).ok()?;
+                // Source coordinates outside the manifest range cannot be represented.
+                let Ok(relative) = u32::try_from(relative) else {
+                    return None;
+                };
+                // Query lengths outside the manifest range cannot be represented.
+                let Ok(length) = u32::try_from(sql.len()) else {
+                    return None;
+                };
                 Some(SourceSegment {
                     sql: ByteRange {
                         start: 0,
@@ -115,6 +181,52 @@ impl QueryExtractor {
         })
     }
 
+    /// Extracts the query literal and file mode from parsed SQLx macro tokens.
+    fn macro_literal(tokens: TokenStream, name: &str) -> Option<MacroLiteral> {
+        // Invalid macro syntax is owned by rustc and SQLx.
+        let Ok(parsed) = syn::parse2::<MacroArguments>(tokens) else {
+            return None;
+        };
+        let arguments = parsed.values;
+        let query_index = usize::from(name.contains("_as"));
+
+        // SQLx macro families place the query after the optional output type.
+        let SynExpr::Lit(literal) = arguments.get(query_index)? else {
+            return None;
+        };
+
+        // Dynamic macro arguments cannot produce a static query document.
+        let syn::Lit::Str(value) = &literal.lit else {
+            return None;
+        };
+        Some(MacroLiteral {
+            value: value.clone(),
+            is_file: name.contains("_file"),
+        })
+    }
+
+    /// Converts a static Rust expression into an initial or appended builder fragment.
+    fn static_fragment(cx: &LateContext<'_>, expression: &Expr<'_>) -> Option<BuilderDocument> {
+        let text = expression.static_string()?;
+
+        // Builder fragments are accepted only from directly authored inline strings.
+        let QueryOrigin::Inline {
+            rust_path,
+            literal_span,
+            source_segments,
+        } = Self::inline_origin(cx, expression.span, &text)?
+        else {
+            return None;
+        };
+        Some(BuilderDocument {
+            text,
+            rust_path,
+            literal_span,
+            source_segments,
+        })
+    }
+
+    /// Inserts one query document while deduplicating repeated expansion visits.
     fn insert(&mut self, document: QueryDocument) {
         let path = match &document.origin {
             QueryOrigin::Inline {
@@ -131,32 +243,32 @@ impl QueryExtractor {
             .or_insert(document);
     }
 
-    fn macro_literal(tokens: TokenStream, name: &str) -> Option<(LitStr, bool)> {
-        let arguments = syn::parse2::<MacroArguments>(tokens).ok()?.values;
-        let query_index = usize::from(name.contains("_as"));
-        let SynExpr::Lit(literal) = arguments.get(query_index)? else {
-            return None;
-        };
-        let syn::Lit::Str(value) = &literal.lit else {
-            return None;
-        };
-        Some((value.clone(), name.contains("_file")))
-    }
-
+    /// Observes one checked or unchecked SQLx query macro expansion.
     fn observe_macro(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
-        let Some((name, call_site)) = sqlx_macro(cx, expression.span) else {
+        // Expressions outside SQLx macro expansions carry no macro query document.
+        let Some(macro_call) = expression.span.sqlx_macro(cx) else {
             return;
         };
+        let name = macro_call.name;
+        let call_site = macro_call.call_site;
+
+        // Non-query SQLx macros are outside SQL extraction.
         if !name.starts_with("query") {
             return;
         }
+
+        // Unavailable authored source cannot be parsed as a macro invocation.
         let Ok(snippet) = cx.sess().source_map().span_to_snippet(call_site) else {
             return;
         };
+
+        // Invalid macro syntax is reported by rustc or SQLx itself.
         let Ok(parsed) = syn::parse_str::<syn::ExprMacro>(&snippet) else {
             return;
         };
-        let Some((literal, is_file)) = Self::macro_literal(parsed.mac.tokens, &name) else {
+
+        // Dynamic query arguments cannot produce a static SQL document.
+        let Some(literal) = Self::macro_literal(parsed.mac.tokens, &name) else {
             return;
         };
         let api_kind = if name.contains("unchecked") {
@@ -164,12 +276,16 @@ impl QueryExtractor {
         } else {
             QueryApiKind::CheckedMacro
         };
-        if is_file {
+        if literal.is_file {
             let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap_or_default());
-            let path = manifest.join(literal.value());
+            let path = manifest.join(literal.value.value());
+
+            // Missing query files are reported by SQLx and cannot be linted as documents.
             let Ok(path) = path.canonicalize() else {
                 return;
             };
+
+            // Unreadable query files provide no SQL text for downstream linting.
             let Ok(text) = fs::read_to_string(&path) else {
                 return;
             };
@@ -179,7 +295,9 @@ impl QueryExtractor {
                 origin: QueryOrigin::File { sql_path: path },
             });
         } else {
-            let text = literal.value();
+            let text = literal.value.value();
+
+            // Unmappable expansion spans cannot support source-aware diagnostics.
             let Some(origin) = Self::inline_origin(cx, call_site, &text) else {
                 return;
             };
@@ -191,25 +309,36 @@ impl QueryExtractor {
         }
     }
 
+    /// Observes one runtime query API supplied with statically recoverable SQL.
     fn observe_runtime_query(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
+        // Macro expansions are collected through their public macro call site.
         if expression.span.from_expansion() {
             return;
         }
-        let Some(call) = operation(cx, expression) else {
+
+        // Non-SQLx expressions carry no SQLx query document.
+        let Some(call) = expression.sqlx_operation(cx) else {
             return;
         };
         let api_kind = match call.name.as_str() {
             "query" | "query_as" | "query_as_with" | "query_scalar" | "query_scalar_with"
             | "query_with" => QueryApiKind::RuntimeQuery,
             "raw_sql" => QueryApiKind::RawSql,
+            // Other SQLx APIs do not introduce standalone query documents.
             _ => return,
         };
+
+        // Runtime query APIs require their SQL argument in the first position.
         let Some(argument) = call.arguments.first() else {
             return;
         };
-        let Some(text) = static_string(argument) else {
+
+        // Dynamic SQL cannot be represented as one complete document.
+        let Some(text) = argument.static_string() else {
             return;
         };
+
+        // Unmappable source spans cannot support source-aware diagnostics.
         let Some(origin) = Self::inline_origin(cx, argument.span, &text) else {
             return;
         };
@@ -220,67 +349,62 @@ impl QueryExtractor {
         });
     }
 
-    fn static_fragment(
-        cx: &LateContext<'_>,
-        expression: &Expr<'_>,
-    ) -> Option<(String, PathBuf, ByteRange, Vec<SourceSegment>)> {
-        let text = static_string(expression)?;
-        let QueryOrigin::Inline {
-            rust_path,
-            literal_span,
-            source_segments,
-        } = Self::inline_origin(cx, expression.span, &text)?
-        else {
-            return None;
-        };
-        Some((text, rust_path, literal_span, source_segments))
-    }
-
+    /// Starts tracking a QueryBuilder initialized from a static string.
     fn observe_builder_binding(&mut self, cx: &LateContext<'_>, statement: &Stmt<'_>) {
+        // Only local declarations can introduce a trackable builder binding.
         let StmtKind::Let(local) = statement.kind else {
             return;
         };
+
+        // Destructuring patterns do not provide one stable builder identity.
         let PatKind::Binding(_, binding, _, None) = local.pat.kind else {
             return;
         };
+
+        // Declarations without an initializer cannot construct a builder.
         let Some(initializer) = local.init else {
             return;
         };
-        let Some(call) = operation(cx, initializer) else {
+
+        // Non-SQLx initializers cannot construct SQLx QueryBuilder state.
+        let Some(call) = initializer.sqlx_operation(cx) else {
             return;
         };
+
+        // Only QueryBuilder construction starts a new static query document.
         if call.name != "new" {
             return;
         }
-        let Some((text, rust_path, literal_span, source_segments)) = call
+
+        // Dynamic or missing initial SQL cannot be represented as a static document.
+        let Some(document) = call
             .arguments
             .first()
             .and_then(|argument| Self::static_fragment(cx, argument))
         else {
             return;
         };
-        self.builders.insert(
-            binding,
-            BuilderDocument {
-                text,
-                rust_path,
-                literal_span,
-                source_segments,
-            },
-        );
+        self.builders.insert(binding, document);
     }
 
+    /// Updates or finalizes tracked QueryBuilder state for one SQLx operation.
     fn observe_builder_operation(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
-        let Some(call) = operation(cx, expression) else {
+        // Non-SQLx expressions cannot mutate QueryBuilder state.
+        let Some(call) = expression.sqlx_operation(cx) else {
             return;
         };
-        let Some(binding) = call.receiver.and_then(root_local) else {
+
+        // Temporary receivers have no stable builder identity across expressions.
+        let Some(binding) = call.receiver.and_then(|receiver| receiver.root_local()) else {
             return;
         };
+
+        // Build operations publish the complete tracked document.
         if matches!(
             call.name.as_str(),
             "build" | "build_query_as" | "build_query_scalar"
         ) {
+            // Builds on untracked or invalidated builders carry no complete static document.
             let Some(builder) = self.builders.get(&binding) else {
                 return;
             };
@@ -295,6 +419,8 @@ impl QueryExtractor {
             });
             return;
         }
+
+        // Shape-changing operations invalidate the accumulated static document.
         if matches!(
             call.name.as_str(),
             "push_bind" | "push_values" | "push_tuples" | "separated" | "reset"
@@ -302,9 +428,13 @@ impl QueryExtractor {
             self.builders.remove(&binding);
             return;
         }
+
+        // APIs other than static fragment pushes do not alter tracked text.
         if !matches!(call.name.as_str(), "push" | "push_unseparated") {
             return;
         }
+
+        // A dynamic fragment invalidates the builder's static document model.
         let Some(fragment) = call
             .arguments
             .first()
@@ -313,48 +443,53 @@ impl QueryExtractor {
             self.builders.remove(&binding);
             return;
         };
+
+        // Operations on builders that were never tracked require no state update.
         let Some(builder) = self.builders.get_mut(&binding) else {
             return;
         };
-        let (text, rust_path, _, mut source_segments) = fragment;
-        if rust_path != builder.rust_path {
+
+        // Fragments from another source file cannot share one inline origin.
+        if fragment.rust_path != builder.rust_path {
             self.builders.remove(&binding);
             return;
         }
+
+        // SQL segment offsets use the manifest protocol's 32-bit coordinate space.
         let Ok(sql_offset) = u32::try_from(builder.text.len()) else {
             self.builders.remove(&binding);
             return;
         };
+        let mut source_segments = fragment.source_segments;
         for segment in &mut source_segments {
+            // Overflow makes this segment impossible to represent in the manifest protocol.
             let Some(start) = segment.sql.start.checked_add(sql_offset) else {
                 self.builders.remove(&binding);
                 return;
             };
+
+            // Both ends must remain representable before retaining builder state.
             let Some(end) = segment.sql.end.checked_add(sql_offset) else {
                 self.builders.remove(&binding);
                 return;
             };
             segment.sql = ByteRange { start, end };
         }
-        builder.text.push_str(&text);
+        builder.text.push_str(&fragment.text);
         builder.source_segments.extend(source_segments);
     }
 
-    fn write_manifest(&self, cx: &LateContext<'_>) {
-        if self.documents.is_empty() {
-            return;
-        }
-        let crate_name = cx.tcx.crate_name(LOCAL_CRATE);
-        let crate_id = crate_name.to_string();
-        let manifest = QueryManifest {
+    /// Builds the protocol manifest for this crate's accumulated documents.
+    fn query_manifest(&self, cx: &LateContext<'_>, crate_id: &str) -> QueryManifest {
+        QueryManifest {
             version: QUERY_MANIFEST_VERSION,
-            crate_id: crate_id.clone(),
+            crate_id: crate_id.to_owned(),
             compilation: CompilationContext {
                 package_manifest: self
                     .package_manifest
                     .canonicalize()
                     .unwrap_or_else(|_| self.package_manifest.clone()),
-                crate_name: crate_id.clone(),
+                crate_name: crate_id.to_owned(),
                 has_denied_warnings: cx
                     .tcx
                     .sess
@@ -367,15 +502,36 @@ impl QueryExtractor {
             },
             workspace_root: self.workspace.clone(),
             documents: self.documents.values().cloned().collect(),
-        };
+        }
+    }
+
+    /// Writes this crate's collected queries through an atomic temporary file.
+    fn write_manifest(&self, cx: &LateContext<'_>) {
+        // Crates without query documents need no manifest artifact.
+        if self.documents.is_empty() {
+            return;
+        }
+        let crate_name = cx.tcx.crate_name(LOCAL_CRATE);
+        let crate_id = crate_name.to_string();
+        let manifest = self.query_manifest(cx, &crate_id);
+
+        // Serialization failures leave no valid manifest to publish.
         let Ok(contents) = serde_json::to_vec_pretty(&manifest) else {
             return;
         };
         let process = process_id();
         let final_path = self.output.join(format!("{crate_id}-{process}.json"));
         let temporary_path = self.output.join(format!(".{crate_id}-{process}.tmp"));
-        if fs::write(&temporary_path, contents).is_ok() {
-            let _result = fs::rename(temporary_path, final_path);
+
+        // Failed temporary writes must not replace an earlier complete manifest.
+        if fs::write(&temporary_path, contents).is_err() {
+            return;
+        }
+        match fs::rename(&temporary_path, final_path) {
+            Ok(()) => {}
+            Err(_rename_error) => {
+                // The companion command treats a missing final manifest as extraction failure.
+            }
         }
     }
 }
@@ -398,10 +554,23 @@ impl<'tcx> LateLintPass<'tcx> for QueryExtractor {
 
 rustc_session::impl_lint_pass!(QueryExtractor => []);
 
-/// Registers the query extractor only when the private runner supplies its environment.
-pub fn register(lint_store: &mut LintStore) {
-    if QueryExtractor::from_environment().is_some() {
-        lint_store.register_late_pass(dylint_linting::__make_late_closure!(
+// -----------------------------------------------------------------------------
+// SqlxExtractionLintStoreExt: Conditional extractor registration
+// -----------------------------------------------------------------------------
+
+/// Query-extraction registration behavior for the compiler lint store.
+pub trait SqlxExtractionLintStoreExt {
+    /// Registers extraction only when the private runner supplies its environment.
+    fn register_sqlx_extraction(&mut self);
+}
+
+impl SqlxExtractionLintStoreExt for LintStore {
+    fn register_sqlx_extraction(&mut self) {
+        // Ordinary compiler invocations do not opt into extraction.
+        let Some(_) = QueryExtractor::from_environment() else {
+            return;
+        };
+        self.register_late_pass(dylint_linting::__make_late_closure!(
             QueryExtractor::from_environment().expect("extractor environment remains set")
         ));
     }
