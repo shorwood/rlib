@@ -7,7 +7,13 @@
     dylint-src.flake = false;
   };
 
-  outputs = { nixpkgs, fenix, dylint-src, ... }:
+  outputs =
+    {
+      nixpkgs,
+      fenix,
+      dylint-src,
+      ...
+    }:
     let
       forAllSystems = nixpkgs.lib.genAttrs [
         "x86_64-linux"
@@ -15,7 +21,8 @@
         "x86_64-darwin"
         "aarch64-darwin"
       ];
-      componentsFor = system:
+      componentsFor =
+        system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
 
@@ -44,55 +51,78 @@
           };
           sqlfluff = pkgs.sqlfluff.overridePythonAttrs (_old: rec {
             version = "4.3.0";
-            src = pkgs.fetchPypi {
-              pname = "sqlfluff";
-              inherit version;
-              hash = "sha256-qmR7NyERLxrKWB7+jqqBWjMq4hRhCglGWS+YoZ7x6Ms=";
+            # The PyPI sdist omits fixtures and plugin tests used by nixpkgs.
+            # Build the complete release source with the inherited checks intact.
+            src = pkgs.fetchFromGitHub {
+              owner = "sqlfluff";
+              repo = "sqlfluff";
+              tag = version;
+              hash = "sha256:0m5y9385sb6k6pn72jf728ixcqx9abcmnl0hb5zfmcl3095lgz6r";
             };
           });
         in
-          {
-            inherit pkgs rust rustPlatform dylintTools dylintDriver sqlfluff;
-          };
-      rlibPackageFor = system:
+        {
+          inherit
+            pkgs
+            rust
+            rustPlatform
+            dylintTools
+            dylintDriver
+            sqlfluff
+            ;
+        };
+      rlibPackageFor =
+        system:
         let
           components = componentsFor system;
         in
-          components.pkgs.callPackage ./nix/rlib.nix {
-            inherit (components) rustPlatform dylintDriver sqlfluff;
-            rustToolchain = components.rust.toolchain;
-            toolchainLabel = components.rust.toolchainLabel;
-          };
-      devEnvironmentFor = system:
+        components.pkgs.callPackage ./nix/rlib.nix {
+          inherit (components)
+            rustPlatform
+            dylintDriver
+            dylintTools
+            sqlfluff
+            ;
+          rustToolchain = components.rust.toolchain;
+          toolchainLabel = components.rust.toolchainLabel;
+        };
+      devEnvironmentFor =
+        system:
         let
           components = componentsFor system;
-          inherit (components) pkgs rust dylintTools dylintDriver;
+          inherit (components)
+            pkgs
+            rust
+            dylintTools
+            dylintDriver
+            ;
           rlib = rlibPackageFor system;
         in
-          pkgs.mkShell {
-            packages = [
-              rust.toolchain
-              dylintTools
-              rlib
-              pkgs.just
-              pkgs.openssl
-              pkgs.pkg-config
-              pkgs.stdenv.cc
-            ];
+        pkgs.mkShell {
+          packages = [
+            rust.toolchain
+            dylintTools
+            rlib
+            pkgs.just
+            pkgs.openssl
+            pkgs.pkg-config
+            pkgs.stdenv.cc
+          ];
 
-            # Pin compiler discovery as well as PATH lookup. This prevents
-            # Cargo, Clippy, rust-analyzer, or rustdoc from silently falling
-            # back to a compiler installed on the host.
-            RUSTC = "${rust.toolchain}/bin/rustc";
-            RUSTDOC = "${rust.toolchain}/bin/rustdoc";
+          # Pin compiler discovery as well as PATH lookup. This prevents
+          # Cargo, Clippy, rust-analyzer, or rustdoc from silently falling
+          # back to a compiler installed on the host.
+          RUSTC = "${rust.toolchain}/bin/rustc";
+          RUSTDOC = "${rust.toolchain}/bin/rustdoc";
 
-            # Dylint uses a rustup-style name as a compatibility key when it
-            # chooses a compiler driver. The value does not invoke rustup; the
-            # driver itself comes from the Nix path below.
-            RUSTUP_TOOLCHAIN = rust.toolchainLabel;
-            DYLINT_DRIVER_PATH = "${dylintDriver}";
-          };
-    in {
+          # Dylint uses a rustup-style name as a compatibility key when it
+          # chooses a compiler driver. The value does not invoke rustup; the
+          # driver itself comes from the Nix path below.
+          RUSTUP_TOOLCHAIN = rust.toolchainLabel;
+          DYLINT_DRIVER_PATH = "${dylintDriver}";
+        };
+    in
+    {
       packages = forAllSystems (system: {
         default = rlibPackageFor system;
         rlib = rlibPackageFor system;

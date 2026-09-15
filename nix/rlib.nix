@@ -1,10 +1,13 @@
 {
   lib,
   makeWrapper,
+  openssl,
+  pkg-config,
   rustPlatform,
   rustToolchain,
   toolchainLabel,
   dylintDriver,
+  dylintTools,
   sqlfluff,
   stdenv,
 }:
@@ -22,17 +25,45 @@ rustPlatform.buildRustPackage {
     "rlib-lint"
     "--all-features"
   ];
-  cargoTestFlags = [
-    "--workspace"
-    "--lib"
-    "--tests"
-    "--all-features"
-  ];
 
-  nativeBuildInputs = [ makeWrapper ];
+  nativeBuildInputs = [
+    makeWrapper
+    pkg-config
+    dylintTools
+  ];
+  buildInputs = [ openssl ];
+  RUSTC = "${rustToolchain}/bin/rustc";
+  RUSTDOC = "${rustToolchain}/bin/rustdoc";
+  RUSTUP_TOOLCHAIN = toolchainLabel;
+
+  # Dylint distinguishes registry crates from its source checkout by checking
+  # whether their manifest lives under CARGO_HOME. Keep Nix's vendored crates
+  # there so it uses the separately packaged driver instead of ../driver.
+  postPatch = ''
+    : "''${CARGO_HOME:=$NIX_BUILD_TOP/cargo-home}"
+    export CARGO_HOME
+    mkdir -p "$CARGO_HOME"
+    mv "$cargoDepsCopy" "$CARGO_HOME/vendor"
+    substituteInPlace "$NIX_BUILD_TOP/.cargo/config.toml" \
+      --replace-fail 'directory = "cargo-vendor-dir"' "directory = \"$CARGO_HOME/vendor\""
+    export cargoDepsCopy="$CARGO_HOME/vendor"
+  '';
   preCheck = ''
-    export RUSTUP_TOOLCHAIN="${toolchainLabel}"
+    # Dylint recovers compiler flags from Cargo's verbose rustc invocation;
+    # the cargo-auditable wrapper obscures that invocation during UI tests.
+    export PATH="${rustToolchain}/bin:$PATH"
     export DYLINT_DRIVER_PATH="${dylintDriver}"
+  '';
+
+  # Dylint's UI harness builds and loads native libraries from target/debug.
+  # The standard hook exports CARGO_BUILD_TARGET to nested Cargo processes,
+  # which moves those libraries into target/<triple>/debug instead.
+  checkPhase = ''
+    runHook preCheck
+    cargo test --offline -j "$NIX_BUILD_CORES" --release \
+      --target ${stdenv.hostPlatform.rust.rustcTarget} \
+      --workspace --lib --tests --all-features
+    runHook postCheck
   '';
 
   installPhase =
@@ -44,9 +75,9 @@ rustPlatform.buildRustPackage {
     ''
       runHook preInstall
       mkdir -p "$out/bin" "$out/lib/rlib" "$out/libexec/rlib"
-      install -m755 "target/release/cargo-rlib" \
+      install -m755 "target/${stdenv.hostPlatform.rust.rustcTarget}/release/cargo-rlib" \
         "$out/libexec/rlib/cargo-rlib"
-      install -m755 "target/release/librlib_lint.${extension}" \
+      install -m755 "target/${stdenv.hostPlatform.rust.rustcTarget}/release/librlib_lint.${extension}" \
         "$out/lib/rlib/${libraryName}"
       makeWrapper "$out/libexec/rlib/cargo-rlib" "$out/bin/cargo-rlib" \
         --prefix PATH : "${rustToolchain}/bin" \
