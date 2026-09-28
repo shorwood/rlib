@@ -425,7 +425,7 @@ impl SerdeCase {
         }
     }
 
-    /// Converts a snake-case Rust field identifier to Serde's PascalCase spelling.
+    /// Converts a snake-case Rust field identifier to Serde's `PascalCase` spelling.
     fn pascal_field(field: &str) -> String {
         let mut pascal = String::new();
         let mut capitalize = true;

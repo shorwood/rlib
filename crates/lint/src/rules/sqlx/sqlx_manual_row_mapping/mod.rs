@@ -20,7 +20,7 @@ const MINIMUM_MAPPED_FIELDS: usize = 2;
 // Violation: Manual row mapping
 // -----------------------------------------------------------------------------
 
-/// One struct literal populated through repetitive access to the same SQLx row.
+/// One struct literal populated through repetitive access to the same `SQLx` row.
 struct Violation {
     /// HIR owner receiving the lint.
     owner: rustc_hir::HirId,
@@ -63,7 +63,7 @@ impl LateViolation for Violation {
 // SqlxManualRowMapping: Lint pass
 // -----------------------------------------------------------------------------
 
-/// Detects mechanical multi-field struct construction from one SQLx row.
+/// Detects mechanical multi-field struct construction from one `SQLx` row.
 struct SqlxManualRowMapping;
 
 impl<'tcx> LateLintPass<'tcx> for SqlxManualRowMapping {
@@ -110,9 +110,9 @@ impl<'tcx> LateLintPass<'tcx> for SqlxManualRowMapping {
 // RowAccessor: Field-local row lookup
 // -----------------------------------------------------------------------------
 
-/// Finds the first SQLx Row accessor used inside one field expression.
+/// Finds the first `SQLx` Row accessor used inside one field expression.
 struct RowAccessor<'cx, 'tcx> {
-    /// Compiler context used to resolve SQLx operations.
+    /// Compiler context used to resolve `SQLx` operations.
     cx: &'cx LateContext<'tcx>,
     /// Local row binding found in the field expression.
     row: Option<HirId>,
@@ -128,7 +128,9 @@ impl<'tcx> Visitor<'tcx> for RowAccessor<'_, 'tcx> {
         // A resolved Row accessor completes the field-local search.
         if let Some(call) = expression.sqlx_operation(self.cx)
             && matches!(call.name.as_str(), "get" | "try_get")
-            && let Some(receiver) = call.receiver.and_then(|receiver| receiver.local_binding())
+            && let Some(receiver) = call
+                .receiver
+                .and_then(super::utils::SqlxExprExt::local_binding)
         {
             self.row = Some(receiver);
             return;

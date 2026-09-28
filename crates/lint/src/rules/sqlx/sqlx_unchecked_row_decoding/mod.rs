@@ -64,7 +64,7 @@ impl LateViolation for Violation {
 // SqlxUncheckedRowDecoding: Lint pass
 // -----------------------------------------------------------------------------
 
-/// Detects unchecked decoding through SQLx's Row trait.
+/// Detects unchecked decoding through `SQLx`'s Row trait.
 struct SqlxUncheckedRowDecoding;
 
 crate::impl_late_lint! {

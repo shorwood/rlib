@@ -265,7 +265,7 @@ struct ActiveDirectionView<'names, 'policy> {
 
 impl<'names, 'policy> ActiveDirectionView<'names, 'policy> {
     /// Resolves paired names and policies for one participating direction.
-    fn resolve(
+    const fn resolve(
         active: SerdeDirection,
         serialize: Option<&'names str>,
         deserialize: Option<&'names str>,
@@ -705,7 +705,7 @@ impl SerdeNoncanonicalRenamePolicies {
         &mut self,
         cx: &LateContext<'_>,
         group: &Group<'_>,
-        removal: Removal,
+        removal: &Removal,
     ) {
         let suggestion = group
             .span
@@ -766,7 +766,7 @@ impl SerdeNoncanonicalRenamePolicies {
                 self.push_symmetric_removal(
                     cx,
                     group,
-                    Removal {
+                    &Removal {
                         expected: format!("#[serde(rename=\"{rename}\")]"),
                         detail,
                         remediation: "remove the redundant member rename",
@@ -808,19 +808,22 @@ impl SerdeNoncanonicalRenamePolicies {
         } else {
             format!(" and keep overrides only for {}", exceptions.join(", "))
         };
-        let remediation = if let Some(direction) = direction {
-            format!(
-                "declare `{} = \"{}\"` for {}{exception_text}",
-                group.scope,
-                policy.name,
-                direction.label()
-            )
-        } else {
-            format!(
-                "declare nondirectional `{} = \"{}\"`{exception_text}",
-                group.scope, policy.name
-            )
-        };
+        let remediation = direction.map_or_else(
+            || {
+                format!(
+                    "declare nondirectional `{} = \"{}\"`{exception_text}",
+                    group.scope, policy.name
+                )
+            },
+            |direction| {
+                format!(
+                    "declare `{} = \"{}\"` for {}{exception_text}",
+                    group.scope,
+                    policy.name,
+                    direction.label()
+                )
+            },
+        );
         self.candidates.push(Candidate {
             definition: group.definition,
             owner: group.owner,
@@ -893,7 +896,7 @@ impl SerdeNoncanonicalRenamePolicies {
             };
             if symmetric {
                 if Self::is_primary_participating_direction(member, direction) {
-                    self.push_symmetric_removal(cx, group, removal);
+                    self.push_symmetric_removal(cx, group, &removal);
                 }
                 continue;
             }
@@ -933,85 +936,100 @@ impl SerdeNoncanonicalRenamePolicies {
         }
     }
 
+    /// Records one policy shared by identical serialization and deserialization members.
+    fn has_recorded_symmetric_factoring(&mut self, group: &Group<'_>) -> bool {
+        // Inherited direction policies must be analyzed independently.
+        if group.inherited != [None, None] {
+            return false;
+        }
+
+        let serialize = group
+            .members
+            .iter()
+            .filter(|member| Self::is_participating(member, SerdeDirection::Serialize))
+            .collect::<Vec<_>>();
+        let deserialize = group
+            .members
+            .iter()
+            .filter(|member| Self::is_participating(member, SerdeDirection::Deserialize))
+            .collect::<Vec<_>>();
+
+        let same_members = serialize
+            .iter()
+            .map(|member| member.name.as_str())
+            .eq(deserialize.iter().map(|member| member.name.as_str()));
+
+        // Different member sets cannot share one nondirectional policy.
+        if !same_members {
+            return false;
+        }
+
+        let serialize_effective = serialize
+            .iter()
+            .map(|member| {
+                Self::explicit_name(member, SerdeDirection::Serialize)
+                    .map_or_else(|| member.inherited_name(None), str::to_owned)
+            })
+            .collect::<Vec<_>>();
+
+        let deserialize_effective = deserialize
+            .iter()
+            .map(|member| {
+                Self::explicit_name(member, SerdeDirection::Deserialize)
+                    .map_or_else(|| member.inherited_name(None), str::to_owned)
+            })
+            .collect::<Vec<_>>();
+
+        let serialize_authored = serialize
+            .iter()
+            .filter(|member| Self::explicit_name(member, SerdeDirection::Serialize).is_some())
+            .count();
+        let deserialize_authored = deserialize
+            .iter()
+            .filter(|member| Self::explicit_name(member, SerdeDirection::Deserialize).is_some())
+            .count();
+
+        // Directional behavior or authoring cost requires separate analysis.
+        if serialize_effective != deserialize_effective
+            || serialize_authored != deserialize_authored
+        {
+            return false;
+        }
+
+        // Groups without a cheaper unambiguous policy remain explicitly authored.
+        let Some(policy) =
+            Self::factoring_policy(&serialize, &serialize_effective, serialize_authored)
+        else {
+            return false;
+        };
+
+        self.push_factoring(
+            group,
+            &serialize,
+            serialize_authored,
+            &policy,
+            Activation::Both,
+            None,
+        );
+
+        for direction in [SerdeDirection::Serialize, SerdeDirection::Deserialize] {
+            self.push_factoring(
+                group,
+                &serialize,
+                serialize_authored,
+                &policy,
+                Activation::Only(direction),
+                Some(direction),
+            );
+        }
+
+        true
+    }
+
     /// Runs direction-aware rename analysis for one member group.
     fn record_group(&mut self, cx: &LateContext<'_>, group: &Group<'_>) {
         self.record_member_directional_names(cx, group);
-        let mut combined_factoring = false;
-        if group.inherited == [None, None] {
-            let serialize = group
-                .members
-                .iter()
-                .filter(|member| Self::is_participating(member, SerdeDirection::Serialize))
-                .collect::<Vec<_>>();
-            let deserialize = group
-                .members
-                .iter()
-                .filter(|member| Self::is_participating(member, SerdeDirection::Deserialize))
-                .collect::<Vec<_>>();
-            let same_members = serialize
-                .iter()
-                .map(|member| member.name.as_str())
-                .eq(deserialize.iter().map(|member| member.name.as_str()));
-            if same_members {
-                let serialize_effective = serialize
-                    .iter()
-                    .map(|member| {
-                        Self::explicit_name(member, SerdeDirection::Serialize)
-                            .map_or_else(|| member.inherited_name(None), str::to_owned)
-                    })
-                    .collect::<Vec<_>>();
-                let deserialize_effective = deserialize
-                    .iter()
-                    .map(|member| {
-                        Self::explicit_name(member, SerdeDirection::Deserialize)
-                            .map_or_else(|| member.inherited_name(None), str::to_owned)
-                    })
-                    .collect::<Vec<_>>();
-                let serialize_authored = serialize
-                    .iter()
-                    .filter(|member| {
-                        Self::explicit_name(member, SerdeDirection::Serialize).is_some()
-                    })
-                    .count();
-                let deserialize_authored = deserialize
-                    .iter()
-                    .filter(|member| {
-                        Self::explicit_name(member, SerdeDirection::Deserialize).is_some()
-                    })
-                    .count();
-                if serialize_effective == deserialize_effective
-                    && serialize_authored == deserialize_authored
-                    && let Some(policy) =
-                        Self::factoring_policy(&serialize, &serialize_effective, serialize_authored)
-                {
-                    self.push_factoring(
-                        group,
-                        &serialize,
-                        serialize_authored,
-                        &policy,
-                        Activation::Both,
-                        None,
-                    );
-                    self.push_factoring(
-                        group,
-                        &serialize,
-                        serialize_authored,
-                        &policy,
-                        Activation::Only(SerdeDirection::Serialize),
-                        Some(SerdeDirection::Serialize),
-                    );
-                    self.push_factoring(
-                        group,
-                        &serialize,
-                        serialize_authored,
-                        &policy,
-                        Activation::Only(SerdeDirection::Deserialize),
-                        Some(SerdeDirection::Deserialize),
-                    );
-                    combined_factoring = true;
-                }
-            }
-        }
+        let combined_factoring = self.has_recorded_symmetric_factoring(group);
         for (direction, inherited) in [SerdeDirection::Serialize, SerdeDirection::Deserialize]
             .into_iter()
             .zip(group.inherited)

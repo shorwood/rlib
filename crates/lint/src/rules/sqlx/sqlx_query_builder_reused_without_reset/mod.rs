@@ -18,7 +18,7 @@ use crate::utils::diagnostic::LateViolation;
 // ReuseKind: Invalid post-build operation
 // -----------------------------------------------------------------------------
 
-/// Operation attempted after QueryBuilder entered its built state.
+/// Operation attempted after `QueryBuilder` entered its built state.
 enum ReuseKind {
     /// A second built query was requested.
     Build,
@@ -30,7 +30,7 @@ enum ReuseKind {
 // Violation: QueryBuilder reuse without reset
 // -----------------------------------------------------------------------------
 
-/// One invalid operation on a QueryBuilder that has already been built.
+/// One invalid operation on a `QueryBuilder` that has already been built.
 struct Violation {
     /// HIR owner receiving the lint.
     owner: rustc_hir::HirId,
@@ -76,7 +76,7 @@ impl LateViolation for Violation {
 // SqlxQueryBuilderReusedWithoutReset: Lint pass
 // -----------------------------------------------------------------------------
 
-/// Tracks built QueryBuilder bindings until an explicit reset.
+/// Tracks built `QueryBuilder` bindings until an explicit reset.
 #[derive(Default)]
 struct SqlxQueryBuilderReusedWithoutReset {
     /// Function body owning the currently tracked bindings.

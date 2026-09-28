@@ -59,7 +59,7 @@ impl LateViolation for Violation {
 // SqlxQueriesInLoops: Lint pass
 // -----------------------------------------------------------------------------
 
-/// Tracks loop nesting and detects SQLx executor calls within it.
+/// Tracks loop nesting and detects `SQLx` executor calls within it.
 #[derive(Default)]
 struct SqlxQueriesInLoops {
     /// Number of loop expressions containing the current expression.

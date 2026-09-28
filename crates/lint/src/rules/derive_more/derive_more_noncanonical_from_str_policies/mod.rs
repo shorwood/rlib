@@ -30,7 +30,7 @@ struct FromStrAttributes {
 }
 
 impl FromStrAttributes {
-    /// Reads parser naming policy from derive_more attributes.
+    /// Reads parser naming policy from `derive_more` attributes.
     fn from_attributes(attributes: &[syn::Attribute]) -> Self {
         let mut output = Self::default();
         for attribute in attributes
@@ -68,7 +68,7 @@ struct VariantSource {
 // Pending: Deferred enum analysis
 // -----------------------------------------------------------------------------
 
-/// Unit enum retained until derive_more's generated implementation is known.
+/// Unit enum retained until `derive_more`'s generated implementation is known.
 struct Pending {
     /// Local definition used to query generated derive contracts.
     definition: LocalDefId,
@@ -183,7 +183,7 @@ impl LateViolation for Violation {
 /// Collects unit enums and compares their parser spellings with container policies.
 #[derive(Default)]
 struct DeriveMoreNoncanonicalFromStrPolicies {
-    /// Generated derive_more contracts indexed by source definition.
+    /// Generated `derive_more` contracts indexed by source definition.
     catalog: DeriveMoreContractCatalog,
     /// Authored enums awaiting generated-contract confirmation.
     pending: Vec<Pending>,

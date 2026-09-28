@@ -16,7 +16,7 @@ use crate::utils::diagnostic::LateViolation;
 // Violation: Panicking row access
 // -----------------------------------------------------------------------------
 
-/// One SQLx row accessor that converts data drift into a panic.
+/// One `SQLx` row accessor that converts data drift into a panic.
 struct Violation {
     /// HIR owner receiving the lint.
     owner: rustc_hir::HirId,
@@ -64,7 +64,7 @@ impl LateViolation for Violation {
 // SqlxPanickingRowAccess: Lint pass
 // -----------------------------------------------------------------------------
 
-/// Detects panicking access through SQLx's Row trait.
+/// Detects panicking access through `SQLx`'s Row trait.
 struct SqlxPanickingRowAccess;
 
 crate::impl_late_lint! {

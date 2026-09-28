@@ -16,7 +16,7 @@ use crate::utils::diagnostic::LateViolation;
 // Violation: Unstructured builder fragment
 // -----------------------------------------------------------------------------
 
-/// One primitive runtime value appended directly to QueryBuilder SQL text.
+/// One primitive runtime value appended directly to `QueryBuilder` SQL text.
 struct Violation {
     /// HIR owner receiving the lint.
     owner: rustc_hir::HirId,
@@ -59,7 +59,7 @@ impl LateViolation for Violation {
 // SqlxUnstructuredQueryBuilderFragments: Lint pass
 // -----------------------------------------------------------------------------
 
-/// Detects unstructured runtime fragments passed to QueryBuilder push operations.
+/// Detects unstructured runtime fragments passed to `QueryBuilder` push operations.
 struct SqlxUnstructuredQueryBuilderFragments;
 
 crate::impl_late_lint! {
@@ -71,7 +71,7 @@ crate::impl_late_lint! {
 }
 
 impl SqlxUnstructuredQueryBuilderFragments {
-    /// Unwraps AssertSqlSafe so the underlying fragment representation can be classified.
+    /// Unwraps `AssertSqlSafe` so the underlying fragment representation can be classified.
     fn underlying_fragment<'hir>(
         cx: &LateContext<'_>,
         fragment: &'hir Expr<'hir>,

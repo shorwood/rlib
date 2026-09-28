@@ -16,7 +16,7 @@ use crate::utils::diagnostic::LateViolation;
 // Violation: Runtime checking of static SQL
 // -----------------------------------------------------------------------------
 
-/// One static query passed through a runtime-checked SQLx API.
+/// One static query passed through a runtime-checked `SQLx` API.
 struct Violation {
     /// HIR owner receiving the lint.
     owner: rustc_hir::HirId,
@@ -59,7 +59,7 @@ impl LateViolation for Violation {
 // SqlxStaticQueriesWithoutCompileTimeChecks: Lint pass
 // -----------------------------------------------------------------------------
 
-/// Detects static prepared queries that could use SQLx's checked macros.
+/// Detects static prepared queries that could use `SQLx`'s checked macros.
 struct SqlxStaticQueriesWithoutCompileTimeChecks;
 
 crate::impl_late_lint! {
@@ -71,7 +71,7 @@ crate::impl_late_lint! {
 }
 
 impl SqlxStaticQueriesWithoutCompileTimeChecks {
-    /// Returns whether a SQLx operation is a runtime-checked API with complete static SQL.
+    /// Returns whether a `SQLx` operation is a runtime-checked API with complete static SQL.
     fn is_static_runtime_query(call: &SqlxOperation<'_>) -> bool {
         matches!(
             call.name.as_str(),
@@ -84,7 +84,7 @@ impl SqlxStaticQueriesWithoutCompileTimeChecks {
         ) && call
             .arguments
             .first()
-            .and_then(|argument| argument.static_string())
+            .and_then(super::utils::SqlxExprExt::static_string)
             .is_some()
     }
 }

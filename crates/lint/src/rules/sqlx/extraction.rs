@@ -27,7 +27,7 @@ use super::utils::{SqlxExprExt as _, SqlxMacroSpanExt as _};
 // MacroArguments: Parsed SQLx macro inputs
 // -----------------------------------------------------------------------------
 
-/// Comma-separated expressions accepted by the SQLx query macro family.
+/// Comma-separated expressions accepted by the `SQLx` query macro family.
 struct MacroArguments {
     /// Parsed arguments in authored order.
     values: Vec<SynExpr>,
@@ -63,7 +63,7 @@ struct SourceLocation {
 // MacroLiteral: Query macro source argument
 // -----------------------------------------------------------------------------
 
-/// Static query argument extracted from one SQLx macro invocation.
+/// Static query argument extracted from one `SQLx` macro invocation.
 struct MacroLiteral {
     /// Authored string literal.
     value: LitStr,
@@ -75,7 +75,7 @@ struct MacroLiteral {
 // BuilderDocument: Incrementally assembled query source
 // -----------------------------------------------------------------------------
 
-/// Static QueryBuilder content and its Rust-to-SQL source mapping.
+/// Static `QueryBuilder` content and its Rust-to-SQL source mapping.
 struct BuilderDocument {
     /// SQL text assembled so far.
     text: String,
@@ -101,7 +101,7 @@ struct QueryExtractor {
     package_manifest: PathBuf,
     /// Deduplicated documents keyed by origin and SQL text.
     documents: BTreeMap<String, QueryDocument>,
-    /// Static QueryBuilder state indexed by local binding.
+    /// Static `QueryBuilder` state indexed by local binding.
     builders: HashMap<HirId, BuilderDocument>,
 }
 
@@ -142,13 +142,17 @@ impl QueryExtractor {
             rust_path,
             literal_span,
         } = Self::source_location(cx, span)?;
-        let snippet = match cx.sess().source_map().span_to_snippet(span) {
-            Ok(snippet) => Some(snippet),
-            Err(_unavailable_source) => None,
+
+        // Missing source text preserves origin coordinates without segment precision.
+        let Ok(snippet) = cx.sess().source_map().span_to_snippet(span) else {
+            return Some(QueryOrigin::Inline {
+                rust_path,
+                literal_span,
+                source_segments: Vec::new(),
+            });
         };
         let source_segments = snippet
-            .as_deref()
-            .and_then(|snippet| snippet.find(sql))
+            .find(sql)
             .and_then(|relative| {
                 // Source coordinates outside the manifest range cannot be represented.
                 let Ok(relative) = u32::try_from(relative) else {
@@ -181,7 +185,7 @@ impl QueryExtractor {
         })
     }
 
-    /// Extracts the query literal and file mode from parsed SQLx macro tokens.
+    /// Extracts the query literal and file mode from parsed `SQLx` macro tokens.
     fn macro_literal(tokens: TokenStream, name: &str) -> Option<MacroLiteral> {
         // Invalid macro syntax is owned by rustc and SQLx.
         let Ok(parsed) = syn::parse2::<MacroArguments>(tokens) else {
@@ -243,7 +247,7 @@ impl QueryExtractor {
             .or_insert(document);
     }
 
-    /// Observes one checked or unchecked SQLx query macro expansion.
+    /// Observes one checked or unchecked `SQLx` query macro expansion.
     fn observe_macro(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
         // Expressions outside SQLx macro expansions carry no macro query document.
         let Some(macro_call) = expression.span.sqlx_macro(cx) else {
@@ -349,7 +353,7 @@ impl QueryExtractor {
         });
     }
 
-    /// Starts tracking a QueryBuilder initialized from a static string.
+    /// Starts tracking a `QueryBuilder` initialized from a static string.
     fn observe_builder_binding(&mut self, cx: &LateContext<'_>, statement: &Stmt<'_>) {
         // Only local declarations can introduce a trackable builder binding.
         let StmtKind::Let(local) = statement.kind else {
@@ -387,7 +391,7 @@ impl QueryExtractor {
         self.builders.insert(binding, document);
     }
 
-    /// Updates or finalizes tracked QueryBuilder state for one SQLx operation.
+    /// Updates or finalizes tracked `QueryBuilder` state for one `SQLx` operation.
     fn observe_builder_operation(&mut self, cx: &LateContext<'_>, expression: &Expr<'_>) {
         // Non-SQLx expressions cannot mutate QueryBuilder state.
         let Some(call) = expression.sqlx_operation(cx) else {
@@ -395,7 +399,10 @@ impl QueryExtractor {
         };
 
         // Temporary receivers have no stable builder identity across expressions.
-        let Some(binding) = call.receiver.and_then(|receiver| receiver.root_local()) else {
+        let Some(binding) = call
+            .receiver
+            .and_then(super::utils::SqlxExprExt::root_local)
+        else {
             return;
         };
 

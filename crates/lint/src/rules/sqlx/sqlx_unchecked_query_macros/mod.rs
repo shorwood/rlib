@@ -17,7 +17,7 @@ use crate::utils::diagnostic::LateViolation;
 // Violation: Unchecked query macro
 // -----------------------------------------------------------------------------
 
-/// One authored SQLx macro invocation that skips Rust type checking.
+/// One authored `SQLx` macro invocation that skips Rust type checking.
 struct Violation {
     /// HIR owner receiving the lint.
     owner: rustc_hir::HirId,

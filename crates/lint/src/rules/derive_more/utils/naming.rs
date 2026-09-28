@@ -4,7 +4,7 @@ use convert_case::{Case, Casing};
 // Cases: Derive-more naming policies
 // -----------------------------------------------------------------------------
 
-/// Naming policies accepted by derive_more's container attributes.
+/// Naming policies accepted by `derive_more`'s container attributes.
 pub const CASES: [&str; 8] = [
     "lowercase",
     "UPPERCASE",
@@ -20,7 +20,7 @@ pub const CASES: [&str; 8] = [
 // OptionalCaseExt: Applying an optional policy
 // -----------------------------------------------------------------------------
 
-/// Naming conversion behavior for an optional derive_more case policy.
+/// Naming conversion behavior for an optional `derive_more` case policy.
 pub trait OptionalCaseExt {
     /// Applies the configured policy to `value`, preserving it when no policy is recognized.
     fn apply_to(self, value: &str) -> String;

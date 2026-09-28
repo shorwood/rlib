@@ -20,7 +20,7 @@ use crate::utils::diagnostic::LateViolation;
 // Violation: Persistent dynamic query
 // -----------------------------------------------------------------------------
 
-/// One varying query shape left in SQLx's persistent statement cache.
+/// One varying query shape left in `SQLx`'s persistent statement cache.
 struct Violation {
     /// HIR owner receiving the lint.
     owner: rustc_hir::HirId,
@@ -126,7 +126,9 @@ impl LateLintPass<'_> for SqlxDynamicQueriesCachedPersistently {
 
         // Recording a varying builder completes this expression's classification.
         if matches!(call.name.as_str(), "push_values" | "push_tuples")
-            && let Some(binding) = call.receiver.and_then(|receiver| receiver.root_local())
+            && let Some(binding) = call
+                .receiver
+                .and_then(super::utils::SqlxExprExt::root_local)
         {
             self.varying_builders
                 .entry(owner)

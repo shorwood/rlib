@@ -79,9 +79,9 @@ impl<'hir> SqlxOperation<'hir> {
 // SqlxExprExt: SQLx-aware expression analysis
 // -----------------------------------------------------------------------------
 
-/// SQLx analysis operations attached to their Rust expression subject.
+/// `SQLx` analysis operations attached to their Rust expression subject.
 pub trait SqlxExprExt<'hir> {
-    /// Resolves this expression into a SQLx operation.
+    /// Resolves this expression into a `SQLx` operation.
     fn sqlx_operation(&'hir self, cx: &LateContext<'_>) -> Option<SqlxOperation<'hir>>;
 
     /// Resolves this expression to a local binding.
@@ -165,7 +165,7 @@ impl<'hir> SqlxExprExt<'hir> for Expr<'hir> {
 // SqlxMacro: Authored macro identity
 // -----------------------------------------------------------------------------
 
-/// Public SQLx macro name paired with its authored call site.
+/// Public `SQLx` macro name paired with its authored call site.
 pub struct SqlxMacroCall {
     /// Public macro name.
     pub name: String,
@@ -173,9 +173,9 @@ pub struct SqlxMacroCall {
     pub call_site: Span,
 }
 
-/// SQLx macro lookup behavior attached to the expansion span being inspected.
+/// `SQLx` macro lookup behavior attached to the expansion span being inspected.
 pub trait SqlxMacroSpanExt {
-    /// Finds the nearest SQLx macro expansion containing this span.
+    /// Finds the nearest `SQLx` macro expansion containing this span.
     fn sqlx_macro(self, cx: &LateContext<'_>) -> Option<SqlxMacroCall>;
 }
 

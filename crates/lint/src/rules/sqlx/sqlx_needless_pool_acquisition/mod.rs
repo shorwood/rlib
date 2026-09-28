@@ -60,16 +60,16 @@ impl LateViolation for Violation {
 // AcquireFinder: Pool acquisition lookup
 // -----------------------------------------------------------------------------
 
-/// Finds a SQLx Pool acquisition inside an initializer expression.
+/// Finds a `SQLx` Pool acquisition inside an initializer expression.
 struct AcquireFinder<'cx, 'tcx> {
-    /// Compiler context used to resolve SQLx calls and types.
+    /// Compiler context used to resolve `SQLx` calls and types.
     cx: &'cx LateContext<'tcx>,
     /// Whether a qualifying acquisition has been found.
     is_found: bool,
 }
 
 impl AcquireFinder<'_, '_> {
-    /// Returns whether an expression has SQLx's Pool type.
+    /// Returns whether an expression has `SQLx`'s Pool type.
     fn is_pool(&self, expression: &Expr<'_>) -> bool {
         let ty = self
             .cx
@@ -149,7 +149,7 @@ struct ConnectionUse {
 
 /// Tracks acquired connections and classifies their uses within one function body.
 struct PoolAnalysis<'cx, 'tcx> {
-    /// Compiler context used to resolve SQLx operations.
+    /// Compiler context used to resolve `SQLx` operations.
     cx: &'cx LateContext<'tcx>,
     /// Connection usage indexed by local binding.
     connections: HashMap<HirId, ConnectionUse>,
@@ -166,7 +166,7 @@ impl<'tcx> PoolAnalysis<'_, 'tcx> {
         finder.is_found
     }
 
-    /// Returns whether an expression contains a SQLx Pool acquisition.
+    /// Returns whether an expression contains a `SQLx` Pool acquisition.
     fn is_acquired_from_pool(&self, expression: &'tcx Expr<'tcx>) -> bool {
         let mut finder = AcquireFinder {
             cx: self.cx,

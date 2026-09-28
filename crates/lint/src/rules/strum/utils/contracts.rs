@@ -548,10 +548,9 @@ impl CaseStyle {
     /// Applies the selected conversion to an authored variant name.
     fn apply(value: &str, style: Option<Self>) -> String {
         match style {
-            Some(Self::Camel) => value.to_lower_camel_case(),
+            Some(Self::Camel | Self::Mixed) => value.to_lower_camel_case(),
             Some(Self::Kebab) => value.to_kebab_case(),
             Some(Self::Lower) => value.to_lowercase(),
-            Some(Self::Mixed) => value.to_lower_camel_case(),
             Some(Self::Snake) => value.to_snake_case(),
             Some(Self::Pascal) => value.to_upper_camel_case(),
             Some(Self::ScreamingKebab) => value.to_shouty_kebab_case(),
@@ -565,7 +564,7 @@ impl CaseStyle {
 }
 
 /// Applies Strum's pinned case conversion for an authored `serialize_all` value.
-pub(crate) fn apply_case(value: &str, case: &str) -> String {
+pub fn apply_case(value: &str, case: &str) -> String {
     CaseStyle::apply(value, CaseStyle::from_name(case))
 }
 

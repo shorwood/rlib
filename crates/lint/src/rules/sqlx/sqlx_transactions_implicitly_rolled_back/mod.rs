@@ -59,9 +59,9 @@ impl LateViolation for Violation {
 // BeginFinder: Transaction creation lookup
 // -----------------------------------------------------------------------------
 
-/// Finds a SQLx transaction begin operation inside an initializer.
+/// Finds a `SQLx` transaction begin operation inside an initializer.
 struct BeginFinder<'cx, 'tcx> {
-    /// Compiler context used to resolve SQLx calls.
+    /// Compiler context used to resolve `SQLx` calls.
     cx: &'cx LateContext<'tcx>,
     /// Whether a begin operation has been found.
     is_found: bool,
@@ -94,14 +94,14 @@ impl<'tcx> Visitor<'tcx> for BeginFinder<'_, 'tcx> {
 
 /// Tracks transaction bindings until an explicit commit or rollback.
 struct TransactionAnalysis<'cx, 'tcx> {
-    /// Compiler context used to resolve SQLx operations.
+    /// Compiler context used to resolve `SQLx` operations.
     cx: &'cx LateContext<'tcx>,
     /// Live transaction bindings and their declaration spans.
     live: HashMap<HirId, Span>,
 }
 
 impl<'tcx> TransactionAnalysis<'_, 'tcx> {
-    /// Returns whether an initializer contains a SQLx begin operation.
+    /// Returns whether an initializer contains a `SQLx` begin operation.
     fn is_begin_transaction(&self, expression: &'tcx Expr<'tcx>) -> bool {
         let mut finder = BeginFinder {
             cx: self.cx,
@@ -127,7 +127,9 @@ impl<'tcx> Visitor<'tcx> for TransactionAnalysis<'_, 'tcx> {
     fn visit_expr(&mut self, expression: &'tcx Expr<'tcx>) {
         if let Some(call) = expression.sqlx_operation(self.cx)
             && matches!(call.name.as_str(), "commit" | "rollback")
-            && let Some(binding) = call.receiver.and_then(|receiver| receiver.root_local())
+            && let Some(binding) = call
+                .receiver
+                .and_then(super::utils::SqlxExprExt::root_local)
         {
             self.live.remove(&binding);
         }

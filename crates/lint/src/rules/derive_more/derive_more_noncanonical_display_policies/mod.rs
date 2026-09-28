@@ -86,7 +86,7 @@ struct VariantSource {
 // Pending: Deferred enum analysis
 // -----------------------------------------------------------------------------
 
-/// Enum source retained until derive_more's generated implementations are known.
+/// Enum source retained until `derive_more`'s generated implementations are known.
 struct Pending {
     /// Local definition used to query the derive contract catalog.
     definition: LocalDefId,
@@ -202,7 +202,7 @@ impl LateViolation for Violation {
 /// Collects authored enums and compares their Display names with container policies.
 #[derive(Default)]
 struct DeriveMoreNoncanonicalDisplayPolicies {
-    /// Generated derive_more contracts indexed by source definition.
+    /// Generated `derive_more` contracts indexed by source definition.
     catalog: DeriveMoreContractCatalog,
     /// Authored enums awaiting generated-contract confirmation.
     pending: Vec<Pending>,
