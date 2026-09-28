@@ -86,7 +86,7 @@
           rustToolchain = components.rust.toolchain;
           toolchainLabel = components.rust.toolchainLabel;
         };
-      devEnvironmentFor =
+      developmentEnvironmentFor =
         system:
         let
           components = componentsFor system;
@@ -96,13 +96,11 @@
             dylintTools
             dylintDriver
             ;
-          rlib = rlibPackageFor system;
         in
         pkgs.mkShell {
           packages = [
             rust.toolchain
             dylintTools
-            rlib
             pkgs.just
             pkgs.openssl
             pkgs.pkg-config
@@ -115,11 +113,31 @@
           RUSTC = "${rust.toolchain}/bin/rustc";
           RUSTDOC = "${rust.toolchain}/bin/rustdoc";
 
-          # Dylint uses a rustup-style name as a compatibility key when it
-          # chooses a compiler driver. The value does not invoke rustup; the
-          # driver itself comes from the Nix path below.
+          # rlib's own linker and UI harness use Dylint's rustup-shaped
+          # compatibility key. Nix still supplies both compiler and driver.
           RUSTUP_TOOLCHAIN = rust.toolchainLabel;
           DYLINT_DRIVER_PATH = "${dylintDriver}";
+        };
+      consumerEnvironmentFor =
+        system:
+        let
+          components = componentsFor system;
+          inherit (components) pkgs rust;
+        in
+        pkgs.mkShell {
+          packages = [
+            rust.toolchain
+            (rlibPackageFor system)
+          ];
+
+          # `inputsFrom` propagates shell hooks, unlike arbitrary environment
+          # attributes. Downstream shells therefore inherit the pinned
+          # compiler without leaking rlib's internal Dylint compatibility key.
+          shellHook = ''
+            export RUSTC="${rust.toolchain}/bin/rustc"
+            export RUSTDOC="${rust.toolchain}/bin/rustdoc"
+            unset RUSTUP_TOOLCHAIN DYLINT_DRIVER_PATH
+          '';
         };
     in
     {
@@ -131,10 +149,12 @@
         default = {
           type = "app";
           program = "${rlibPackageFor system}/bin/cargo-rlib";
+          meta.description = "Run the rlib lint suite";
         };
       });
       devShells = forAllSystems (system: {
-        default = devEnvironmentFor system;
+        default = developmentEnvironmentFor system;
+        consumer = consumerEnvironmentFor system;
       });
     };
 }
