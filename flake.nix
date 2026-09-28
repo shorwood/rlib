@@ -144,6 +144,7 @@
       packages = forAllSystems (system: {
         default = rlibPackageFor system;
         rlib = rlibPackageFor system;
+        rust-toolchain = (componentsFor system).rust.toolchain;
       });
       apps = forAllSystems (system: {
         default = {
