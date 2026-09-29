@@ -226,8 +226,14 @@ impl UndocumentedItems {
 
 impl<'tcx> LateLintPass<'tcx> for UndocumentedItems {
     fn check_item(&mut self, cx: &LateContext<'tcx>, item: &'tcx Item<'tcx>) {
-        // Nested declarations and executable test cases are outside this documentation policy.
-        if !Self::is_module_level(cx, item.hir_id()) || Self::is_test_case(cx, item) {
+        // Nested, generated, and executable test declarations are outside this policy. Inspect
+        // the complete item span because procedural macros may remap only the identifier span to
+        // an authored field, as Bon does for its private type-state markers.
+        if !Self::is_module_level(cx, item.hir_id())
+            || item.span.in_external_macro(cx.sess().source_map())
+            || item.span.is_build_generated(cx)
+            || Self::is_test_case(cx, item)
+        {
             return;
         }
 

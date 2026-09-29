@@ -59,4 +59,14 @@ mod internal {
     }
 }
 
+#[warn(rlib::undocumented_items)]
+mod documented_contract {
+    /// A documented contract whose Bon internals are not authored declarations.
+    #[derive(bon::Builder)]
+    struct DocumentedRequest {
+        /// Destination selected by the caller.
+        destination: String,
+    }
+}
+
 fn main() {}
