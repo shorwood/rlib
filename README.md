@@ -58,6 +58,12 @@ nix develop
 just ok
 ```
 
+## Releasing
+
+Stable releases use `vX.Y.Z` tags matching the workspace version. Run `just ok`
+and `nix flake check`, push `main`, wait for CI, then tag that commit and create
+the GitHub Release.
+
 ## License
 
 rlib is available under the [MIT License](LICENSE).
