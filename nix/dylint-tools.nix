@@ -2,6 +2,7 @@
   cmake,
   dylintSrc,
   lib,
+  makeWrapper,
   openssl,
   pkg-config,
   rustPlatform,
@@ -28,9 +29,14 @@ rustPlatform.buildRustPackage {
 
   # Dylint itself depends on native TLS and Git libraries. Supplying them here
   # keeps their discovery inside Nix instead of relying on the host system.
-  nativeBuildInputs = [ cmake pkg-config ];
+  nativeBuildInputs = [ cmake makeWrapper pkg-config ];
   buildInputs = [ openssl ];
-  LD_LIBRARY_PATH = lib.makeLibraryPath [ openssl ];
+
+  postFixup = ''
+    wrapProgram "$out/bin/cargo-dylint" \
+      --prefix LD_LIBRARY_PATH : "${lib.makeLibraryPath [ openssl ]}" \
+      --prefix DYLD_LIBRARY_PATH : "${lib.makeLibraryPath [ openssl ]}"
+  '';
 
   # This derivation packages upstream tools; it does not validate rlib. The
   # project's lint and UI tests remain ordinary Cargo tests in the dev shell.
