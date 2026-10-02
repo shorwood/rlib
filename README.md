@@ -8,11 +8,13 @@ See the [lint catalog](crates/lint/src/rules/README.md) for the available rules.
 
 ## Installation
 
-Nix is the supported installation method. From this checkout:
+Nix is the supported installation method. Install the 1.0.0 release directly from GitHub:
 
 ```console
-nix profile install .
+nix profile install github:shorwood/rlib/v1.0.0
 ```
+
+Use `.` instead of the GitHub reference when installing from a checkout.
 
 The package bundles the matching Rust toolchain, compiler driver, lint library, and SQLFluff
 backend.
@@ -55,3 +57,7 @@ cargo rlib sqlx init --dialect sqlite
 nix develop
 just ok
 ```
+
+## License
+
+rlib is available under the [MIT License](LICENSE).

@@ -14,7 +14,7 @@
 
 rustPlatform.buildRustPackage {
   pname = "rlib";
-  version = "0.1.0";
+  version = (builtins.fromTOML (builtins.readFile ../Cargo.toml)).workspace.package.version;
   src = lib.cleanSource ../.;
 
   cargoLock.lockFile = ../Cargo.lock;
@@ -92,6 +92,7 @@ rustPlatform.buildRustPackage {
 
   meta = {
     description = "Compiler-backed architectural lint suite for Rust";
+    license = lib.licenses.mit;
     mainProgram = "cargo-rlib";
     platforms = lib.platforms.unix;
   };

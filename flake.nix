@@ -1,4 +1,6 @@
 {
+  description = "Compiler-backed architectural lint suite for Rust";
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     fenix.url = "github:nix-community/fenix";
@@ -9,6 +11,7 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       fenix,
       dylint-src,
@@ -145,6 +148,9 @@
         default = rlibPackageFor system;
         rlib = rlibPackageFor system;
         rust-toolchain = (componentsFor system).rust.toolchain;
+      });
+      checks = forAllSystems (system: {
+        package = self.packages.${system}.rlib;
       });
       apps = forAllSystems (system: {
         default = {
